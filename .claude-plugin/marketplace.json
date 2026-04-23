@@ -1,27 +1,29 @@
 {
-  "name": "karpathy-skills",
-  "id": "karpathy-skills",
+  "name": "the-ultimate-workflow-guidelines",
+  "id": "the-ultimate-workflow-guidelines",
   "owner": {
-    "name": "forrestchang"
+    "name": "ValeroK"
   },
   "metadata": {
-    "description": "Behavioral guidelines to reduce common LLM coding mistakes, derived from Andrej Karpathy's observations",
-    "version": "1.0.0"
+    "description": "Two skills for Claude Code: a plan-first/test-first workflow for existing projects, and a PRD-first bootstrap flow for new projects. Behavioral principles derived from Andrej Karpathy's observations.",
+    "version": "2.0.0"
   },
   "plugins": [
     {
-      "name": "andrej-karpathy-skills",
+      "name": "the-ultimate-workflow-guidelines",
       "source": "./",
-      "description": "Behavioral guidelines to reduce common LLM coding mistakes: Think Before Coding, Simplicity First, Surgical Changes, Goal-Driven Execution",
-      "version": "1.0.0",
+      "description": "Plan-first, test-first workflow plus behavioral principles (Think Before Coding, Simplicity First, Surgical Changes, Goal-Driven Execution), plus a separate project-bootstrap-guidelines skill for greenfield work.",
+      "version": "2.0.0",
       "author": {
-        "name": "forrestchang"
+        "name": "ValeroK"
       },
       "keywords": [
         "guidelines",
         "best-practices",
         "coding",
-        "karpathy"
+        "workflow",
+        "bootstrap",
+        "prd"
       ],
       "category": "workflow"
     }

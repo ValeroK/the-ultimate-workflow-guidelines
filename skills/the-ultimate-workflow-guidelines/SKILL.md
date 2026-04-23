@@ -1,6 +1,12 @@
-# CLAUDE.md
+---
+name: the-ultimate-workflow-guidelines
+description: Plan-first, test-first workflow plus behavioral guidelines (think before coding, simplicity, surgical changes, goal-driven execution) for working inside an existing codebase. Plans must respect existing design; deviations require pros/cons for the user. Use when writing, reviewing, or refactoring non-trivial code.
+license: MIT
+---
 
-Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
+# The Ultimate Workflow Guidelines
+
+Behavioral guidelines plus a confirmed-at-each-step workflow, derived from [Andrej Karpathy's observations](https://x.com/karpathy/status/2015883857489522876) on LLM coding pitfalls.
 
 **Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
 
@@ -100,7 +106,3 @@ Use judgment. Skip for:
 - Trivial renames or moves with no behavioral change
 
 When in doubt, err toward the workflow.
-
----
-
-**These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.

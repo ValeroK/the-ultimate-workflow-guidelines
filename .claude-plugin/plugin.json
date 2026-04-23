@@ -1,11 +1,14 @@
 {
-  "name": "andrej-karpathy-skills",
-  "description": "Behavioral guidelines to reduce common LLM coding mistakes, derived from Andrej Karpathy's observations on LLM coding pitfalls",
-  "version": "1.0.0",
+  "name": "the-ultimate-workflow-guidelines",
+  "description": "Two skills: the-ultimate-workflow-guidelines (plan-first, test-first workflow plus behavioral principles derived from Andrej Karpathy's observations) and project-bootstrap-guidelines (PRD-first bootstrap for new projects).",
+  "version": "2.0.0",
   "author": {
-    "name": "forrestchang"
+    "name": "ValeroK"
   },
   "license": "MIT",
-  "keywords": ["guidelines", "best-practices", "coding", "karpathy"],
-  "skills": ["./skills/karpathy-guidelines"]
+  "keywords": ["guidelines", "best-practices", "coding", "workflow", "bootstrap", "prd"],
+  "skills": [
+    "./skills/the-ultimate-workflow-guidelines",
+    "./skills/project-bootstrap-guidelines"
+  ]
 }

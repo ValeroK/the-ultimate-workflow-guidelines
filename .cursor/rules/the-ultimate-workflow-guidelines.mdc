@@ -1,6 +1,11 @@
-# CLAUDE.md
+---
+description: Plan-first, test-first workflow plus behavioral guidelines (think before coding, simplicity, surgical changes, goal-driven execution) for working inside an existing codebase. Plans must respect existing design; deviations require pros/cons for the user. Use when writing, reviewing, or refactoring non-trivial code.
+alwaysApply: true
+---
 
-Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
+# The Ultimate Workflow Guidelines
+
+Behavioral guidelines plus a confirmed-at-each-step workflow. Merge with project-specific instructions as needed.
 
 **Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
 

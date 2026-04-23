@@ -1,12 +1,10 @@
-# Karpathy-Inspired Claude Code Guidelines
+# Karpathy-Inspired: The Ultimate Workflow Guidelines
 
 > Check out my new project [Multica](https://github.com/multica-ai/multica) — an open-source platform for running and managing coding agents with reusable skills.
 >
 > Follow me on X: [https://x.com/jiayuan_jy](https://x.com/jiayuan_jy)
 
-A single `CLAUDE.md` file to improve Claude Code behavior, derived from [Andrej Karpathy's observations](https://x.com/karpathy/status/2015883857489522876) on LLM coding pitfalls.
-
-English | [简体中文](./README.zh.md)
+Two complementary skills plus a drop-in `CLAUDE.md` to improve Claude Code and Cursor behavior. The behavioral principles are derived from [Andrej Karpathy's observations](https://x.com/karpathy/status/2015883857489522876) on LLM coding pitfalls; the workflow and bootstrap procedures are layered on top.
 
 ## The Problems
 
@@ -18,9 +16,14 @@ From Andrej's post:
 
 > "They still sometimes change/remove comments and code they don't sufficiently understand as side effects, even if orthogonal to the task."
 
-## The Solution
+## Two skills in this repo
 
-Four principles in one file that directly address these issues:
+- **[`the-ultimate-workflow-guidelines`](skills/the-ultimate-workflow-guidelines/SKILL.md)** — daily feature work inside an existing project. Four behavioral principles plus a confirmed-at-each-step workflow: plan → confirm → tests → confirm → implement → consult on blockers.
+- **[`project-bootstrap-guidelines`](skills/project-bootstrap-guidelines/SKILL.md)** — starting a new project from scratch. PRD → design → framework choices → `CLAUDE.md` + `ROADMAP.md` + `progress.md`.
+
+`project-bootstrap-guidelines` runs at project birth; once bootstrap docs exist, subsequent feature work uses `the-ultimate-workflow-guidelines`.
+
+## Principles (used by skill 1)
 
 | Principle | Addresses |
 |-----------|-----------|
@@ -28,8 +31,6 @@ Four principles in one file that directly address these issues:
 | **Simplicity First** | Overcomplication, bloated abstractions |
 | **Surgical Changes** | Orthogonal edits, touching code you shouldn't |
 | **Goal-Driven Execution** | Leverage through tests-first, verifiable success criteria |
-
-## The Four Principles in Detail
 
 ### 1. Think Before Coding
 
@@ -96,38 +97,59 @@ For multi-step tasks, state a brief plan:
 
 Strong success criteria let the LLM loop independently. Weak criteria ("make it work") require constant clarification.
 
+## Workflow (used by skill 1)
+
+**Plan first. Anchor in existing design. Confirm. Test-first. Confirm. Implement. Consult on blockers.**
+
+For any non-trivial task:
+
+1. **Understand** — Restate the request. Name the goal.
+2. **Plan document on disk** (e.g. `PLAN-<feature>.md`) — include feature description, files explored, **existing-design review**, **deviation justification with pros/cons** if you propose anything different from current project patterns, and open questions. **Confirm with the user before moving on.**
+3. **Test plan** — extend the plan file with a Tests section (what to test, how, what counts as done). **Confirm with the user.**
+4. **Implement** — tests first, then minimal change, run until green.
+5. **Blocker protocol** — if something doesn't add up mid-flight, **stop**. Surface the problem, present 2–3 options with tradeoffs, wait for the user to pick. Once they pick, update the plan file, update the tests, check whether already-written code needs revising, and decide if deeper investigation of existing code is needed before resuming.
+
+**Skip for:** typo fixes, single-line bug fixes, pure-doc edits, trivial renames.
+
 ## Install
 
 **Option A: Claude Code Plugin (recommended)**
 
 From within Claude Code, first add the marketplace:
 ```
-/plugin marketplace add forrestchang/andrej-karpathy-skills
+/plugin marketplace add <your-username>/the-ultimate-workflow-guidelines
 ```
 
 Then install the plugin:
 ```
-/plugin install andrej-karpathy-skills@karpathy-skills
+/plugin install the-ultimate-workflow-guidelines
 ```
 
-This installs the guidelines as a Claude Code plugin, making the skill available across all your projects.
+This installs the guidelines as a Claude Code plugin, making both skills available across all your projects.
+
+> Replace `<your-username>` with wherever you're publishing the marketplace. If you forked this repo, that's your own GitHub handle.
 
 **Option B: CLAUDE.md (per-project)**
 
 New project:
 ```bash
-curl -o CLAUDE.md https://raw.githubusercontent.com/forrestchang/andrej-karpathy-skills/main/CLAUDE.md
+curl -o CLAUDE.md https://raw.githubusercontent.com/<your-username>/the-ultimate-workflow-guidelines/main/CLAUDE.md
 ```
 
 Existing project (append):
 ```bash
 echo "" >> CLAUDE.md
-curl https://raw.githubusercontent.com/forrestchang/andrej-karpathy-skills/main/CLAUDE.md >> CLAUDE.md
+curl https://raw.githubusercontent.com/<your-username>/the-ultimate-workflow-guidelines/main/CLAUDE.md >> CLAUDE.md
 ```
 
 ## Using with Cursor
 
-This repository includes a committed Cursor project rule ([`.cursor/rules/karpathy-guidelines.mdc`](.cursor/rules/karpathy-guidelines.mdc)) so the same guidelines apply when you open the project in Cursor. See **[CURSOR.md](CURSOR.md)** for setup, using the rule in other projects, and how this relates to Claude Code.
+This repository includes committed Cursor project rules so the same guidelines apply when you open the project in Cursor:
+
+- [`.cursor/rules/the-ultimate-workflow-guidelines.mdc`](.cursor/rules/the-ultimate-workflow-guidelines.mdc) — `alwaysApply: true`.
+- [`.cursor/rules/project-bootstrap-guidelines.mdc`](.cursor/rules/project-bootstrap-guidelines.mdc) — `alwaysApply: false` (greenfield-only, loaded on demand).
+
+See **[CURSOR.md](CURSOR.md)** for setup, using the rules in other projects, and how this relates to Claude Code.
 
 ## Key Insight
 
@@ -135,7 +157,7 @@ From Andrej:
 
 > "LLMs are exceptionally good at looping until they meet specific goals... Don't tell it what to do, give it success criteria and watch it go."
 
-The "Goal-Driven Execution" principle captures this: transform imperative instructions into declarative goals with verification loops.
+The "Goal-Driven Execution" principle captures this: transform imperative instructions into declarative goals with verification loops. The **Workflow** section builds on top of it: convert every non-trivial task into a plan document with confirmed success criteria before a single line of code is written.
 
 ## How to Know It's Working
 
@@ -145,6 +167,7 @@ These guidelines are working if you see:
 - **Fewer rewrites due to overcomplication** — Code is simple the first time
 - **Clarifying questions come before implementation** — Not after mistakes
 - **Clean, minimal PRs** — No drive-by refactoring or "improvements"
+- **Plan files committed alongside features** — One `PLAN-<feature>.md` per non-trivial change
 
 ## Customization
 

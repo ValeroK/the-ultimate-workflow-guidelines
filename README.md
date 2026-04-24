@@ -89,6 +89,19 @@ Cursor auto-discovers the `skills/` and `rules/` directories — both skills and
 
 See **[CURSOR.md](CURSOR.md)** for details on the Cursor setup, including how to use individual `.mdc` rules outside the plugin system.
 
+### Claude Desktop (claude.ai)
+
+Requires a Pro, Max, Team, or Enterprise plan with code execution enabled.
+
+1. Open the [latest release](https://github.com/ValeroK/the-ultimate-workflow-guidelines/releases/latest) and download the skill ZIPs you want:
+   - `the-ultimate-workflow-guidelines.zip` — the plan-first / test-first workflow.
+   - `project-bootstrap-guidelines.zip` — the greenfield PRD + bootstrap flow.
+2. In claude.ai, go to **Settings → Features → Skills → Upload Skill**.
+3. Select the ZIP. The skill activates immediately for your account.
+4. Repeat for the second ZIP if you want both skills available.
+
+Install is per-user; each teammate uploads separately. Skills in claude.ai do not share state with Claude Code installs — this is a parallel surface, not a sync.
+
 ### Per-project CLAUDE.md (no plugin)
 
 If you'd rather not install a plugin, drop just the principles + workflow into one project's `CLAUDE.md`:

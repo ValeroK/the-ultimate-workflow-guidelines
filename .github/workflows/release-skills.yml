@@ -1,0 +1,54 @@
+name: Build and publish skill ZIPs
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to build from (e.g. v2.2.0). Leave blank when triggered by tag push.'
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve ref
+        id: ref
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ inputs.tag }}" ]; then
+            echo "ref=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=${{ github.ref }}" >> "$GITHUB_OUTPUT"
+            echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.ref.outputs.ref }}
+
+      - name: Build skill ZIPs
+        run: |
+          mkdir -p dist
+          cd skills
+          zip -r ../dist/the-ultimate-workflow-guidelines.zip the-ultimate-workflow-guidelines
+          zip -r ../dist/project-bootstrap-guidelines.zip project-bootstrap-guidelines
+          ls -la ../dist/
+
+      - name: Upload to GitHub Release (create if missing)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.ref.outputs.tag }}"
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --title "$TAG" --generate-notes
+          fi
+          gh release upload "$TAG" \
+            dist/the-ultimate-workflow-guidelines.zip \
+            dist/project-bootstrap-guidelines.zip \
+            --clobber

@@ -1,0 +1,10 @@
+# Local Claude Code settings (per-machine, never commit)
+.claude/
+
+# Per-feature plan files produced by the-ultimate-workflow-guidelines
+# are transient working artifacts; their decisions land in commits and CLAUDE.md.
+PLAN-*.md
+
+# OS noise
+.DS_Store
+Thumbs.db

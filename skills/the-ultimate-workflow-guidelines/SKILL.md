@@ -10,6 +10,10 @@ Behavioral guidelines plus a confirmed-at-each-step workflow, derived from [Andr
 
 **Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
 
+## Templates
+
+Don't re-invent the document shape each session. See [`references/plan-template.md`](references/plan-template.md) for the canonical `PLAN-<feature>.md` skeleton — copy it into the project and fill in each section during Workflow step 2.
+
 ## Principles
 
 ### 1. Think Before Coding

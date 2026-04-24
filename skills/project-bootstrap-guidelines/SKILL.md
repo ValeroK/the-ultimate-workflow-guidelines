@@ -8,6 +8,16 @@ license: MIT
 
 A confirmed-at-each-step flow for starting a new project. The goal: before any code is written, the project has a PRD, a reviewed design, documented framework choices, and three living docs that guide all future work.
 
+## Templates
+
+Canonical skeletons for every doc this skill produces — copy each into the project root and fill in, don't re-invent the shape each session:
+
+- [`references/prd-template.md`](references/prd-template.md) — `PRD.md` (Phase 1 content + Phase 2 design decisions).
+- [`references/prd-questions.md`](references/prd-questions.md) — question bank for Phase 1 review.
+- [`references/roadmap-template.md`](references/roadmap-template.md) — `ROADMAP.md` (Phase 3 milestone view).
+- [`references/progress-template.md`](references/progress-template.md) — `progress.md` (Phase 3 living log).
+- [`references/claude-md-template.md`](references/claude-md-template.md) — project `CLAUDE.md` (Phase 3), including `## Key files` and an empty `## Gotchas` section.
+
 ## Phase 1 — PRD
 
 Create `PRD.md`. It must capture:

@@ -1,6 +1,6 @@
 ---
 name: project-bootstrap-guidelines
-description: Bootstrap a new project from scratch. Produces a PRD (reviewed with the user), a system design (flow diagram + architecture + framework choices), and three bootstrap docs (CLAUDE.md, ROADMAP.md, progress.md). Use at project birth, before any feature work.
+description: Bootstrap a new project from scratch. Use this skill whenever the user is starting a new project, creating a new repo, or building something from a blank slate — even if they don't explicitly mention PRD, architecture, or documentation. Triggers include "start a new project", "build me an X", "I want to create a Y", "scaffold", "greenfield", "from scratch", "spin up a repo". Produces a PRD (reviewed with the user), a system design (flow diagram + architecture + framework choices), and three bootstrap docs (CLAUDE.md, ROADMAP.md, progress.md). Run before any feature work; hand off to the-ultimate-workflow-guidelines once bootstrap docs exist.
 license: MIT
 ---
 

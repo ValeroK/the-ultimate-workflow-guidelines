@@ -21,7 +21,7 @@ Don't re-invent the document shape each session. See `skills/the-ultimate-workfl
 
 Before implementing:
 - State your assumptions explicitly. If uncertain, ask.
-- If multiple interpretations exist, present them - don't pick silently.
+- If multiple interpretations exist, present them — don't pick silently.
 - If a simpler approach exists, say so. Push back when warranted.
 - If something is unclear, stop. Name what's confusing. Ask.
 
@@ -45,13 +45,13 @@ When editing existing code:
 - Don't "improve" adjacent code, comments, or formatting.
 - Don't refactor things that aren't broken.
 - Match existing style, even if you'd do it differently.
-- If you notice unrelated dead code, mention it - don't delete it.
+- If you notice unrelated dead code, mention it — don't delete it.
 
 When your changes create orphans:
 - Remove imports/variables/functions that YOUR changes made unused.
 - Don't remove pre-existing dead code unless asked.
 
-The test: Every changed line should trace directly to the user's request.
+The test: every changed line should trace directly to the user's request.
 
 ### 4. Goal-Driven Execution
 
@@ -62,35 +62,40 @@ Transform tasks into verifiable goals:
 - "Fix the bug" → "Write a test that reproduces it, then make it pass"
 - "Refactor X" → "Ensure tests pass before and after"
 
-For multi-step tasks, state a brief plan:
-```
-1. [Step] → verify: [check]
-2. [Step] → verify: [check]
-3. [Step] → verify: [check]
-```
-
 Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
 
 ## Workflow
 
-**Plan first. Anchor in existing design. Confirm. Test-first. Confirm. Implement. Consult on blockers.**
+**Plan first. Anchor in existing design. Confirm. Test-first. Confirm. Implement. Consult on blockers. Update project docs.**
+
+The Workflow *operationalizes* the Principles — each step cites the principle it applies instead of restating it.
 
 For any non-trivial task, follow this loop:
 
 1. **Understand.** Restate the request in your own words. Name the goal.
+   - *Applies Think Before Coding.*
+   - **Why:** restating surfaces silent misinterpretations before they become code.
 
-2. **Plan document.** Create a file on disk (e.g. `PLAN-<feature>.md`). It must include:
-   - Feature description.
+2. **Plan document on disk.** Create `PLAN-<feature>.md` (template: `skills/the-ultimate-workflow-guidelines/references/plan-template.md`). It must include:
+   - Feature description and goal.
    - Files you explored and why they matter.
    - **Existing-design review** — the patterns, utilities, frameworks, and conventions already in use that this feature touches. Prefer reusing them.
-   - **Deviation justification (if any)** — if you propose a different design pattern, library, or approach than what the project currently uses, name the current pattern, name the proposed alternative, and list pros/cons for both. Do **not** silently introduce a new pattern — let the user decide.
+   - **Deviation justification (if any)** — if you propose a different pattern, library, or approach than what the project currently uses, name the current pattern, the alternative, and list pros/cons for both. Let the user decide.
    - Open questions.
 
-   **Stop and ask for confirmation before moving on.**
+   **If the project has bootstrap docs** (`PRD.md`, `ROADMAP.md`, `CLAUDE.md`, `progress.md` produced by `project-bootstrap-guidelines`), read them as part of the existing-design review. `PRD.md` tells you *what* the project is meant to do; `CLAUDE.md` carries the project's frameworks, conventions, and `## Gotchas` (mistakes prior sessions learned not to repeat).
 
-3. **Test plan.** Extend the same plan file with a "Tests" section — what to test, how, what counts as "done". Raise any remaining questions. **Stop and ask for confirmation.**
+   **Stop and ask for confirmation before moving on.**
+   - *Applies Think Before Coding and Surgical Changes.*
+   - **Why:** a plan on disk survives context compaction; chat threads don't. Confirming before code means rework happens on paper, not in the editor.
+
+3. **Test plan.** Extend the plan file with a "Tests" section — what to test, how, what counts as "done". Raise any remaining questions. **Stop and ask for confirmation.**
+   - *Applies Goal-Driven Execution.*
+   - **Why:** "what would prove this is done" is cheaper to negotiate on paper than on code that already exists.
 
 4. **Implement.** Add the tests first. Make the minimal change. Run tests until green. Keep the plan file current as facts change.
+   - *Applies Simplicity First and Surgical Changes.*
+   - **Why:** tests-first makes the loop verifiable; minimal + surgical keeps every diff line traceable to the user's request.
 
 5. **Blocker protocol.** If something doesn't add up mid-implementation — missing info, conflicting requirements, an unexpected constraint — **stop**. Surface the problem, present 2–3 options with tradeoffs, wait for the user to decide. Do not silently pick.
 
@@ -99,14 +104,40 @@ For any non-trivial task, follow this loop:
    - **Update the test plan** — tests written against the old direction may now be wrong; revise them.
    - **Check already-written implementation** — code written before the blocker may now be obsolete or need revision.
    - **Decide whether deeper investigation of existing code is needed** before continuing (e.g. the blocker revealed the codebase works differently than assumed). If so, pause and investigate before resuming.
+   - If the blocker revealed a durable lesson (not a one-off), flag it for step 6.
+
+   - *Applies Think Before Coding.*
+   - **Why:** pre-blocker code rests on assumptions the blocker just invalidated; re-checking is cheaper than the bug it would ship.
+
+6. **Update project docs (if they exist).** After landing the feature:
+   - Append a dated entry to `progress.md` summarizing what changed and any decisions made.
+   - If the feature closed a milestone in `ROADMAP.md`, mark it done.
+   - If frameworks or conventions shifted, update `CLAUDE.md`'s architecture or best-practices sections.
+   - If you hit a repeating issue during the feature (see `## Gotchas` threshold below), append a short entry to `CLAUDE.md`'s `## Gotchas` section.
+   - **Why:** the durable learning from a session has to land somewhere durable, or the next session re-derives it.
+
+### `## Gotchas` in `CLAUDE.md` — capturing repeating issues
+
+`CLAUDE.md` is auto-loaded every turn. Its `## Gotchas` section is where empirical, discovered-the-hard-way project knowledge lives — the cousin of the "best practices" section, but for things nobody planned.
+
+**Write an entry when at least one is true:**
+- You hit the same issue twice (same or across sessions).
+- The user corrected you on the same thing more than once.
+- Debugging took >10 minutes and the fix is non-obvious from reading the code.
+
+One-off typos or things the next reader would catch instantly: **don't log.** Noise has a cost.
+
+**Format:** one or two sentences per entry. Lead with the actionable rule, then the *why*. An optional `(Discovered YYYY-MM-DD, hit Nx)` trailer helps future readers know when to retire the entry.
+
+**Prune:** if a gotcha stops being true (after a refactor, framework change, or convention shift), delete it. This section should be alive, not a graveyard.
 
 ### When to skip this workflow
 
 Use judgment. Skip for:
-- Typo or formatting fixes
-- Single-line bug fixes with an obvious cause
-- Pure-doc edits (README tweaks, comment rewording)
-- Trivial renames or moves with no behavioral change
+- Typo or formatting fixes.
+- Single-line bug fixes with an obvious cause.
+- Pure-doc edits (README tweaks, comment rewording).
+- Trivial renames or moves with no behavioral change.
 
 When in doubt, err toward the workflow.
 

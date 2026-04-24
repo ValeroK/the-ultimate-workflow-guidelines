@@ -19,7 +19,7 @@ Canonical skeletons for every doc this skill produces — copy each into the pro
 
 ## Phase 1 — PRD
 
-Create `PRD.md`. It must capture:
+Create `PRD.md` (template: `skills/project-bootstrap-guidelines/references/prd-template.md`; use `skills/project-bootstrap-guidelines/references/prd-questions.md` to drive the review conversation). It must capture:
 - **Problem statement** — what are we solving, for whom.
 - **Users / personas.**
 - **Goals and non-goals.**
@@ -28,6 +28,8 @@ Create `PRD.md`. It must capture:
 - **Success metrics** — how we'll know it worked.
 
 Review the draft with the user. Raise every question and concern. Iterate until the user explicitly confirms the PRD.
+
+**Why:** the product questions (users, non-goals, success metrics) are cheaper to name up front than to re-litigate mid-build. `PRD.md` is also the single source of truth the feature workflow reads before planning any later feature.
 
 ## Phase 2 — System design
 
@@ -43,11 +45,13 @@ With the PRD confirmed, design the system:
 
 Present all of the above to the user. Raise concerns about any choice you're uncertain about. Iterate until confirmed. Fold every confirmed decision back into `PRD.md` so the PRD is a single source of truth.
 
+**Why:** framework choices have gravity; documenting the alternatives now saves a "why not X?" question in month three. Folding decisions back into `PRD.md` keeps *what* + *why* in one file — the feature workflow reads it next.
+
 ## Phase 3 — Bootstrap docs
 
 Once the PRD is complete and holds all decisions, create three living docs:
 
-1. **`CLAUDE.md`** — written from the PRD. Contains:
+1. **`CLAUDE.md`** (template: `skills/project-bootstrap-guidelines/references/claude-md-template.md`) — written from the PRD. Contains:
    - Frameworks and libraries in use.
    - Architecture summary.
    - Project best practices and conventions.
@@ -61,23 +65,35 @@ Once the PRD is complete and holds all decisions, create three living docs:
      - **`PLAN-<feature>.md`** (per feature, transient) — Per-feature plan produced by `the-ultimate-workflow-guidelines`.
      ```
 
+   - **An empty `## Gotchas` section** — empirical, discovered-the-hard-way lessons land here as the project matures. The feature workflow appends entries using the threshold + format defined in `the-ultimate-workflow-guidelines`. Keep it alive, not a graveyard.
+
    This becomes the always-on guidance for every future turn.
 
-2. **`ROADMAP.md`** — the execution roadmap (project-scoped, distinct from per-feature `PLAN-<feature>.md` files produced by `the-ultimate-workflow-guidelines`):
+2. **`ROADMAP.md`** (template: `skills/project-bootstrap-guidelines/references/roadmap-template.md`) — the execution roadmap (project-scoped, distinct from per-feature `PLAN-<feature>.md` files produced by `the-ultimate-workflow-guidelines`):
    - Project broken into milestones.
    - Each milestone broken into discrete tasks.
    - Dependencies between milestones/tasks if any.
 
-3. **`progress.md`** — the living log. Updated every working session with:
+3. **`progress.md`** (template: `skills/project-bootstrap-guidelines/references/progress-template.md`) — the living log. Updated every working session with:
    - Latest progress (what's done, what's in-flight).
    - Decisions made during execution (and why).
    - Issues and bugs discovered.
    - Open questions / blockers.
    - Cross-reference: when a new `PLAN-<feature>.md` is produced, link it here.
 
+**Why:** docs loaded every turn compound context over time. `CLAUDE.md` holds intentional project design; `## Gotchas` captures empirical lessons so they don't re-appear each session; `ROADMAP.md` carries the milestone view; `progress.md` is the time-ordered log. Together they give `the-ultimate-workflow-guidelines` everything it needs to plan features without re-investigating the codebase.
+
 ## Phase 4 — Hand-off
 
-Once the three docs are in place, switch to `the-ultimate-workflow-guidelines` for every subsequent feature. Each feature gets its own `PLAN-<feature>.md` per that skill's workflow; `ROADMAP.md` stays as the project-level milestone view; `progress.md` tracks cumulative state across features.
+Bootstrap is **done** when all three conditions hold:
+
+1. `PRD.md`, `ROADMAP.md`, `CLAUDE.md`, and `progress.md` all exist.
+2. The user has explicitly confirmed them.
+3. The first feature is scoped and ready to start.
+
+For that feature and every one after it, switch to `the-ultimate-workflow-guidelines`. Each feature still gets its own `PLAN-<feature>.md` per that skill's workflow; `ROADMAP.md` stays as the project-level milestone view; `progress.md` tracks cumulative state across features; `CLAUDE.md`'s `## Gotchas` section grows as empirical issues surface.
+
+**Why:** a clean hand-off prevents this skill from leaking into routine feature work — two distinct modes, two distinct skills, no ambiguity about which one is running.
 
 ## When to skip this workflow
 

@@ -1,9 +1,5 @@
 # Karpathy-Inspired: The Ultimate Workflow Guidelines
 
-> Check out my new project [Multica](https://github.com/multica-ai/multica) — an open-source platform for running and managing coding agents with reusable skills.
->
-> Follow me on X: [https://x.com/jiayuan_jy](https://x.com/jiayuan_jy)
-
 Two complementary skills plus a drop-in `CLAUDE.md` to improve Claude Code and Cursor behavior. The behavioral principles are derived from [Andrej Karpathy's observations](https://x.com/karpathy/status/2015883857489522876) on LLM coding pitfalls; the workflow and bootstrap procedures are layered on top.
 
 ## Why these rules

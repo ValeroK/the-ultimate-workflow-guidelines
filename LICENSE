@@ -1,4 +1,4 @@
-MIT License
+MIT License with Attribution
 
 Copyright (c) 2026 ValeroK
 
@@ -9,8 +9,21 @@ to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 copies of the Software, and to permit persons to whom the Software is
 furnished to do so, subject to the following conditions:
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+1. The above copyright notice and this permission notice shall be included in
+   all copies or substantial portions of the Software.
+
+2. Attribution. Any public distribution, modification, or derivative work of
+   the Software — including incorporation into another project, product, or
+   document — must visibly credit the original source. At minimum, the credit
+   must contain BOTH:
+
+     - the author name:   ValeroK
+     - the source URL:    https://github.com/ValeroK/the-ultimate-workflow-guidelines
+
+   The credit must appear on a surface a reasonable end user of the derivative
+   work would see — for example a README, user-facing documentation, an
+   "About" screen, or an equivalent location. Credit placed only inside source-
+   file comments or inside this LICENSE file does not satisfy this requirement.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,

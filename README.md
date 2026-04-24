@@ -144,4 +144,4 @@ The goal is reducing costly mistakes on non-trivial work, not slowing down simpl
 
 ## License
 
-MIT
+MIT with Attribution — see [LICENSE](LICENSE). Redistributions, modifications, and derivative works must visibly credit `ValeroK` and link back to this repository (https://github.com/ValeroK/the-ultimate-workflow-guidelines) on a user-facing surface (README, docs, About screen, etc.) — not just inside source comments or the LICENSE file.

@@ -1,7 +1,7 @@
 ---
 name: the-ultimate-workflow-guidelines
 description: Plan-first, test-first workflow plus behavioral principles (think before coding, simplicity, surgical changes, goal-driven execution) for working inside an existing codebase. Use this skill whenever the user asks to add a feature, fix a non-trivial bug, refactor, or change behavior — even if they don't mention a "plan", "tests", or "workflow". Triggers include "help me implement X", "can you add Y", "I need to change Z", "fix this bug", "refactor this". Plans must respect existing design; deviations require pros/cons for the user to decide.
-license: MIT
+license: LicenseRef-MIT-Attribution
 ---
 
 # The Ultimate Workflow Guidelines

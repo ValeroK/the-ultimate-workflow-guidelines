@@ -1,11 +1,11 @@
 {
   "name": "the-ultimate-workflow-guidelines",
   "description": "Two skills: the-ultimate-workflow-guidelines (plan-first, test-first workflow plus behavioral principles derived from Andrej Karpathy's observations) and project-bootstrap-guidelines (PRD-first bootstrap for new projects).",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "author": {
     "name": "ValeroK"
   },
-  "license": "MIT",
+  "license": "LicenseRef-MIT-Attribution",
   "keywords": ["guidelines", "best-practices", "coding", "workflow", "bootstrap", "prd"],
   "skills": [
     "./skills/the-ultimate-workflow-guidelines",

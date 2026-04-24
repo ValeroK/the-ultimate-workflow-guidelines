@@ -6,150 +6,107 @@
 
 Two complementary skills plus a drop-in `CLAUDE.md` to improve Claude Code and Cursor behavior. The behavioral principles are derived from [Andrej Karpathy's observations](https://x.com/karpathy/status/2015883857489522876) on LLM coding pitfalls; the workflow and bootstrap procedures are layered on top.
 
-## The Problems
+## Why these rules
+
+LLM coding assistants are fast but forgetful. They assume when they should ask, write 200 lines when 50 would do, touch unrelated code "while they're in there", and re-derive the same project quirks every session. These two skills are a working set of guardrails against those failure modes — derived from Andrej Karpathy's observations on LLM coding pitfalls, hardened through daily use.
 
 From Andrej's post:
 
 > "The models make wrong assumptions on your behalf and just run along with them without checking. They don't manage their confusion, don't seek clarifications, don't surface inconsistencies, don't present tradeoffs, don't push back when they should."
-
+>
 > "They really like to overcomplicate code and APIs, bloat abstractions, don't clean up dead code... implement a bloated construction over 1000 lines when 100 would do."
-
+>
 > "They still sometimes change/remove comments and code they don't sufficiently understand as side effects, even if orthogonal to the task."
 
-## Two skills in this repo
+### What's in the repo
 
-- **[`the-ultimate-workflow-guidelines`](skills/the-ultimate-workflow-guidelines/SKILL.md)** — daily feature work inside an existing project. Four behavioral principles plus a confirmed-at-each-step workflow: plan → confirm → tests → confirm → implement → consult on blockers.
-- **[`project-bootstrap-guidelines`](skills/project-bootstrap-guidelines/SKILL.md)** — starting a new project from scratch. PRD → design → framework choices → `CLAUDE.md` + `ROADMAP.md` + `progress.md`.
+| Skill | When to use | What it produces |
+|---|---|---|
+| **[`the-ultimate-workflow-guidelines`](skills/the-ultimate-workflow-guidelines/SKILL.md)** | Daily feature work inside an **existing** codebase. Any non-trivial change — new feature, non-trivial bug fix, refactor. | A `PLAN-<feature>.md` file on disk, then tests, then minimal implementation. Confirmation gates between each stage. Blockers surface options with tradeoffs instead of silent picks. |
+| **[`project-bootstrap-guidelines`](skills/project-bootstrap-guidelines/SKILL.md)** | Starting a **new** project from a blank slate. | `PRD.md` (with Mermaid flow diagram), confirmed framework choices with alternatives documented, plus three living docs: `CLAUDE.md` (always-on guidance), `ROADMAP.md` (milestones), `progress.md` (living log). |
+
+Each skill ships as:
+
+- A `SKILL.md` (loaded by Claude Code).
+- A `.mdc` rule under [`rules/`](rules/) (loaded by Cursor).
+- Template skeletons under `skills/*/references/` so the model doesn't re-invent document shapes each session.
+
+The two skills hand off cleanly: once bootstrap docs exist, the workflow skill reads them (especially `CLAUDE.md` and `PRD.md`) before planning any feature, and writes back to `progress.md` / `ROADMAP.md` / `## Gotchas` after landing one.
+
+### Why adopt these on a *new* project
+
+1. **A real PRD before code.** Forces the product questions (users, goals, non-goals, success metrics) to be named and confirmed, not assumed. The PRD becomes the single source of truth for *what* and *why*.
+2. **Framework choices documented with alternatives.** Three months later when someone asks "why Postgres not DynamoDB?" the answer is in `PRD.md`, not lost in a Slack scroll.
+3. **Three living docs from day one.** `CLAUDE.md` keeps the model aligned every turn; `ROADMAP.md` holds the milestone view; `progress.md` captures decisions as they happen. The model reads them without being told.
+4. **Gotchas accumulate.** The project's `CLAUDE.md` has a `## Gotchas` section — a place to persist hard-won empirical lessons (path aliases, hidden test setup, surprising utility contracts) so the next session doesn't re-discover them.
+
+### Why adopt these on an *existing* project
+
+1. **Plans are written to disk, not to chat.** A `PLAN-<feature>.md` survives context compaction; a chat thread doesn't. When a session resumes, the plan is still there.
+2. **Existing design is respected by default.** The workflow forces the model to enumerate the patterns, utilities, and conventions the feature touches, and to reuse them. Deviations from current design must be presented as pros/cons for the user to decide — no silent new-pattern introductions.
+3. **Tests come before code.** "Fix the bug" becomes "write the test that reproduces it, then make it pass." Success criteria are verifiable from the start.
+4. **Blockers don't silently escape.** When mid-implementation reality doesn't match the plan, the model stops, surfaces 2–3 options with tradeoffs, waits, then retro-updates the plan, tests, and already-written code before resuming.
+5. **Surgical changes.** Every changed line must trace to the user's request. No "while I was there" refactors, no formatting drift, no speculative abstractions.
+6. **Compounding memory.** Each repeating issue lands in `## Gotchas`, so the failure mode stops recurring.
+
+### The behavioral layer under all of it
+
+Before the workflow steps, both skills apply four principles:
+
+- **Think Before Coding** — surface assumptions, ask when unclear, name tradeoffs.
+- **Simplicity First** — minimum code that solves the problem; nothing speculative.
+- **Surgical Changes** — touch only what the request requires.
+- **Goal-Driven Execution** — define verifiable success criteria; loop until they pass.
+
+The workflow is *how* to work; the principles are *how to think*. Both are always in context.
 
 `project-bootstrap-guidelines` runs at project birth; once bootstrap docs exist, subsequent feature work uses `the-ultimate-workflow-guidelines`.
 
-## Principles (used by skill 1)
-
-| Principle | Addresses |
-|-----------|-----------|
-| **Think Before Coding** | Wrong assumptions, hidden confusion, missing tradeoffs |
-| **Simplicity First** | Overcomplication, bloated abstractions |
-| **Surgical Changes** | Orthogonal edits, touching code you shouldn't |
-| **Goal-Driven Execution** | Leverage through tests-first, verifiable success criteria |
-
-### 1. Think Before Coding
-
-**Don't assume. Don't hide confusion. Surface tradeoffs.**
-
-LLMs often pick an interpretation silently and run with it. This principle forces explicit reasoning:
-
-- **State assumptions explicitly** — If uncertain, ask rather than guess
-- **Present multiple interpretations** — Don't pick silently when ambiguity exists
-- **Push back when warranted** — If a simpler approach exists, say so
-- **Stop when confused** — Name what's unclear and ask for clarification
-
-### 2. Simplicity First
-
-**Minimum code that solves the problem. Nothing speculative.**
-
-Combat the tendency toward overengineering:
-
-- No features beyond what was asked
-- No abstractions for single-use code
-- No "flexibility" or "configurability" that wasn't requested
-- No error handling for impossible scenarios
-- If 200 lines could be 50, rewrite it
-
-**The test:** Would a senior engineer say this is overcomplicated? If yes, simplify.
-
-### 3. Surgical Changes
-
-**Touch only what you must. Clean up only your own mess.**
-
-When editing existing code:
-
-- Don't "improve" adjacent code, comments, or formatting
-- Don't refactor things that aren't broken
-- Match existing style, even if you'd do it differently
-- If you notice unrelated dead code, mention it — don't delete it
-
-When your changes create orphans:
-
-- Remove imports/variables/functions that YOUR changes made unused
-- Don't remove pre-existing dead code unless asked
-
-**The test:** Every changed line should trace directly to the user's request.
-
-### 4. Goal-Driven Execution
-
-**Define success criteria. Loop until verified.**
-
-Transform imperative tasks into verifiable goals:
-
-| Instead of... | Transform to... |
-|--------------|-----------------|
-| "Add validation" | "Write tests for invalid inputs, then make them pass" |
-| "Fix the bug" | "Write a test that reproduces it, then make it pass" |
-| "Refactor X" | "Ensure tests pass before and after" |
-
-For multi-step tasks, state a brief plan:
-
-```
-1. [Step] → verify: [check]
-2. [Step] → verify: [check]
-3. [Step] → verify: [check]
-```
-
-Strong success criteria let the LLM loop independently. Weak criteria ("make it work") require constant clarification.
-
-## Workflow (used by skill 1)
-
-**Plan first. Anchor in existing design. Confirm. Test-first. Confirm. Implement. Consult on blockers.**
-
-For any non-trivial task:
-
-1. **Understand** — Restate the request. Name the goal.
-2. **Plan document on disk** (e.g. `PLAN-<feature>.md`) — include feature description, files explored, **existing-design review**, **deviation justification with pros/cons** if you propose anything different from current project patterns, and open questions. **Confirm with the user before moving on.**
-3. **Test plan** — extend the plan file with a Tests section (what to test, how, what counts as done). **Confirm with the user.**
-4. **Implement** — tests first, then minimal change, run until green.
-5. **Blocker protocol** — if something doesn't add up mid-flight, **stop**. Surface the problem, present 2–3 options with tradeoffs, wait for the user to pick. Once they pick, update the plan file, update the tests, check whether already-written code needs revising, and decide if deeper investigation of existing code is needed before resuming.
-
-**Skip for:** typo fixes, single-line bug fixes, pure-doc edits, trivial renames.
-
 ## Install
 
-**Option A: Claude Code Plugin (recommended)**
+### Claude Code (plugin)
 
-From within Claude Code, first add the marketplace:
-```
-/plugin marketplace add <your-username>/the-ultimate-workflow-guidelines
-```
+From within Claude Code, add the marketplace and install:
 
-Then install the plugin:
 ```
+/plugin marketplace add ValeroK/the-ultimate-workflow-guidelines
 /plugin install the-ultimate-workflow-guidelines
 ```
 
-This installs the guidelines as a Claude Code plugin, making both skills available across all your projects.
+Both skills become available across all your projects. If you forked this repo, replace `ValeroK` with your own GitHub handle.
 
-> Replace `<your-username>` with wherever you're publishing the marketplace. If you forked this repo, that's your own GitHub handle.
+### Cursor (plugin via Marketplace)
 
-**Option B: CLAUDE.md (per-project)**
+From within Cursor, install via the [Cursor Marketplace](https://cursor.com/marketplace):
+
+```
+/add-plugin the-ultimate-workflow-guidelines
+```
+
+Or install directly from GitHub:
+
+```
+/add-plugin ValeroK/the-ultimate-workflow-guidelines
+```
+
+Cursor auto-discovers the `skills/` and `rules/` directories — both skills and their `alwaysApply` rules activate immediately.
+
+See **[CURSOR.md](CURSOR.md)** for details on the Cursor setup, including how to use individual `.mdc` rules outside the plugin system.
+
+### Per-project CLAUDE.md (no plugin)
+
+If you'd rather not install a plugin, drop just the principles + workflow into one project's `CLAUDE.md`:
 
 New project:
 ```bash
-curl -o CLAUDE.md https://raw.githubusercontent.com/<your-username>/the-ultimate-workflow-guidelines/main/CLAUDE.md
+curl -o CLAUDE.md https://raw.githubusercontent.com/ValeroK/the-ultimate-workflow-guidelines/main/CLAUDE.md
 ```
 
 Existing project (append):
 ```bash
 echo "" >> CLAUDE.md
-curl https://raw.githubusercontent.com/<your-username>/the-ultimate-workflow-guidelines/main/CLAUDE.md >> CLAUDE.md
+curl https://raw.githubusercontent.com/ValeroK/the-ultimate-workflow-guidelines/main/CLAUDE.md >> CLAUDE.md
 ```
-
-## Using with Cursor
-
-This repository includes committed Cursor project rules so the same guidelines apply when you open the project in Cursor:
-
-- [`.cursor/rules/the-ultimate-workflow-guidelines.mdc`](.cursor/rules/the-ultimate-workflow-guidelines.mdc) — `alwaysApply: true`.
-- [`.cursor/rules/project-bootstrap-guidelines.mdc`](.cursor/rules/project-bootstrap-guidelines.mdc) — `alwaysApply: false` (greenfield-only, loaded on demand).
-
-See **[CURSOR.md](CURSOR.md)** for setup, using the rules in other projects, and how this relates to Claude Code.
 
 ## Key Insight
 

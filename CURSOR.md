@@ -1,18 +1,42 @@
 # Using this repo with Cursor
 
-This project includes **two Cursor project rules** so the Karpathy-inspired behavioral guidelines and the project-bootstrap flow apply automatically when you work here.
+This project ships as a **Cursor plugin** (plus committed project rules) so the Karpathy-inspired behavioral guidelines and the project-bootstrap flow apply automatically in Cursor.
+
+## Install via Cursor Marketplace (recommended)
+
+The fastest path for any project:
+
+```
+/add-plugin the-ultimate-workflow-guidelines
+```
+
+Or install directly from the GitHub repo:
+
+```
+/add-plugin ValeroK/the-ultimate-workflow-guidelines
+```
+
+Cursor auto-discovers:
+
+- `skills/the-ultimate-workflow-guidelines/SKILL.md` and `skills/project-bootstrap-guidelines/SKILL.md` — the two skills.
+- `rules/the-ultimate-workflow-guidelines.mdc` (`alwaysApply: true`) and `rules/project-bootstrap-guidelines.mdc` (`alwaysApply: false`) — the project rules.
+
+Manifest: [`.cursor-plugin/plugin.json`](.cursor-plugin/plugin.json). Spec: [cursor.com/docs/plugins/building](https://cursor.com/docs/plugins/building).
+
+Browse the listing at [cursor.com/marketplace](https://cursor.com/marketplace) once published.
 
 ## In this repository
 
-1. Open the folder in Cursor.
-2. Two rules are committed:
-   - [`.cursor/rules/the-ultimate-workflow-guidelines.mdc`](.cursor/rules/the-ultimate-workflow-guidelines.mdc) — `alwaysApply: true`. Loaded on every turn for feature work.
-   - [`.cursor/rules/project-bootstrap-guidelines.mdc`](.cursor/rules/project-bootstrap-guidelines.mdc) — `alwaysApply: false`. Greenfield-only; loaded on demand when starting a new project.
-3. In Cursor, you can confirm both rules under **Settings → Rules** (or the project rules UI).
+If you open this repo directly in Cursor (without installing the plugin), the same two rules still load because they are committed under [`rules/`](rules/):
 
-## Use the same guidelines in another project
+- [`rules/the-ultimate-workflow-guidelines.mdc`](rules/the-ultimate-workflow-guidelines.mdc) — `alwaysApply: true`. Loaded on every turn for feature work.
+- [`rules/project-bootstrap-guidelines.mdc`](rules/project-bootstrap-guidelines.mdc) — `alwaysApply: false`. Greenfield-only; loaded on demand when starting a new project.
 
-**Cursor (recommended):** Copy the `.mdc` files you want into that project's `.cursor/rules/` directory (create the folders if needed). Adjust or merge with existing rules as you like.
+Confirm both rules under **Settings → Rules** (or the project rules UI).
+
+## Use the same guidelines in another project (without the plugin)
+
+**Cursor:** Copy the `.mdc` files you want from [`rules/`](rules/) into that project's `.cursor/rules/` directory (create the folders if needed). Adjust or merge with existing rules as you like.
 
 **Other tools:** If a stack only supports a root instruction file, copy [`CLAUDE.md`](CLAUDE.md) into that project instead (or merge its contents into your existing instructions).
 
@@ -27,18 +51,18 @@ Copy or symlink into your personal skills directory; use whatever layout you use
 
 ## Claude Code vs Cursor
 
-- **Claude Code:** Install via the plugin marketplace and [`README.md`](README.md) instructions; the plugin exposes both skills from this repo. Per-project use can also rely on `CLAUDE.md`.
-- **Cursor:** Use the committed `.cursor/rules/` files as described above. Cursor does not read `.claude-plugin/` or `CLAUDE.md` by default.
+- **Claude Code:** Install via the plugin marketplace (see [`README.md`](README.md)); the plugin exposes both skills from this repo. Per-project use can also rely on `CLAUDE.md`.
+- **Cursor:** Install via the Cursor Marketplace (see above), or open the repo directly to pick up the committed `rules/*.mdc` files. Cursor does not read `.claude-plugin/` or `CLAUDE.md` by default.
 
 ## For contributors
 
 When you change the principles or workflow, keep these files in sync:
 
 - [`CLAUDE.md`](CLAUDE.md)
-- [`.cursor/rules/the-ultimate-workflow-guidelines.mdc`](.cursor/rules/the-ultimate-workflow-guidelines.mdc)
+- [`rules/the-ultimate-workflow-guidelines.mdc`](rules/the-ultimate-workflow-guidelines.mdc)
 - [`skills/the-ultimate-workflow-guidelines/SKILL.md`](skills/the-ultimate-workflow-guidelines/SKILL.md)
 
 When you change the project-bootstrap flow, keep these in sync:
 
-- [`.cursor/rules/project-bootstrap-guidelines.mdc`](.cursor/rules/project-bootstrap-guidelines.mdc)
+- [`rules/project-bootstrap-guidelines.mdc`](rules/project-bootstrap-guidelines.mdc)
 - [`skills/project-bootstrap-guidelines/SKILL.md`](skills/project-bootstrap-guidelines/SKILL.md)

@@ -5,6 +5,9 @@
 # are transient working artifacts; their decisions land in commits and CLAUDE.md.
 PLAN-*.md
 
+# Local skill-ZIP build output (CI writes the real ones to releases)
+dist/
+
 # OS noise
 .DS_Store
 Thumbs.db

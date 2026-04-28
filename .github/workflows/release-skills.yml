@@ -32,13 +32,27 @@ jobs:
         with:
           ref: ${{ steps.ref.outputs.ref }}
 
-      - name: Build skill ZIPs
+      - name: Build per-skill ZIPs
         run: |
           mkdir -p dist
           cd skills
           zip -r ../dist/the-ultimate-workflow-guidelines.zip the-ultimate-workflow-guidelines
           zip -r ../dist/project-bootstrap-guidelines.zip project-bootstrap-guidelines
-          ls -la ../dist/
+
+      - name: Build full-plugin ZIP (dual Claude + Cursor)
+        # The same ZIP works for both ecosystems: Claude Desktop reads
+        # .claude-plugin/plugin.json, Cursor reads .cursor-plugin/plugin.json,
+        # and each ignores the other's metadata. Skills live under skills/,
+        # Cursor rules under rules/. Excludes only dev/CI files that don't
+        # belong in a published plugin.
+        run: |
+          zip -r dist/the-ultimate-workflow-guidelines-plugin.zip . \
+            -x '.git/*' \
+            -x '.github/*' \
+            -x 'dist/*' \
+            -x '.gitignore' \
+            -x 'CLAUDE.md'
+          ls -la dist/
 
       - name: Upload to GitHub Release (create if missing)
         env:
@@ -49,6 +63,7 @@ jobs:
             gh release create "$TAG" --title "$TAG" --generate-notes
           fi
           gh release upload "$TAG" \
+            dist/the-ultimate-workflow-guidelines-plugin.zip \
             dist/the-ultimate-workflow-guidelines.zip \
             dist/project-bootstrap-guidelines.zip \
             --clobber

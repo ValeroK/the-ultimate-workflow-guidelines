@@ -87,18 +87,28 @@ Or install directly from GitHub:
 
 Cursor auto-discovers the `skills/` and `rules/` directories — both skills and their `alwaysApply` rules activate immediately.
 
+If you'd rather install offline (or before the marketplace listing is live), download `the-ultimate-workflow-guidelines-plugin.zip` from the [latest release](https://github.com/ValeroK/the-ultimate-workflow-guidelines/releases/latest) — the same ZIP serves Claude Desktop and Cursor.
+
 See **[CURSOR.md](CURSOR.md)** for details on the Cursor setup, including how to use individual `.mdc` rules outside the plugin system.
 
 ### Claude Desktop (claude.ai)
 
-Requires a Pro, Max, Team, or Enterprise plan with code execution enabled.
+Requires a Pro, Max, Team, or Enterprise plan with code execution enabled. Each release attaches three ZIPs — pick based on which upload UI you use.
 
-1. Open the [latest release](https://github.com/ValeroK/the-ultimate-workflow-guidelines/releases/latest) and download the skill ZIPs you want:
+**Plugin upload (recommended — installs both skills at once):**
+
+1. Open the [latest release](https://github.com/ValeroK/the-ultimate-workflow-guidelines/releases/latest) and download `the-ultimate-workflow-guidelines-plugin.zip`.
+2. In claude.ai, open the plugin upload UI and select the ZIP. The same ZIP also works as a manual install for Cursor (it ships both `.claude-plugin/` and `.cursor-plugin/` manifests; each ecosystem reads only its own).
+
+**Skills upload (one skill at a time):**
+
+If you want only one of the skills, or your install surface accepts skill ZIPs only:
+
+1. Download whichever you want from the [latest release](https://github.com/ValeroK/the-ultimate-workflow-guidelines/releases/latest):
    - `the-ultimate-workflow-guidelines.zip` — the plan-first / test-first workflow.
    - `project-bootstrap-guidelines.zip` — the greenfield PRD + bootstrap flow.
-2. In claude.ai, go to **Settings → Features → Skills → Upload Skill**.
-3. Select the ZIP. The skill activates immediately for your account.
-4. Repeat for the second ZIP if you want both skills available.
+2. In claude.ai, go to **Settings → Features → Skills → Upload Skill** and select the ZIP.
+3. Repeat for the second ZIP if you want both skills.
 
 Install is per-user; each teammate uploads separately. Skills in claude.ai do not share state with Claude Code installs — this is a parallel surface, not a sync.
 

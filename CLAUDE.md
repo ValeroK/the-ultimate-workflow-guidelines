@@ -197,9 +197,16 @@ When in doubt, err toward the workflow.
 
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
 
+## Key files
+
+- **`memory.md`** — Slim index of topical knowledge for this repo (lazy-loaded topicals under `memory/`). Source of truth for *how this works and why we did it that way*. Distinct from `## Gotchas` below: `memory/` carries explanatory knowledge, `## Gotchas` carries defensive warnings.
+- **`README.md`** — Repo entry point, with the install paths for Claude Code / Cursor / Claude Desktop.
+- **`CURSOR.md`** — Cursor-specific install/setup notes.
+- **`PLAN-<feature>.md`** (per feature, transient) — Per-feature plan produced by the workflow above.
+
 ## Gotchas
 
-> Empirical, project-specific lessons. Threshold, format, and pruning rules are defined in the Workflow section above.
+> **Defensive warnings** ("Beware:…", "Don't…", "Note that…"). Threshold, format, and pruning rules are defined in the Workflow section above. Longer-form **explanatory** knowledge ("here's how X works", "here's why we picked Y") belongs in `memory/<topic>.md`, not here.
 
 <!-- Add entries as repeating issues surface. Example shape:
 

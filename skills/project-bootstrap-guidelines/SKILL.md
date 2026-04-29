@@ -17,6 +17,7 @@ Canonical skeletons for every doc this skill produces — copy each into the pro
 - [`references/roadmap-template.md`](references/roadmap-template.md) — `ROADMAP.md` (Phase 3 milestone view).
 - [`references/progress-template.md`](references/progress-template.md) — `progress.md` (Phase 3 living log).
 - [`references/claude-md-template.md`](references/claude-md-template.md) — project `CLAUDE.md` (Phase 3), including `## Key files` and an empty `## Gotchas` section.
+- [`references/memory-template.md`](references/memory-template.md) — `memory.md` slim-index + per-topic file shape (Phase 3 seeds an empty `memory.md`; topical files appear later as the workflow skill creates them).
 
 ## Phase 1 — PRD
 
@@ -50,7 +51,7 @@ Present all of the above to the user. Raise concerns about any choice you're unc
 
 ## Phase 3 — Bootstrap docs
 
-Once the PRD is complete and holds all decisions, create three living docs:
+Once the PRD is complete and holds all decisions, create four living docs:
 
 1. **`CLAUDE.md`** (template: [`references/claude-md-template.md`](references/claude-md-template.md)) — written from the PRD. Contains:
    - Frameworks and libraries in use.
@@ -63,6 +64,7 @@ Once the PRD is complete and holds all decisions, create three living docs:
      - **`PRD.md`** — Product requirements and confirmed design decisions. Source of truth for *what* and *why*.
      - **`ROADMAP.md`** — Milestones and tasks. Source of truth for *what's next*.
      - **`progress.md`** — Living log of progress, decisions, bugs, blockers. Source of truth for *current state*.
+     - **`memory.md`** — Slim index of topical knowledge. Topical files live under `memory/` and are read on demand. Source of truth for *how this works and why we did it that way*.
      - **`PLAN-<feature>.md`** (per feature, transient) — Per-feature plan produced by `the-ultimate-workflow-guidelines`.
      ```
 
@@ -82,17 +84,21 @@ Once the PRD is complete and holds all decisions, create three living docs:
    - Open questions / blockers.
    - Cross-reference: when a new `PLAN-<feature>.md` is produced, link it here.
 
-**Why:** docs loaded every turn compound context over time. `CLAUDE.md` holds intentional project design; `## Gotchas` captures empirical lessons so they don't re-appear each session; `ROADMAP.md` carries the milestone view; `progress.md` is the time-ordered log. Together they give `the-ultimate-workflow-guidelines` everything it needs to plan features without re-investigating the codebase.
+4. **`memory.md`** (template: [`references/memory-template.md`](references/memory-template.md)) — seeded **empty** (just the header + threshold comment). It's the slim index for topical knowledge that the workflow skill writes into `memory/<topic>.md` later. Empty is fine; the slot must exist for entries to land.
+
+**Why a slim memory.md from day one:** like `## Gotchas`, the slot must exist for entries to land. `memory.md` captures explanatory knowledge ("here's how X works", "here's why we picked Y") in topical files that are lazy-loaded on demand — distinct from `## Gotchas`, which carries always-loaded defensive warnings. The workflow skill (`the-ultimate-workflow-guidelines`) knows what to do with it.
+
+**Why these four together:** docs loaded every turn compound context over time. `CLAUDE.md` holds intentional project design; `## Gotchas` captures empirical defensive lessons so they don't re-appear each session; `ROADMAP.md` carries the milestone view; `progress.md` is the time-ordered log; `memory.md` (+ `memory/`) holds explanatory topical knowledge for lazy retrieval. Together they give `the-ultimate-workflow-guidelines` everything it needs to plan features without re-investigating the codebase.
 
 ## Phase 4 — Hand-off
 
 Bootstrap is **done** when all three conditions hold:
 
-1. `PRD.md`, `ROADMAP.md`, `CLAUDE.md`, and `progress.md` all exist.
+1. `PRD.md`, `ROADMAP.md`, `CLAUDE.md`, `progress.md`, and `memory.md` all exist.
 2. The user has explicitly confirmed them.
 3. The first feature is scoped and ready to start.
 
-For that feature and every one after it, switch to `the-ultimate-workflow-guidelines`. Each feature still gets its own `PLAN-<feature>.md` per that skill's workflow; `ROADMAP.md` stays as the project-level milestone view; `progress.md` tracks cumulative state across features; `CLAUDE.md`'s `## Gotchas` section grows as empirical issues surface.
+For that feature and every one after it, switch to `the-ultimate-workflow-guidelines`. Each feature still gets its own `PLAN-<feature>.md` per that skill's workflow; `ROADMAP.md` stays as the project-level milestone view; `progress.md` tracks cumulative state across features; `CLAUDE.md`'s `## Gotchas` section grows as empirical defensive lessons surface; `memory.md` + `memory/<topic>.md` accumulate explanatory topical knowledge as the workflow skill writes them.
 
 **Why:** a clean hand-off prevents this skill from leaking into routine feature work — two distinct modes, two distinct skills, no ambiguity about which one is running.
 

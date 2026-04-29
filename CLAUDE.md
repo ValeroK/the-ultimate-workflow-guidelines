@@ -76,6 +76,8 @@ For any non-trivial task, follow this loop:
 
    **If the project has bootstrap docs** (`PRD.md`, `ROADMAP.md`, `CLAUDE.md`, `progress.md` produced by `project-bootstrap-guidelines`), read them as part of the existing-design review. `PRD.md` tells you *what* the project is meant to do; `CLAUDE.md` carries the project's frameworks, conventions, and `## Gotchas` (mistakes prior sessions learned not to repeat).
 
+   **If the project has a `memory.md` index**, read it. For each topical pointer whose **Read when** cue plausibly matches the feature, read the corresponding `memory/<topic>.md` before drafting the plan. Topical memory often contains the rationale ("why this pattern?") that turns a deviation-justification question into a one-line answer. See *Memory* below.
+
    **Stop and ask for confirmation before moving on.**
    - *Applies Think Before Coding and Surgical Changes.*
    - **Why:** a plan on disk survives context compaction; chat threads don't. Confirming before code means rework happens on paper, not in the editor.
@@ -105,6 +107,7 @@ For any non-trivial task, follow this loop:
    - If the feature closed a milestone in `ROADMAP.md`, mark it done.
    - If frameworks or conventions shifted, update `CLAUDE.md`'s architecture or best-practices sections.
    - If you hit a repeating issue during the feature (see `## Gotchas` threshold below), append a short entry to `CLAUDE.md`'s `## Gotchas` section.
+   - If the feature surfaced **longer-form** explanatory learning (architectural mental model, key decision + rationale, runbook), create or update `memory/<topic>.md` and add a pointer to `memory.md` if it's a new topic. One-liners still go to `## Gotchas`. Before deleting the per-feature `PLAN-<feature>.md`, scan it for durable learnings worth migrating. See *Memory* and *Gotchas vs Memory* below.
    - **Why:** the durable learning from a session has to land somewhere durable, or the next session re-derives it.
 
 ### `## Gotchas` in `CLAUDE.md` — capturing repeating issues
@@ -122,6 +125,64 @@ One-off typos or things the next reader would catch instantly: **don't log.** No
 
 **Prune:** if a gotcha stops being true (after a refactor, framework change, or convention shift), delete it. This section should be alive, not a graveyard.
 
+### Memory: slim index + lazy topical files
+
+`CLAUDE.md`'s `## Gotchas` catches **defensive warnings** ("beware X", "don't do Y"). Memory catches **explanatory knowledge** ("here's how X works", "here's why we picked Y"). Different purposes — see *Gotchas vs Memory* below for the full distinction.
+
+Topicals live at the repo root as a slim **`memory.md`** index plus per-topic files under **`memory/`**. Template: `skills/the-ultimate-workflow-guidelines/references/memory-template.md`.
+
+**`memory.md` shape:** one-line pointer per topical, each with a **Read when** cue (concrete keywords + file globs). Example entry:
+
+> `- [memory/auth.md](memory/auth.md) — Auth flow + token lifecycle. **Read when** login, sessions, JWT, OAuth, or /auth/* files.`
+
+The cue is what the model uses to decide whether to fetch the topical. Concrete keywords beat vague phrases.
+
+**Read protocol** at the start of any non-trivial task:
+
+1. Read `memory.md` if it exists (cheap — it's slim by design).
+2. For each entry whose **Read when** cue matches the current task, read `memory/<topic>.md` *before drafting the plan*.
+3. Topical content feeds the plan's existing-design review and deviation justification — often the rationale lives there.
+
+**Write protocol — Gotcha or Memory?** Use the decision test in *Gotchas vs Memory* below. Threshold for a new `memory/<topic>.md` (all three required):
+
+1. The lesson is **explanatory** (passes the "Here's how / Here's why" test).
+2. It will affect **future feature work** in this area, not a one-time observation.
+3. The understanding **isn't obvious from reading the code** — there's rationale, history, or system shape the source doesn't reveal.
+
+A small explanatory lesson belongs in an existing topical's *Key decisions* section. A short defensive footgun belongs in `## Gotchas`.
+
+**Soft caps:** `memory.md` ≤50 entries (~80 lines); `memory/<topic>.md` ≤2 pages (~150 lines). Past either, split.
+
+**Prune:** delete topicals invalidated by refactors / framework changes / convention shifts. `memory/` is alive, not a graveyard.
+
+**Graceful degradation for Gotchas:** if `## Gotchas` ever outgrows its slot (~30 entries / 50 lines), migrate it to `memory/gotchas.md` and add a `gotchas` pointer to `memory.md`.
+
+### Gotchas vs Memory — the real distinction
+
+Length is a *consequence*, not the criterion. The two stores serve different **purposes** and have different **shapes**:
+
+| | **`## Gotchas` (in CLAUDE.md)** | **`memory/<topic>.md`** |
+|---|---|---|
+| **Purpose** | Defensive warning | Explanatory knowledge |
+| **Voice** | "Beware…" / "Don't…" / "Note that…" | "Here's how…" / "Here's why…" |
+| **Posture** | Reactive — alerts to a footgun | Proactive — builds understanding |
+| **Always loaded?** | Yes — short, in `CLAUDE.md` | No — Read on demand when topic relevant |
+
+**Decision test:**
+- Phrasable as *"Beware:"* / *"Don't…"* / *"Watch out for…"*? → **Gotcha** (`CLAUDE.md` `## Gotchas`).
+- Phrasable as *"Here's how X works"* / *"Here's why we picked Y"* / *"To do Z, follow these steps"*? → **Memory** (`memory/<topic>.md`).
+
+**Examples:**
+
+| Lesson | Goes where |
+|---|---|
+| "Tests need a live Postgres — run `docker compose up -d db` first." | `## Gotchas` (defensive, one-line) |
+| "Imports use `@/` aliases, not relative paths." | `## Gotchas` (defensive footgun) |
+| "Auth flow: short-lived JWT + refresh in HTTPOnly cookie + library X for validation, picked over Z for latency reason W." | `memory/auth.md` (explanatory, multi-paragraph) |
+| "Schema decisions: UUID v7 for PKs because…; migrations forward-only because…" | `memory/db.md` (explanatory, multi-decision) |
+
+Length follows naturally from purpose: warnings are short ("don't do X"); explanations need room to breathe.
+
 ### When to skip this workflow
 
 Use judgment. Skip for:
@@ -136,9 +197,16 @@ When in doubt, err toward the workflow.
 
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
 
+## Key files
+
+- **`memory.md`** — Slim index of topical knowledge for this repo (lazy-loaded topicals under `memory/`). Source of truth for *how this works and why we did it that way*. Distinct from `## Gotchas` below: `memory/` carries explanatory knowledge, `## Gotchas` carries defensive warnings.
+- **`README.md`** — Repo entry point, with the install paths for Claude Code / Cursor / Claude Desktop.
+- **`CURSOR.md`** — Cursor-specific install/setup notes.
+- **`PLAN-<feature>.md`** (per feature, transient) — Per-feature plan produced by the workflow above.
+
 ## Gotchas
 
-> Empirical, project-specific lessons. Threshold, format, and pruning rules are defined in the Workflow section above.
+> **Defensive warnings** ("Beware:…", "Don't…", "Note that…"). Threshold, format, and pruning rules are defined in the Workflow section above. Longer-form **explanatory** knowledge ("here's how X works", "here's why we picked Y") belongs in `memory/<topic>.md`, not here.
 
 <!-- Add entries as repeating issues surface. Example shape:
 

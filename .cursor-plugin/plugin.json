@@ -1,6 +1,6 @@
 {
   "name": "the-ultimate-workflow-guidelines",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "Plan-first, test-first workflow + bootstrap flow for new projects. Principles derived from Andrej Karpathy's observations on LLM coding pitfalls. Two skills: one for daily feature work inside an existing codebase (the-ultimate-workflow-guidelines), one for greenfield project kickoff (project-bootstrap-guidelines). Ships Cursor rules under rules/ and Agent Skills under skills/.",
   "author": {
     "name": "ValeroK"

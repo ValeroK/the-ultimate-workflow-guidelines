@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Ultimate Workflow Guidelines</title>
+<meta name="description" content="A two-skill plugin for Claude Code, Cursor, and Claude Desktop that makes LLM coding assistants plan first, test first, respect existing design, and accumulate per-repo knowledge across sessions.">
+<style>
+  :root {
+    --bg: #fbfbfa;
+    --text: #1a1a1a;
+    --muted: #6a6a6a;
+    --accent: #8b3a2a;
+    --accent-soft: #f4e8e3;
+    --rule: #e0e0dd;
+    --code-bg: #f0efea;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 17px;
+    line-height: 1.65;
+  }
+  main { max-width: 720px; margin: 0 auto; padding: 48px 24px 96px; }
+  h1, h2, h3 { line-height: 1.25; font-weight: 600; }
+  h1 { font-size: 2.4rem; margin: 0 0 .25em; letter-spacing: -.02em; }
+  h2 {
+    font-size: 1.5rem;
+    margin: 3em 0 .6em;
+    padding-left: 12px;
+    border-left: 3px solid var(--accent);
+  }
+  h3 { font-size: 1.1rem; margin: 2em 0 .4em; color: var(--accent); }
+  .subtitle { color: var(--muted); margin: 0 0 2em; font-size: 1.1rem; }
+  p { margin: 0 0 1em; }
+  a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  a:hover { text-decoration-thickness: 2px; }
+  code { background: var(--code-bg); padding: .1em .35em; border-radius: 3px; font-size: .9em; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+  pre { background: var(--code-bg); padding: 14px 18px; border-radius: 4px; overflow-x: auto; font-size: .88em; line-height: 1.55; }
+  pre code { background: none; padding: 0; }
+  hr { border: none; border-top: 1px solid var(--rule); margin: 3em 0; }
+  blockquote { margin: 1em 0; padding: 0 0 0 16px; border-left: 3px solid var(--rule); color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; margin: 1em 0 2em; font-size: .95em; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  th { font-weight: 600; color: var(--muted); font-size: .85em; text-transform: uppercase; letter-spacing: .04em; }
+
+  .pill-row { display: flex; flex-wrap: wrap; gap: 10px; margin: 1.5em 0 2.5em; }
+  .pill {
+    display: inline-block;
+    padding: 8px 16px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-radius: 999px;
+    font-size: .9em;
+    font-weight: 500;
+    text-decoration: none;
+    border: 1px solid transparent;
+  }
+  .pill:hover { border-color: var(--accent); text-decoration: none; }
+
+  .card {
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 18px 22px;
+    margin: 1em 0;
+    background: #fff;
+  }
+  .card h3 { margin-top: 0; }
+  .card-grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
+  @media (min-width: 700px) { .card-grid-2 { grid-template-columns: 1fr 1fr; } }
+
+  .principle { display: flex; gap: 14px; align-items: flex-start; margin: .8em 0; }
+  .principle .glyph { font-size: 1.6em; line-height: 1; flex-shrink: 0; width: 32px; text-align: center; }
+  .principle .body strong { color: var(--accent); }
+
+  .kv td:first-child { font-weight: 600; width: 30%; }
+
+  footer {
+    margin-top: 4em; padding-top: 2em; border-top: 1px solid var(--rule);
+    color: var(--muted); font-size: .9em;
+  }
+  footer a { color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+
+<h1>The Ultimate Workflow Guidelines</h1>
+<p class="subtitle">A two-skill plugin for Claude Code, Cursor, and Claude Desktop that makes LLM coding assistants plan first, test first, respect existing design, and accumulate per-repo knowledge across sessions.</p>
+
+<div class="pill-row">
+  <a class="pill" href="#install">Install for Claude Code</a>
+  <a class="pill" href="#install">Install for Cursor</a>
+  <a class="pill" href="#install">Install for Claude Desktop</a>
+  <a class="pill" href="https://github.com/ValeroK/the-ultimate-workflow-guidelines">GitHub repo →</a>
+</div>
+
+<h2>The problem</h2>
+<p>LLM coding assistants are fast but forgetful. They assume when they should ask, write 200 lines when 50 would do, touch unrelated code "while they're in there," and re-derive the same project quirks every session.</p>
+
+<blockquote>
+  "The models make wrong assumptions on your behalf and just run along with them without checking. They don't manage their confusion, don't seek clarifications, don't surface inconsistencies, don't present tradeoffs, don't push back when they should."
+  <br>— <a href="https://x.com/karpathy/status/2015883857489522876">Andrej Karpathy</a>
+</blockquote>
+
+<p>The behavioral principles in this plugin are derived from those observations. The plan-first workflow, greenfield bootstrap, and per-repo memory pattern are layered on top — operationalizing the principles so the model actually applies them, every turn.</p>
+
+<h2>The two workflows</h2>
+
+<div class="card-grid card-grid-2">
+  <div class="card">
+    <h3>the-ultimate-workflow-guidelines</h3>
+    <p><strong>Daily feature work in an existing codebase.</strong> Any non-trivial change — new feature, bug fix, refactor.</p>
+    <p>Produces:</p>
+    <ul>
+      <li>A <code>PLAN-&lt;feature&gt;.md</code> on disk with goal, files explored, existing-design review, deviation justification.</li>
+      <li>A test plan you confirm <em>before</em> code is written.</li>
+      <li>A minimal implementation that respects existing patterns.</li>
+      <li>Updates to <code>progress.md</code>, <code>## Gotchas</code>, and <code>memory/</code> after landing.</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>project-bootstrap-guidelines</h3>
+    <p><strong>Greenfield only.</strong> From a blank slate to a project that's ready for feature work.</p>
+    <p>Produces:</p>
+    <ul>
+      <li><code>PRD.md</code> (with Mermaid flow diagram + framework choices and alternatives documented).</li>
+      <li><code>CLAUDE.md</code>, <code>ROADMAP.md</code>, <code>progress.md</code>, an empty <code>memory.md</code>.</li>
+      <li>A clean hand-off to the workflow skill once the first feature is scoped.</li>
+    </ul>
+  </div>
+</div>
+
+<h2>The behavioral layer</h2>
+<p>Both skills apply four principles before any procedural step:</p>
+
+<div class="principle">
+  <div class="glyph">🧠</div>
+  <div class="body"><strong>Think Before Coding</strong> — surface assumptions; ask when unclear; name tradeoffs. Don't pick silently when ambiguity exists.</div>
+</div>
+<div class="principle">
+  <div class="glyph">✂️</div>
+  <div class="body"><strong>Simplicity First</strong> — minimum code that solves the problem. No features beyond what was asked, no abstractions for single-use code.</div>
+</div>
+<div class="principle">
+  <div class="glyph">🔬</div>
+  <div class="body"><strong>Surgical Changes</strong> — touch only what the request requires. No "while I was there" refactors, no formatting drift.</div>
+</div>
+<div class="principle">
+  <div class="glyph">🎯</div>
+  <div class="body"><strong>Goal-Driven Execution</strong> — define verifiable success criteria; loop until they pass. Tests-first turns "fix the bug" into "write the test that reproduces it, then make it pass."</div>
+</div>
+
+<p style="color: var(--muted);"><em>The workflow is</em> how <em>to work; the principles are</em> how to think.</p>
+
+<h2>Key files and why we need them</h2>
+<p>Each file in the repo plays a specific role. The two layers — always-loaded vs. lazy-loaded — keep the prompt slim while letting knowledge compound across sessions.</p>
+
+<div class="card">
+  <h3>CLAUDE.md</h3>
+  <p><strong>Always-on behavioral guidance.</strong> Auto-loaded by Claude Code on every turn. Mirrors skill 1's body so the workflow + principles + memory protocol reach Claude even outside the plugin context. <em>Why we need it:</em> keeps the model aligned without per-session reminders.</p>
+</div>
+
+<div class="card">
+  <h3>memory.md + memory/&lt;topic&gt;.md</h3>
+  <p><strong>Slim index + lazy-loaded topical knowledge.</strong> <code>memory.md</code> is a list of one-line pointers, each with a <em>"Read when…"</em> cue (concrete keywords + file globs). The actual content lives in <code>memory/&lt;topic&gt;.md</code> and is only pulled into context when the current task touches the topic. <em>Why we need it:</em> compounds explanatory knowledge across sessions ("here's how auth works", "here's why we picked Postgres") without paying the always-loaded tax.</p>
+</div>
+
+<div class="card">
+  <h3>## Gotchas (in CLAUDE.md)</h3>
+  <p><strong>Defensive warnings, always loaded.</strong> Short rules ("Beware:…", "Don't…") that protect future sessions from non-obvious footguns. <em>Why split from memory:</em> different purpose. Gotchas alert; memory explains.</p>
+</div>
+
+<div class="card">
+  <h3>PRD.md (greenfield)</h3>
+  <p><strong>What this project does and why.</strong> Source of truth for product questions: users, goals, non-goals, success metrics. Also carries every confirmed framework choice with documented alternatives. <em>Why we need it:</em> the workflow skill reads it before planning any later feature, so the *what* and *why* are never re-litigated.</p>
+</div>
+
+<div class="card">
+  <h3>ROADMAP.md (greenfield)</h3>
+  <p><strong>Milestones and ordering.</strong> Where the project is heading; what task closes which milestone. <em>Why we need it:</em> persistent project-level scope, distinct from per-feature plans.</p>
+</div>
+
+<div class="card">
+  <h3>progress.md (greenfield)</h3>
+  <p><strong>Time-ordered log.</strong> What changed when, what was decided, what bug surfaced. <em>Why we need it:</em> session-to-session continuity for the working state of the project.</p>
+</div>
+
+<div class="card">
+  <h3>PLAN-&lt;feature&gt;.md (transient, per feature)</h3>
+  <p><strong>The plan for one specific change.</strong> Created at workflow step 2; survives context compaction; retired after the feature merges. <em>Why we need it:</em> a written artifact survives a compacted chat; chat threads don't.</p>
+</div>
+
+<div class="card">
+  <h3>rules/*.mdc</h3>
+  <p><strong>Cursor mirror of the skills.</strong> Same body content, Cursor-shaped frontmatter (<code>alwaysApply: true</code> for skill 1; <code>false</code> for skill 2 since it's greenfield-only). <em>Why we need it:</em> Cursor doesn't auto-load <code>CLAUDE.md</code>; the rule files are the per-turn entry point in that ecosystem.</p>
+</div>
+
+<div class="card">
+  <h3>skills/*/references/*.md</h3>
+  <p><strong>Templates so the model never has to invent shapes.</strong> Plan template, PRD template, ROADMAP template, progress template, project CLAUDE.md template, memory template. <em>Why we need it:</em> consistent output across sessions, and the workflow skill points at them by reference instead of inlining the shape every time.</p>
+</div>
+
+<h2>Gotchas vs Memory — the real distinction</h2>
+<p>Length is a <em>consequence</em>, not the criterion. The two stores serve different <strong>purposes</strong> and have different <strong>shapes</strong>:</p>
+
+<table class="kv">
+  <thead>
+    <tr><th></th><th><code>## Gotchas</code> (CLAUDE.md)</th><th><code>memory/&lt;topic&gt;.md</code></th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Purpose</td><td>Defensive warning</td><td>Explanatory knowledge</td></tr>
+    <tr><td>Voice</td><td>"Beware…" / "Don't…"</td><td>"Here's how…" / "Here's why…"</td></tr>
+    <tr><td>Posture</td><td>Reactive — alerts to a footgun</td><td>Proactive — builds understanding</td></tr>
+    <tr><td>Always loaded?</td><td>Yes — short, in CLAUDE.md</td><td>No — Read on demand</td></tr>
+  </tbody>
+</table>
+
+<p><strong>Decision test:</strong></p>
+<ul>
+  <li>Phrasable as <em>"Beware:"</em> / <em>"Don't…"</em>? → <strong>Gotcha</strong> (<code>CLAUDE.md</code> <code>## Gotchas</code>).</li>
+  <li>Phrasable as <em>"Here's how X works"</em> / <em>"Here's why we picked Y"</em>? → <strong>Memory</strong> (<code>memory/&lt;topic&gt;.md</code>).</li>
+</ul>
+
+<p><strong>Worked examples:</strong></p>
+<table>
+  <thead>
+    <tr><th>Lesson</th><th>Goes where</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>"Tests need a live Postgres — run <code>docker compose up -d db</code> first."</td><td>Gotcha (defensive, one-line)</td></tr>
+    <tr><td>"Imports use <code>@/</code> aliases, not relative paths."</td><td>Gotcha (defensive footgun)</td></tr>
+    <tr><td>"Auth flow: short-lived JWT + refresh in HTTPOnly cookie + library X for validation, picked over Z for latency reason W."</td><td><code>memory/auth.md</code> (explanatory, multi-paragraph)</td></tr>
+    <tr><td>"Schema: UUID v7 for PKs because…; migrations forward-only because…"</td><td><code>memory/db.md</code> (explanatory, multi-decision)</td></tr>
+  </tbody>
+</table>
+
+<h2 id="install">Install</h2>
+
+<h3>Claude Code (plugin)</h3>
+<pre><code>/plugin marketplace add ValeroK/the-ultimate-workflow-guidelines
+/plugin install the-ultimate-workflow-guidelines</code></pre>
+
+<h3>Cursor</h3>
+<pre><code>/add-plugin ValeroK/the-ultimate-workflow-guidelines</code></pre>
+<p>Or browse <a href="https://cursor.com/marketplace">Cursor Marketplace</a> once the listing is live. For an offline install, download <code>the-ultimate-workflow-guidelines-plugin.zip</code> from the <a href="https://github.com/ValeroK/the-ultimate-workflow-guidelines/releases/latest">latest release</a> — the same ZIP serves Claude Desktop and Cursor.</p>
+
+<h3>Claude Desktop (claude.ai)</h3>
+<p>Requires Pro, Max, Team, or Enterprise plan with code execution enabled.</p>
+<ol>
+  <li>Download <code>the-ultimate-workflow-guidelines-plugin.zip</code> from the <a href="https://github.com/ValeroK/the-ultimate-workflow-guidelines/releases/latest">latest release</a> (installs both skills) — or one of the per-skill ZIPs (<code>the-ultimate-workflow-guidelines.zip</code>, <code>project-bootstrap-guidelines.zip</code>) for a one-skill install.</li>
+  <li>In claude.ai, go to <strong>Settings → Features → Skills → Upload Skill</strong> and select the ZIP.</li>
+</ol>
+<p>Install is per-user; each teammate uploads separately.</p>
+
+<footer>
+  <p>MIT with Attribution — see <a href="https://github.com/ValeroK/the-ultimate-workflow-guidelines/blob/main/LICENSE">LICENSE</a>. Redistributions and derivative works must visibly credit <code>ValeroK</code> and link back to the <a href="https://github.com/ValeroK/the-ultimate-workflow-guidelines">source repo</a>.</p>
+  <p><a href="https://github.com/ValeroK/the-ultimate-workflow-guidelines">github.com/ValeroK/the-ultimate-workflow-guidelines</a></p>
+</footer>
+
+</main>
+</body>
+</html>

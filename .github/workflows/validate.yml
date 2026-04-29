@@ -1,0 +1,51 @@
+name: Validate manifests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: JSON syntax check
+        run: |
+          set -e
+          for f in \
+            .claude-plugin/plugin.json \
+            .claude-plugin/marketplace.json \
+            .cursor-plugin/plugin.json; do
+            echo "Checking $f"
+            python -m json.tool "$f" > /dev/null
+          done
+
+      - name: Manifest version consistency
+        run: |
+          set -e
+          CANON=$(jq -r '.version' .claude-plugin/plugin.json)
+          echo "Canonical version (.claude-plugin/plugin.json): $CANON"
+
+          CURSOR=$(jq -r '.version' .cursor-plugin/plugin.json)
+          MKT_META=$(jq -r '.metadata.version' .claude-plugin/marketplace.json)
+          MKT_PLUGIN=$(jq -r '.plugins[0].version' .claude-plugin/marketplace.json)
+
+          fail=0
+          for pair in \
+            ".cursor-plugin/plugin.json:$CURSOR" \
+            ".claude-plugin/marketplace.json#metadata.version:$MKT_META" \
+            ".claude-plugin/marketplace.json#plugins[0].version:$MKT_PLUGIN"; do
+            label="${pair%%:*}"
+            value="${pair##*:}"
+            if [ "$value" != "$CANON" ]; then
+              echo "::error::Version mismatch at $label: got '$value', expected '$CANON'"
+              fail=1
+            fi
+          done
+
+          if [ "$fail" -ne 0 ]; then
+            exit 1
+          fi
+          echo "All four version slots agree on $CANON."

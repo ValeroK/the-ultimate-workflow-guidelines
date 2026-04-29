@@ -5,25 +5,28 @@
     "name": "ValeroK"
   },
   "metadata": {
-    "description": "Two skills for Claude Code: a plan-first/test-first workflow for existing projects, and a PRD-first bootstrap flow for new projects. Behavioral principles derived from Andrej Karpathy's observations.",
-    "version": "2.3.0"
+    "description": "Plan-first, test-first workflow + bootstrap flow for new projects. Two skills: one for daily feature work inside an existing codebase (the-ultimate-workflow-guidelines), one for greenfield project kickoff (project-bootstrap-guidelines). Behavioral principles derived from Andrej Karpathy's observations on LLM coding pitfalls. Ships Cursor rules under rules/ and Agent Skills under skills/.",
+    "version": "2.3.1"
   },
   "plugins": [
     {
       "name": "the-ultimate-workflow-guidelines",
       "source": "./",
-      "description": "Plan-first, test-first workflow plus behavioral principles (Think Before Coding, Simplicity First, Surgical Changes, Goal-Driven Execution), plus a separate project-bootstrap-guidelines skill for greenfield work.",
-      "version": "2.3.0",
+      "description": "Plan-first, test-first workflow + bootstrap flow for new projects. Two skills: one for daily feature work inside an existing codebase (the-ultimate-workflow-guidelines), one for greenfield project kickoff (project-bootstrap-guidelines). Behavioral principles derived from Andrej Karpathy's observations on LLM coding pitfalls. Ships Cursor rules under rules/ and Agent Skills under skills/.",
+      "version": "2.3.1",
       "author": {
         "name": "ValeroK"
       },
       "keywords": [
+        "workflow",
+        "planning",
+        "tdd",
+        "bootstrap",
+        "prd",
+        "karpathy",
         "guidelines",
         "best-practices",
-        "coding",
-        "workflow",
-        "bootstrap",
-        "prd"
+        "coding"
       ],
       "category": "workflow"
     }

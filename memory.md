@@ -9,9 +9,4 @@
 > works" / "here's why we picked Y"), affects future feature work, not obvious
 > from reading the code. One-liners go to `CLAUDE.md` `## Gotchas`.
 
-<!-- No topical files yet. Add entries here as topical knowledge surfaces.
-     Example shape:
-
-     - [`memory/auth.md`](memory/auth.md) — Auth flow + token lifecycle. **Read when** login, sessions, JWT, OAuth, or `/auth/*` files.
-
--->
+<!-- No topical files yet. See skills/the-ultimate-workflow-guidelines/references/memory-template.md for entry shape. -->

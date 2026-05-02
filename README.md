@@ -39,6 +39,9 @@ LLMs are fast but forgetful. They assume when they should ask, write 200 lines w
 | `skills/project-bootstrap-guidelines/references/progress-template.md` | `progress.md` skeleton. | Claude Code, Cursor | Linked from SKILL.md |
 | `skills/project-bootstrap-guidelines/references/claude-md-template.md` | Project `CLAUDE.md` skeleton (with `## Key files` + `## Gotchas`). | Claude Code, Cursor | Linked from SKILL.md |
 | `skills/project-bootstrap-guidelines/references/memory-template.md` | `memory.md` index + topical-file templates. | Claude Code, Cursor | Linked from SKILL.md |
+| `hooks/hooks.json` | Claude Code plugin hooks manifest. Wires the no-emoji enforcement below. | Claude Code | On `/plugin install` |
+| `hooks/no-emoji-prompt.js` | `UserPromptSubmit` hook — injects a no-emoji reminder into every turn. | Claude Code | Every prompt |
+| `hooks/no-emoji-write.js` | `PreToolUse` hook on `Write`/`Edit`/`MultiEdit`/`NotebookEdit` — blocks the tool call if the new content contains emoji codepoints. | Claude Code | Every file write |
 
 **Mirror discipline.** The bodies of skill 1 (`SKILL.md` ↔ `CLAUDE.md` ↔ `rules/the-ultimate-workflow-guidelines.mdc`) and skill 2 (`SKILL.md` ↔ `rules/project-bootstrap-guidelines.mdc`) are kept in sync by hand. Changes land in all copies in the same commit.
 
@@ -78,6 +81,19 @@ Two stores, distinct purposes:
 - Phrasable as *"Here's how X works"* or *"Here's why we picked Y"*? → Memory.
 
 `memory.md` at the repo root is a slim index of one-line pointers to `memory/<topic>.md` files, each with a "Read when..." cue (keywords / file globs). The workflow skill's read protocol: read `memory.md`, then for every entry whose cue matches the current task, Read the topical file before drafting the plan.
+
+## No-emoji enforcement (Claude Code only)
+
+The plugin ships two hooks that enforce a hard "no emojis" rule on consumers:
+
+- **Soft reminder.** A `UserPromptSubmit` hook prepends a one-line reminder to every turn so the model doesn't try in the first place.
+- **Hard backstop.** A `PreToolUse` hook on `Write`/`Edit`/`MultiEdit`/`NotebookEdit` scans the new content and aborts the tool call if any emoji codepoint is present (matched against `\p{Extended_Pictographic}`). The model receives the rejection reason and retries without emojis.
+
+**Why:** emojis break Windows terminals, corrupt downstream pipelines, and clutter diffs. The rule is universal in this plugin.
+
+**Escape hatch.** Set `ALLOW_EMOJIS=1` in the environment to bypass both hooks (e.g. when legitimately editing emoji-related content).
+
+**Scope.** Hooks only run for users who install the plugin in Claude Code with hooks enabled; Cursor and Claude Desktop don't execute these hooks. The skill bodies still mention the rule, but only the Claude Code path enforces it deterministically.
 
 ## Install
 

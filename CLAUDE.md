@@ -16,6 +16,8 @@ Before implementing:
 - If a simpler approach exists, say so. Push back when warranted.
 - If something is unclear, stop. Name what's confusing. Ask.
 
+Whenever you "ask" here, route the question through the host's ask-user tool (`AskUserQuestion` in Claude Code, `AskQuestion` in Cursor) — see [*How to stop and ask*](#how-to-stop-and-ask) below.
+
 ### 2. Simplicity First
 
 **Minimum code that solves the problem. Nothing speculative.**
@@ -61,6 +63,16 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 The Workflow *operationalizes* the Principles — each step cites the principle it applies instead of restating it.
 
+### How to stop and ask
+
+Several steps below say "stop and ask", "confirm with the user", or "raise questions". Do **not** surface those as free-form prose — invoke the host's structured ask-user tool:
+
+- **Claude Code:** the `AskUserQuestion` tool.
+- **Cursor:** the `AskQuestion` tool (the "ask question tool", available in any agent mode and explicitly designed to be invoked from subagents/skills).
+- **Other hosts:** the equivalent user-question tool, or — only if none exists — a clearly-numbered question block in chat.
+
+The tool produces a structured prompt the user can answer in one pass. Provide options when the choice is bounded; use a free-form question when the answer is open-ended (e.g. PRD problem statement). Wait for the response before proceeding — never continue on assumptions.
+
 For any non-trivial task, follow this loop:
 
 1. **Understand.** Restate the request in your own words. Name the goal.
@@ -78,11 +90,11 @@ For any non-trivial task, follow this loop:
 
    **If the project has a `memory.md` index**, read it. For each topical pointer whose **Read when** cue plausibly matches the feature, read the corresponding `memory/<topic>.md` before drafting the plan. Topical memory often contains the rationale ("why this pattern?") that turns a deviation-justification question into a one-line answer. See *Memory* below.
 
-   **Stop and ask for confirmation before moving on.**
+   **Stop and ask for confirmation before moving on.** Use the host's ask-user tool (`AskUserQuestion` in Claude Code, `AskQuestion` in Cursor) — see [*How to stop and ask*](#how-to-stop-and-ask).
    - *Applies Think Before Coding and Surgical Changes.*
    - **Why:** a plan on disk survives context compaction; chat threads don't. Confirming before code means rework happens on paper, not in the editor.
 
-3. **Test plan.** Extend the plan file with a "Tests" section — what to test, how, what counts as "done". Raise any remaining questions. **Stop and ask for confirmation.**
+3. **Test plan.** Extend the plan file with a "Tests" section — what to test, how, what counts as "done". Raise any remaining questions. **Stop and ask for confirmation** via the host's ask-user tool (`AskUserQuestion` in Claude Code, `AskQuestion` in Cursor) — see [*How to stop and ask*](#how-to-stop-and-ask).
    - *Applies Goal-Driven Execution.*
    - **Why:** "what would prove this is done" is cheaper to negotiate on paper than on code that already exists.
 
@@ -90,7 +102,7 @@ For any non-trivial task, follow this loop:
    - *Applies Simplicity First and Surgical Changes.*
    - **Why:** tests-first makes the loop verifiable; minimal + surgical keeps every diff line traceable to the user's request.
 
-5. **Blocker protocol.** If something doesn't add up mid-implementation — missing info, conflicting requirements, an unexpected constraint — **stop**. Surface the problem, present 2–3 options with tradeoffs, wait for the user to decide. Do not silently pick.
+5. **Blocker protocol.** If something doesn't add up mid-implementation — missing info, conflicting requirements, an unexpected constraint — **stop**. Surface the problem via the host's ask-user tool (`AskUserQuestion` in Claude Code, `AskQuestion` in Cursor — the 2–3-options shape maps directly onto the tool's option list; see [*How to stop and ask*](#how-to-stop-and-ask)). Wait for the user to decide. Do not silently pick.
 
    Once the user picks a direction, before resuming implementation:
    - **Update the plan file** to reflect the new direction and the decision made.

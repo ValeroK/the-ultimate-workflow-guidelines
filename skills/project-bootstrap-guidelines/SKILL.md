@@ -19,6 +19,16 @@ Canonical skeletons for every doc this skill produces — copy each into the pro
 - [`references/claude-md-template.md`](references/claude-md-template.md) — project `CLAUDE.md` (Phase 3), including `## Key files` and an empty `## Gotchas` section.
 - [`references/memory-template.md`](references/memory-template.md) — `memory.md` slim-index + per-topic file shape (Phase 3 seeds an empty `memory.md`; topical files appear later as the workflow skill creates them).
 
+## How to stop and ask
+
+Every phase below ends with the user reviewing and confirming a doc. Do **not** surface those reviews as free-form prose — invoke the host's structured ask-user tool:
+
+- **Claude Code:** the `AskUserQuestion` tool.
+- **Cursor:** the `AskQuestion` tool (the "ask question tool", available in any agent mode and explicitly designed to be invoked from subagents/skills).
+- **Other hosts:** the equivalent user-question tool, or — only if none exists — a clearly-numbered question block in chat.
+
+The tool produces a structured prompt the user can answer in one pass. Provide options when the choice is bounded (e.g. "pick a DB: Postgres / SQLite / DynamoDB"); use a free-form question for open-ended decisions (e.g. PRD problem statement). Wait for the response before proceeding — never continue on assumptions.
+
 ## Phase 1 — PRD
 
 Create `PRD.md` (template: [`references/prd-template.md`](references/prd-template.md); use [`references/prd-questions.md`](references/prd-questions.md) to drive the review conversation). It must capture:
@@ -29,7 +39,7 @@ Create `PRD.md` (template: [`references/prd-template.md`](references/prd-templat
 - **Constraints** — technical, regulatory, performance, budget, timeline.
 - **Success metrics** — how we'll know it worked.
 
-Review the draft with the user. Raise every question and concern. Iterate until the user explicitly confirms the PRD.
+Review the draft with the user via the host's ask-user tool (`AskUserQuestion` in Claude Code, `AskQuestion` in Cursor — see [*How to stop and ask*](#how-to-stop-and-ask)). Raise every question and concern through the tool. Iterate until the user explicitly confirms the PRD.
 
 **Why:** the product questions (users, non-goals, success metrics) are cheaper to name up front than to re-litigate mid-build. `PRD.md` is also the single source of truth the feature workflow reads before planning any later feature.
 
@@ -45,7 +55,7 @@ With the PRD confirmed, design the system:
    - Why we picked this one (pros and cons).
 4. **Best practices** — coding standards, testing strategy, branching model, review process.
 
-Present all of the above to the user. Raise concerns about any choice you're uncertain about. Iterate until confirmed. Fold every confirmed decision back into `PRD.md` so the PRD is a single source of truth.
+Present all of the above to the user via the host's ask-user tool (`AskUserQuestion` in Claude Code, `AskQuestion` in Cursor — see [*How to stop and ask*](#how-to-stop-and-ask)). Raise concerns about any choice you're uncertain about as separate questions. Iterate until confirmed. Fold every confirmed decision back into `PRD.md` so the PRD is a single source of truth.
 
 **Why:** framework choices have gravity; documenting the alternatives now saves a "why not X?" question in month three. Folding decisions back into `PRD.md` keeps *what* + *why* in one file — the feature workflow reads it next.
 
@@ -95,7 +105,7 @@ Once the PRD is complete and holds all decisions, create four living docs:
 Bootstrap is **done** when all three conditions hold:
 
 1. `PRD.md`, `ROADMAP.md`, `CLAUDE.md`, `progress.md`, and `memory.md` all exist.
-2. The user has explicitly confirmed them.
+2. The user has explicitly confirmed them (each confirmation captured via the host's ask-user tool — `AskUserQuestion` in Claude Code, `AskQuestion` in Cursor; see [*How to stop and ask*](#how-to-stop-and-ask)).
 3. The first feature is scoped and ready to start.
 
 For that feature and every one after it, switch to `the-ultimate-workflow-guidelines`. Each feature still gets its own `PLAN-<feature>.md` per that skill's workflow; `ROADMAP.md` stays as the project-level milestone view; `progress.md` tracks cumulative state across features; `CLAUDE.md`'s `## Gotchas` section grows as empirical defensive lessons surface; `memory.md` + `memory/<topic>.md` accumulate explanatory topical knowledge as the workflow skill writes them.

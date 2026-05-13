@@ -98,7 +98,7 @@ For any non-trivial task, follow this loop:
    - *Applies Goal-Driven Execution.*
    - **Why:** "what would prove this is done" is cheaper to negotiate on paper than on code that already exists.
 
-4. **Implement.** Add the tests first. Make the minimal change. Run tests until green. Keep the plan file current as facts change.
+4. **Implement (TDD: red → green → refactor).** Add the tests first and **run them to confirm they fail for the right reason** (red). Make the minimal change to turn them green. Refactor only after green. Keep the plan file current as facts change.
    - *Applies Simplicity First and Surgical Changes.*
    - **Why:** tests-first makes the loop verifiable; minimal + surgical keeps every diff line traceable to the user's request.
 

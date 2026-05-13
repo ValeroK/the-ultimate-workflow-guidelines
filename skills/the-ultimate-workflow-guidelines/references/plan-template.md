@@ -48,7 +48,7 @@ If there is no deviation, write: *None — reuses existing patterns.*
 
 ## Tests
 
-> Fill this section in during step 3 of the workflow, **before** implementation. Confirm with the user before coding.
+> Fill this section in during step 3 of the workflow, **before** implementation. Confirm with the user before coding — use the host's ask-user tool (`AskUserQuestion` in Claude Code, `AskQuestion` in Cursor); see the skill's *How to stop and ask* section.
 
 ### What to test
 

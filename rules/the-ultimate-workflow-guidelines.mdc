@@ -88,7 +88,7 @@ Several steps below say "stop and ask", "confirm with the user", or "raise quest
 
 The tool produces a structured prompt the user can answer in one pass. Provide options when the choice is bounded; use a free-form question when the answer is open-ended (e.g. PRD problem statement). Wait for the response before proceeding — never continue on assumptions.
 
-**Don't bog down on trivial reversible decisions.** A variable name, two equally-valid orderings, a temporary file path — decide, flag the choice in the plan or in chat, and move on. The user can reverse it cheaply later. Save the structured ask for choices that are hard to undo, change the shape of the work, or commit you to a direction that affects later steps.
+**Don't bog down on trivial reversible decisions.** A variable name, two equally valid orderings, a temporary file path — decide, flag the choice in the plan or in chat, and move on. The user can reverse it cheaply later. Save the structured ask for choices that are hard to undo, change the shape of the work, or commit you to a direction that affects later steps.
 
 **If the user rejects or skips a tool call**, treat it as a signal — they saw something you didn't. Stop and ask what was wrong via the ask-user tool before retrying or routing around. Silently re-attempting (or "fixing" the call without understanding the rejection) is the same failure mode as a silent fallback.
 

@@ -49,3 +49,13 @@ jobs:
             exit 1
           fi
           echo "All four version slots agree on $CANON."
+
+      - name: Generated mirrors are fresh
+        run: |
+          set -e
+          sh build-docs.sh
+          if ! git diff --exit-code; then
+            echo "::error::A generated mirror is stale or was hand-edited. Edit the canonical SKILL.md, run ./build-docs.sh, and commit the result."
+            exit 1
+          fi
+          echo "CLAUDE.md and rules/*.mdc are in sync with their SKILL.md sources."

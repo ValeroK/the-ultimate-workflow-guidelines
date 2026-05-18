@@ -6,7 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+- `build-docs.sh` — regenerates the always-on mirrors (`CLAUDE.md`, both `rules/*.mdc`, skill 2's `memory-template.md`) from the canonical `SKILL.md` bodies. Removes the hand-maintained "mirror discipline": a guideline edit now lands in exactly one file.
+- `validate.yml` step that regenerates and runs `git diff --exit-code`, failing CI if any generated mirror is stale or was hand-edited.
+
 ### Changed
+- The two `SKILL.md` files are now the single source of truth. `CLAUDE.md` and `rules/*.mdc` became generated artifacts (byte-identical bodies; only frontmatter, footer wrappers, and reference-link path format differ per surface — verified unchanged on adoption). The duplicate `references/memory-template.md` is now generated from one canonical copy.
+- `release-skills.yml` excludes dev/build files (`build-docs.sh`, `build/`, `PLAN-*.md`) from the published plugin ZIP.
+- `README.md` / `CURSOR.md` contributor docs updated: edit `SKILL.md`, run `./build-docs.sh` (replaces the old by-hand mirror instructions).
 - **Principles & Workflow — partner-mindset and anti-fake-success additions**, mirrored across `SKILL.md`, `CLAUDE.md`, and `rules/the-ultimate-workflow-guidelines.mdc`:
   - **Think Before Coding** now includes "truth over agreement" — don't reflexively affirm the user's framing; name gaps in their reasoning.
   - **Goal-Driven Execution** gains a "Don't fake success" paragraph — no silent fallbacks, swallowed errors, or skipped assertions when the task can't actually be accomplished; stop and surface via the host's ask-user tool.

@@ -19,7 +19,8 @@ LLMs are fast but forgetful. They assume when they should ask, write 200 lines w
 |---|---|---|---|
 | `README.md` | Repo entry point. | Humans | On GitHub |
 | `LICENSE` | MIT with Attribution. | — | — |
-| `CLAUDE.md` | Always-on guidance for Claude Code in this repo. Mirrors skill 1's body. | Claude Code | Every turn |
+| `CLAUDE.md` | Always-on guidance for Claude Code in this repo. **Generated** from skill 1's `SKILL.md`. | Claude Code | Every turn |
+| `build-docs.sh` | Regenerates `CLAUDE.md` + `rules/*.mdc` + skill 2's `memory-template.md` from the canonical `SKILL.md` bodies. | Contributors / CI | On guideline edits |
 | `CURSOR.md` | Cursor-specific install/setup notes. | Humans | On read |
 | `memory.md` | Slim index of topical knowledge for this repo (lazy-loaded topicals under `memory/`). | Claude Code, Cursor | Read by the workflow skill at the start of any non-trivial task |
 | `.claude-plugin/plugin.json` | Claude Code plugin manifest. | Claude Code | On `/plugin install` |
@@ -27,8 +28,8 @@ LLMs are fast but forgetful. They assume when they should ask, write 200 lines w
 | `.cursor-plugin/plugin.json` | Cursor plugin manifest. | Cursor | On `/add-plugin` |
 | `.github/workflows/release-skills.yml` | Builds three release ZIPs and attaches them to the GitHub release. | GitHub Actions | On `v*` tag push (or manual dispatch) |
 | `docs/index.html` | Visual walkthrough served via GitHub Pages. | Humans | On read |
-| `rules/the-ultimate-workflow-guidelines.mdc` | Cursor rule, `alwaysApply: true`. Mirrors skill 1's body. | Cursor | Every turn |
-| `rules/project-bootstrap-guidelines.mdc` | Cursor rule, `alwaysApply: false`. Mirrors skill 2's body. | Cursor | When the rule's description matches (greenfield phrasings) |
+| `rules/the-ultimate-workflow-guidelines.mdc` | Cursor rule, `alwaysApply: true`. **Generated** from skill 1's `SKILL.md`. | Cursor | Every turn |
+| `rules/project-bootstrap-guidelines.mdc` | Cursor rule, `alwaysApply: false`. **Generated** from skill 2's `SKILL.md`. | Cursor | When the rule's description matches (greenfield phrasings) |
 | `skills/the-ultimate-workflow-guidelines/SKILL.md` | Skill 1 body — workflow + principles + memory protocol. | Claude Code, Cursor | When the skill's description matches |
 | `skills/the-ultimate-workflow-guidelines/references/plan-template.md` | `PLAN-<feature>.md` skeleton. | Claude Code, Cursor | Linked from SKILL.md, read on demand |
 | `skills/the-ultimate-workflow-guidelines/references/memory-template.md` | `memory.md` index + topical-file templates. | Claude Code, Cursor | Linked from SKILL.md, read on demand |
@@ -38,12 +39,12 @@ LLMs are fast but forgetful. They assume when they should ask, write 200 lines w
 | `skills/project-bootstrap-guidelines/references/roadmap-template.md` | `ROADMAP.md` skeleton. | Claude Code, Cursor | Linked from SKILL.md |
 | `skills/project-bootstrap-guidelines/references/progress-template.md` | `progress.md` skeleton. | Claude Code, Cursor | Linked from SKILL.md |
 | `skills/project-bootstrap-guidelines/references/claude-md-template.md` | Project `CLAUDE.md` skeleton (with `## Key files` + `## Gotchas`). | Claude Code, Cursor | Linked from SKILL.md |
-| `skills/project-bootstrap-guidelines/references/memory-template.md` | `memory.md` index + topical-file templates. | Claude Code, Cursor | Linked from SKILL.md |
+| `skills/project-bootstrap-guidelines/references/memory-template.md` | `memory.md` index + topical-file templates. **Generated** copy of skill 1's identical file (keeps each skill ZIP self-contained). | Claude Code, Cursor | Linked from SKILL.md |
 | `hooks/hooks.json` | Claude Code plugin hooks manifest. Wires the no-emoji enforcement below. | Claude Code | On `/plugin install` |
 | `hooks/no-emoji-prompt.js` | `UserPromptSubmit` hook — injects a no-emoji reminder into every turn. | Claude Code | Every prompt |
 | `hooks/no-emoji-write.js` | `PreToolUse` hook on `Write`/`Edit`/`MultiEdit`/`NotebookEdit` — blocks the tool call if the new content contains emoji codepoints. | Claude Code | Every file write |
 
-**Mirror discipline.** The bodies of skill 1 (`SKILL.md` ↔ `CLAUDE.md` ↔ `rules/the-ultimate-workflow-guidelines.mdc`) and skill 2 (`SKILL.md` ↔ `rules/project-bootstrap-guidelines.mdc`) are kept in sync by hand. Changes land in all copies in the same commit.
+**Single source of truth.** The two `skills/*/SKILL.md` files are canonical. `CLAUDE.md`, both `rules/*.mdc`, and the second `references/memory-template.md` are **generated** from them by [`build-docs.sh`](build-docs.sh) — only frontmatter, footer wrappers, and reference-link path format differ between surfaces. Edit the relevant `SKILL.md`, run `./build-docs.sh`, and commit the result; `.github/workflows/validate.yml` fails the build if a generated mirror is stale or was hand-edited.
 
 ## The two skills
 

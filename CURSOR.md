@@ -56,13 +56,12 @@ Copy or symlink into your personal skills directory; use whatever layout you use
 
 ## For contributors
 
-When you change the principles or workflow, keep these files in sync:
+`SKILL.md` is the single source of truth. To change the principles or workflow, edit [`skills/the-ultimate-workflow-guidelines/SKILL.md`](skills/the-ultimate-workflow-guidelines/SKILL.md); for the bootstrap flow, edit [`skills/project-bootstrap-guidelines/SKILL.md`](skills/project-bootstrap-guidelines/SKILL.md).
 
-- [`CLAUDE.md`](CLAUDE.md)
-- [`rules/the-ultimate-workflow-guidelines.mdc`](rules/the-ultimate-workflow-guidelines.mdc)
-- [`skills/the-ultimate-workflow-guidelines/SKILL.md`](skills/the-ultimate-workflow-guidelines/SKILL.md)
+Then regenerate the mirrors and commit them in the same change:
 
-When you change the project-bootstrap flow, keep these in sync:
+```
+./build-docs.sh
+```
 
-- [`rules/project-bootstrap-guidelines.mdc`](rules/project-bootstrap-guidelines.mdc)
-- [`skills/project-bootstrap-guidelines/SKILL.md`](skills/project-bootstrap-guidelines/SKILL.md)
+This rewrites `CLAUDE.md`, both `rules/*.mdc`, and skill 2's `memory-template.md` from the `SKILL.md` bodies. Never hand-edit a generated file — `.github/workflows/validate.yml` regenerates and runs `git diff --exit-code`, so a stale or hand-edited mirror fails CI.

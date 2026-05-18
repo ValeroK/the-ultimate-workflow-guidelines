@@ -1,0 +1,18 @@
+---
+description: Plan-first, test-first workflow plus behavioral principles (think before coding, simplicity, surgical changes, goal-driven execution) for working inside an existing codebase. Use this rule whenever the user asks to add a feature, fix a non-trivial bug, refactor, or change behavior — even if they don't mention a "plan", "tests", or "workflow". Triggers include "help me implement X", "can you add Y", "I need to change Z", "fix this bug", "refactor this". Plans must respect existing design; deviations require pros/cons for the user to decide.
+alwaysApply: true
+---
+
+# The Ultimate Workflow Guidelines
+
+Behavioral guidelines plus a confirmed-at-each-step workflow. Merge with project-specific instructions as needed.
+
+**Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
+
+## Templates
+
+Don't re-invent the document shape each session.
+
+- `skills/the-ultimate-workflow-guidelines/references/plan-template.md` — `PLAN-<feature>.md` skeleton; copy into the project and fill in during Workflow step 2.
+- `skills/the-ultimate-workflow-guidelines/references/memory-template.md` — `memory.md` slim-index + per-topic file shape; copy when seeding `memory.md` or adding a new `memory/<topic>.md` (see *Memory* below).
+

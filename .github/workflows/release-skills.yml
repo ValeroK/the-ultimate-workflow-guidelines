@@ -51,7 +51,10 @@ jobs:
             -x '.github/*' \
             -x 'dist/*' \
             -x '.gitignore' \
-            -x 'CLAUDE.md'
+            -x 'CLAUDE.md' \
+            -x 'build-docs.sh' \
+            -x 'build/*' \
+            -x 'PLAN-*.md'
           ls -la dist/
 
       - name: Upload to GitHub Release (create if missing)

@@ -21,12 +21,13 @@ Don't re-invent the document shape each session.
 
 ### 1. Think Before Coding
 
-**Don't assume. Don't hide confusion. Surface tradeoffs.**
+**Don't assume. Don't hide confusion. Surface tradeoffs. Truth over agreement.**
 
 Before implementing:
 - State your assumptions explicitly. If uncertain, ask.
 - If multiple interpretations exist, present them — don't pick silently.
 - If a simpler approach exists, say so. Push back when warranted.
+- **Don't reflexively affirm the user's framing.** If their reasoning has a gap, an unstated assumption, or a likely-wrong premise, name it. The user wants the right answer, not a yes-bot.
 - If something is unclear, stop. Name what's confusing. Ask.
 
 Whenever you "ask" here, route the question through the host's ask-user tool (`AskUserQuestion` in Claude Code, `AskQuestion` in Cursor) — see [*How to stop and ask*](#how-to-stop-and-ask) below.
@@ -70,6 +71,8 @@ Transform tasks into verifiable goals:
 
 Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
 
+**Don't fake success.** If the task can't actually be accomplished — missing dependency, blocked API, conflicting requirement, environment off — **stop** and surface it via the host's ask-user tool (see [*How to stop and ask*](#how-to-stop-and-ask)). Do not improvise silent fallback paths, swallow errors, or skip the assertion that would have caught the failure. A clean, loud failure is more useful than an invisible one — the next session has to be able to trust that "green" means green.
+
 ## Workflow
 
 **Plan first. Anchor in existing design. Confirm. Test-first. Confirm. Implement. Consult on blockers. Update project docs.**
@@ -86,13 +89,17 @@ Several steps below say "stop and ask", "confirm with the user", or "raise quest
 
 The tool produces a structured prompt the user can answer in one pass. Provide options when the choice is bounded; use a free-form question when the answer is open-ended (e.g. PRD problem statement). Wait for the response before proceeding — never continue on assumptions.
 
+**Don't bog down on trivial reversible decisions.** A variable name, two equally valid orderings, a temporary file path — decide, flag the choice in the plan or in chat, and move on. The user can reverse it cheaply later. Save the structured ask for choices that are hard to undo, change the shape of the work, or commit you to a direction that affects later steps.
+
+**If the user rejects or skips a tool call**, treat it as a signal — they saw something you didn't. Stop and ask what was wrong via the ask-user tool before retrying or routing around. Silently re-attempting (or "fixing" the call without understanding the rejection) is the same failure mode as a silent fallback.
+
 For any non-trivial task, follow this loop:
 
 1. **Understand.** Restate the request in your own words. Name the goal.
    - *Applies Think Before Coding.*
    - **Why:** restating surfaces silent misinterpretations before they become code.
 
-2. **Plan document on disk.** Create `PLAN-<feature>.md` (template: [`references/plan-template.md`](references/plan-template.md)). It must include:
+2. **Plan document on disk.** Create `PLAN-<feature>.md` (template: [`references/plan-template.md`](references/plan-template.md)). Favor concision over polish — sacrifice grammar for density if it helps; the plan is a working document, not a deliverable. It must include:
    - Feature description and goal.
    - Files you explored and why they matter.
    - **Existing-design review** — the patterns, utilities, frameworks, and conventions already in use that this feature touches. Prefer reusing them.
@@ -122,6 +129,7 @@ For any non-trivial task, follow this loop:
    - **Update the test plan** — tests written against the old direction may now be wrong; revise them.
    - **Check already-written implementation** — code written before the blocker may now be obsolete or need revision.
    - **Decide whether deeper investigation of existing code is needed** before continuing (e.g. the blocker revealed the codebase works differently than assumed). If so, pause and investigate before resuming.
+   - **Reconsider applicable guidance.** A blocker often surfaces a topic you didn't realize was relevant — re-scan `memory.md` and any project-level rules/`CLAUDE.md` for entries that match the new direction, and read them before resuming.
    - If the blocker revealed a durable lesson (not a one-off), flag it for step 6.
 
    - *Applies Think Before Coding.*

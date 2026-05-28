@@ -2,7 +2,7 @@
 
 > Canonical skeleton for the living log produced in Phase 3 of `project-bootstrap-guidelines`.
 > Updated every working session. Captures **current state**: what's done, what's in flight, decisions made, issues hit, blockers open.
-> This is time-ordered; for timeless project rules use `CLAUDE.md` (best practices + `## Gotchas`).
+> This is time-ordered; for timeless project rules use `AGENTS.md` (best practices + `## Gotchas`).
 
 ## How to use
 

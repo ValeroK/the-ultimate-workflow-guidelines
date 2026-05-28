@@ -1,7 +1,8 @@
-# CLAUDE.md
+# AGENTS.md
 
-> Canonical skeleton for the project `CLAUDE.md` produced in Phase 3 of `project-bootstrap-guidelines`.
-> This file is auto-injected into every Claude Code turn for this project. Keep it tight — everything here pays ongoing context cost. Move anything transient into `progress.md`; move per-feature detail into `PLAN-<feature>.md`.
+> Canonical skeleton for the project `AGENTS.md` produced in Phase 3 of `project-bootstrap-guidelines`.
+> `AGENTS.md` is the cross-tool always-on instruction file. Cursor reads it natively from the project root. Claude Code does not read `AGENTS.md` directly — a sibling `CLAUDE.md` at the project root containing just `@AGENTS.md` imports this file into Claude Code's context at session start. Both hosts therefore read the same body with no duplication.
+> Keep it tight — everything here pays ongoing context cost. Move anything transient into `progress.md`; move per-feature detail into `PLAN-<feature>.md`.
 
 ## Project summary
 

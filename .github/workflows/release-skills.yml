@@ -51,6 +51,7 @@ jobs:
             -x '.github/*' \
             -x 'dist/*' \
             -x '.gitignore' \
+            -x 'AGENTS.md' \
             -x 'CLAUDE.md'
           ls -la dist/
 

@@ -1,21 +1,8 @@
----
-name: the-ultimate-workflow-guidelines
-description: Plan-first, test-first workflow plus behavioral principles (think before coding, simplicity, surgical changes, goal-driven execution) for working inside an existing codebase. Use this skill whenever the user asks to add a feature, fix a non-trivial bug, refactor, or change behavior — even if they don't mention a "plan", "tests", or "workflow". Triggers include "help me implement X", "can you add Y", "I need to change Z", "fix this bug", "refactor this". Plans must respect existing design; deviations require pros/cons for the user to decide.
-license: LicenseRef-MIT-Attribution
----
+# AGENTS.md
 
-# The Ultimate Workflow Guidelines
-
-Behavioral guidelines plus a confirmed-at-each-step workflow, derived from [Andrej Karpathy's observations](https://x.com/karpathy/status/2015883857489522876) on LLM coding pitfalls.
+Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
 
 **Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
-
-## Templates
-
-Don't re-invent the document shape each session.
-
-- [`references/plan-template.md`](references/plan-template.md) — `PLAN-<feature>.md` skeleton; copy into the project and fill in during Workflow step 2.
-- [`references/memory-template.md`](references/memory-template.md) — `memory.md` slim-index + per-topic file shape; copy when seeding `memory.md` or adding a new `memory/<topic>.md` (see *Memory* below).
 
 ## Principles
 
@@ -99,7 +86,7 @@ For any non-trivial task, follow this loop:
    - *Applies Think Before Coding.*
    - **Why:** restating surfaces silent misinterpretations before they become code.
 
-2. **Plan document on disk.** Create `PLAN-<feature>.md` (template: [`references/plan-template.md`](references/plan-template.md)). Favor concision over polish — sacrifice grammar for density if it helps; the plan is a working document, not a deliverable. It must include:
+2. **Plan document on disk.** Create `PLAN-<feature>.md` (template: `skills/the-ultimate-workflow-guidelines/references/plan-template.md`). Favor concision over polish — sacrifice grammar for density if it helps; the plan is a working document, not a deliverable. It must include:
    - Feature description and goal.
    - Files you explored and why they matter.
    - **Existing-design review** — the patterns, utilities, frameworks, and conventions already in use that this feature touches. Prefer reusing them.
@@ -162,7 +149,7 @@ One-off typos or things the next reader would catch instantly: **don't log.** No
 
 `AGENTS.md`'s `## Gotchas` catches **defensive warnings** ("beware X", "don't do Y"). Memory catches **explanatory knowledge** ("here's how X works", "here's why we picked Y"). Different purposes — see *Gotchas vs Memory* below for the full distinction.
 
-Topicals live at the repo root as a slim **`memory.md`** index plus per-topic files under **`memory/`**. Template: [`references/memory-template.md`](references/memory-template.md).
+Topicals live at the repo root as a slim **`memory.md`** index plus per-topic files under **`memory/`**. Template: `skills/the-ultimate-workflow-guidelines/references/memory-template.md`.
 
 **`memory.md` shape:** one-line pointer per topical, each with a **Read when** cue (concrete keywords + file globs). Example entry:
 
@@ -225,3 +212,25 @@ Use judgment. Skip for:
 - Trivial renames or moves with no behavioral change.
 
 When in doubt, err toward the workflow.
+
+---
+
+**These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
+
+## Key files
+
+- **`memory.md`** — Slim index of topical knowledge for this repo (lazy-loaded topicals under `memory/`). Source of truth for *how this works and why we did it that way*. Distinct from `## Gotchas` below: `memory/` carries explanatory knowledge, `## Gotchas` carries defensive warnings.
+- **`README.md`** — Repo entry point, with the install paths for Claude Code / Cursor / Claude Desktop.
+- **`CURSOR.md`** — Cursor-specific install/setup notes.
+- **`PLAN-<feature>.md`** (per feature, transient) — Per-feature plan produced by the workflow above.
+
+## Gotchas
+
+> **Defensive warnings** ("Beware:…", "Don't…", "Note that…"). Threshold, format, and pruning rules are defined in the Workflow section above. Longer-form **explanatory** knowledge ("here's how X works", "here's why we picked Y") belongs in `memory/<topic>.md`, not here.
+
+<!-- Add entries as repeating issues surface. Example shape:
+
+- **Rule in one line.** Short explanation of why. *(Discovered YYYY-MM-DD, hit Nx.)*
+
+-->
+

@@ -9,9 +9,10 @@ A two-skill plugin for **Claude Code**, **Cursor**, and **Claude Desktop** that 
 LLMs are fast but forgetful. They assume when they should ask, write 200 lines when 50 would do, touch unrelated code "while they're in there," and re-derive the same project quirks every session. This plugin is a working set of guardrails:
 
 - **Plan-first, test-first workflow** for every non-trivial change. `PLAN-<feature>.md` on disk, tests before code, confirmation gates between stages.
-- **Greenfield bootstrap flow.** PRD → architecture → living docs (`CLAUDE.md`, `ROADMAP.md`, `progress.md`, `memory.md`).
+- **Greenfield bootstrap flow.** PRD → architecture → living docs (`AGENTS.md`, `ROADMAP.md`, `progress.md`, `memory.md`).
 - **Behavioral principles** under the workflow: Think Before Coding, Simplicity First, Surgical Changes, Goal-Driven Execution.
-- **Per-repo memory that compounds across sessions** — `## Gotchas` in `CLAUDE.md` for defensive warnings (always loaded), `memory/` for explanatory knowledge (lazy-loaded).
+- **Per-repo memory that compounds across sessions** — `## Gotchas` in `AGENTS.md` for defensive warnings (always loaded), `memory/` for explanatory knowledge (lazy-loaded).
+- **Cross-tool by default.** The skill writes `AGENTS.md` at the project root (Cursor reads it natively per [Cursor docs](https://cursor.com/docs/rules)) plus a two-line `CLAUDE.md` import stub that pulls the same content into Claude Code (per the [Claude Code memory docs](https://code.claude.com/docs/en/memory)). One source of truth, both hosts.
 
 ## Repository structure
 
@@ -19,8 +20,8 @@ LLMs are fast but forgetful. They assume when they should ask, write 200 lines w
 |---|---|---|---|
 | `README.md` | Repo entry point. | Humans | On GitHub |
 | `LICENSE` | MIT with Attribution. | — | — |
-| `CLAUDE.md` | Always-on guidance for Claude Code in this repo. Mirrors skill 1's body. | Claude Code | Every turn |
-| `CURSOR.md` | Cursor-specific install/setup notes. | Humans | On read |
+| `AGENTS.md` | Always-on guidance in this repo. Mirrors skill 1's body. Read natively by Cursor; Claude Code loads it via the `@AGENTS.md` import in `CLAUDE.md`. | Cursor, Claude Code | Every turn |
+| `CLAUDE.md` | Two-line import stub: `@AGENTS.md`. Exists because Claude Code only reads `CLAUDE.md`, not `AGENTS.md` (per [Claude Code memory docs](https://code.claude.com/docs/en/memory)). All content lives in `AGENTS.md` — no drift. | Claude Code | Every turn |
 | `memory.md` | Slim index of topical knowledge for this repo (lazy-loaded topicals under `memory/`). | Claude Code, Cursor | Read by the workflow skill at the start of any non-trivial task |
 | `.claude-plugin/plugin.json` | Claude Code plugin manifest. | Claude Code | On `/plugin install` |
 | `.claude-plugin/marketplace.json` | Claude Code marketplace metadata. | Claude Code | On `/plugin marketplace add` |
@@ -37,21 +38,21 @@ LLMs are fast but forgetful. They assume when they should ask, write 200 lines w
 | `skills/project-bootstrap-guidelines/references/prd-questions.md` | Question bank for PRD review. | Claude Code, Cursor | Linked from SKILL.md |
 | `skills/project-bootstrap-guidelines/references/roadmap-template.md` | `ROADMAP.md` skeleton. | Claude Code, Cursor | Linked from SKILL.md |
 | `skills/project-bootstrap-guidelines/references/progress-template.md` | `progress.md` skeleton. | Claude Code, Cursor | Linked from SKILL.md |
-| `skills/project-bootstrap-guidelines/references/claude-md-template.md` | Project `CLAUDE.md` skeleton (with `## Key files` + `## Gotchas`). | Claude Code, Cursor | Linked from SKILL.md |
+| `skills/project-bootstrap-guidelines/references/agents-md-template.md` | Project `AGENTS.md` skeleton (with `## Key files` + `## Gotchas`). | Claude Code, Cursor | Linked from SKILL.md |
 | `skills/project-bootstrap-guidelines/references/memory-template.md` | `memory.md` index + topical-file templates. | Claude Code, Cursor | Linked from SKILL.md |
 | `hooks/hooks.json` | Claude Code plugin hooks manifest. Wires the no-emoji enforcement below. | Claude Code | On `/plugin install` |
 | `hooks/no-emoji-prompt.js` | `UserPromptSubmit` hook — injects a no-emoji reminder into every turn. | Claude Code | Every prompt |
 | `hooks/no-emoji-write.js` | `PreToolUse` hook on `Write`/`Edit`/`MultiEdit`/`NotebookEdit` — blocks the tool call if the new content contains emoji codepoints. | Claude Code | Every file write |
 
-**Mirror discipline.** The bodies of skill 1 (`SKILL.md` ↔ `CLAUDE.md` ↔ `rules/the-ultimate-workflow-guidelines.mdc`) and skill 2 (`SKILL.md` ↔ `rules/project-bootstrap-guidelines.mdc`) are kept in sync by hand. Changes land in all copies in the same commit.
+**Mirror discipline.** The bodies of skill 1 (`SKILL.md` ↔ `AGENTS.md` ↔ `rules/the-ultimate-workflow-guidelines.mdc`) and skill 2 (`SKILL.md` ↔ `rules/project-bootstrap-guidelines.mdc`) are kept in sync by hand. Changes land in all copies in the same commit.
 
 ## The two skills
 
 **`the-ultimate-workflow-guidelines`** — daily feature work in an **existing** codebase. Any non-trivial change gets a `PLAN-<feature>.md` on disk, then tests, then a minimal implementation. Confirmation gates between each stage. Blockers surface 2–3 options with tradeoffs instead of silent picks. After landing, the skill updates `progress.md`, `## Gotchas`, and `memory/<topic>.md` as needed.
 
-**`project-bootstrap-guidelines`** — greenfield only. From a blank slate, produces `PRD.md` (with Mermaid flow + confirmed framework choices and alternatives), `CLAUDE.md`, `ROADMAP.md`, `progress.md`, and an empty `memory.md`. Once these exist, the workflow skill takes over.
+**`project-bootstrap-guidelines`** — greenfield only. From a blank slate, produces `PRD.md` (with Mermaid flow + confirmed framework choices and alternatives), `AGENTS.md`, `ROADMAP.md`, `progress.md`, and an empty `memory.md`. Once these exist, the workflow skill takes over.
 
-The two skills hand off cleanly: skill 1 reads what skill 2 produced (especially `PRD.md`, `CLAUDE.md`, and `memory.md`) before planning any feature.
+The two skills hand off cleanly: skill 1 reads what skill 2 produced (especially `PRD.md`, `AGENTS.md`, and `memory.md`) before planning any feature.
 
 ## The behavioral layer (Principles)
 
@@ -68,12 +69,12 @@ The workflow is *how* to work; the principles are *how to think*.
 
 Two stores, distinct purposes:
 
-| | `## Gotchas` (in `CLAUDE.md`) | `memory/<topic>.md` |
+| | `## Gotchas` (in `AGENTS.md`) | `memory/<topic>.md` |
 |---|---|---|
 | **Purpose** | Defensive warning | Explanatory knowledge |
 | **Voice** | "Beware…" / "Don't…" / "Note that…" | "Here's how…" / "Here's why…" |
 | **Posture** | Reactive — alerts to a footgun | Proactive — builds understanding |
-| **Always loaded?** | Yes — short, lives in `CLAUDE.md` | No — lazy-loaded via Read tool when the topic is relevant |
+| **Always loaded?** | Yes — short, lives in `AGENTS.md` | No — lazy-loaded via Read tool when the topic is relevant |
 | **Example** | "Tests need a live Postgres — run `docker compose up -d db` first." | A 2-page `memory/auth.md` covering token lifecycle + role checks + library decisions |
 
 **Decision test:**
@@ -116,7 +117,9 @@ Or browse [Cursor Marketplace](https://cursor.com/marketplace) once the listing 
 
 For an offline install, download `the-ultimate-workflow-guidelines-plugin.zip` from the [latest release](https://github.com/ValeroK/the-ultimate-workflow-guidelines/releases/latest) — the same ZIP serves Claude Desktop and Cursor.
 
-See **[CURSOR.md](CURSOR.md)** for using individual `.mdc` rules outside the plugin system.
+**Without the plugin (Cursor):** copy any `.mdc` files you want from [`rules/`](rules/) into the target project's `.cursor/rules/` directory. Or copy [`AGENTS.md`](AGENTS.md) into the target project's root — Cursor reads it natively (per [Cursor docs](https://cursor.com/docs/rules)).
+
+**Personal skills (Cursor):** symlink or copy `skills/the-ultimate-workflow-guidelines/SKILL.md` and `skills/project-bootstrap-guidelines/SKILL.md` into `~/.cursor/skills/` to use them outside any single project.
 
 ### Claude Desktop (claude.ai)
 
@@ -136,18 +139,19 @@ If your install surface accepts single-skill ZIPs only:
 
 Install is per-user; each teammate uploads separately. Skills in claude.ai don't share state with Claude Code installs — this is a parallel surface.
 
-### Per-project `CLAUDE.md` (no plugin)
+### Per-project `AGENTS.md` (no plugin)
 
-Drop the principles + workflow into one project's `CLAUDE.md` without installing anything:
+Drop the principles + workflow into one project without installing anything. Run from the target project root:
 
 ```bash
-# new project
-curl -o CLAUDE.md https://raw.githubusercontent.com/ValeroK/the-ultimate-workflow-guidelines/main/CLAUDE.md
+# fetch the content into AGENTS.md (read natively by Cursor)
+curl -o AGENTS.md https://raw.githubusercontent.com/ValeroK/the-ultimate-workflow-guidelines/main/AGENTS.md
 
-# append to existing
-echo "" >> CLAUDE.md
-curl https://raw.githubusercontent.com/ValeroK/the-ultimate-workflow-guidelines/main/CLAUDE.md >> CLAUDE.md
+# create a 2-line CLAUDE.md so Claude Code reads the same content
+printf '%s\n' '@AGENTS.md' > CLAUDE.md
 ```
+
+Cursor reads `AGENTS.md` natively. Claude Code reads `CLAUDE.md`, which imports `AGENTS.md` via the `@` syntax — both hosts now see the same content with no duplication.
 
 This path **doesn't include** the references/ templates or skill 2 (bootstrap). For everything, use the plugin paths above.
 

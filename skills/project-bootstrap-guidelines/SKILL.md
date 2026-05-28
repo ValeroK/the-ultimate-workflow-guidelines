@@ -1,6 +1,6 @@
 ---
 name: project-bootstrap-guidelines
-description: Bootstrap a new project from scratch. Use this skill whenever the user is starting a new project, creating a new repo, or building something from a blank slate — even if they don't explicitly mention PRD, architecture, or documentation. Triggers include "start a new project", "build me an X", "I want to create a Y", "scaffold", "greenfield", "from scratch", "spin up a repo". Produces a PRD (reviewed with the user), a system design (flow diagram + architecture + framework choices), and three bootstrap docs (CLAUDE.md, ROADMAP.md, progress.md). Run before any feature work; hand off to the-ultimate-workflow-guidelines once bootstrap docs exist.
+description: Bootstrap a new project from scratch. Use this skill whenever the user is starting a new project, creating a new repo, or building something from a blank slate — even if they don't explicitly mention PRD, architecture, or documentation. Triggers include "start a new project", "build me an X", "I want to create a Y", "scaffold", "greenfield", "from scratch", "spin up a repo". Produces a PRD (reviewed with the user), a system design (flow diagram + architecture + framework choices), and four bootstrap docs (AGENTS.md + a CLAUDE.md import stub, ROADMAP.md, progress.md). Run before any feature work; hand off to the-ultimate-workflow-guidelines once bootstrap docs exist.
 license: LicenseRef-MIT-Attribution
 ---
 
@@ -16,7 +16,7 @@ Canonical skeletons for every doc this skill produces — copy each into the pro
 - [`references/prd-questions.md`](references/prd-questions.md) — question bank for Phase 1 review.
 - [`references/roadmap-template.md`](references/roadmap-template.md) — `ROADMAP.md` (Phase 3 milestone view).
 - [`references/progress-template.md`](references/progress-template.md) — `progress.md` (Phase 3 living log).
-- [`references/claude-md-template.md`](references/claude-md-template.md) — project `CLAUDE.md` (Phase 3), including `## Key files` and an empty `## Gotchas` section.
+- [`references/agents-md-template.md`](references/agents-md-template.md) — project `AGENTS.md` (Phase 3), including `## Key files` and an empty `## Gotchas` section.
 - [`references/memory-template.md`](references/memory-template.md) — `memory.md` slim-index + per-topic file shape (Phase 3 seeds an empty `memory.md`; topical files appear later as the workflow skill creates them).
 
 ## How to stop and ask
@@ -63,7 +63,13 @@ Present all of the above to the user via the host's ask-user tool (`AskUserQuest
 
 Once the PRD is complete and holds all decisions, create four living docs:
 
-1. **`CLAUDE.md`** (template: [`references/claude-md-template.md`](references/claude-md-template.md)) — written from the PRD. Contains:
+1. **`AGENTS.md`** (template: [`references/agents-md-template.md`](references/agents-md-template.md)) — written from the PRD. `AGENTS.md` is the cross-tool always-on instruction file: Cursor reads it natively from the project root (per [Cursor docs](https://cursor.com/docs/rules)). Claude Code does **not** read `AGENTS.md` directly (per the [Claude Code memory docs](https://code.claude.com/docs/en/memory)); to give it the same content, also create a two-line `CLAUDE.md` at the project root containing exactly:
+
+   ```
+   @AGENTS.md
+   ```
+
+   Claude Code's `@` import syntax expands the imported file into context at session start, so both hosts end up reading the same `AGENTS.md` body with no duplication or drift. `AGENTS.md` contains:
    - Frameworks and libraries in use.
    - Architecture summary.
    - Project best practices and conventions.
@@ -98,17 +104,17 @@ Once the PRD is complete and holds all decisions, create four living docs:
 
 **Why a slim memory.md from day one:** like `## Gotchas`, the slot must exist for entries to land. `memory.md` captures explanatory knowledge ("here's how X works", "here's why we picked Y") in topical files that are lazy-loaded on demand — distinct from `## Gotchas`, which carries always-loaded defensive warnings. The workflow skill (`the-ultimate-workflow-guidelines`) knows what to do with it.
 
-**Why these four together:** docs loaded every turn compound context over time. `CLAUDE.md` holds intentional project design; `## Gotchas` captures empirical defensive lessons so they don't re-appear each session; `ROADMAP.md` carries the milestone view; `progress.md` is the time-ordered log; `memory.md` (+ `memory/`) holds explanatory topical knowledge for lazy retrieval. Together they give `the-ultimate-workflow-guidelines` everything it needs to plan features without re-investigating the codebase.
+**Why these four together:** docs loaded every turn compound context over time. `AGENTS.md` holds intentional project design; `## Gotchas` captures empirical defensive lessons so they don't re-appear each session; `ROADMAP.md` carries the milestone view; `progress.md` is the time-ordered log; `memory.md` (+ `memory/`) holds explanatory topical knowledge for lazy retrieval. Together they give `the-ultimate-workflow-guidelines` everything it needs to plan features without re-investigating the codebase.
 
 ## Phase 4 — Hand-off
 
 Bootstrap is **done** when all three conditions hold:
 
-1. `PRD.md`, `ROADMAP.md`, `CLAUDE.md`, `progress.md`, and `memory.md` all exist.
+1. `PRD.md`, `ROADMAP.md`, `AGENTS.md`, `CLAUDE.md` (the `@AGENTS.md` import stub), `progress.md`, and `memory.md` all exist.
 2. The user has explicitly confirmed them (each confirmation captured via the host's ask-user tool — `AskUserQuestion` in Claude Code, `AskQuestion` in Cursor; see [*How to stop and ask*](#how-to-stop-and-ask)).
 3. The first feature is scoped and ready to start.
 
-For that feature and every one after it, switch to `the-ultimate-workflow-guidelines`. Each feature still gets its own `PLAN-<feature>.md` per that skill's workflow; `ROADMAP.md` stays as the project-level milestone view; `progress.md` tracks cumulative state across features; `CLAUDE.md`'s `## Gotchas` section grows as empirical defensive lessons surface; `memory.md` + `memory/<topic>.md` accumulate explanatory topical knowledge as the workflow skill writes them.
+For that feature and every one after it, switch to `the-ultimate-workflow-guidelines`. Each feature still gets its own `PLAN-<feature>.md` per that skill's workflow; `ROADMAP.md` stays as the project-level milestone view; `progress.md` tracks cumulative state across features; `AGENTS.md`'s `## Gotchas` section grows as empirical defensive lessons surface; `memory.md` + `memory/<topic>.md` accumulate explanatory topical knowledge as the workflow skill writes them.
 
 **Why:** a clean hand-off prevents this skill from leaking into routine feature work — two distinct modes, two distinct skills, no ambiguity about which one is running.
 

@@ -105,7 +105,7 @@ For any non-trivial task, follow this loop:
    - **Deviation justification (if any)** — if you propose a different pattern, library, or approach than what the project currently uses, name the current pattern, the alternative, and list pros/cons for both. Let the user decide.
    - Open questions.
 
-   **If the project has bootstrap docs** (`PRD.md`, `ROADMAP.md`, `CLAUDE.md`, `progress.md` produced by `project-bootstrap-guidelines`), read them as part of the existing-design review. `PRD.md` tells you *what* the project is meant to do; `CLAUDE.md` carries the project's frameworks, conventions, and `## Gotchas` (mistakes prior sessions learned not to repeat).
+   **If the project has bootstrap docs** (`PRD.md`, `ROADMAP.md`, `AGENTS.md`, `progress.md` produced by `project-bootstrap-guidelines`), read them as part of the existing-design review. `PRD.md` tells you *what* the project is meant to do; `AGENTS.md` carries the project's frameworks, conventions, and `## Gotchas` (mistakes prior sessions learned not to repeat).
 
    **If the project has a `memory.md` index**, read it. For each topical pointer whose **Read when** cue plausibly matches the feature, read the corresponding `memory/<topic>.md` before drafting the plan. Topical memory often contains the rationale ("why this pattern?") that turns a deviation-justification question into a one-line answer. See *Memory* below.
 
@@ -128,7 +128,7 @@ For any non-trivial task, follow this loop:
    - **Update the test plan** — tests written against the old direction may now be wrong; revise them.
    - **Check already-written implementation** — code written before the blocker may now be obsolete or need revision.
    - **Decide whether deeper investigation of existing code is needed** before continuing (e.g. the blocker revealed the codebase works differently than assumed). If so, pause and investigate before resuming.
-   - **Reconsider applicable guidance.** A blocker often surfaces a topic you didn't realize was relevant — re-scan `memory.md` and any project-level rules/`CLAUDE.md` for entries that match the new direction, and read them before resuming.
+   - **Reconsider applicable guidance.** A blocker often surfaces a topic you didn't realize was relevant — re-scan `memory.md` and any project-level rules/`AGENTS.md` for entries that match the new direction, and read them before resuming.
    - If the blocker revealed a durable lesson (not a one-off), flag it for step 6.
 
    - *Applies Think Before Coding.*
@@ -137,14 +137,14 @@ For any non-trivial task, follow this loop:
 6. **Update project docs (if they exist).** After landing the feature:
    - Append a dated entry to `progress.md` summarizing what changed and any decisions made.
    - If the feature closed a milestone in `ROADMAP.md`, mark it done.
-   - If frameworks or conventions shifted, update `CLAUDE.md`'s architecture or best-practices sections.
-   - If you hit a repeating issue during the feature (see `## Gotchas` threshold below), append a short entry to `CLAUDE.md`'s `## Gotchas` section.
+   - If frameworks or conventions shifted, update `AGENTS.md`'s architecture or best-practices sections.
+   - If you hit a repeating issue during the feature (see `## Gotchas` threshold below), append a short entry to `AGENTS.md`'s `## Gotchas` section.
    - If the feature surfaced **longer-form** explanatory learning (architectural mental model, key decision + rationale, runbook), create or update `memory/<topic>.md` and add a pointer to `memory.md` if it's a new topic. One-liners still go to `## Gotchas`. Before deleting the per-feature `PLAN-<feature>.md`, scan it for durable learnings worth migrating. See *Memory* and *Gotchas vs Memory* below.
    - **Why:** the durable learning from a session has to land somewhere durable, or the next session re-derives it.
 
-### `## Gotchas` in `CLAUDE.md` — capturing repeating issues
+### `## Gotchas` in `AGENTS.md` — capturing repeating issues
 
-`CLAUDE.md` is auto-loaded every turn. Its `## Gotchas` section is where empirical, discovered-the-hard-way project knowledge lives — the cousin of the "best practices" section, but for things nobody planned.
+`AGENTS.md` is auto-loaded every turn. Its `## Gotchas` section is where empirical, discovered-the-hard-way project knowledge lives — the cousin of the "best practices" section, but for things nobody planned.
 
 **Write an entry when at least one is true:**
 - You hit the same issue twice (same or across sessions).
@@ -159,7 +159,7 @@ One-off typos or things the next reader would catch instantly: **don't log.** No
 
 ### Memory: slim index + lazy topical files
 
-`CLAUDE.md`'s `## Gotchas` catches **defensive warnings** ("beware X", "don't do Y"). Memory catches **explanatory knowledge** ("here's how X works", "here's why we picked Y"). Different purposes — see *Gotchas vs Memory* below for the full distinction.
+`AGENTS.md`'s `## Gotchas` catches **defensive warnings** ("beware X", "don't do Y"). Memory catches **explanatory knowledge** ("here's how X works", "here's why we picked Y"). Different purposes — see *Gotchas vs Memory* below for the full distinction.
 
 Topicals live at the repo root as a slim **`memory.md`** index plus per-topic files under **`memory/`**. Template: `skills/the-ultimate-workflow-guidelines/references/memory-template.md`.
 
@@ -193,15 +193,15 @@ A small explanatory lesson belongs in an existing topical's *Key decisions* sect
 
 Length is a *consequence*, not the criterion. The two stores serve different **purposes** and have different **shapes**:
 
-| | **`## Gotchas` (in CLAUDE.md)** | **`memory/<topic>.md`** |
+| | **`## Gotchas` (in AGENTS.md)** | **`memory/<topic>.md`** |
 |---|---|---|
 | **Purpose** | Defensive warning | Explanatory knowledge |
 | **Voice** | "Beware…" / "Don't…" / "Note that…" | "Here's how…" / "Here's why…" |
 | **Posture** | Reactive — alerts to a footgun | Proactive — builds understanding |
-| **Always loaded?** | Yes — short, in `CLAUDE.md` | No — Read on demand when topic relevant |
+| **Always loaded?** | Yes — short, in `AGENTS.md` | No — Read on demand when topic relevant |
 
 **Decision test:**
-- Phrasable as *"Beware:"* / *"Don't…"* / *"Watch out for…"*? → **Gotcha** (`CLAUDE.md` `## Gotchas`).
+- Phrasable as *"Beware:"* / *"Don't…"* / *"Watch out for…"*? → **Gotcha** (`AGENTS.md` `## Gotchas`).
 - Phrasable as *"Here's how X works"* / *"Here's why we picked Y"* / *"To do Z, follow these steps"*? → **Memory** (`memory/<topic>.md`).
 
 **Examples:**

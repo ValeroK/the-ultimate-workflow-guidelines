@@ -40,6 +40,7 @@ LLMs are fast but forgetful. They assume when they should ask, write 200 lines w
 | `skills/project-bootstrap-guidelines/references/progress-template.md` | `progress.md` skeleton. | Claude Code, Cursor | Linked from SKILL.md |
 | `skills/project-bootstrap-guidelines/references/agents-md-template.md` | Project `AGENTS.md` skeleton (with `## Key files` + `## Gotchas`). | Claude Code, Cursor | Linked from SKILL.md |
 | `skills/project-bootstrap-guidelines/references/memory-template.md` | `memory.md` index + topical-file templates. | Claude Code, Cursor | Linked from SKILL.md |
+| `commands/handoff.md` | `/handoff` slash command — writes a session handoff doc for the next agent. Auto-discovered from the plugin root by both hosts. | Claude Code, Cursor | On `/handoff` |
 | `hooks/hooks.json` | Claude Code plugin hooks manifest. Wires the no-emoji enforcement below. | Claude Code | On `/plugin install` |
 | `hooks/no-emoji-prompt.js` | `UserPromptSubmit` hook — injects a no-emoji reminder into every turn. | Claude Code | Every prompt |
 | `hooks/no-emoji-write.js` | `PreToolUse` hook on `Write`/`Edit`/`MultiEdit`/`NotebookEdit` — blocks the tool call if the new content contains emoji codepoints. | Claude Code | Every file write |
@@ -53,6 +54,23 @@ LLMs are fast but forgetful. They assume when they should ask, write 200 lines w
 **`project-bootstrap-guidelines`** — greenfield only. From a blank slate, produces `PRD.md` (with Mermaid flow + confirmed framework choices and alternatives), `AGENTS.md`, `ROADMAP.md`, `progress.md`, and an empty `memory.md`. Once these exist, the workflow skill takes over.
 
 The two skills hand off cleanly: skill 1 reads what skill 2 produced (especially `PRD.md`, `AGENTS.md`, and `memory.md`) before planning any feature.
+
+## The `/handoff` command
+
+Both skills persist knowledge for the *repo* — `progress.md`, `## Gotchas`, `memory/`. Neither persists what the *next agent* needs: the in-flight state that hasn't landed in any committed file yet. `/handoff` fills that gap.
+
+```
+/handoff                                  # summarise the whole session
+/handoff finish the retry logic in the poller   # scope the doc to what's next
+```
+
+It writes `HANDOFF-<topic>.md` in the project root and surfaces it as a download in chat, covering purpose and background, tools and how to run them, policies and schemas, **suggested skills** for the next agent to invoke, current state, open issues, and candidate next steps. Two constraints keep it useful: it references `PLAN-<feature>.md`, `progress.md`, commits, and PRs by path instead of restating them, and it briefs the next agent without ordering it to start working. Secrets and PII are redacted.
+
+Where it's wired in: [workflow skill step 7](skills/the-ultimate-workflow-guidelines/SKILL.md), and [bootstrap Phase 4](skills/project-bootstrap-guidelines/SKILL.md) for sessions that end mid-bootstrap.
+
+`commands/` sits at the plugin root, which both [Claude Code](https://code.claude.com/docs/en/plugins-reference) and Cursor auto-discover — one file, both hosts. It's carried by the full-plugin ZIP but **not** by the single-skill ZIPs, since a command is a plugin-level component; on those installs, both skills tell the model to write the same document by hand.
+
+`disable-model-invocation: true` is set deliberately — a handoff doc is written when *you* decide the session is ending, not when the model guesses it is.
 
 ## The behavioral layer (Principles)
 

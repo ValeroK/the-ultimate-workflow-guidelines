@@ -117,6 +117,8 @@ For that feature and every one after it, switch to `the-ultimate-workflow-guidel
 
 **Why:** a clean hand-off prevents this skill from leaking into routine feature work — two distinct modes, two distinct skills, no ambiguity about which one is running.
 
+**If the session ends before bootstrap is done** — the PRD is half-reviewed, framework choices are still open, only some living docs exist — run `/handoff` (ships with this plugin as `commands/handoff.md`) to write `HANDOFF-<topic>.md` for whoever resumes. Reference `PRD.md` and any docs already created by path rather than restating them; the handoff carries only what those files don't: which phase you stopped in, which decisions the user confirmed versus which are still open, and the questions still queued. Once bootstrap is complete, session handoffs are the workflow skill's step 7.
+
 ## When to skip this workflow
 
 This skill is for **new projects only**. For work inside an existing project, use `the-ultimate-workflow-guidelines` instead.

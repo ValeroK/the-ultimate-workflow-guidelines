@@ -75,7 +75,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 ## Workflow
 
-**Plan first. Anchor in existing design. Confirm. Test-first. Confirm. Implement. Consult on blockers. Update project docs.**
+**Plan first. Anchor in existing design. Confirm. Test-first. Confirm. Implement. Consult on blockers. Update project docs. Hand off.**
 
 The Workflow *operationalizes* the Principles — each step cites the principle it applies instead of restating it.
 
@@ -142,6 +142,10 @@ For any non-trivial task, follow this loop:
    - If you hit a repeating issue during the feature (see `## Gotchas` threshold below), append a short entry to `AGENTS.md`'s `## Gotchas` section.
    - If the feature surfaced **longer-form** explanatory learning (architectural mental model, key decision + rationale, runbook), create or update `memory/<topic>.md` and add a pointer to `memory.md` if it's a new topic. One-liners still go to `## Gotchas`. Before deleting the per-feature `PLAN-<feature>.md`, scan it for durable learnings worth migrating. See *Memory* and *Gotchas vs Memory* below.
    - **Why:** the durable learning from a session has to land somewhere durable, or the next session re-derives it.
+
+7. **Hand off at end of session.** When the session ends with work still in flight — context about to compact, a machine switch, another agent picking up — run `/handoff` (ships with this plugin as `commands/handoff.md`). It writes `HANDOFF-<topic>.md`: purpose and background, tools and how to run them, policies and schemas, suggested skills, current state, open issues, and candidate next steps — referencing `PLAN-<feature>.md`, `progress.md`, commits, and PRs by path instead of restating them, with secrets and PII redacted. Pass what the next session should focus on as an argument to scope it. Where the command isn't installed (single-skill installs), write the same document by hand in that shape.
+   - *Applies Goal-Driven Execution.*
+   - **Why:** step 6 persists what the *repo* must remember; the handoff persists what the *next agent* must know — the in-flight state that no committed doc carries.
 
 ### `## Gotchas` in `AGENTS.md` — capturing repeating issues
 

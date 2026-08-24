@@ -3,33 +3,40 @@
   "hooks": {
     "preToolUse": [
       {
-        "command": "node hooks/dev/record.js --vendor cursor",
-        "matcher": "Write|Read|Shell",
+        "command": "node hooks/gate.js",
+        "matcher": "Write|Shell",
         "timeout": 10
       }
     ],
     "postToolUse": [
       {
-        "command": "node hooks/dev/record.js --vendor cursor",
-        "matcher": "Write|Read|Shell",
+        "command": "node hooks/gate.js",
+        "matcher": "Write|Shell",
+        "timeout": 10
+      }
+    ],
+    "postToolUseFailure": [
+      {
+        "command": "node hooks/gate.js",
+        "matcher": "Shell",
         "timeout": 10
       }
     ],
     "afterFileEdit": [
       {
-        "command": "node hooks/dev/record.js --vendor cursor",
+        "command": "node hooks/gate.js",
         "timeout": 10
       }
     ],
     "beforeSubmitPrompt": [
       {
-        "command": "node hooks/dev/record.js --vendor cursor",
+        "command": "node hooks/gate.js",
         "timeout": 10
       }
     ],
     "stop": [
       {
-        "command": "node hooks/dev/record.js --vendor cursor",
+        "command": "node hooks/gate.js",
         "timeout": 10
       }
     ]

@@ -95,6 +95,41 @@ The plugin ships two hooks that enforce a hard "no emojis" rule on consumers:
 
 **Scope.** Hooks only run for users who install the plugin in Claude Code with hooks enabled; Cursor and Claude Desktop don't execute these hooks. The skill bodies still mention the rule, but only the Claude Code path enforces it deterministically.
 
+## Workflow gates (enforcement)
+
+The skills *describe* the workflow. The gates *enforce* it. Five lifecycle hooks turn advisory steps into state transitions a session cannot skip:
+
+| Gate | Enforces |
+|---|---|
+| G1 | No source edit before `plan_confirmed: true` |
+| G2 | No implementation before `tests_confirmed: true` (test files are exempt) |
+| G3 | No turn completion while source has changed since the last green verification |
+| G4 | Hard cap of 3 failing verify rounds, then escalation to a human |
+| G5 | One line of injected context per prompt naming the current stage and next action |
+
+State lives in YAML front matter in `PRD.md` (bootstrap) or `PLAN-<feature>.md` (feature work). The gates resolve which stage you are in from the filesystem alone, and **do nothing at all** in a repo with neither file — so trivial edits in unmanaged projects are never blocked.
+
+Gates are on by default. Disable them with `ULTIMATE_WORKFLOW_GATES=off`. They fail **open**: any internal error exits 0 and blocks nothing.
+
+### Host support is not equal. Read this before relying on it.
+
+> **On Cursor, gates G1 and G2 cannot prevent anything.** They detect and correct after the fact.
+
+This is measured, not assumed. On Cursor 3.17.19, a `preToolUse` hook returning `deny` plus exit 2 is honoured for `Read` and **ignored for `Write`** — the file is created, and the following `postToolUse` reports `success: true`, so the model is never told it was blocked. Confirmed across three independent runs.
+
+Consequently the plugin does **not** emit a deny for writes on Cursor, because a deny that is silently dropped looks like enforcement while providing none. Instead it records the violation and uses `stop`'s `followup_message` to instruct a revert. A bad edit lands before anything notices.
+
+| Host | G1 / G2 | G3 | G4 | G5 | Verified |
+|---|---|---|---|---|---|
+| Claude Code | Prevented | Blocks turn | Yes | Per prompt | Measured |
+| Codex CLI | Prevented | Blocks turn | Yes | Per prompt | From docs only |
+| Gemini CLI | Prevented | Blocks turn | Yes | Per prompt | From docs only |
+| **Cursor** | **Detect-only** | Follow-up message | Yes | Session-level | Measured |
+
+"From docs only" means the adapter is written to a documented contract that nobody has yet exercised. Every single defect found while building the verified adapters — a UTF-8 BOM that makes payload parsing throw, absolute paths defeating test-file detection, paths outside the project being gated, `workspace_roots` instead of `cwd` — was **invisible to documentation and failed open**. Treat the unverified rows accordingly.
+
+If you run Codex or Gemini, you can close that gap in about five minutes: register `hooks/dev/record.js` for every hook event, run one ordinary session, and the recorded payloads under `fixtures/` are what the contract tests need. Issues and PRs with fixtures are welcome.
+
 ## Install
 
 ### Claude Code (plugin)

@@ -43,6 +43,37 @@ function isTestPath(p) {
   return parts.some((seg) => TEST_DIRS.has(seg.toLowerCase()));
 }
 
+/**
+ * Reduce a tool's target to a project-relative path, or null when it falls
+ * outside the project.
+ *
+ * Recorded payloads showed two things the documentation does not: `file_path`
+ * is always absolute, and it is routinely outside `cwd` (scratchpad and temp
+ * files). Both matter. An absolute path defeats `isTestPath`, because any
+ * ancestor directory named `test` on the user's machine would match; and a
+ * file outside the project must never be gated by that project's plan.
+ */
+function toProjectPath(cwd, target) {
+  if (!target) return null;
+
+  const norm = (s) => String(s).replace(/\\/g, '/').replace(/\/+$/, '');
+  const t = norm(target);
+
+  const isAbsolute = /^([a-zA-Z]:\/|\/)/.test(t);
+  if (!isAbsolute) return t;
+  if (!cwd) return null;
+
+  const root = norm(cwd);
+  // Windows paths are case-insensitive; POSIX ones are not.
+  const windows = /^[a-zA-Z]:\//.test(root) || /^[a-zA-Z]:\//.test(t);
+  const a = windows ? root.toLowerCase() : root;
+  const b = windows ? t.toLowerCase() : t;
+
+  if (b === a) return '';
+  if (!b.startsWith(`${a}/`)) return null;
+  return t.slice(root.length + 1);
+}
+
 function deny(reason) {
   return { allow: false, reason };
 }
@@ -60,8 +91,13 @@ function preEditGate(state, input) {
   const { stage, data } = state;
   if (stage === 'none') return ALLOW;
 
-  const target = input && input.path;
-  if (!target) return ALLOW;
+  const raw = input && input.path;
+  if (!raw) return ALLOW;
+
+  // Files outside the project are never this project's business.
+  const target = input.cwd ? toProjectPath(input.cwd, raw) : raw;
+  if (target === null || target === '') return ALLOW;
+
   if (isDocPath(target)) return ALLOW;
 
   if (stage === 'bootstrap') {
@@ -175,6 +211,7 @@ function phasePointer(state, input) {
 }
 
 module.exports = {
+  toProjectPath,
   isDocPath,
   isTestPath,
   preEditGate,

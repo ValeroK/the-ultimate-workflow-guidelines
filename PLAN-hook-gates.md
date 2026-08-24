@@ -183,6 +183,25 @@ Decisions made during implementation:
 - **Artifacts updated:** PRD section 9.1, this plan's Tests section and the second deviation, `validate.yml`, and a `## Gotchas` entry in `CLAUDE.md`.
 - **Durable?** Yes — non-obvious, cost real time, and would recur. Logged as a gotcha.
 
+**2026-08-25 — Claude Code payloads recorded; two real bugs found.**
+
+Registered `hooks/dev/record.js` in `.claude/settings.local.json` and captured live payloads. Claude Code reloads hook config mid-session, so no restart was needed. Captured `PreToolUse` and `PostToolUse` for `Bash`, `Write`, and `Edit`.
+
+Payload shape confirmed against the documentation, plus three undocumented fields: `prompt_id`, `effort`, and `tool_use_id`. `PostToolUse` additionally carries `tool_response` and `duration_ms`.
+
+Two defects the tier-1 tests could not have caught, because they only exercised relative paths:
+
+1. **`tool_input.file_path` is always absolute**, so `isTestPath` matched against the whole absolute path. Any ancestor directory named `test` anywhere on the machine — for example a project at `/home/k/test/myproject` — would classify every file in the project as test code, silently disabling gate G2.
+2. **The target is routinely outside `cwd`.** Scratchpad and temp-file edits were being evaluated against this project's plan, so a project with an unconfirmed plan would have blocked edits to unrelated files elsewhere on disk.
+
+Fix: `toProjectPath(cwd, target)` in `gates.js` relativises against `cwd` and returns `null` for anything outside the project, which `preEditGate` treats as allow. Windows comparison is case-insensitive, POSIX case-sensitive, detected from the path shape rather than `process.platform` so the behaviour is testable on either host. Eleven tests added, including a regression asserting that the unrelativised path *does* misfire — the reason relativisation is required is now itself covered.
+
+Test count 52 to 63, all green.
+
 ## Next
 
-Tier 2 needs recorded payloads, which needs sessions in each CLI. Blocked on that; everything before it is done.
+- **Cursor:** `.cursor/hooks.json` is written and registers the recorder. Needs a human to open the project in Cursor and run one prompt that edits a file. Cursor watches its hook config and reloads automatically, so no restart. This also settles **O2**.
+- **Codex and Gemini:** same exercise, configs not yet written.
+- Then: the four adapters, the five hook entry points, `hooks.json` wiring, the rename, and the template front-matter blocks.
+
+Note that Cursor names tools differently — `Shell`, `Read`, `Write`, `MCP:<name>` — with no separate `Edit`. The adapter must map tool names, not just field names.

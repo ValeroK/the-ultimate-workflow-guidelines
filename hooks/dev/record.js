@@ -8,8 +8,11 @@
 // Usage: register for every hook event in one CLI, run one ordinary session,
 // then unregister. Writes fixtures/<vendor>/<event>.json.
 //
-//   ULTIMATE_WORKFLOW_RECORD_DIR   where to write   (default ./fixtures)
-//   ULTIMATE_WORKFLOW_RECORD_VENDOR  subdirectory   (default "unknown")
+//   --vendor <name>                subdirectory, or ULTIMATE_WORKFLOW_RECORD_VENDOR
+//   --out <dir>                    where to write, or ULTIMATE_WORKFLOW_RECORD_DIR
+//
+// Argv is preferred over env because hook configs cannot reliably set
+// environment variables across shells and operating systems.
 //
 // Always exits 0 and prints nothing, so it can never block or corrupt a session.
 // Gemini requires stdout to carry nothing but final JSON, hence the silence.
@@ -24,8 +27,17 @@ process.stdin.on('data', (chunk) => {
 
 process.stdin.on('end', () => {
   try {
-    const dir = process.env.ULTIMATE_WORKFLOW_RECORD_DIR || path.join(process.cwd(), 'fixtures');
-    const vendor = process.env.ULTIMATE_WORKFLOW_RECORD_VENDOR || 'unknown';
+    const argv = process.argv.slice(2);
+    const flag = (name) => {
+      const i = argv.indexOf(`--${name}`);
+      return i >= 0 && argv[i + 1] ? argv[i + 1] : null;
+    };
+
+    const dir =
+      flag('out') ||
+      process.env.ULTIMATE_WORKFLOW_RECORD_DIR ||
+      path.join(__dirname, '..', '..', 'fixtures');
+    const vendor = flag('vendor') || process.env.ULTIMATE_WORKFLOW_RECORD_VENDOR || 'unknown';
 
     // Event name comes from the payload itself; vendors spell the key differently.
     let event = 'unknown';

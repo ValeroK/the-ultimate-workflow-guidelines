@@ -11,3 +11,6 @@ dist/
 # OS noise
 .DS_Store
 Thumbs.db
+
+# Recorded hook payloads are captured per-machine during development.
+fixtures/

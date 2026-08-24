@@ -221,3 +221,78 @@ test('G5 surfaces an escalation instead of the ordinary next action', () => {
   const line = gates.phasePointer(featureState({ escalated: true, verify_rounds: 3 }), { workflowsAvailable: true });
   assert.match(line, /escalat/i);
 });
+
+// --- toProjectPath ---------------------------------------------------------
+// Driven by real recorded payloads (fixtures/claude-code/PreToolUse.3.json),
+// which revealed that file_path is always absolute and is routinely outside cwd.
+
+const CWD = String.raw`C:\Users\kobiv\Projects\claude-basic-skill`;
+
+test('toProjectPath relativises an absolute path inside the project', () => {
+  assert.equal(gates.toProjectPath(CWD, CWD + String.raw`\hooks\lib\state.js`), 'hooks/lib/state.js');
+});
+
+test('toProjectPath returns null for a path outside the project', () => {
+  const scratch =
+    String.raw`C:\Users\kobiv\AppData\Local\Temp\claude\C--Users-kobiv-Projects-claude-basic-skill\x\scratchpad\gate-probe.js`;
+  assert.equal(gates.toProjectPath(CWD, scratch), null);
+});
+
+test('toProjectPath treats Windows paths case-insensitively', () => {
+  assert.equal(gates.toProjectPath(CWD, String.raw`c:\users\KOBIV\Projects\Claude-Basic-Skill\src\a.js`), 'src/a.js');
+});
+
+test('toProjectPath treats POSIX paths case-sensitively', () => {
+  assert.equal(gates.toProjectPath('/home/k/proj', '/home/k/proj/src/a.js'), 'src/a.js');
+  assert.equal(gates.toProjectPath('/home/k/proj', '/home/k/PROJ/src/a.js'), null);
+});
+
+test('toProjectPath passes a relative path through unchanged', () => {
+  assert.equal(gates.toProjectPath(CWD, 'src/a.js'), 'src/a.js');
+});
+
+test('toProjectPath returns empty string for the project root itself', () => {
+  assert.equal(gates.toProjectPath(CWD, CWD), '');
+});
+
+test('a sibling directory sharing a prefix is outside the project', () => {
+  assert.equal(gates.toProjectPath(CWD, CWD + String.raw`-other\src\a.js`), null);
+});
+
+// The regression that absolute paths would otherwise cause: an ancestor
+// directory named "test" anywhere on the machine must not make a source file
+// look like test code.
+test('an ancestor directory named test outside the project does not leak in', () => {
+  const cwd = '/home/k/test/myproject';
+  const rel = gates.toProjectPath(cwd, '/home/k/test/myproject/src/a.js');
+  assert.equal(rel, 'src/a.js');
+  assert.equal(gates.isTestPath(rel), false);
+  assert.equal(gates.isTestPath('/home/k/test/myproject/src/a.js'), true, 'unrelativised path misfires -- which is why relativisation is required');
+});
+
+// --- preEditGate with cwd --------------------------------------------------
+
+test('preEditGate ignores edits outside the project even with an unconfirmed plan', () => {
+  const r = gates.preEditGate(featureState({ plan_confirmed: false }), {
+    path: String.raw`C:\Users\kobiv\AppData\Local\Temp\scratch\a.js`,
+    cwd: CWD,
+  });
+  assert.equal(r.allow, true);
+});
+
+test('preEditGate still blocks an absolute path inside the project', () => {
+  const r = gates.preEditGate(featureState({ plan_confirmed: false }), {
+    path: CWD + String.raw`\src\a.js`,
+    cwd: CWD,
+  });
+  assert.equal(r.allow, false);
+  assert.match(r.reason, /plan_confirmed/);
+});
+
+test('preEditGate allows an absolute path to a test file inside the project', () => {
+  const r = gates.preEditGate(featureState({ plan_confirmed: true, tests_confirmed: false }), {
+    path: CWD + String.raw`\hooks\lib\state.test.js`,
+    cwd: CWD,
+  });
+  assert.equal(r.allow, true);
+});

@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [
+      {
+        "command": "node hooks/dev/record.js --vendor cursor",
+        "matcher": "Write|Read|Shell",
+        "timeout": 10
+      }
+    ],
+    "postToolUse": [
+      {
+        "command": "node hooks/dev/record.js --vendor cursor",
+        "matcher": "Write|Read|Shell",
+        "timeout": 10
+      }
+    ],
+    "afterFileEdit": [
+      {
+        "command": "node hooks/dev/record.js --vendor cursor",
+        "timeout": 10
+      }
+    ],
+    "beforeSubmitPrompt": [
+      {
+        "command": "node hooks/dev/record.js --vendor cursor",
+        "timeout": 10
+      }
+    ],
+    "stop": [
+      {
+        "command": "node hooks/dev/record.js --vendor cursor",
+        "timeout": 10
+      }
+    ]
+  }
+}

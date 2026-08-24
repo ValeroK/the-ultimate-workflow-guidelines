@@ -672,6 +672,8 @@ Cursor's documentation states there is no hook that fires before a file edit and
 
 Confirmed across two independent runs, with the probe re-verified by replaying Cursor's own recorded payload through it and observing exit 2 and a deny on stdout. So the deny is genuinely emitted and genuinely ignored for the write path.
 
+Worse than ignored: the following `postToolUse` reported `{"file_path": "...o2-probe.txt", "success": true}` on both runs. The denial is **not surfaced to the agent at all**. There is no rejected-tool-call path to fall back on, so the model cannot learn from the block and choose another action — the only signal available is one the gate creates itself afterwards, via `afterFileEdit` plus a `stop` follow-up.
+
 **Consequence.** Gates G1 and G2 (and B-G1, B-G2) cannot be *preventive* on Cursor. They degrade to detect-and-correct:
 
 - `afterFileEdit` fires after the write and carries `file_path` plus `edits`. The gate records the violation and sets `dirty`.

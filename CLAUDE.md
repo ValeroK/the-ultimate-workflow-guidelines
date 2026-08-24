@@ -208,6 +208,9 @@ When in doubt, err toward the workflow.
 
 > **Defensive warnings** ("Beware:…", "Don't…", "Note that…"). Threshold, format, and pruning rules are defined in the Workflow section above. Longer-form **explanatory** knowledge ("here's how X works", "here's why we picked Y") belongs in `memory/<topic>.md`, not here.
 
+- **Don't run `node --test <dir>`** — Node resolves a directory argument as a module path and dies with `MODULE_NOT_FOUND`, not as a search root. Use a quoted glob so Node expands it rather than the shell: `node --test "hooks/**/*.test.js"`. Bare `node --test` from the repo root also works but picks up everything. (Discovered 2026-08-25)
+- **This repo has no `package.json`, and that is deliberate.** The plugin's one-command, no-install path across five host apps and three operating systems is the criterion that decided its architecture — it is why the Python plus LangGraph plus MCP design in `PRD-graph-orchestration.md` section 7 was rejected. Before adding any dependency, build step, or `package.json`, re-read that section. Tests use `node:test` and `node:assert` from the standard library for exactly this reason.
+
 <!-- Add entries as repeating issues surface. Example shape:
 
 - **Rule in one line.** Short explanation of why. *(Discovered YYYY-MM-DD, hit Nx.)*

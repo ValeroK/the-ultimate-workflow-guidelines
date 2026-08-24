@@ -6,6 +6,21 @@ on:
     branches: [main]
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Hook gate unit tests
+        # The glob is quoted so Node expands it, not the shell -- identical on
+        # Windows and Linux. `node --test hooks/` does NOT work: a directory
+        # argument is resolved as a module path, not a search root.
+        run: node --test "hooks/**/*.test.js"
+
   validate:
     runs-on: ubuntu-latest
     steps:

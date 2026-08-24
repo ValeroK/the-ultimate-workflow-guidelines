@@ -20,6 +20,12 @@
 const fs = require('fs');
 const path = require('path');
 
+// Cursor prefixes its payloads with a UTF-8 BOM, which makes JSON.parse throw.
+// Undocumented, and it silently no-ops any hook that parses before deciding.
+function stripBom(s) {
+  return s.charCodeAt(0) === 0xfeff ? s.slice(1) : s;
+}
+
 let raw = '';
 process.stdin.on('data', (chunk) => {
   raw += chunk;
@@ -42,7 +48,7 @@ process.stdin.on('end', () => {
     // Event name comes from the payload itself; vendors spell the key differently.
     let event = 'unknown';
     try {
-      const parsed = JSON.parse(raw);
+      const parsed = JSON.parse(stripBom(raw));
       event = parsed.hook_event_name || parsed.hookEventName || parsed.event || 'unknown';
     } catch {
       // Not JSON. Still worth keeping -- that itself is a finding.

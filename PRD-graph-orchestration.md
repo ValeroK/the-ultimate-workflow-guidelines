@@ -628,7 +628,7 @@ The question is asked once, its answer is written into `PRD.md` front-matter as 
 
 ### 10.2 Still open
 
-**O2 — Cursor `preToolUse` deny on edit tools.** Community documentation says `preToolUse` matches the `Write` tool and returns `permission: "allow" | "ask" | "deny"`, with a note that `"ask"` is not fully enforced. That note concerns `ask`, not `deny`, so Cursor plausibly reaches 5/5 rather than 3/5. Resolve by the tier-2 recording experiment in section 9.1, not by further reading.
+**O2 — RESOLVED 2026-08-25, negative.** Cursor honours `preToolUse` deny for `Read` but ignores it for `Write`; see 11.1 for the measurement. Cursor therefore carries **3 of 5 gates preventively**, with G1 and G2 degrading to detect-and-correct. The recording experiment also surfaced the BOM defect in 11.1, which was worth more than the question it answered.
 
 **O3 — `Stop` gate interaction rhythm.** The one genuine product risk (section 12.6). Resolved by dogfooding v2.4.0 while building v3.0.0, not by design argument.
 
@@ -641,7 +641,7 @@ The design has three layers, and they port very differently. This section states
 | Layer | Claude Code | Cursor | Codex CLI | Gemini CLI |
 |---|---|---|---|---|
 | **Behavioral prose** — principles, six steps, Gotchas-vs-Memory, templates | Skill | Skill plus `alwaysApply` rule (already shipped) | Skill (`SKILL.md`, same shape) | Skill (`SKILL.md`, same shape) |
-| **Deterministic gates** — the blocking hooks of section 5 | Full, 5/5 | Partial, 3/5 clean (11.1) | **Full, 5/5** (11.3) | **Full, 5/5** (11.3) |
+| **Deterministic gates** — the blocking hooks of section 5 | Full, 5/5 | **3/5 preventive**, measured (11.1) | Full, 5/5, from docs | Full, 5/5, from docs |
 | **Graph orchestration** — the five workflow scripts of section 6.1 | Native `Workflow` runtime | None (11.2) | None (11.3) | None (11.3) |
 
 The prose layer is the one the plugin already does well and it ports everywhere. The gate layer ports far better than expected — see 11.3, which corrects an earlier assumption in this document. The orchestration layer is Claude Code only.
@@ -661,7 +661,25 @@ The two contracts are close enough to share an implementation:
 
 Cursor's event list — `sessionStart`, `sessionEnd`, `preToolUse`, `postToolUse`, `postToolUseFailure`, `subagentStart`, `subagentStop`, `beforeShellExecution`, `afterShellExecution`, `beforeMCPExecution`, `afterMCPExecution`, `beforeReadFile`, `afterFileEdit`, `beforeSubmitPrompt`, `preCompact`, `stop`, `afterAgentResponse`, `afterAgentThought` — covers most of what we need. Two differences matter:
 
-**Difference 1: file-edit blocking.** Cursor's documentation states there is no hook that fires *before* a file edit and blocks it: `beforeReadFile` gates reads, `afterFileEdit` only observes. A generic `preToolUse` event does exist with tool-type matchers, so whether an edit tool can be denied through it needs a hands-on test before we commit. **Action: verify empirically; do not design against the optimistic reading.** If it cannot block, gates 1 and 2 (no source edit before a confirmed plan / before confirmed tests) degrade in Cursor from *prevented* to *detected and reverted* via `afterFileEdit` plus a `stop` follow-up.
+**Difference 1: file-edit blocking. RESOLVED EMPIRICALLY — Cursor cannot block a write.**
+
+Cursor's documentation states there is no hook that fires before a file edit and blocks it. This document previously speculated that the generic `preToolUse` event might block one anyway, since it matches the `Write` tool and accepts `permission: "deny"`. That speculation was wrong. Measured, 2026-08-25, Cursor 3.17.19:
+
+| Tool | `preToolUse` returns deny plus exit 2 | Result |
+|---|---|---|
+| `Read` | yes | **Blocked.** The read did not happen |
+| `Write` | yes | **Ignored.** The file was created, then `afterFileEdit` and `postToolUse` both fired |
+
+Confirmed across two independent runs, with the probe re-verified by replaying Cursor's own recorded payload through it and observing exit 2 and a deny on stdout. So the deny is genuinely emitted and genuinely ignored for the write path.
+
+**Consequence.** Gates G1 and G2 (and B-G1, B-G2) cannot be *preventive* on Cursor. They degrade to detect-and-correct:
+
+- `afterFileEdit` fires after the write and carries `file_path` plus `edits`. The gate records the violation and sets `dirty`.
+- `stop` cannot block, but returns `followup_message`, which Cursor auto-submits as the next user message. The gate uses it to instruct the agent to revert the offending edit and go confirm the plan, bounded by Cursor's own `loop_limit` (default 5).
+
+This is materially weaker than prevention: a bad edit lands before anything notices. It is still better than nothing, and it is the ceiling Cursor's hook surface allows. The README must say so plainly rather than implying parity.
+
+**Difference 1b: Cursor prefixes every hook payload with a UTF-8 BOM.** Undocumented, and the most dangerous finding of the whole exercise. `JSON.parse` throws on the leading `U+FEFF`, so a hook written the obvious way — parse, inspect, decide — catches the exception, decides nothing, and exits 0. It looks installed, logs no error, and silently allows everything. It also passes every test written against documented payloads. Every adapter must strip the BOM before parsing, and the tier-2 fixtures exist precisely to catch this class of defect.
 
 **Difference 2: `stop` cannot block, but it can re-prompt.** Cursor's `stop` hook cannot refuse turn completion. It can return `followup_message`, which Cursor auto-submits as the next user message, bounded by a configurable `loop_limit` (default 5). That is a different mechanism with a similar effect: instead of "you may not finish," it becomes "you are being told to run the tests now." For gate 3 (coding must route through verify) this is arguably adequate; for the round-cap gate the built-in `loop_limit` is a useful second backstop.
 
@@ -691,12 +709,12 @@ Gate-by-gate across all four surfaces:
 
 | Gate (section 5) | Claude Code | Cursor | Codex CLI | Gemini CLI |
 |---|---|---|---|---|
-| G1 no source edit before a confirmed plan | `PreToolUse` deny | Uncertain, see 11.1 | `PreToolUse` deny | `BeforeTool` deny |
-| G2 no implementation before confirmed tests | `PreToolUse` deny | Uncertain, see 11.1 | `PreToolUse` deny | `BeforeTool` deny |
+| G1 no source edit before a confirmed plan | `PreToolUse` deny | **Cannot block**, detect-and-correct | `PreToolUse` deny | `BeforeTool` deny |
+| G2 no implementation before confirmed tests | `PreToolUse` deny | **Cannot block**, detect-and-correct | `PreToolUse` deny | `BeforeTool` deny |
 | G3 coding must route through verify | `Stop` block | `stop` + `followup_message` | `Stop` block | `AfterAgent` deny |
 | G4 round cap | `PostToolUse` | `postToolUse` | `PostToolUse` | `AfterTool` |
 | G5 phase pointer | `UserPromptSubmit` context | `sessionStart` / `postToolUse` only | `UserPromptSubmit` context | `BeforeAgent` context |
-| **Total** | **5/5** | **3/5 clean, 1 different, 1 to verify** | **5/5** | **5/5** |
+| **Total** | **5/5** | **3/5 preventive** (measured) | **5/5** (unverified) | **5/5** (unverified) |
 
 Distribution and skills:
 

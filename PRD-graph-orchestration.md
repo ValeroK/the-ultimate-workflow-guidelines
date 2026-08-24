@@ -678,6 +678,7 @@ Worse than ignored: the following `postToolUse` reported `{"file_path": "...o2-p
 
 - `afterFileEdit` fires after the write and carries `file_path` plus `edits`. The gate records the violation and sets `dirty`.
 - `stop` cannot block, but returns `followup_message`, which Cursor auto-submits as the next user message. The gate uses it to instruct the agent to revert the offending edit and go confirm the plan, bounded by Cursor's own `loop_limit` (default 5).
+- **The `stop` adapter must check `status === 'completed'` before emitting a follow-up.** Recorded transcripts contain many `beforeSubmitPrompt` to `stop` pairs with `status: "aborted"` and no tool calls in between — cancelled or superseded generations, which are ordinary in interactive use. Emitting `followup_message` on those auto-submits a new user message for a turn that did nothing, which is a straightforward way to burn the `loop_limit` and pester the user. Only visible in a real transcript containing real cancellations.
 
 This is materially weaker than prevention: a bad edit lands before anything notices. It is still better than nothing, and it is the ceiling Cursor's hook surface allows. The README must say so plainly rather than implying parity.
 

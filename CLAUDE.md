@@ -110,6 +110,21 @@ For any non-trivial task, follow this loop:
    - If the feature surfaced **longer-form** explanatory learning (architectural mental model, key decision + rationale, runbook), create or update `memory/<topic>.md` and add a pointer to `memory.md` if it's a new topic. One-liners still go to `## Gotchas`. Before deleting the per-feature `PLAN-<feature>.md`, scan it for durable learnings worth migrating. See *Memory* and *Gotchas vs Memory* below.
    - **Why:** the durable learning from a session has to land somewhere durable, or the next session re-derives it.
 
+### Gates: the workflow is enforced, not just described
+
+Where the plugin's hooks are installed, the steps above are backed by deterministic gates. They read a small YAML front-matter block at the top of `PRD.md` (bootstrap) or `PLAN-<feature>.md` (feature work):
+
+- No source edit lands before `plan_confirmed: true`.
+- No implementation lands before `tests_confirmed: true`. Test files are exempt -- that is the point.
+- A turn cannot end while source has changed since the last green verification. Set `test_command` in the front matter so the gate can name it when it blocks.
+- Three failing verification rounds escalate to the user through the blocker protocol in step 5.
+
+Set `plan_confirmed` and `tests_confirmed` to `true` **only after the user has actually confirmed** that stage. Do not set them to clear a block. The gates maintain every other field themselves.
+
+The gates are inert in a repository with neither `PRD.md` nor `PLAN-*.md`, so trivial work in unmanaged projects is never affected, and `ULTIMATE_WORKFLOW_GATES=off` disables them entirely. They fail open: an internal error blocks nothing.
+
+Host support is not equal. On Cursor the first two gates can only detect and correct after the fact rather than prevent, because a pre-edit denial there is silently dropped. See the README's host matrix before relying on enforcement.
+
 ### `## Gotchas` in `CLAUDE.md` — capturing repeating issues
 
 `CLAUDE.md` is auto-loaded every turn. Its `## Gotchas` section is where empirical, discovered-the-hard-way project knowledge lives — the cousin of the "best practices" section, but for things nobody planned.

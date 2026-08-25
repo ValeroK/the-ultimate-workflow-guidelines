@@ -1,3 +1,20 @@
+---
+phase: plan
+plan_confirmed: false
+tests_confirmed: false
+test_command: ""
+verify_rounds: 0
+last_verify: unrun
+dirty: false
+escalated: false
+---
+
+> The block above is read by the workflow gates. Leave it in place and let the
+> gates maintain it; edit `plan_confirmed` and `tests_confirmed` only when the
+> user has actually confirmed that stage. Set `test_command` to the project's
+> real verification command -- the stop gate quotes it back when it blocks.
+> Gates do nothing at all if this file is absent, so trivial work is unaffected.
+
 # PLAN: <feature>
 
 > Canonical skeleton for the per-feature plan file produced by `the-ultimate-workflow-guidelines`.

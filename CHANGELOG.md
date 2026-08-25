@@ -4,6 +4,35 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.0] - 2026-08-25
+
+### BREAKING
+
+- **The plugin is renamed from `the-ultimate-workflow-guidelines` to `ultimate-workflow`.** The plugin name namespaces every component it ships, so commands and skills are now `ultimate-workflow:<name>` instead of `the-ultimate-workflow-guidelines:<name>`. Reinstall once:
+
+  ```
+  /plugin uninstall the-ultimate-workflow-guidelines
+  /plugin install ultimate-workflow
+  ```
+
+  The repository, the marketplace entry, and the GitHub URL are unchanged, so `/plugin marketplace add ValeroK/the-ultimate-workflow-guidelines` still works. Done now because the old name already produced `the-ultimate-workflow-guidelines:the-ultimate-workflow-guidelines` in the skill list, and the workflows planned for v3.0.0 would have made it worse.
+
+- **Workflow gates are on by default.** Five lifecycle hooks now enforce the workflow rather than describing it: no source edit before a confirmed plan, no implementation before confirmed tests, no turn completion while code is unverified, a hard cap of three failing verify rounds, and a per-prompt stage pointer. They are inert in any repository without a `PRD.md` or `PLAN-*.md`, and `ULTIMATE_WORKFLOW_GATES=off` disables them entirely. They fail open: any internal error exits 0 and blocks nothing.
+
+### Added
+
+- `hooks/gate.js` plus `hooks/lib/` — the shared gate core, four vendor adapters (Claude Code, Codex CLI, Gemini CLI, Cursor), and the dispatcher. 104 tests via `node:test`, no dependency and no `package.json`.
+- `hooks/dev/record.js` — a payload recorder, so anyone on a host we have not verified can produce the fixtures the contract tests need.
+- State front matter in `references/plan-template.md` and `references/prd-template.md`, read by the gates.
+- `node --test` job in `.github/workflows/validate.yml`, plus a manifest name-consistency assertion alongside the existing version check.
+- README section documenting the gates and a per-host support matrix.
+
+### Known limitations
+
+- **On Cursor, gates G1 and G2 cannot prevent anything; they detect and correct after the fact.** Measured on Cursor 3.17.19: a `preToolUse` hook returning `deny` plus exit 2 is honoured for `Read` and ignored for `Write`, and the following `postToolUse` reports `success: true`, so the model is never told it was blocked. The plugin therefore does not emit a deny for writes on Cursor, because a silently dropped deny looks like enforcement while providing none.
+- The Codex CLI and Gemini CLI adapters are written to documented contracts that nobody has exercised. Every defect found while building the two verified adapters — a UTF-8 BOM that makes payload parsing throw, absolute paths defeating test-file detection, `workspace_roots` in place of `cwd` — was invisible to documentation and failed open.
+- Gemini has no distinct tool-failure event, so a red verification cannot be detected there the way it is elsewhere.
+
 ## [2.3.2] - 2026-04-29
 
 ### Fixed

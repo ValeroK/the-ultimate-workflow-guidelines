@@ -64,3 +64,33 @@ jobs:
             exit 1
           fi
           echo "All four version slots agree on $CANON."
+
+      - name: Manifest name consistency
+        # The plugin name namespaces every skill, command, and workflow it
+        # ships, so a mismatch silently changes how users invoke them.
+        # The marketplace's own top-level name is deliberately NOT checked:
+        # it identifies the marketplace, not the plugin.
+        run: |
+          set -e
+          CANON=$(jq -r '.name' .claude-plugin/plugin.json)
+          echo "Canonical plugin name: $CANON"
+
+          CURSOR=$(jq -r '.name' .cursor-plugin/plugin.json)
+          MKT=$(jq -r '.plugins[0].name' .claude-plugin/marketplace.json)
+
+          fail=0
+          for pair in \
+            ".cursor-plugin/plugin.json:$CURSOR" \
+            ".claude-plugin/marketplace.json#plugins[0].name:$MKT"; do
+            label="${pair%%:*}"
+            value="${pair##*:}"
+            if [ "$value" != "$CANON" ]; then
+              echo "::error::Name mismatch at $label: got '$value', expected '$CANON'"
+              fail=1
+            fi
+          done
+
+          if [ "$fail" -ne 0 ]; then
+            exit 1
+          fi
+          echo "All plugin name slots agree on $CANON."

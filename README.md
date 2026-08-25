@@ -39,7 +39,14 @@ LLMs are fast but forgetful. They assume when they should ask, write 200 lines w
 | `skills/project-bootstrap-guidelines/references/progress-template.md` | `progress.md` skeleton. | Claude Code, Cursor | Linked from SKILL.md |
 | `skills/project-bootstrap-guidelines/references/claude-md-template.md` | Project `CLAUDE.md` skeleton (with `## Key files` + `## Gotchas`). | Claude Code, Cursor | Linked from SKILL.md |
 | `skills/project-bootstrap-guidelines/references/memory-template.md` | `memory.md` index + topical-file templates. | Claude Code, Cursor | Linked from SKILL.md |
-| `hooks/hooks.json` | Claude Code plugin hooks manifest. Wires the no-emoji enforcement below. | Claude Code | On `/plugin install` |
+| `hooks/hooks.json` | Claude Code hooks manifest. Wires the no-emoji enforcement and the workflow gates. | Claude Code | On `/plugin install` |
+| `.cursor/hooks.json` | Cursor hooks manifest. Same gates, reduced enforcement (see the host matrix). | Cursor | Every session |
+| `hooks/gate.js` | Single entry point for all five workflow gates, on every host. | Claude Code, Cursor | Every gated event |
+| `hooks/lib/state.js` | Front-matter parsing, stage resolution, the bootstrap-to-feature handoff predicate. | via `gate.js` | — |
+| `hooks/lib/gates.js` | The five gate predicates, as pure functions. | via `gate.js` | — |
+| `hooks/lib/adapters.js` | Per-host wire-format translation and the write-blocking capability table. | via `gate.js` | — |
+| `hooks/lib/dispatch.js` | Routes a normalised event to a gate. | via `gate.js` | — |
+| `hooks/dev/record.js` | Development-only payload recorder, for producing contract-test fixtures on unverified hosts. | Manually registered | — |
 | `hooks/no-emoji-prompt.js` | `UserPromptSubmit` hook — injects a no-emoji reminder into every turn. | Claude Code | Every prompt |
 | `hooks/no-emoji-write.js` | `PreToolUse` hook on `Write`/`Edit`/`MultiEdit`/`NotebookEdit` — blocks the tool call if the new content contains emoji codepoints. | Claude Code | Every file write |
 
@@ -136,7 +143,7 @@ If you run Codex or Gemini, you can close that gap in about five minutes: regist
 
 ```
 /plugin marketplace add ValeroK/the-ultimate-workflow-guidelines
-/plugin install the-ultimate-workflow-guidelines
+/plugin install ultimate-workflow
 ```
 
 Both skills become available across all your projects. Replace `ValeroK` with your own GitHub handle if you forked the repo.

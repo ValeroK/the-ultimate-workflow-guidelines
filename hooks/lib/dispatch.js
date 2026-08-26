@@ -32,9 +32,13 @@ function looksLikeShellWrite(command) {
     />>?\s*\S/.test(cmd) || // redirection into a file
     /\bsed\b[^|]*\s-i\b/.test(cmd) || // in-place sed
     /\b(tee|cp|mv|install|patch|truncate)\b/.test(cmd) ||
-    /\b(mkdir|touch|rm)\b/.test(cmd) ||
-    /<<-?\s*['"]?\w+/.test(cmd) // heredoc
+    /\b(mkdir|touch|rm)\b/.test(cmd)
   );
+
+  // Deliberately NOT matched: a bare heredoc. `cmd <<EOF` feeds stdin, not a
+  // file -- writing one needs `cat > file <<EOF`, which the redirection rule
+  // above already catches. Matching it marked the tree dirty on every
+  // `git commit -F -`, so the gate demanded a test run after every commit.
 }
 
 /**

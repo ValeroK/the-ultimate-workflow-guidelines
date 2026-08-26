@@ -165,6 +165,20 @@ test('a read-only shell command does not mark the tree dirty', () => {
   assert.equal(r.patch, undefined);
 });
 
+test('a commit whose message arrives by heredoc does not mark the tree dirty', () => {
+  // Found by the gate blocking a turn immediately after this heuristic shipped:
+  // every `git commit -F -` uses a heredoc, so the gate demanded a test run
+  // after every commit. A bare heredoc feeds stdin, not a file.
+  const { looksLikeShellWrite } = require('./dispatch.js');
+  assert.equal(looksLikeShellWrite("git commit -q -F - <<'MSG'\nsubject\nMSG"), false);
+  assert.equal(looksLikeShellWrite('node - <<SCRIPT\nconsole.log(1)\nSCRIPT'), false);
+});
+
+test('a heredoc redirected into a file still counts as a write', () => {
+  const { looksLikeShellWrite } = require('./dispatch.js');
+  assert.equal(looksLikeShellWrite("cat > src/a.js <<'EOF'\nx\nEOF"), true);
+});
+
 test('the verify command itself is not treated as a source write', () => {
   const r = dispatch(
     {

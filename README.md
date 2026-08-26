@@ -61,20 +61,13 @@ Reports whether the gates are live, what stage you are in, and what is blocking 
 
 Worth running once after installing, because **hook config is read at host startup**: a gate registered mid-session does nothing until you restart, and gives no indication of it. A hook that was never loaded, a hook that crashed, and a hook that correctly allowed all look identical from the outside — so every gate now leaves a heartbeat, and this reads it.
 
-### Host support is not equal
+### Gates are Claude Code only
 
-> **On Cursor, the first two gates cannot prevent anything.** They detect and correct after the fact.
+Everything above applies to Claude Code. **Cursor, Codex CLI, Gemini CLI, and claude.ai get the workflow as prose** — the checkpoints are observed, not enforced.
 
-Measured, not assumed. On Cursor 3.17.19 a pre-edit hook returning `deny` is honoured for reads and **ignored for writes** — the file is created and the model is told it succeeded. So the plugin doesn't emit a deny there at all: a silently dropped block looks like enforcement while providing none.
+That scope is deliberate and measured. On Cursor 3.17.19 a pre-edit hook returning `deny` is honoured for reads and **ignored for writes**: the file is created, and the following event reports success, so the model is never told it was blocked. Shipping gates there would look like enforcement while providing none.
 
-| Host | Blocks edits | Blocks turn end | Verified |
-|---|---|---|---|
-| Claude Code | Yes | Yes | Measured |
-| Codex CLI | Yes | Yes | Docs only |
-| Gemini CLI | Yes | Yes | Docs only |
-| **Cursor** | **No, detect only** | Follow-up message | Measured |
-
-"Docs only" is a real caveat. Every defect found while building the two verified adapters — a UTF-8 BOM that makes payload parsing throw, absolute paths defeating test-file detection, `workspace_roots` instead of `cwd` — was invisible in documentation and **failed open**. If you use Codex or Gemini, you can close that gap in five minutes: register `hooks/dev/record.js` on every hook event, run one session, and open a PR with the fixtures.
+The Codex and Gemini hook contracts are documented and look nearly identical to Claude Code's, but neither has been exercised. Every defect found on the hosts we *did* exercise — a UTF-8 BOM that makes payload parsing throw, absolute paths defeating test-file detection, `workspace_roots` in place of `cwd` — was invisible in documentation and **failed open**. Until someone records real payloads with `hooks/dev/record.js`, those hosts get prose.
 
 ## Memory that compounds
 
@@ -121,6 +114,8 @@ CLAUDE.md   always-on guidance for this repo; mirrors skill 1
 ```
 
 Each skill body is mirrored by hand across `SKILL.md`, `CLAUDE.md`, and `rules/*.mdc`. Changes land in every copy in the same commit.
+
+**One deliberate exception:** the Gates section exists in `SKILL.md` and `CLAUDE.md` but **not** in `rules/*.mdc`. That file is Cursor-only, and Cursor has no gates — documenting them there would describe something that never runs. Do not "restore" it.
 
 ## No emojis
 

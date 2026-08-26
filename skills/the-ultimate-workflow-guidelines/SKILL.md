@@ -136,7 +136,7 @@ Set `plan_confirmed` and `tests_confirmed` to `true` **only after the user has a
 
 The gates are inert in a repository with neither `PRD.md` nor `PLAN-*.md`, so trivial work in unmanaged projects is never affected, and `ULTIMATE_WORKFLOW_GATES=off` disables them entirely. They fail open: an internal error blocks nothing.
 
-Host support is not equal. On Cursor the first two gates can only detect and correct after the fact rather than prevent, because a pre-edit denial there is silently dropped. See the README's host matrix before relying on enforcement.
+The gates are **Claude Code only**. Cursor, Codex CLI, Gemini CLI, and claude.ai run the workflow above as prose, with the confirmation steps observed rather than enforced. That is a deliberate scope: a pre-edit denial is silently dropped on Cursor, and the Codex and Gemini hook contracts have never been exercised, so shipping gates there would look like enforcement while providing none.
 
 ### `## Gotchas` in `CLAUDE.md` — capturing repeating issues
 

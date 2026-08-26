@@ -1,7 +1,7 @@
 ---
-phase: plan
-plan_confirmed: false
-tests_confirmed: false
+phase: implement
+plan_confirmed: true
+tests_confirmed: true
 test_command: node --test "hooks/**/*.test.js"
 verify_rounds: 0
 last_verify: green
@@ -158,12 +158,73 @@ Nothing is thrown away:
 
 ## Tests
 
-*To be written after the plan is confirmed. Sketch: workflow scripts are hard to unit-test, so verification is mostly (a) step 0's tool-scoping proof, (b) each phase run against this repo with its output reviewed by hand, (c) the existing 136 tests continuing to pass for everything under `hooks/`.*
+Workflow scripts are orchestration, not logic, so most of them cannot be usefully unit-tested. Verification is therefore three things: a mechanism proof, a real run reviewed by hand, and no regression in what is already covered.
+
+### Per phase, before it ships
+
+1. **Mechanism proof.** Whatever new capability the phase depends on gets a throwaway probe first, the way step 0 did. Do not build on an assumption.
+2. **Real run against this repo**, output reviewed by hand against the criteria below.
+3. **`node --test "hooks/**/*.test.js"` still green** — 136 tests, none of which should be touched by workflow work.
+
+### Step 1 acceptance: `/ultimate-workflow:harvest`
+
+Run it against the work already on this branch, which is a good test case because the durable lessons are known in advance.
+
+| # | Criterion | Why it matters |
+|---|---|---|
+| H1 | Writes nothing. Returns proposals only | The harvester has no write tool; this asserts the design, not just the config |
+| H2 | Finds the BOM defect and routes it to `## Gotchas` | A one-line defensive footgun. The clearest Gotcha on the branch |
+| H3 | Finds the "three routes to silent non-enforcement" reasoning and routes it to `memory/<topic>.md` | Explanatory, multi-paragraph, affects future work. The clearest Memory case |
+| H4 | Does **not** propose a `progress.md` entry per commit | Noise. One dated entry per feature, not per commit |
+| H5 | Returns **zero** proposals when run against a trivial docs-only change | The anti-quota check. A harvester that always finds something is worthless |
+| H6 | Every proposal cites the specific commit, file, or plan section it came from | Unsourced proposals cannot be reviewed |
+| H7 | Stays within the size guideline: under 5 agents for this repo | Cost discipline |
+
+H5 is the one to watch. It is the failure mode of the reviewers in `agency-agents`, and the easiest for us to reproduce by accident.
+
+### Done definition for step 1
+
+- All seven criteria met on a real run.
+- 136 existing tests still green.
+- The agent definition and workflow script are the only new files.
 
 ## Implementation notes
 
-Not started.
+**Step 1 complete, 2026-08-26 — `/harvest` shipped and validated on real work.**
+
+Landed: `agents/uw-harvester.md` (Read, Grep, Glob, Bash — no write tool) and `workflows/harvest.js` (three readers in parallel, then one router; the barrier is justified because the router cannot dedupe against the existing stores until it has them).
+
+Acceptance criteria, measured over two runs against `main..HEAD`:
+
+| # | Result |
+|---|---|
+| H1 writes nothing | Pass |
+| H2 BOM defect to Gotchas | **Criterion was wrong.** It was already recorded; the harvester correctly deduped rather than re-proposing |
+| H3 silent-enforcement reasoning to memory | Deferred by the harvester as premature, with sound reasoning. Accepted |
+| H4 no per-commit progress entry | Pass, twice, with a different reason each time |
+| H5 no manufactured lessons | **Pass.** Run 2 re-surfaced all four Gotcha candidates and discarded every one as already recorded, citing line numbers |
+| H6 every proposal sourced | Pass — commits, plan sections, line numbers |
+| H7 under 5 agents | Pass — 4 |
+
+Three proposals from run 1 were applied to `CLAUDE.md`. One of them was a **replacement**, not an addition: the harvester noticed the day-old hook-startup Gotcha had been invalidated by commit `a3200d7` removing `.cursor/hooks.json`. Nothing asked it to audit existing entries; it did so while deduping. That behaviour is now specified in the agent definition rather than left to luck.
+
+**Cost: 158k subagent tokens and roughly 5.5 minutes per run.** Real money. `/harvest` is a once-per-feature command, not a casual one.
+
+**Two runs on near-identical input produced different output.** The orchestration is deterministic; the agents inside it are not. Worth saying plainly rather than claiming repeatability more broadly than is true.
+
+### Deferred: `memory/enforcement.md`
+
+Run 2 proposed an enforcement topical plus its `memory.md` index pointer. **Held until graph-native lands**, on run 1's reasoning: the plan file is the live artifact carrying that knowledge, so there is nothing to rescue from deletion yet, and half the design it would describe is still unbuilt.
+
+The generated draft was deliberately **not** saved. A stale topical is worse than a missing one, and regenerating it from the then-current state is exactly what harvest is for. At step 6 it should cover: the fail-open mental model, the measured routes to silent non-enforcement, the per-host scope decision with its rationale, why the unregistered adapters stay, and the tool-scoping properties from step 0.
 
 ## Blockers hit
 
-None yet.
+**2026-08-26 — agent definitions are loaded at host startup, like hook config.**
+
+The first `/harvest` run failed with `agent type 'uw-harvester' not found`, listing the built-ins as the only available types. The definition existed at `.claude/agents/uw-harvester.md`; the session had not loaded it.
+
+- **Why it matters, and why it is good news:** this is the same restart constraint that cost twenty silent minutes with the gates. The difference is decisive. The gates failed *silently* -- nothing blocked, nothing logged, work proceeded. The workflow failed *loudly*, naming the missing agent type and listing what was available, within two seconds and for zero tokens. Same underlying constraint, opposite failure mode. That is the property the graph-native design was chosen for, and it showed up on the first run.
+- **A defect it exposed in our own script.** `parallel()` turns a failed agent into `null`, so three dead readers produced an empty candidate list, and the script reported `"No candidates surfaced"` -- indistinguishable from a legitimately empty harvest. Acceptance criterion H5 and total failure had identical output. The same silent-failure pattern, reproduced in new code, written while explicitly designing against it.
+- **Fixed:** the script now separates "readers did not run" from "readers found nothing", returns `ok: false` when every reader fails, and warns on partial coverage. Every phase written from here needs the same check; a null from `parallel()` is never evidence of absence.
+- **Durable?** Yes, both halves. The restart requirement belongs in `## Gotchas`; the `parallel()`-null lesson belongs with the workflow authoring notes.

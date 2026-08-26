@@ -12,8 +12,6 @@ dist/
 .DS_Store
 Thumbs.db
 
-# Recorded hook payloads are captured per-machine during development.
-fixtures/
 
 # Gate heartbeat: per-machine runtime evidence, not source.
 .ultimate-workflow/

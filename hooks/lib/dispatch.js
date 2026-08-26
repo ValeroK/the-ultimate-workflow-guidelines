@@ -20,6 +20,24 @@ function isVerifyCommand(command, state) {
 }
 
 /**
+ * Whether a shell command plausibly wrote to a file.
+ *
+ * Deliberately over-inclusive. A false positive costs one test run; a false
+ * negative means source changed and the tree still looks verified.
+ */
+function looksLikeShellWrite(command) {
+  const cmd = String(command || '');
+  if (!cmd) return false;
+  return (
+    />>?\s*\S/.test(cmd) || // redirection into a file
+    /\bsed\b[^|]*\s-i\b/.test(cmd) || // in-place sed
+    /\b(tee|cp|mv|install|patch|truncate)\b/.test(cmd) ||
+    /\b(mkdir|touch|rm)\b/.test(cmd) ||
+    /<<-?\s*['"]?\w+/.test(cmd) // heredoc
+  );
+}
+
+/**
  * @param {object} ev    normalised event from adapters.normalize
  * @param {object} state resolved state from state.readState
  * @param {object} opts  { workflowsAvailable, failed }
@@ -64,7 +82,15 @@ function dispatch(ev, state, opts = {}) {
 
   // --- G4: round cap on the verify command ---------------------------------
   if ((ev.event === 'postTool' || ev.event === 'postToolFailure') && ev.tool === 'shell') {
-    if (!isVerifyCommand(ev.command, state)) return allow;
+    if (!isVerifyCommand(ev.command, state)) {
+      // A shell command can write source, and the harness's own auto-mode
+      // guidance actively pushes agents toward sed and heredocs for file
+      // changes. Tool-name matching cannot prevent that -- only the
+      // phase-scoped design can -- but the tree must not be reported clean
+      // when a shell command may have written to it. Over-marking costs one
+      // test run; under-marking silently loses the verification requirement.
+      return looksLikeShellWrite(ev.command) ? { kind: 'allow', patch: { dirty: true } } : allow;
+    }
 
     // No vendor puts an exit code in the payload, so pass or fail comes from
     // WHICH event fired: the failure event means the command exited non-zero.
@@ -108,4 +134,4 @@ function dispatch(ev, state, opts = {}) {
   return allow;
 }
 
-module.exports = { dispatch, isVerifyCommand };
+module.exports = { dispatch, isVerifyCommand, looksLikeShellWrite };

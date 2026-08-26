@@ -98,7 +98,10 @@ async function main() {
     // Diagnostics must never affect a decision.
   }
 
-  return adapters.respond(ev.vendor, result.kind, result);
+  // Pass the event that actually fired. The host rejects a result whose
+  // hookSpecificOutput.hookEventName does not match it, discarding everything
+  // the hook had to say.
+  return adapters.respond(ev.vendor, result.kind, { ...result, hookEventName: ev.rawEvent });
 }
 
 main()

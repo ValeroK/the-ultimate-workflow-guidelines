@@ -26,7 +26,20 @@ function coerce(raw) {
   if (v === 'false') return false;
   if (/^-?\d+$/.test(v)) return Number(v);
   const quoted = /^(['"])([\s\S]*)\1$/.exec(v);
-  return quoted ? quoted[2] : v;
+  if (!quoted) return v;
+
+  // format() escapes with JSON.stringify, so a double-quoted value has to be
+  // unescaped the same way. Stripping the quotes alone doubled every backslash
+  // on each write, corrupting a Windows `test_command` a little more every time
+  // the gates touched the file -- and the gates touch it on every source edit.
+  if (quoted[1] === '"') {
+    try {
+      return JSON.parse(v);
+    } catch {
+      return quoted[2];
+    }
+  }
+  return quoted[2];
 }
 
 function format(v) {

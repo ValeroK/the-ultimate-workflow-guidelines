@@ -182,6 +182,22 @@ Run it against the work already on this branch, which is a good test case becaus
 
 H5 is the one to watch. It is the failure mode of the reviewers in `agency-agents`, and the easiest for us to reproduce by accident.
 
+### Step 2 acceptance: `/ultimate-workflow:review`
+
+Run against the diff on this branch.
+
+| # | Criterion | Why it matters |
+|---|---|---|
+| R1 | Writes nothing | The reviewer has no write tool |
+| R2 | Every finding carries a file, a line, and a concrete failure scenario | A finding you cannot check is noise |
+| R3 | The surgical-scope lens either names something that does not trace to the plan, or says plainly that everything does | This is the principle that has never had an enforcer |
+| R4 | Refuted findings are listed separately, not silently dropped | The verifier must itself be auditable. Silent filtering is how a review starts lying |
+| R5 | Zero findings is a clearly stated outcome, not an empty section | Same anti-quota rule as harvest |
+| R6 | Under 8 agents at default rigor | `/harvest` cost 158k with 4. This must not become the expensive one by accident |
+| R7 | `--rigor high` measurably changes the verification, and says so in the output | An option that does nothing visible is worse than no option |
+
+R4 and R6 are the ones that will be tempting to compromise. Verifying every finding with three skeptics is more rigorous and roughly triples the cost; the default is one batch skeptic, with per-finding escalation behind `--rigor high`.
+
 ### Done definition for step 1
 
 - All seven criteria met on a real run.

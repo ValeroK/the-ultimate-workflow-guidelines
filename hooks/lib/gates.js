@@ -144,7 +144,14 @@ function stopGate(state) {
   if (data.escalated === true) return ALLOW;
   if (data.dirty !== true) return ALLOW;
 
-  const cmd = data.test_command || data.build_command || 'the project test command';
+  // With no verification command configured -- which is exactly what the
+  // shipped plan template defaults to -- nothing can ever clear `dirty`, so
+  // blocking here makes every turn end unsatisfiable until the host's
+  // consecutive-block override fires. A gate that cannot be satisfied is worse
+  // than no gate, so this one steps aside; `status.js` reports it as inactive.
+  const cmd = data.test_command || data.build_command;
+  if (!cmd) return ALLOW;
+
   return deny(
     `Gate G3: source changed since the last green verification. Run \`${cmd}\` and get it passing before ending the turn.`
   );

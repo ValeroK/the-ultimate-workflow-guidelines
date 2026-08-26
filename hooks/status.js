@@ -83,6 +83,15 @@ function reportState(cwd) {
     say('Blocking now:');
     say('         Nothing blocking. Source edits and turn completion are both allowed.');
   }
+
+  // G3 cannot fire without a command to verify with, and the shipped plan
+  // template leaves it empty. Silence there would read as "the gate is fine",
+  // which is exactly the confusion this tool exists to prevent.
+  if (!state.data.test_command && !state.data.build_command) {
+    say('');
+    say('Note:    G3 (verify before finishing) is INACTIVE -- no test_command is set.');
+    say(`         Set test_command in ${state.file} to turn it on.`);
+  }
 }
 
 function main() {

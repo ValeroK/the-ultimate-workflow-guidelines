@@ -25,6 +25,23 @@ function has(vendor, name) {
   return fs.existsSync(path.join(FIXTURES, vendor, name));
 }
 
+/**
+ * Why a fixture-backed test cannot run, or null if it can.
+ *
+ * These tests must never pass by accident when the fixture is missing -- that
+ * is the whole point of testing against recordings rather than documentation.
+ * But they must not sit permanently red either, because a host we have not
+ * recorded is a known gap, not a regression. So: skip, loudly, naming what is
+ * missing and how to produce it.
+ */
+function whyNoFixture(vendor) {
+  const dir = path.join(FIXTURES, vendor);
+  if (!fs.existsSync(dir) || fs.readdirSync(dir).length === 0) {
+    return `no recorded ${vendor} payloads in fixtures/${vendor}/ -- register hooks/dev/record.js on that host, run one session, and commit the result`;
+  }
+  return null;
+}
+
 /** Find the first recorded fixture matching a predicate. */
 function findFixture(vendor, pred) {
   const dir = path.join(FIXTURES, vendor);
@@ -75,18 +92,27 @@ test('detect maps Claude Code and Codex to one adapter -- their contracts match'
 
 // --- normalize: Claude Code, against recorded payloads ---------------------
 
-test('normalize reads a recorded Claude Code Edit payload', { skip: !has('claude-code', 'PreToolUse.3.json') }, () => {
-  const n = a.normalize(a.parsePayload(raw('claude-code', 'PreToolUse.3.json')));
+test('normalize reads a recorded Claude Code Edit payload', { skip: has('claude-code', 'PreToolUse.16.json') ? false : 'no recorded Claude Code Edit payload' }, () => {
+  const n = a.normalize(a.parsePayload(raw('claude-code', 'PreToolUse.16.json')));
   assert.equal(n.vendor, 'claude');
   assert.equal(n.event, 'preTool');
   assert.equal(n.tool, 'edit');
-  assert.ok(n.path && n.path.endsWith('gate-probe.js'), n.path);
+  // The recorded payload carries an absolute path and a separate cwd. That
+  // pairing is the thing worth asserting: they must agree well enough for the
+  // gate to relativise one against the other, or every file looks outside the
+  // project and the gate silently allows everything.
+  assert.ok(n.path && n.path.length > 0, 'file_path must be present');
   assert.ok(n.cwd && n.cwd.includes('claude-basic-skill'), n.cwd);
+
+  const gates = require('./gates.js');
+  const rel = gates.toProjectPath(n.cwd, n.path);
+  assert.ok(rel !== null, 'a path recorded inside the project must relativise, not read as outside');
+  assert.ok(!rel.startsWith('C:'), `expected a project-relative path, got ${rel}`);
 });
 
 // --- normalize: Cursor, against recorded payloads --------------------------
 
-test('normalize reads a recorded Cursor preToolUse Write payload', () => {
+test('normalize reads a recorded Cursor preToolUse Write payload', { skip: whyNoFixture('cursor') }, () => {
   const found = findFixture('cursor', (j) => j.hook_event_name === 'preToolUse' && j.tool_name === 'Write');
   assert.ok(found, 'no recorded Cursor preToolUse/Write fixture');
   const n = a.normalize(found.payload);
@@ -120,7 +146,7 @@ test('the normalised Cursor path and cwd agree, so the gate can relativise', () 
   assert.equal(gates.toProjectPath(n.cwd, n.path), 'src/a.js');
 });
 
-test('normalize reads a recorded Cursor afterFileEdit payload, where file_path is top level', () => {
+test('normalize reads a recorded Cursor afterFileEdit payload, where file_path is top level', { skip: whyNoFixture('cursor') }, () => {
   const found = findFixture('cursor', (j) => j.hook_event_name === 'afterFileEdit');
   assert.ok(found, 'no recorded Cursor afterFileEdit fixture');
   const n = a.normalize(found.payload);
@@ -128,7 +154,7 @@ test('normalize reads a recorded Cursor afterFileEdit payload, where file_path i
   assert.ok(n.path && n.path.length > 0, 'file_path is top level on this event');
 });
 
-test('normalize surfaces Cursor stop status, so follow-ups can skip aborted turns', () => {
+test('normalize surfaces Cursor stop status, so follow-ups can skip aborted turns', { skip: whyNoFixture('cursor') }, () => {
   const found = findFixture('cursor', (j) => j.hook_event_name === 'stop' && j.status);
   assert.ok(found, 'no recorded Cursor stop fixture');
   const n = a.normalize(found.payload);

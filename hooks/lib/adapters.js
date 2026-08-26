@@ -209,10 +209,17 @@ function respond(vendor, kind, opts = {}) {
       // sessionStart or postToolUse.
       return { stdout: { additional_context: text }, exit: 0 };
     }
+    // The host validates hookSpecificOutput.hookEventName against the event
+    // that actually fired and throws "Hook returned incorrect event name" on a
+    // mismatch, discarding the whole result. Hardcoding this meant the G4
+    // escalation was dropped as a hook error: the round cap counted correctly
+    // and then said nothing to anyone.
+    const firedAs = opts.hookEventName || (vendor === 'gemini' ? 'BeforeAgent' : 'UserPromptSubmit');
+
     return {
       stdout: {
         hookSpecificOutput: {
-          hookEventName: vendor === 'gemini' ? 'BeforeAgent' : 'UserPromptSubmit',
+          hookEventName: firedAs,
           additionalContext: text,
         },
       },

@@ -51,6 +51,16 @@ The skills describe the workflow. The gates enforce it — five lifecycle hooks 
 
 They are **completely inert** in a repo with no `PRD.md` or `PLAN-*.md`, so trivial work is never blocked. `ULTIMATE_WORKFLOW_GATES=off` disables them. They fail open — an internal error blocks nothing.
 
+### Check they are actually running
+
+```bash
+node hooks/status.js
+```
+
+Reports whether the gates are live, what stage you are in, and what is blocking you right now.
+
+Worth running once after installing, because **hook config is read at host startup**: a gate registered mid-session does nothing until you restart, and gives no indication of it. A hook that was never loaded, a hook that crashed, and a hook that correctly allowed all look identical from the outside — so every gate now leaves a heartbeat, and this reads it.
+
 ### Host support is not equal
 
 > **On Cursor, the first two gates cannot prevent anything.** They detect and correct after the fact.

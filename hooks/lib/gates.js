@@ -163,8 +163,12 @@ function roundCap(state, input) {
   const alreadyEscalated = data.escalated === true;
 
   if (input && input.passed) {
+    // gate_violation is cleared here too. It records an edit that a
+    // detect-only host let through; once verification is green that edit has
+    // been dealt with, and continuing to quote it in stop messages would
+    // accuse the user of a problem they already fixed.
     return {
-      patch: { verify_rounds: 0, last_verify: 'green', dirty: false, escalated: false },
+      patch: { verify_rounds: 0, last_verify: 'green', dirty: false, escalated: false, gate_violation: '' },
       escalated: false,
       alreadyEscalated,
     };

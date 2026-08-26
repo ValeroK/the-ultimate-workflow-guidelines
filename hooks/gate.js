@@ -17,6 +17,7 @@ const path = require('node:path');
 const adapters = require('./lib/adapters.js');
 const stateLib = require('./lib/state.js');
 const { dispatch } = require('./lib/dispatch.js');
+const heartbeat = require('./lib/heartbeat.js');
 
 function readStdin() {
   return new Promise((resolve) => {
@@ -80,6 +81,21 @@ async function main() {
     } catch {
       // A state write failure must not turn into a block.
     }
+  }
+
+  // Leave a trace that this gate ran, whatever it decided. Without it, "not
+  // loaded", "crashed", and "allowed" are indistinguishable from outside --
+  // and the first of those silently disables enforcement entirely.
+  try {
+    heartbeat.record(cwd, {
+      at: new Date().toISOString(),
+      event: ev.event,
+      vendor: ev.vendor,
+      stage: state.stage,
+      decision: result.kind,
+    });
+  } catch {
+    // Diagnostics must never affect a decision.
   }
 
   return adapters.respond(ev.vendor, result.kind, result);

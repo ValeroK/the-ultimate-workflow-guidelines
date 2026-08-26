@@ -33,7 +33,14 @@ function dispatch(ev, state, opts = {}) {
   // --- G1, G2, B-G1, B-G2: pre-edit ---------------------------------------
   if (ev.event === 'preTool' && WRITE_TOOLS.has(ev.tool)) {
     const verdict = gates.preEditGate(state, { path: ev.path, cwd: ev.cwd });
-    if (verdict.allow) return allow;
+
+    // An edit that is now permitted means the condition the violation
+    // described -- an unconfirmed plan, usually -- no longer holds. Clear it
+    // the moment it stops being true, not at the next green run, so stop
+    // messages never quote a resolved problem back at the user.
+    if (verdict.allow) {
+      return state.data.gate_violation ? { kind: 'allow', patch: { gate_violation: '' } } : allow;
+    }
 
     // Cursor ignores a deny on a write and reports success to the model, so
     // emitting one is worse than useless: it looks enforced and is not. Record

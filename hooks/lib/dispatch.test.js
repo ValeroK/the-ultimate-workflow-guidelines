@@ -234,3 +234,110 @@ test('gate.js allows a test-file edit end to end', () => {
   );
   assert.equal(r.exit, 0);
 });
+
+// --- clearing gate_violation ----------------------------------------------
+// The bug this fixes: gate_violation was written once and never cleared, so a
+// resolved violation kept being quoted in every later stop message -- telling
+// the user to revert an edit that no longer existed. Stale nagging is exactly
+// how a gate earns an ULTIMATE_WORKFLOW_GATES=off.
+
+test('a green verify clears gate_violation', () => {
+  const r = dispatch(
+    ev({ event: 'postTool', tool: 'shell', command: 'node --test', path: null }),
+    feature({ test_command: 'node --test', dirty: true, gate_violation: 'Gate G1: stale.' })
+  );
+  assert.equal(r.patch.gate_violation, '');
+});
+
+test('a red verify leaves gate_violation alone', () => {
+  const r = dispatch(
+    ev({ event: 'postToolFailure', tool: 'shell', command: 'node --test', path: null }),
+    feature({ test_command: 'node --test', dirty: true, gate_violation: 'Gate G1: still true.' })
+  );
+  assert.equal(r.patch.gate_violation, undefined, 'red must not clear it -- nothing was fixed');
+});
+
+test('a newly allowed pre-edit clears a violation that is no longer true', () => {
+  const r = dispatch(
+    ev({ vendor: 'cursor' }),
+    feature({ plan_confirmed: true, tests_confirmed: true, gate_violation: 'Gate G1: stale.' })
+  );
+  assert.equal(r.kind, 'allow');
+  assert.equal(r.patch.gate_violation, '');
+});
+
+test('an allowed pre-edit with no recorded violation writes no patch', () => {
+  const r = dispatch(ev({}), feature({ plan_confirmed: true, tests_confirmed: true }));
+  assert.equal(r.patch, undefined, 'no violation to clear means nothing to write');
+});
+
+test('a denied pre-edit on a detect-only host still records the violation', () => {
+  const r = dispatch(ev({ vendor: 'cursor' }), feature({ plan_confirmed: false }));
+  assert.match(r.patch.gate_violation, /plan_confirmed/);
+});
+
+// --- heartbeat integration -------------------------------------------------
+
+const hb = require('./heartbeat.js');
+
+function tmpRepo(frontMatter) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'uw-hbi-'));
+  if (frontMatter) fs.writeFileSync(path.join(dir, 'PLAN-x.md'), frontMatter);
+  return dir;
+}
+
+test('gate.js records a heartbeat even at stage none, where no gate acts', () => {
+  const dir = tmpRepo(null);
+  const r = runGate(
+    JSON.stringify({
+      hook_event_name: 'PreToolUse',
+      permission_mode: 'auto',
+      cwd: dir,
+      tool_name: 'Write',
+      tool_input: { file_path: path.join(dir, 'src', 'a.js') },
+    })
+  );
+  assert.equal(r.exit, 0);
+
+  const h = hb.read(dir);
+  assert.equal(h.count, 1, 'silence at stage none must still be evidenced');
+  assert.equal(h.recent[0].stage, 'none');
+  assert.equal(h.recent[0].decision, 'allow');
+});
+
+test('gate.js records the decision when it denies', () => {
+  const dir = tmpRepo('---\nplan_confirmed: false\n---\n');
+  const r = runGate(
+    JSON.stringify({
+      hook_event_name: 'PreToolUse',
+      permission_mode: 'auto',
+      cwd: dir,
+      tool_name: 'Write',
+      tool_input: { file_path: path.join(dir, 'src', 'a.js') },
+    })
+  );
+  assert.equal(r.exit, 2);
+
+  const h = hb.read(dir);
+  assert.equal(h.recent.at(-1).decision, 'deny');
+  assert.equal(h.recent.at(-1).stage, 'feature');
+  assert.equal(h.recent.at(-1).event, 'preTool');
+});
+
+test('gate.js still decides correctly when the heartbeat cannot be written', () => {
+  const dir = tmpRepo('---\nplan_confirmed: false\n---\n');
+  // Occupy the heartbeat directory name with a file, so mkdir cannot succeed.
+  fs.writeFileSync(path.join(dir, hb.DIR), 'blocked');
+
+  const r = runGate(
+    JSON.stringify({
+      hook_event_name: 'PreToolUse',
+      permission_mode: 'auto',
+      cwd: dir,
+      tool_name: 'Write',
+      tool_input: { file_path: path.join(dir, 'src', 'a.js') },
+    })
+  );
+  assert.equal(r.exit, 2, 'a diagnostics failure must not change the decision');
+  assert.match(JSON.parse(r.stdout).hookSpecificOutput.permissionDecisionReason, /plan_confirmed/);
+});

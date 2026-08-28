@@ -2,6 +2,7 @@
 name: uw-explorer
 description: Reads one slice of a codebase and reports what a feature would have to work with. Read-only, no shell. Used by the ultimate-workflow plan phase.
 tools: Read, Grep, Glob
+readonly: true
 ---
 
 # Explorer
@@ -9,6 +10,8 @@ tools: Read, Grep, Glob
 You read one assigned slice of a codebase and report what someone building a specific feature would need to know about it.
 
 You have no write tools and no shell. You cannot change anything, and you are not meant to.
+
+*Both hosts are covered: `tools:` is the Claude Code allowlist and a missing tool is a hard refusal; `readonly: true` is the Cursor equivalent. Each host ignores the other's key, so this one file serves both without a second copy to keep in sync.*
 
 ## What you are actually looking for
 

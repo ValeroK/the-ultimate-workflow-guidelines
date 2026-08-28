@@ -1,240 +1,49 @@
 # CLAUDE.md
 
-Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
-
-**Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
+This repo *is* the `ultimate-workflow` plugin: skills, phase workflows, scoped agents, and opt-in gates. This file is an index, deliberately thin — see `memory/context-boundary.md` before adding to it.
 
 ## Principles
 
-### 1. Think Before Coding
+- **Think before coding.** State assumptions. Ask when unclear. Name tradeoffs rather than picking silently.
+- **Simplicity first.** The minimum that solves the problem. Nothing speculative.
+- **Surgical changes.** Every changed line traces directly to the request.
+- **Goal-driven execution.** Define what "done" looks like in verifiable terms, then loop until it is.
 
-**Don't assume. Don't hide confusion. Surface tradeoffs.**
-
-Before implementing:
-- State your assumptions explicitly. If uncertain, ask.
-- If multiple interpretations exist, present them — don't pick silently.
-- If a simpler approach exists, say so. Push back when warranted.
-- If something is unclear, stop. Name what's confusing. Ask.
-
-### 2. Simplicity First
-
-**Minimum code that solves the problem. Nothing speculative.**
-
-- No features beyond what was asked.
-- No abstractions for single-use code.
-- No "flexibility" or "configurability" that wasn't requested.
-- No error handling for impossible scenarios.
-- If you write 200 lines and it could be 50, rewrite it.
-
-Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
-
-### 3. Surgical Changes
-
-**Touch only what you must. Clean up only your own mess.**
-
-When editing existing code:
-- Don't "improve" adjacent code, comments, or formatting.
-- Don't refactor things that aren't broken.
-- Match existing style, even if you'd do it differently.
-- If you notice unrelated dead code, mention it — don't delete it.
-
-When your changes create orphans:
-- Remove imports/variables/functions that YOUR changes made unused.
-- Don't remove pre-existing dead code unless asked.
-
-The test: every changed line should trace directly to the user's request.
-
-### 4. Goal-Driven Execution
-
-**Define success criteria. Loop until verified.**
-
-Transform tasks into verifiable goals:
-- "Add validation" → "Write tests for invalid inputs, then make them pass"
-- "Fix the bug" → "Write a test that reproduces it, then make it pass"
-- "Refactor X" → "Ensure tests pass before and after"
-
-Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
+Full text: `skills/the-ultimate-workflow-guidelines/SKILL.md`.
 
 ## Workflow
 
-**Plan first. Anchor in existing design. Confirm. Test-first. Confirm. Implement. Consult on blockers. Update project docs.**
+Understand → **plan** (confirm) → **test plan** (confirm) → **implement** → blocker protocol → **harvest**.
 
-The Workflow *operationalizes* the Principles — each step cites the principle it applies instead of restating it.
+Phase commands: `/ultimate-workflow:plan`, `:tests`, `:build`, `:review`, `:harvest`. Each runs in a fresh context and stops; only `build` writes.
 
-For any non-trivial task, follow this loop:
+## When to skip
 
-1. **Understand.** Restate the request in your own words. Name the goal.
-   - *Applies Think Before Coding.*
-   - **Why:** restating surfaces silent misinterpretations before they become code.
+Typos and formatting. Single-line fixes with an obvious cause. Pure-doc edits. Trivial renames with no behavioural change. When in doubt, err toward the workflow.
 
-2. **Plan document on disk.** Create `PLAN-<feature>.md` (template: `skills/the-ultimate-workflow-guidelines/references/plan-template.md`). It must include:
-   - Feature description and goal.
-   - Files you explored and why they matter.
-   - **Existing-design review** — the patterns, utilities, frameworks, and conventions already in use that this feature touches. Prefer reusing them.
-   - **Deviation justification (if any)** — if you propose a different pattern, library, or approach than what the project currently uses, name the current pattern, the alternative, and list pros/cons for both. Let the user decide.
-   - Open questions.
+## Where things live
 
-   **If the project has bootstrap docs** (`PRD.md`, `ROADMAP.md`, `CLAUDE.md`, `progress.md` produced by `project-bootstrap-guidelines`), read them as part of the existing-design review. `PRD.md` tells you *what* the project is meant to do; `CLAUDE.md` carries the project's frameworks, conventions, and `## Gotchas` (mistakes prior sessions learned not to repeat).
-
-   **If the project has a `memory.md` index**, read it. For each topical pointer whose **Read when** cue plausibly matches the feature, read the corresponding `memory/<topic>.md` before drafting the plan. Topical memory often contains the rationale ("why this pattern?") that turns a deviation-justification question into a one-line answer. See *Memory* below.
-
-   **Stop and ask for confirmation before moving on.**
-   - *Applies Think Before Coding and Surgical Changes.*
-   - **Why:** a plan on disk survives context compaction; chat threads don't. Confirming before code means rework happens on paper, not in the editor.
-
-3. **Test plan.** Extend the plan file with a "Tests" section — what to test, how, what counts as "done". Raise any remaining questions. **Stop and ask for confirmation.**
-   - *Applies Goal-Driven Execution.*
-   - **Why:** "what would prove this is done" is cheaper to negotiate on paper than on code that already exists.
-
-4. **Implement.** Add the tests first. Make the minimal change. Run tests until green. Keep the plan file current as facts change.
-   - *Applies Simplicity First and Surgical Changes.*
-   - **Why:** tests-first makes the loop verifiable; minimal + surgical keeps every diff line traceable to the user's request.
-
-5. **Blocker protocol.** If something doesn't add up mid-implementation — missing info, conflicting requirements, an unexpected constraint — **stop**. Surface the problem, present 2–3 options with tradeoffs, wait for the user to decide. Do not silently pick.
-
-   Once the user picks a direction, before resuming implementation:
-   - **Update the plan file** to reflect the new direction and the decision made.
-   - **Update the test plan** — tests written against the old direction may now be wrong; revise them.
-   - **Check already-written implementation** — code written before the blocker may now be obsolete or need revision.
-   - **Decide whether deeper investigation of existing code is needed** before continuing (e.g. the blocker revealed the codebase works differently than assumed). If so, pause and investigate before resuming.
-   - If the blocker revealed a durable lesson (not a one-off), flag it for step 6.
-
-   - *Applies Think Before Coding.*
-   - **Why:** pre-blocker code rests on assumptions the blocker just invalidated; re-checking is cheaper than the bug it would ship.
-
-6. **Update project docs (if they exist).** After landing the feature:
-   - Append a dated entry to `progress.md` summarizing what changed and any decisions made.
-   - If the feature closed a milestone in `ROADMAP.md`, mark it done.
-   - If frameworks or conventions shifted, update `CLAUDE.md`'s architecture or best-practices sections.
-   - If you hit a repeating issue during the feature (see `## Gotchas` threshold below), append a short entry to `CLAUDE.md`'s `## Gotchas` section.
-   - If the feature surfaced **longer-form** explanatory learning (architectural mental model, key decision + rationale, runbook), create or update `memory/<topic>.md` and add a pointer to `memory.md` if it's a new topic. One-liners still go to `## Gotchas`. Before deleting the per-feature `PLAN-<feature>.md`, scan it for durable learnings worth migrating. See *Memory* and *Gotchas vs Memory* below.
-   - **Why:** the durable learning from a session has to land somewhere durable, or the next session re-derives it.
-
-### Gates: the workflow is enforced, not just described
-
-Where the plugin's hooks are installed, the steps above are backed by deterministic gates. They read a small YAML front-matter block at the top of `PRD.md` (bootstrap) or `PLAN-<feature>.md` (feature work):
-
-- No source edit lands before `plan_confirmed: true`.
-- No implementation lands before `tests_confirmed: true`. Test files are exempt -- that is the point.
-- A turn cannot end while source has changed since the last green verification. Set `test_command` in the front matter so the gate can name it when it blocks.
-- Three failing verification rounds escalate to the user through the blocker protocol in step 5.
-
-Set `plan_confirmed` and `tests_confirmed` to `true` **only after the user has actually confirmed** that stage. Do not set them to clear a block. The gates maintain every other field themselves.
-
-The gates are inert in a repository with neither `PRD.md` nor `PLAN-*.md`, so trivial work in unmanaged projects is never affected, and `ULTIMATE_WORKFLOW_GATES=off` disables them entirely. They fail open: an internal error blocks nothing.
-
-The gates are **Claude Code only**. Cursor, Codex CLI, Gemini CLI, and claude.ai run the workflow above as prose, with the confirmation steps observed rather than enforced. That is a deliberate scope: a pre-edit denial is silently dropped on Cursor, and the Codex and Gemini hook contracts have never been exercised, so shipping gates there would look like enforcement while providing none.
-
-### `## Gotchas` in `CLAUDE.md` — capturing repeating issues
-
-`CLAUDE.md` is auto-loaded every turn. Its `## Gotchas` section is where empirical, discovered-the-hard-way project knowledge lives — the cousin of the "best practices" section, but for things nobody planned.
-
-**Write an entry when at least one is true:**
-- You hit the same issue twice (same or across sessions).
-- The user corrected you on the same thing more than once.
-- Debugging took >10 minutes and the fix is non-obvious from reading the code.
-
-One-off typos or things the next reader would catch instantly: **don't log.** Noise has a cost.
-
-**Format:** one or two sentences per entry. Lead with the actionable rule, then the *why*. An optional `(Discovered YYYY-MM-DD, hit Nx)` trailer helps future readers know when to retire the entry.
-
-**Prune:** if a gotcha stops being true (after a refactor, framework change, or convention shift), delete it. This section should be alive, not a graveyard.
-
-### Memory: slim index + lazy topical files
-
-`CLAUDE.md`'s `## Gotchas` catches **defensive warnings** ("beware X", "don't do Y"). Memory catches **explanatory knowledge** ("here's how X works", "here's why we picked Y"). Different purposes — see *Gotchas vs Memory* below for the full distinction.
-
-Topicals live at the repo root as a slim **`memory.md`** index plus per-topic files under **`memory/`**. Template: `skills/the-ultimate-workflow-guidelines/references/memory-template.md`.
-
-**`memory.md` shape:** one-line pointer per topical, each with a **Read when** cue (concrete keywords + file globs). Example entry:
-
-> `- [memory/auth.md](memory/auth.md) — Auth flow + token lifecycle. **Read when** login, sessions, JWT, OAuth, or /auth/* files.`
-
-The cue is what the model uses to decide whether to fetch the topical. Concrete keywords beat vague phrases.
-
-**Read protocol** at the start of any non-trivial task:
-
-1. Read `memory.md` if it exists (cheap — it's slim by design).
-2. For each entry whose **Read when** cue matches the current task, read `memory/<topic>.md` *before drafting the plan*.
-3. Topical content feeds the plan's existing-design review and deviation justification — often the rationale lives there.
-
-**Write protocol — Gotcha or Memory?** Use the decision test in *Gotchas vs Memory* below. Threshold for a new `memory/<topic>.md` (all three required):
-
-1. The lesson is **explanatory** (passes the "Here's how / Here's why" test).
-2. It will affect **future feature work** in this area, not a one-time observation.
-3. The understanding **isn't obvious from reading the code** — there's rationale, history, or system shape the source doesn't reveal.
-
-A small explanatory lesson belongs in an existing topical's *Key decisions* section. A short defensive footgun belongs in `## Gotchas`.
-
-**Soft caps:** `memory.md` ≤50 entries (~80 lines); `memory/<topic>.md` ≤2 pages (~150 lines). Past either, split.
-
-**Prune:** delete topicals invalidated by refactors / framework changes / convention shifts. `memory/` is alive, not a graveyard.
-
-**Graceful degradation for Gotchas:** if `## Gotchas` ever outgrows its slot (~30 entries / 50 lines), migrate it to `memory/gotchas.md` and add a `gotchas` pointer to `memory.md`.
-
-### Gotchas vs Memory — the real distinction
-
-Length is a *consequence*, not the criterion. The two stores serve different **purposes** and have different **shapes**:
-
-| | **`## Gotchas` (in CLAUDE.md)** | **`memory/<topic>.md`** |
-|---|---|---|
-| **Purpose** | Defensive warning | Explanatory knowledge |
-| **Voice** | "Beware…" / "Don't…" / "Note that…" | "Here's how…" / "Here's why…" |
-| **Posture** | Reactive — alerts to a footgun | Proactive — builds understanding |
-| **Always loaded?** | Yes — short, in `CLAUDE.md` | No — Read on demand when topic relevant |
-
-**Decision test:**
-- Phrasable as *"Beware:"* / *"Don't…"* / *"Watch out for…"*? → **Gotcha** (`CLAUDE.md` `## Gotchas`).
-- Phrasable as *"Here's how X works"* / *"Here's why we picked Y"* / *"To do Z, follow these steps"*? → **Memory** (`memory/<topic>.md`).
-
-**Examples:**
-
-| Lesson | Goes where |
+| Read when | File |
 |---|---|
-| "Tests need a live Postgres — run `docker compose up -d db` first." | `## Gotchas` (defensive, one-line) |
-| "Imports use `@/` aliases, not relative paths." | `## Gotchas` (defensive footgun) |
-| "Auth flow: short-lived JWT + refresh in HTTPOnly cookie + library X for validation, picked over Z for latency reason W." | `memory/auth.md` (explanatory, multi-paragraph) |
-| "Schema decisions: UUID v7 for PKs because…; migrations forward-only because…" | `memory/db.md` (explanatory, multi-decision) |
+| Deciding what belongs in always-on context; editing this file, `memory.md`, `SKILL.md`, or `rules/*.mdc` | `memory/context-boundary.md` |
+| Touching `hooks/**`, adapters, the heartbeat, `status.js`; a gate is not firing; adding a host | `memory/hooks-and-gates.md` |
+| Touching `workflows/*.js` or `agents/uw-*.md`; adding a phase; `parallel()` returned nothing | `memory/workflows-authoring.md` |
+| Editing `SKILL.md`, `rules/*.mdc`, `references/`, or `agents/` | `memory/mirrors.md` |
+| A feature has landed and its lessons need a home | `references/memory-protocol.md` |
+| Designing agent orchestration; arguing model versus harness | `research/new-sdlc-with-vibe-coding.md` |
+| What the project is and why the architecture is what it is | `PRD-graph-orchestration.md` |
 
-Length follows naturally from purpose: warnings are short ("don't do X"); explanations need room to breathe.
+`memory.md` is the full index. Read it at the start of any non-trivial task and open whatever its cues match.
 
-### When to skip this workflow
+## Hard constraints
 
-Use judgment. Skip for:
-- Typo or formatting fixes.
-- Single-line bug fixes with an obvious cause.
-- Pure-doc edits (README tweaks, comment rewording).
-- Trivial renames or moves with no behavioral change.
-
-When in doubt, err toward the workflow.
-
----
-
-**These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
-
-## Key files
-
-- **`memory.md`** — Slim index of topical knowledge for this repo (lazy-loaded topicals under `memory/`). Source of truth for *how this works and why we did it that way*. Distinct from `## Gotchas` below: `memory/` carries explanatory knowledge, `## Gotchas` carries defensive warnings.
-- **`README.md`** — Repo entry point, with the install paths for Claude Code / Cursor / Claude Desktop.
-- **`CURSOR.md`** — Cursor-specific install/setup notes.
-- **`PLAN-<feature>.md`** (per feature, transient) — Per-feature plan produced by the workflow above.
+- **No `package.json`, no build step, no dependency.** The one-command, no-install path across five host apps and three operating systems is the criterion that decided this architecture — it is why the Python plus LangGraph plus MCP design in `PRD-graph-orchestration.md` section 7 was rejected. Tests use `node:test` and `node:assert` from the standard library for exactly this reason.
+- **No emojis anywhere.** They break Windows terminals and corrupt pipelines.
+- **Verify with `node --test "hooks/**/*.test.js" "evals/**/*.test.js"`.** Quoted, so Node expands the glob rather than the shell.
 
 ## Gotchas
 
-> **Defensive warnings** ("Beware:…", "Don't…", "Note that…"). Threshold, format, and pruning rules are defined in the Workflow section above. Longer-form **explanatory** knowledge ("here's how X works", "here's why we picked Y") belongs in `memory/<topic>.md`, not here.
+> Defensive one-liners only, and only those with no topical cue. Subsystem-specific warnings live in the `memory/` topicals above. Threshold and format: `references/memory-protocol.md`.
 
-- **A newly added hook or `agents/*.md` type is not reliably available straight away, and the two fail differently.** A missing agent type fails **loudly** in seconds (`agent type '<name>' not found`, listing what is available) and has been seen to become available a minute later with no restart. A hook that has not been picked up enforces **nothing**, with no block, no log, and no error -- observed both loading immediately and not loading until a restart. So: if a gate is not firing, restart before you debug it, and run `node hooks/status.js` to tell the three cases apart -- never run, live, or disabled. (Discovered 2026-08-25, corrected 2026-08-26)
-- **Hook payloads give an absolute `file_path`, and the target is routinely outside the project.** Relativise against `cwd` before classifying a path, and allow anything that falls outside (`toProjectPath` in `hooks/lib/gates.js`). Matching the raw absolute path silently disabled gate G2 for any project living under a directory named `test`, and judged scratchpad edits elsewhere on disk against this repo's plan. Neither showed up in a green 52-test suite, because those tests used relative paths. (Discovered 2026-08-25)
-- **A `null` from `parallel()` means that branch failed, not that it found nothing.** Merging nulls into a result list turns total failure into an empty result, byte-identical to a correct empty answer -- three dead readers reported "No candidates surfaced". In every `workflows/` script, return an explicit failure when all branches are null, and warn on partial coverage. (Discovered 2026-08-26)
-- **Cursor prefixes every hook payload with a UTF-8 BOM.** `JSON.parse` throws on it, so a hook that parses before deciding catches the exception, decides nothing, and exits 0 — installed, silent, and enforcing nothing. Strip it first: `s.charCodeAt(0) === 0xfeff ? s.slice(1) : s`. Use an explicit codepoint check, not a regex containing a literal BOM, which is invisible in source and survived two rounds of direct inspection. (Discovered 2026-08-25)
-- **Cursor cannot block a file write from a hook.** `preToolUse` deny is honoured for `Read` and ignored for `Write` — measured on 3.17.19, not merely documented. Gates that must prevent an edit work only on Claude Code, Codex, and Gemini; on Cursor they degrade to `afterFileEdit` detection plus a `stop` `followup_message`. (Discovered 2026-08-25)
-- **Don't do backslash string surgery through `node -e` or a heredoc.** The pipeline collapses a doubled backslash before Node sees it, so a replacement meant to emit `C:\\Users` emits `C:\Users` instead — which is invalid inside a JSON string. This corrupted a test file, a BOM-stripping regex, and a directory of recorded fixtures in a single session, each time silently until something downstream failed to parse. Use the Write or Edit tools for those edits, or write the script to a file first and run it. (Discovered 2026-08-26, hit 3x)
-- **Don't run `node --test <dir>`** — Node resolves a directory argument as a module path and dies with `MODULE_NOT_FOUND`, not as a search root. Use a quoted glob so Node expands it rather than the shell: `node --test "hooks/**/*.test.js"`. Bare `node --test` from the repo root also works but picks up everything. (Discovered 2026-08-25)
-- **This repo has no `package.json`, and that is deliberate.** The plugin's one-command, no-install path across five host apps and three operating systems is the criterion that decided its architecture — it is why the Python plus LangGraph plus MCP design in `PRD-graph-orchestration.md` section 7 was rejected. Before adding any dependency, build step, or `package.json`, re-read that section. Tests use `node:test` and `node:assert` from the standard library for exactly this reason.
-
-<!-- Add entries as repeating issues surface. Example shape:
-
-- **Rule in one line.** Short explanation of why. *(Discovered YYYY-MM-DD, hit Nx.)*
-
--->
-
+- **Don't do backslash string surgery through `node -e` or a heredoc.** The pipeline collapses a doubled backslash before Node sees it, so a replacement meant to emit `C:\\Users` emits `C:\Users` — invalid inside a JSON string. This corrupted a test file, a BOM-stripping regex, and a directory of recorded fixtures in one session, each time silently until something downstream failed to parse. Use the Write or Edit tools, or write the script to a file first. (Discovered 2026-08-26, hit 4x)
+- **Don't run `node --test <dir>`.** Node resolves a directory argument as a module path and dies with `MODULE_NOT_FOUND`, not as a search root. Use the quoted glob above. (Discovered 2026-08-25)

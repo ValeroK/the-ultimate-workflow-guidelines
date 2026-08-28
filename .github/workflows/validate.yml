@@ -19,7 +19,7 @@ jobs:
         # The glob is quoted so Node expands it, not the shell -- identical on
         # Windows and Linux. `node --test hooks/` does NOT work: a directory
         # argument is resolved as a module path, not a search root.
-        run: node --test "hooks/**/*.test.js"
+        run: node --test "hooks/**/*.test.js" "evals/**/*.test.js" mirrors.test.js
 
   validate:
     runs-on: ubuntu-latest

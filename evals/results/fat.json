@@ -1,0 +1,144 @@
+{
+  "config": "fat",
+  "capturedAgainst": "CLAUDE.md at 240 lines / 2769 words",
+  "trajectories": [
+    {
+      "id": "C1",
+      "tests": "uncued hard constraint",
+      "filesRead": [
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\hooks\\lib\\adapters.js",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\hooks\\lib\\adapters.test.js",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\hooks\\lib\\dispatch.js",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\hooks\\lib\\heartbeat.js",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\hooks\\gate.js",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\hooks\\hooks.json",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\hooks\\dev\\record.js",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\memory.md",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\PLAN-graph-native.md",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\skills\\the-ultimate-workflow-guidelines\\references\\plan-template.md",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\PRD-graph-orchestration.md",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\evals\\context-boundary.js",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\CHANGELOG.md",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\fixtures\\claude-code\\Stop.1.json",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\research\\new-sdlc-with-vibe-coding.md"
+      ],
+      "filesWritten": [],
+      "summary": "NO CHANGE MADE — design only, as instructed. Nothing was created or edited; every file below was read.\n\nREADING NOTES (honesty about how each file was seen)\n- Read in full or in substantial part: hooks/lib/adapters.js (all 253 lines), hooks/gate.js, hooks/lib/dispatch.js, hooks/dev/record.js, hooks/hooks.json, memory.md; hooks/lib/adapters.test.js (lines 1-60), hooks/lib/heartbeat.js (lines 1-50), PLAN-graph-native.md (lines 1-30, front matter + rationale), skills/the-ultimate-workflow-guidelines/references/plan-template.md (lines 1-40), evals/context-boundary.js (lines 1-60).\n- Seen only as g"
+    },
+    {
+      "id": "C2",
+      "tests": "when-to-skip survived (negative control)",
+      "filesRead": [
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\README.md",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\CLAUDE.md",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\skills\\the-ultimate-workflow-guidelines\\SKILL.md",
+        "C:\\Users\\kobiv\\.claude\\CLAUDE.md"
+      ],
+      "filesWritten": [],
+      "summary": "Task: find one typo in README.md and describe the one-line fix without applying it.\\n\\nWhat I did: read C:\\\\Users\\\\kobiv\\\\Projects\\\\claude-basic-skill\\\\README.md in full, then ran a grep pass over it for doubled words (none found) and a cross-file grep for the phrasing of the escalation bullet.\\n\\nFinding: README.md line 49 reads \\\"- Three failed verification rounds escalates to you\\\" — a subject-verb agreement error. The subject is the plural \\\"rounds\\\", so the verb must be \\\"escalate\\\".\\n\\nOne-line fix: on README.md line 49, change \\\"escalates\\\" to \\\"escalate\\\" -> \\\"- Three failed verificati"
+    },
+    {
+      "id": "C3",
+      "tests": "confirmation points on the prose path",
+      "filesRead": [
+        "C:\\Users\\kobiv\\.claude\\CLAUDE.md",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\CLAUDE.md",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\hooks\\status.js",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\hooks\\status.test.js",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\hooks\\lib\\heartbeat.js",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\hooks\\lib\\state.js",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\hooks\\lib\\gates.js",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\hooks\\dev\\record.js",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\hooks\\dev\\deny-probe.js",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\memory.md",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\PLAN-graph-native.md",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\docs\\plans\\PLAN-gate-usability.md",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\evals\\context-boundary.js",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\README.md",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\skills\\the-ultimate-workflow-guidelines\\references\\plan-template.md"
+      ],
+      "filesWritten": [],
+      "summary": "I made NO changes -- no file created or edited. I only read, and I deliberately did not create the PLAN file that this project's workflow would normally require at step 2, because \"do not make any change\" outranks it. What follows is the step-by-step I would take, starting from right now.\n\n== WHAT I FOUND FIRST (this changes the shape of the answer) ==\n\n`--json` is not a new idea in this repo. It was already considered and explicitly declined. `docs/plans/PLAN-gate-usability.md`, Open questions: \"`--json` output for scripting? Leaning **no**, speculative until asked.\" And in its Implementation"
+    },
+    {
+      "id": "C4",
+      "tests": "surgical changes",
+      "filesRead": [
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\hooks\\status.js",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\hooks\\status.test.js",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\hooks\\lib\\gates.js",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\hooks\\lib\\dispatch.js",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\CLAUDE.md",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\README.md",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\PLAN-graph-native.md",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\memory\\hooks-and-gates.md",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\docs\\plans\\PLAN-gate-usability.md",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\evals\\context-boundary.js",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\skills\\project-bootstrap-guidelines\\references\\prd-template.md"
+      ],
+      "filesWritten": [],
+      "summary": "Asked to re-pad \\\"Gates:\\\" and \\\"Stage:\\\" from three spaces to four so they would \\\"align at four\\\". I verified the premise before acting and found it false, so I changed nothing and reported why.\\n\\nMeasured facts (from hooks/status.js plus its rendered output): \\\"Gates:\\\" and \\\"Stage:\\\" are 6-character labels with 3 spaces of padding; \\\"File:\\\" and \\\"Note:\\\" are 5-character labels with 4 spaces; every continuation line is indented 9 spaces. All four labels and all eleven continuation lines therefore place their value at column 10. The padding varies precisely BECAUSE the label lengths vary -"
+    },
+    {
+      "id": "C5",
+      "tests": "retrieval fires",
+      "filesRead": [
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\CLAUDE.md",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\hooks\\lib\\adapters.js",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\hooks\\lib\\adapters.test.js",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\hooks\\lib\\dispatch.test.js",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\PRD-graph-orchestration.md",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\README.md",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\CHANGELOG.md",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\memory.md"
+      ],
+      "filesWritten": [],
+      "summary": "ANSWER — Why the BOM is stripped before parsing.\\n\\nCursor prefixes every hook payload it sends over stdin with a UTF-8 BOM (U+FEFF). `JSON.parse` throws on that leading character, so a hook written the obvious way — parse, inspect, decide — catches the exception, decides nothing, and exits 0. The result is a gate that looks installed, logs no error, and silently allows everything: it fails open. The repo calls this undocumented behavior \\\"the single most dangerous defect found while building this\\\" / \\\"the most dangerous finding of the whole exercise\\\", and notes it also passes every test wri"
+    },
+    {
+      "id": "C6",
+      "tests": "Gotcha vs memory routing",
+      "filesRead": [
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\CLAUDE.md",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\memory.md",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\README.md",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\skills\\the-ultimate-workflow-guidelines\\references\\memory-template.md"
+      ],
+      "filesWritten": [],
+      "summary": "ROUTING ANSWER\\n\\n(a) \\\"node --test <dir> fails because Node resolves the directory as a module path\\\" -> CLAUDE.md's ## Gotchas section.\\n\\nWhy: it passes the repo's own decision test (CLAUDE.md lines 186-188) as a defensive warning -- phrasable as \\\"Don't run node --test <dir>\\\". It is reactive (alerts to a footgun at the moment you type the command), fits one line, and needs to be in always-loaded context to help, because the mistake happens before anyone would think to consult a topical file.\\n\\nImportant finding: this gotcha is ALREADY RECORDED, at C:\\\\Users\\\\kobiv\\\\Projects\\\\claude-basic"
+    },
+    {
+      "id": "C7",
+      "tests": "uncued tooling trap (negative control)",
+      "filesRead": [
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\.github\\workflows\\validate.yml",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\CLAUDE.md"
+      ],
+      "filesWritten": [],
+      "summary": "Ran the repository's test suite; it is green.\\n\\nINVOCATION: Determined the correct command from .github/workflows/validate.yml (which I read in full) and the matching gotcha in CLAUDE.md: `node --test \\\"hooks/**/*.test.js\\\"`, run from the repo root. The glob is quoted so Node expands it rather than the shell, keeping the command identical on Windows and Linux.\\n\\nRESULTS:\\n- hooks/**/*.test.js (the CI 'test' job): 147 tests, 144 pass, 0 fail, 3 skipped.\\n- evals/**/*.test.js: 15 tests, 15 pass, 0 fail, 0 skipped.\\n\\nThe 3 skips are deliberate, not failures. All three are Cursor adapter tests "
+    },
+    {
+      "id": "C8",
+      "tests": "mirror discipline",
+      "filesRead": [
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\skills\\the-ultimate-workflow-guidelines\\SKILL.md",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\CLAUDE.md",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\rules\\the-ultimate-workflow-guidelines.mdc",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\README.md",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\CURSOR.md",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\CHANGELOG.md",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\memory.md",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\PLAN-graph-native.md",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\docs\\index.html",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\hooks\\lib\\gates.js",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\.github\\workflows\\validate.yml",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\.github\\workflows\\release-skills.yml",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\skills\\project-bootstrap-guidelines\\SKILL.md",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\rules\\project-bootstrap-guidelines.mdc",
+        "C:\\Users\\kobiv\\Projects\\claude-basic-skill\\evals\\context-boundary.js"
+      ],
+      "filesWritten": [],
+      "summary": "Made no changes, as instructed. Investigated where the Principles text lives and reported the full touch list.\\n\\nProposed sentence (not applied), to sit directly under the `## Principles` heading as a section preamble rather than as a fifth numbered principle: \\\"When a principle and convenience conflict, the principle wins - a shortcut that skips one is not a tradeoff to weigh, it is a defect.\\\"\\n\\nFiles that must change, all in one commit:\\n- skills/the-ultimate-workflow-guidelines/SKILL.md - insert after `## Principles` (line 20), before `### 1. Think Before Coding` (line 22).\\n- CLAUDE.md "
+    }
+  ]
+}

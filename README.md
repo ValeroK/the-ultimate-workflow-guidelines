@@ -28,6 +28,22 @@ Say you ask for a real feature — the lifecycle gates in this repo, for instanc
 
 Both "and stops" points are real gates, not politeness. The plan file also survives context compaction, which chat history does not.
 
+## Five phases
+
+Each runs in a fresh context with its own tools, does one job, and stops. Only one of them can write.
+
+| Command | What it does | Writes |
+|---|---|---|
+| `/ultimate-workflow:plan` | Readers fan out over the code, your project docs, and matching memory topicals; a synthesiser writes the plan | No |
+| `/ultimate-workflow:tests` | Drafts a test plan, then four critics attack it: *could an implementation pass all this and still be wrong?* | No |
+| `/ultimate-workflow:build` | Writes the tests, **confirms they fail**, implements minimally, loops to green or escalates | **Yes** |
+| `/ultimate-workflow:review` | Four lenses in parallel, then an adversarial pass that tries to refute each finding | No |
+| `/ultimate-workflow:harvest` | Reads the plan, the diff, and what's already recorded; proposes what's worth keeping | No |
+
+Four of five return proposals for you to apply. That's deliberate: a proposal you have to accept is a proposal you actually read.
+
+**On Cursor**, which has subagents but no scriptable orchestrator, the same five run as agent invocations you sequence yourself — same prompts, same write isolation, without the enforced ordering. The rule file says so plainly rather than implying parity.
+
 ## Two skills
 
 | Skill | When |
@@ -98,24 +114,26 @@ Test: phrasable as *"beware"*? Gotcha. Phrasable as *"here's how"* or *"here's w
 **No plugin, one project** — drop the principles and workflow into a single repo:
 
 ```bash
-curl -o CLAUDE.md https://raw.githubusercontent.com/ValeroK/the-ultimate-workflow-guidelines/main/CLAUDE.md
+curl -o CLAUDE.md https://raw.githubusercontent.com/ValeroK/the-ultimate-workflow-guidelines/main/skills/the-ultimate-workflow-guidelines/SKILL.md
 ```
 
-That path has no templates, no bootstrap skill, and no gates. See [CURSOR.md](CURSOR.md) for using individual `.mdc` rules standalone.
+That fetches the full workflow as self-contained prose. It has no templates, no bootstrap skill, no phase commands, and no gates. See [CURSOR.md](CURSOR.md) for using individual `.mdc` rules standalone.
 
 ## Layout
 
 ```
 skills/     the two skill bodies, plus templates under references/
-rules/      Cursor mirrors of the same bodies
-hooks/      gate.js (one entry point) + lib/ (state, gates, adapters, dispatch)
-hooks/dev/  payload recorder, for verifying a new host
-CLAUDE.md   always-on guidance for this repo; mirrors skill 1
+rules/      Cursor's always-on index and rules
+workflows/  the five phase scripts (Claude Code)
+agents/     five scoped agent definitions; only the implementer can write
+hooks/      gate.js + lib/ + status.js  (opt-in)
+memory/     topical knowledge, loaded on demand via memory.md
+evals/      trajectory scorer and the context-boundary fixtures
+CLAUDE.md   thin always-on index for this repo
 ```
 
-Each skill body is mirrored by hand across `SKILL.md`, `CLAUDE.md`, and `rules/*.mdc`. Changes land in every copy in the same commit.
+The skill bodies live once, in `skills/`, which both hosts read. `CLAUDE.md` and `rules/*.mdc` are thin always-on indexes, one per host, kept in step by `mirrors.test.js` rather than by discipline.
 
-**One deliberate exception:** the Gates section exists in `SKILL.md` and `CLAUDE.md` but **not** in `rules/*.mdc`. That file is Cursor-only, and Cursor has no gates — documenting them there would describe something that never runs. Do not "restore" it.
 
 ## No emojis
 

@@ -159,3 +159,68 @@ test('every declared mirror exception carries a reason', () => {
     assert.ok(e.reason && e.reason.length > 20, `exception for ${e.heading} has no usable reason`);
   }
 });
+
+// --- the command surface -----------------------------------------------------
+//
+// `workflows/*.js` are scripts for the Workflow tool, not a slash-command
+// surface. `commands/*.md` is what makes `/ultimate-workflow:plan` -- advertised
+// in the README, SKILL.md, and both always-on indexes -- actually exist. A
+// command with no script, or a script with no command, is an advertised feature
+// that is not there, which is the exact defect class this session kept finding.
+
+const PHASES = ['plan', 'tests', 'build', 'review', 'harvest'];
+
+test('every advertised phase has both a command and a script', () => {
+  for (const p of PHASES) {
+    assert.ok(fs.existsSync(path.join(root, 'commands', `${p}.md`)), `no command for /${p}`);
+    assert.ok(fs.existsSync(path.join(root, 'workflows', `${p}.js`)), `no script for /${p}`);
+  }
+});
+
+test('no command points at a script that does not exist', () => {
+  const dir = path.join(root, 'commands');
+  for (const f of fs.readdirSync(dir).filter((x) => x.endsWith('.md'))) {
+    const text = fs.readFileSync(path.join(dir, f), 'utf8');
+    const m = /workflows\/([a-z-]+)\.js/.exec(text);
+    assert.ok(m, `${f} never names a workflow script`);
+    assert.ok(
+      fs.existsSync(path.join(root, 'workflows', `${m[1]}.js`)),
+      `${f} points at workflows/${m[1]}.js, which does not exist`
+    );
+  }
+});
+
+test('no script is left without a command to invoke it', () => {
+  const scripts = fs
+    .readdirSync(path.join(root, 'workflows'))
+    .filter((f) => f.endsWith('.js'))
+    .map((f) => f.replace(/\.js$/, ''));
+  for (const s of scripts) {
+    assert.ok(
+      fs.existsSync(path.join(root, 'commands', `${s}.md`)),
+      `workflows/${s}.js has no command, so nothing can reach it`
+    );
+  }
+});
+
+test('each command declares a description, or the plugin lists it blank', () => {
+  const dir = path.join(root, 'commands');
+  for (const f of fs.readdirSync(dir).filter((x) => x.endsWith('.md'))) {
+    const fm = /^---\r?\n([\s\S]*?)\r?\n---/.exec(fs.readFileSync(path.join(dir, f), 'utf8'));
+    assert.ok(fm, `${f} has no front matter`);
+    assert.match(fm[1], /description:\s*\S/, `${f} has no description`);
+  }
+});
+
+test('the phase count in the prose matches the number of phases that exist', () => {
+  // "Five phases" appears in the README, both manifests, and both indexes.
+  // If a sixth lands, this is the thing that notices.
+  assert.equal(PHASES.length, 5);
+  for (const rel of ['README.md', 'CLAUDE.md']) {
+    const t = read(rel);
+    if (/\bfive phases\b/i.test(t) || /\bFive phases\b/.test(t)) {
+      assert.equal(fs.readdirSync(path.join(root, 'workflows')).filter((f) => f.endsWith('.js')).length, 5,
+        `${rel} says five phases`);
+    }
+  }
+});

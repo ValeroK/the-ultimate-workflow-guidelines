@@ -7,7 +7,7 @@
 ## How to use
 
 > **The date heading must be a real date**, in `YYYY-MM-DD` form. The
-> bootstrap handoff check looks for `^## d{4}-d{2}-d{2}`, so a literal
+> bootstrap handoff check looks for `^## \d{4}-\d{2}-\d{2}`, so a literal
 > `YYYY-MM-DD` placeholder leaves the project permanently un-handed-off.
 
 - Append a new dated entry every working session.

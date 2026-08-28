@@ -6,6 +6,10 @@
 
 ## How to use
 
+> **The date heading must be a real date**, in `YYYY-MM-DD` form. The
+> bootstrap handoff check looks for `^## d{4}-d{2}-d{2}`, so a literal
+> `YYYY-MM-DD` placeholder leaves the project permanently un-handed-off.
+
 - Append a new dated entry every working session.
 - Keep each entry short and scannable — bullets, not essays.
 - When `the-ultimate-workflow-guidelines` produces a `PLAN-<feature>.md`, link it from that day's entry.
@@ -13,7 +17,7 @@
 
 ---
 
-## YYYY-MM-DD — <short headline>
+## 2026-01-15 — <short headline>
 
 **What shipped / moved forward:**
 - …
@@ -32,7 +36,7 @@
 
 ---
 
-## YYYY-MM-DD — <short headline>
+## 2026-01-15 — <short headline>
 
 **What shipped / moved forward:**
 - …

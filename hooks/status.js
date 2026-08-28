@@ -11,6 +11,9 @@
 //
 // Read-only by construction. It never writes, so it can be run at any time
 // without disturbing the state it is describing.
+//
+// One compute pass, two renderers: `report()` gathers the facts, the human
+// report and `--json` both render that same object, so they cannot disagree.
 
 const stateLib = require('./lib/state.js');
 const gates = require('./lib/gates.js');
@@ -19,14 +22,57 @@ const heartbeat = require('./lib/heartbeat.js');
 const out = [];
 const say = (s = '') => out.push(s);
 
-function reportLiveness(cwd, disabled) {
-  const h = heartbeat.read(cwd);
-  const l = heartbeat.liveness(h, { disabled });
+const SHOWN = ['plan_confirmed', 'tests_confirmed', 'prd_confirmed', 'design_confirmed', 'dirty', 'last_verify', 'verify_rounds', 'escalated', 'test_command'];
 
+/**
+ * The whole report as data. Shape pinned by PLAN-status-json.md; renaming a key
+ * is a contract change.
+ *
+ * Never throws: a report must never be the thing that fails, and the shape has
+ * to survive the failure too, or every consumer reading `blocking.blocked` gets
+ * `undefined` on the one path that needed it.
+ */
+function report(cwd, env) {
+  const disabled = stateLib.gatesDisabled(env);
+  const liveness = heartbeat.liveness(heartbeat.read(cwd), { disabled });
+
+  try {
+    const state = stateLib.readState(cwd);
+
+    const shown = {};
+    for (const k of SHOWN) if (state.data[k] !== undefined) shown[k] = state.data[k];
+
+    // Ask the real gates rather than reimplementing their logic here.
+    const edit = gates.preEditGate(state, { path: 'src/example.js' });
+    const stop = gates.stopGate(state);
+    const reason = !edit.allow ? edit.reason : !stop.allow ? stop.reason : null;
+
+    return {
+      liveness,
+      stage: state.stage,
+      file: state.file,
+      state: shown,
+      blocking: { blocked: reason !== null, reason },
+      g3Active: state.stage !== 'none' && Boolean(state.data.test_command || state.data.build_command),
+    };
+  } catch (err) {
+    return {
+      liveness,
+      stage: 'none',
+      file: null,
+      state: {},
+      blocking: { blocked: false, reason: null },
+      g3Active: false,
+      error: err && err.message ? err.message : 'unknown error',
+    };
+  }
+}
+
+function reportLiveness(l) {
   if (l.state === 'disabled') {
     say('Gates:   DISABLED (ULTIMATE_WORKFLOW_GATES is off)');
     say('         Nothing is being enforced. Unset the variable to re-enable.');
-    return h;
+    return;
   }
 
   if (l.state === 'never') {
@@ -34,7 +80,7 @@ function reportLiveness(cwd, disabled) {
     say('         The hooks are probably not loaded. Hook configuration is read');
     say('         at startup, so a registration added mid-session does not take');
     say('         effect until you restart the host.');
-    return h;
+    return;
   }
 
   const mins = Math.round(l.ageSeconds / 60);
@@ -46,73 +92,57 @@ function reportLiveness(cwd, disabled) {
   } else {
     say(`Gates:   LIVE -- last ran ${ago}, ${l.count} invocations total`);
   }
-  return h;
 }
 
-function reportState(cwd) {
-  const state = stateLib.readState(cwd);
+function reportState(r) {
+  say(`Stage:   ${r.stage}`);
 
-  say(`Stage:   ${state.stage}`);
-
-  if (state.stage === 'none') {
+  if (r.stage === 'none') {
     say('         No PRD.md and no PLAN-*.md, so no gate will ever block here.');
     return;
   }
 
-  say(`File:    ${state.file}`);
+  say(`File:    ${r.file}`);
 
-  const shown = ['plan_confirmed', 'tests_confirmed', 'prd_confirmed', 'design_confirmed', 'dirty', 'last_verify', 'verify_rounds', 'escalated', 'test_command'];
-  const present = shown.filter((k) => state.data[k] !== undefined);
+  const present = Object.entries(r.state);
   if (present.length) {
     say('State:');
-    for (const k of present) say(`         ${k}: ${state.data[k]}`);
+    for (const [k, v] of present) say(`         ${k}: ${v}`);
   }
-
-  // Ask the real gates rather than reimplementing their logic here.
-  const edit = gates.preEditGate(state, { path: 'src/example.js' });
-  const stop = gates.stopGate(state);
 
   say('');
-  if (!edit.allow) {
-    say('Blocking now:');
-    say(`         ${edit.reason}`);
-  } else if (!stop.allow) {
-    say('Blocking now:');
-    say(`         ${stop.reason}`);
-  } else {
-    say('Blocking now:');
-    say('         Nothing blocking. Source edits and turn completion are both allowed.');
-  }
+  say('Blocking now:');
+  say(`         ${r.blocking.reason || 'Nothing blocking. Source edits and turn completion are both allowed.'}`);
 
   // G3 cannot fire without a command to verify with, and the shipped plan
   // template leaves it empty. Silence there would read as "the gate is fine",
   // which is exactly the confusion this tool exists to prevent.
-  if (!state.data.test_command && !state.data.build_command) {
+  if (!r.g3Active) {
     say('');
     say('Note:    G3 (verify before finishing) is INACTIVE -- no test_command is set.');
-    say(`         Set test_command in ${state.file} to turn it on.`);
+    say(`         Set test_command in ${r.file} to turn it on.`);
   }
 }
 
-function main() {
-  const cwd = process.cwd();
-  const disabled = stateLib.gatesDisabled(process.env);
+const r = report(process.cwd(), process.env);
 
+if (process.argv.slice(2).includes('--json')) {
+  process.stdout.write(`${JSON.stringify(r)}\n`);
+} else {
   say('ultimate-workflow status');
   say('');
-  reportLiveness(cwd, disabled);
+  reportLiveness(r.liveness);
   say('');
-  reportState(cwd);
-}
+  reportState(r);
 
-try {
-  main();
-} catch (err) {
   // A status report must never be the thing that fails. Say what went wrong in
   // one line, in the same voice as the rest of the output, and exit clean.
-  say('');
-  say(`Could not complete the report: ${err && err.message ? err.message : 'unknown error'}`);
+  if (r.error) {
+    say('');
+    say(`Could not complete the report: ${r.error}`);
+  }
+
+  process.stdout.write(`${out.join('\n')}\n`);
 }
 
-process.stdout.write(`${out.join('\n')}\n`);
 process.exit(0);

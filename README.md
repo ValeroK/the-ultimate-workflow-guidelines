@@ -125,7 +125,8 @@ That fetches the full workflow as self-contained prose. It has no templates, no 
 
 ```
 skills/     the two skill bodies, plus templates under references/
-rules/      Cursor's always-on index and rules
+rules/      Cursor's always-on index, plus uw-*.mdc loaded on demand
+commands/   the five slash commands; each calls its workflow script
 workflows/  the five phase scripts (Claude Code)
 agents/     five scoped agent definitions; only the implementer can write
 hooks/      gate.js + lib/ + status.js  (opt-in)

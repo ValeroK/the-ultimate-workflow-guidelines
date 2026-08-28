@@ -33,12 +33,16 @@ function headings(text) {
 }
 
 // --- the always-on pair ----------------------------------------------------
-// CLAUDE.md and the alwaysApply rule are the two files loaded on every turn,
+// AGENTS.md and the alwaysApply rule are the two files loaded on every turn,
 // one per host. They should carry the same shape, because they answer the same
 // question: what does this agent need before it knows what it is doing?
+//
+// AGENTS.md rather than CLAUDE.md: Cursor reads AGENTS.md natively and Claude
+// Code reads only CLAUDE.md, which is now a bare `@AGENTS.md` import. One
+// source of truth, two hosts, no hand-copied body.
 
 test('the two always-on indexes cover the same sections', () => {
-  const claude = headings(read('CLAUDE.md'));
+  const claude = headings(read('AGENTS.md'));
   const cursor = headings(read('rules/the-ultimate-workflow-guidelines.mdc'));
 
   const core = ['## Principles', '## Workflow', '## When to skip', '## Where things live', '## Hard constraints', '## Gotchas'];
@@ -49,7 +53,7 @@ test('the two always-on indexes cover the same sections', () => {
 });
 
 test('both always-on files state the same hard constraints', () => {
-  for (const f of ['CLAUDE.md', 'rules/the-ultimate-workflow-guidelines.mdc']) {
+  for (const f of ['AGENTS.md', 'rules/the-ultimate-workflow-guidelines.mdc']) {
     const t = read(f);
     assert.match(t, /no `package.json`/i, `${f} lost the dependency constraint`);
     assert.match(t, /no emojis in code/i, `${f} lost the emoji constraint`);
@@ -89,7 +93,7 @@ test('the two memory-template copies are byte-identical', () => {
 // sends the reader nowhere.
 
 test('every file the always-on indexes point at actually exists', () => {
-  for (const f of ['CLAUDE.md', 'rules/the-ultimate-workflow-guidelines.mdc']) {
+  for (const f of ['AGENTS.md', 'rules/the-ultimate-workflow-guidelines.mdc']) {
     const text = read(f);
     const refs = [...text.matchAll(/`((?:memory|skills|research|hooks|workflows|agents)\/[^`]+?\.(?:md|js))`/g)]
       .map((m) => m[1])
@@ -171,6 +175,13 @@ test('no command points at a script that does not exist', () => {
   for (const f of fs.readdirSync(dir).filter((x) => x.endsWith('.md'))) {
     const text = fs.readFileSync(path.join(dir, f), 'utf8');
     const m = /workflows\/([a-z-]+)\.js/.exec(text);
+    if (!PHASES.includes(f.replace(/\.md$/, ''))) {
+      // A prompt-only command such as /handoff runs no script, by design: it is
+      // user-triggered and has nothing to orchestrate. It still has to be a real
+      // command, which the front-matter test below covers.
+      assert.equal(m, null, `${f} is not a phase but names a workflow script`);
+      continue;
+    }
     assert.ok(m, `${f} never names a workflow script`);
     assert.ok(
       fs.existsSync(path.join(root, 'workflows', `${m[1]}.js`)),

@@ -24,7 +24,7 @@ jobs:
             echo "ref=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
             echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
           else
-            echo "ref=${{ github.ref }}" >> "$GITHUB_OUTPUT"
+            echo "ref=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
             echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
           fi
 
@@ -52,6 +52,7 @@ jobs:
             -x 'dist/*' \
             -x '.gitignore' \
             -x 'CLAUDE.md' \
+            -x 'AGENTS.md' \
             -x 'research/*.pdf' \
             -x 'fixtures/*' \
             -x 'evals/results/*' \

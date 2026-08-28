@@ -228,3 +228,34 @@ test('gatesDisabled stays the exact inverse, so either caller agrees', () => {
     assert.equal(state.gatesDisabled(env), !state.gatesEnabled(env));
   }
 });
+
+// --- the AGENTS.md handoff, after main moved the always-on doc --------------
+
+test('a project bootstrapped the new way can hand off', () => {
+  // The bootstrap skill now writes AGENTS.md plus a one-line `@AGENTS.md`
+  // CLAUDE.md stub. Checking CLAUDE.md for `## Key files` and `## Gotchas`
+  // therefore failed on every new project -- the stub has no headings -- and
+  // left it permanently un-handed-off, with the gates blocking feature work.
+  const dir = tmpdir();
+  seedCompleteBootstrap(dir);
+  write(dir, 'AGENTS.md', '# AGENTS.md\n\n## Key files\n\n- x\n\n## Gotchas\n');
+  write(dir, 'CLAUDE.md', '@AGENTS.md\n');
+
+  assert.equal(state.handoffComplete(dir), true);
+});
+
+test('a project bootstrapped the old way still hands off', () => {
+  // No AGENTS.md at all: the sections live in CLAUDE.md, as they used to.
+  const dir = tmpdir();
+  seedCompleteBootstrap(dir);
+  assert.equal(state.handoffComplete(dir), true);
+});
+
+test('handoff still fails when neither file carries the sections', () => {
+  const dir = tmpdir();
+  seedCompleteBootstrap(dir);
+  write(dir, 'AGENTS.md', '# AGENTS.md\n\nNothing structured here.\n');
+  write(dir, 'CLAUDE.md', '@AGENTS.md\n');
+
+  assert.equal(state.handoffComplete(dir), false);
+});

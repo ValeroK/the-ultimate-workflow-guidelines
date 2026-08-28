@@ -11,7 +11,7 @@ Two templates: the **slim index** that lives at the repo root (`memory.md`), and
 
 > Slim index of topical knowledge for this repo. Read the topical file only when
 > the task touches the topic. For one-line empirical lessons, use `## Gotchas`
-> in `CLAUDE.md` instead.
+> in `AGENTS.md` instead.
 
 <!-- Each entry: link to the topical file + short purpose + a "Read when..." cue
      with concrete keywords and file globs. The cue is what the model uses to
@@ -50,7 +50,7 @@ to someone who has never opened the codebase.>
 ## Gotchas (topic-specific)
 
 - <Optional. Use only if the gotcha is meaningful only inside this topic;
-  otherwise put it in `CLAUDE.md`'s `## Gotchas`.>
+  otherwise put it in `AGENTS.md`'s `## Gotchas`.>
 ```
 
 **Soft cap:** target ≤2 pages (~150 lines) per topical. Past that, split into narrower topics (e.g. `auth-tokens.md` + `auth-roles.md`).

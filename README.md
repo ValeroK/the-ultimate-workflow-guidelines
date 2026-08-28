@@ -72,6 +72,8 @@ Four of the five hand you proposals instead of applying them. That's on purpose.
 
 You don't need all five every time. A typo doesn't need a plan.
 
+There is a sixth command that is not part of the loop: **`/handoff`** writes a handoff document when a session ends with work still in flight, so the next agent inherits the state that hasn't landed in any committed file yet. You run it; it is never invoked on your behalf.
+
 ## Starting a brand new project?
 
 There's a separate mode for that: it interviews you, writes a PRD, designs the system with you, and sets up the living documents the workflow above then reads. Use it once, on an empty repo.
@@ -122,7 +124,7 @@ then
 curl -o CLAUDE.md https://raw.githubusercontent.com/ValeroK/the-ultimate-workflow-guidelines/main/skills/the-ultimate-workflow-guidelines/SKILL.md
 ```
 
-You get the workflow as prose. No templates, no bootstrap mode, no commands. See [CURSOR.md](CURSOR.md) for using individual Cursor rules on their own.
+You get the workflow as prose. No templates, no bootstrap mode, no commands. Cursor users can drop individual `.mdc` files from `rules/` into `.cursor/rules/` instead.
 
 ## What you get on which host
 
@@ -142,9 +144,11 @@ There's an optional enforcement layer for Claude Code — hooks that block an ed
 ## Layout
 
 ```
+AGENTS.md   the always-on instructions, thin on purpose
+CLAUDE.md   one line: @AGENTS.md, because Claude Code reads only this name
 skills/     the two skill bodies, plus templates
 rules/      Cursor's rules: one always on, the rest fetched on demand
-commands/   the five slash commands
+commands/   the five phase commands, plus /handoff
 workflows/  the scripts each command runs (Claude Code)
 agents/     the five roles; only the builder has write access
 hooks/      the optional enforcement layer

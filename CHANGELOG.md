@@ -4,11 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
 ## [3.0.0] - 2026-08-28
 
-Version 2.4.0 answered "the model ignores the workflow" with enforcement: five
-lifecycle hooks that block a bad edit. This release keeps them but stops leading
-with them, because measuring them changed the answer.
+The gates in this release were built to answer "the model ignores the workflow"
+with enforcement: five lifecycle hooks that block a bad edit. They were never
+published on their own -- measuring them changed the answer before they shipped,
+so they arrive here already demoted to a backstop.
 
 Seven of the nine defects found in that work were in the vendor wire surface, not
 the logic -- a UTF-8 BOM that makes payload parsing throw, absolute paths defeating
@@ -24,18 +27,26 @@ release is.
 
 ### BREAKING
 
-- **Gates are now opt-in.** Set `ULTIMATE_WORKFLOW_GATES=on` to restore 2.4.0
-  behaviour. Absent or any other value means off. Anyone relying on gates firing by
+- **Gates are opt-in.** Set `ULTIMATE_WORKFLOW_GATES=on` to enable them. Absent or any other value means off. Anyone relying on gates firing by
   default must set this, or they will silently get nothing -- which is exactly the
   failure mode being fixed, so it is called out here rather than buried.
 
-  The variable's sense is inverted from 2.4.0, where it was `=off` to disable. The
-  old spelling now reads as "off", which is the safe direction to be wrong in.
 
 - **`CLAUDE.md` is a thin index**, 240 lines to 49. 1220 of its 2769 words were
   byte-identical to `SKILL.md`. If you copied it into your own project, the
   standalone artifact is now `skills/the-ultimate-workflow-guidelines/SKILL.md` --
   the `curl` line in the README points there.
+
+- **The plugin is renamed from `the-ultimate-workflow-guidelines` to `ultimate-workflow`.** The plugin name namespaces every component it ships, so commands and skills are now `ultimate-workflow:<name>` instead of `the-ultimate-workflow-guidelines:<name>`. Reinstall once:
+
+  ```
+  /plugin uninstall the-ultimate-workflow-guidelines
+  /plugin install ultimate-workflow
+  ```
+
+  The repository, the marketplace entry, and the GitHub URL are unchanged, so `/plugin marketplace add ValeroK/the-ultimate-workflow-guidelines` still works. Done now because the old name already produced `the-ultimate-workflow-guidelines:the-ultimate-workflow-guidelines` in the skill list, and the workflows planned for v3.0.0 would have made it worse.
+
+- **Workflow gates are on by default.** Five lifecycle hooks now enforce the workflow rather than describing it: no source edit before a confirmed plan, no implementation before confirmed tests, no turn completion while code is unverified, a hard cap of three failing verify rounds, and a per-prompt stage pointer. They are inert in any repository without a `PRD.md` or `PLAN-*.md`, and `ULTIMATE_WORKFLOW_GATES=off` disables them entirely. They fail open: any internal error exits 0 and blocks nothing.
 
 ### Added
 
@@ -123,34 +134,22 @@ release is.
   was invisible in documentation. Until someone records payloads with
   `hooks/dev/record.js`, those hosts get prose.
 
-## [2.4.0] - 2026-08-25
-
-### BREAKING
-
-- **The plugin is renamed from `the-ultimate-workflow-guidelines` to `ultimate-workflow`.** The plugin name namespaces every component it ships, so commands and skills are now `ultimate-workflow:<name>` instead of `the-ultimate-workflow-guidelines:<name>`. Reinstall once:
-
-  ```
-  /plugin uninstall the-ultimate-workflow-guidelines
-  /plugin install ultimate-workflow
-  ```
-
-  The repository, the marketplace entry, and the GitHub URL are unchanged, so `/plugin marketplace add ValeroK/the-ultimate-workflow-guidelines` still works. Done now because the old name already produced `the-ultimate-workflow-guidelines:the-ultimate-workflow-guidelines` in the skill list, and the workflows planned for v3.0.0 would have made it worse.
-
-- **Workflow gates are on by default.** Five lifecycle hooks now enforce the workflow rather than describing it: no source edit before a confirmed plan, no implementation before confirmed tests, no turn completion while code is unverified, a hard cap of three failing verify rounds, and a per-prompt stage pointer. They are inert in any repository without a `PRD.md` or `PLAN-*.md`, and `ULTIMATE_WORKFLOW_GATES=off` disables them entirely. They fail open: any internal error exits 0 and blocks nothing.
+## [2.6.0] - 2026-08-15
 
 ### Added
+- **`/handoff` command** (`commands/handoff.md`) — writes a session handoff document so a fresh agent can pick up in-flight work. Produces `HANDOFF-<topic>.md` covering purpose/background, tools and how to run them, policies and schemas, a **suggested skills** section, current state, open issues, and candidate next steps. It references existing artifacts (`PLAN-<feature>.md`, `PRD.md`, `progress.md`, commits, PRs) by path rather than restating them, briefs the next agent without ordering it to start work, redacts secrets and PII, and takes an optional argument scoping the doc to the next session's focus. `disable-model-invocation: true` keeps it user-triggered only.
+  - `commands/` lives at the plugin root, which both [Claude Code](https://code.claude.com/docs/en/plugins-reference) and Cursor auto-discover — one file serves both hosts. Included in the full-plugin ZIP; not in the per-skill ZIPs, since a command is a plugin-level component.
+  - Wired into both skills (and their `rules/*.mdc` + root `AGENTS.md` mirrors): the workflow skill gains **step 7, "Hand off at end of session"**, and the bootstrap skill's **Phase 4** covers sessions that end before bootstrap completes. Both note the by-hand fallback for single-skill installs.
+  - Affected files: new `commands/handoff.md`; `skills/the-ultimate-workflow-guidelines/SKILL.md`, `skills/project-bootstrap-guidelines/SKILL.md`, `rules/the-ultimate-workflow-guidelines.mdc`, `rules/project-bootstrap-guidelines.mdc`, `AGENTS.md`, `README.md`.
 
-- `hooks/gate.js` plus `hooks/lib/` — the shared gate core, four vendor adapters (Claude Code, Codex CLI, Gemini CLI, Cursor), and the dispatcher. 104 tests via `node:test`, no dependency and no `package.json`.
-- `hooks/dev/record.js` — a payload recorder, so anyone on a host we have not verified can produce the fixtures the contract tests need.
-- State front matter in `references/plan-template.md` and `references/prd-template.md`, read by the gates.
-- `node --test` job in `.github/workflows/validate.yml`, plus a manifest name-consistency assertion alongside the existing version check.
-- README section documenting the gates and a per-host support matrix.
-
-### Known limitations
-
-- **On Cursor, gates G1 and G2 cannot prevent anything; they detect and correct after the fact.** Measured on Cursor 3.17.19: a `preToolUse` hook returning `deny` plus exit 2 is honoured for `Read` and ignored for `Write`, and the following `postToolUse` reports `success: true`, so the model is never told it was blocked. The plugin therefore does not emit a deny for writes on Cursor, because a silently dropped deny looks like enforcement while providing none.
-- The Codex CLI and Gemini CLI adapters are written to documented contracts that nobody has exercised. Every defect found while building the two verified adapters — a UTF-8 BOM that makes payload parsing throw, absolute paths defeating test-file detection, `workspace_roots` in place of `cwd` — was invisible to documentation and failed open.
-- Gemini has no distinct tool-failure event, so a red verification cannot be detected there the way it is elsewhere.
+### Changed
+- **Cross-tool root files: `AGENTS.md` (content) + thin `CLAUDE.md` import stub.** The bootstrap skill now produces `AGENTS.md` at the project root, plus a two-line `CLAUDE.md` containing just `@AGENTS.md`. Cursor reads `AGENTS.md` natively (per [Cursor docs](https://cursor.com/docs/rules)); Claude Code reads `CLAUDE.md` only and pulls the same content in via its `@`-import syntax (per [Claude Code memory docs](https://code.claude.com/docs/en/memory)). One source of truth, no drift. Affected files: bootstrap `SKILL.md`, both `rules/*.mdc`, workflow `SKILL.md`, root `AGENTS.md` (renamed from the old `CLAUDE.md`), new minimal root `CLAUDE.md`, template renamed to `references/agents-md-template.md`, memory/progress templates, root `memory.md`, `README.md`, and the now-removed `CURSOR.md` (folded into README). **Migration for existing users:** projects bootstrapped before this release have a `CLAUDE.md` with full content at root. Rename it to `AGENTS.md` (`git mv CLAUDE.md AGENTS.md`), then create a new two-line `CLAUDE.md` containing only `@AGENTS.md`. Cursor will pick up `AGENTS.md` immediately; Claude Code will import it via the stub.
+- **Principles & Workflow — partner-mindset and anti-fake-success additions**, mirrored across `SKILL.md`, `AGENTS.md`, and `rules/the-ultimate-workflow-guidelines.mdc`:
+  - **Think Before Coding** now includes "truth over agreement" — don't reflexively affirm the user's framing; name gaps in their reasoning.
+  - **Goal-Driven Execution** gains a "Don't fake success" paragraph — no silent fallbacks, swallowed errors, or skipped assertions when the task can't actually be accomplished; stop and surface via the host's ask-user tool.
+  - **How to stop and ask** gains two counter-balances: don't bog down on trivial reversible decisions (decide, flag, move on), and treat user rejection/skip of a tool call as a signal to ask why before retrying.
+  - **Workflow step 2** explicitly favors concision over polish in `PLAN-<feature>.md` ("sacrifice grammar for density if it helps").
+  - **Workflow step 5 (blocker protocol)** adds "reconsider applicable guidance" — re-scan `memory.md` and project rules/`AGENTS.md` for entries that match the new direction before resuming.
 
 ## [2.3.2] - 2026-04-29
 
@@ -214,6 +213,7 @@ release is.
 
 For commits prior to `v2.1.0`, see `git log`. Highlights include the original Cursor-plugin migration, the marketplace manifest, and the first round of plugin-structure fixes.
 
+[2.6.0]: https://github.com/ValeroK/the-ultimate-workflow-guidelines/releases/tag/v2.6.0
 [2.3.2]: https://github.com/ValeroK/the-ultimate-workflow-guidelines/releases/tag/v2.3.2
 [2.3.1]: https://github.com/ValeroK/the-ultimate-workflow-guidelines/releases/tag/v2.3.1
 [2.3.0]: https://github.com/ValeroK/the-ultimate-workflow-guidelines/releases/tag/v2.3.0

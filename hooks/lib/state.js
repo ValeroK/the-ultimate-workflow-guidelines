@@ -121,10 +121,21 @@ function handoffComplete(dir) {
   if (data.design_confirmed !== true) return false;
   if (data.scaffold_verify !== 'green') return false;
 
+  // The always-on doc is AGENTS.md, with CLAUDE.md reduced to an `@AGENTS.md`
+  // import stub -- Cursor reads AGENTS.md natively, Claude Code reads only
+  // CLAUDE.md. Checking CLAUDE.md for headings therefore fails on every
+  // newly bootstrapped project, since the stub is one line and has none, which
+  // would leave the project permanently un-handed-off.
+  //
+  // CLAUDE.md is still accepted so projects bootstrapped before the rename
+  // keep working; whichever carries the sections satisfies this.
+  const agents = readIfPresent(path.join(dir, 'AGENTS.md'));
   const claude = readIfPresent(path.join(dir, 'CLAUDE.md'));
-  if (claude === null) return false;
-  if (!/^##\s+Key files/im.test(claude)) return false;
-  if (!/^##\s+Gotchas/im.test(claude)) return false;
+  if (agents === null && claude === null) return false;
+
+  const hasSections = (t) =>
+    t !== null && /^##\s+Key files/im.test(t) && /^##\s+Gotchas/im.test(t);
+  if (!hasSections(agents) && !hasSections(claude)) return false;
 
   const roadmap = readIfPresent(path.join(dir, 'ROADMAP.md'));
   if (roadmap === null || !/^##\s+\S/m.test(roadmap)) return false;

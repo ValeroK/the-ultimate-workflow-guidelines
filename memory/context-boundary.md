@@ -1,10 +1,10 @@
 # The static / dynamic context boundary
 
-> Why `CLAUDE.md` is a thin index rather than the whole workflow, and what
+> Why `AGENTS.md` is a thin index rather than the whole workflow, and what
 > stops it growing back.
 > Last updated 2026-08-28.
 
-**If you are reading this because a thin `CLAUDE.md` looked incomplete and you were about to move content back into it: that is the failure this file exists to prevent.** Read on before editing.
+**If you are reading this because a thin `AGENTS.md` looked incomplete and you were about to move content back into it: that is the failure this file exists to prevent.** Read on before editing.
 
 ## Mental model
 
@@ -18,7 +18,7 @@ Retrieval fails when the trigger is an *absence*. You need "do not add a depende
 
 ## What was measured before the change
 
-`CLAUDE.md` was 240 lines and 2769 words.
+`CLAUDE.md` was 240 lines and 2769 words. It has since become `AGENTS.md` -- read natively by Cursor, pulled into Claude Code through a one-line `@AGENTS.md` stub -- and the same measurement held there: 90% of its lines were byte-identical to `SKILL.md`.
 
 | Portion | Words | Relevance |
 |---|---|---|
@@ -36,7 +36,7 @@ The 1220 duplicated words carried close to zero information risk: deleting them 
 - **Hard constraints never move.** No `package.json`, no build step, no dependency; no emoji in code; the verify command. All are uncued.
 - **Two Gotchas stay despite looking subsystem-scoped.** The `node -e` backslash collapse and `node --test <dir>` read like tooling trivia, but their cue is "you are about to run a shell command", which no topical will ever be read for. The first has hit three times and corrupted a test file, a regex, and a fixture directory.
 - **The memory protocol moved to `references/memory-protocol.md`.** Its real consumer is already `workflows/harvest.js`, which inlines the decision test into the router agent's prompt — delivered at the moment of use, in a fresh context, by a fixed script rather than a model remembering to consult it. Keeping 715 always-on words was paying twice for the second-best copy.
-- **`CLAUDE.md` stopped being the standalone artifact.** The README's `curl` one-liner now points at `SKILL.md`, which is self-contained prose. A thin index has dead pointers for someone holding one file. This also collapsed a three-way mirror to a pair.
+- **The always-on file stopped being the standalone artifact.** The README's `curl` one-liner now points at `SKILL.md`, which is self-contained prose. A thin index has dead pointers for someone holding one file. This also collapsed a three-way mirror to a pair.
 - **The line cap is a ratchet, not a target.** CI asserts it because the file will not stay thin on its own.
 
 ## The honest limits

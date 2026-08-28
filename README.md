@@ -1,119 +1,98 @@
 # Ultimate Workflow
 
-Makes AI coding assistants plan before they code, test before they implement, and remember what they learned. Works in **Claude Code**, **Cursor**, **Codex CLI**, **Gemini CLI**, and **Claude Desktop**.
+Your AI coding assistant is fast, confident, and forgets everything. This makes it slow down, show you a plan, write the tests first, and remember what it learned.
 
-Behavioral principles derived from [Andrej Karpathy's observations](https://x.com/karpathy/status/2015883857489522876) on LLM coding pitfalls.
+Works in **Claude Code**, **Cursor**, **Codex CLI**, **Gemini CLI**, and **Claude Desktop**.
 
 Visual walkthrough: **https://valerok.github.io/the-ultimate-workflow-guidelines/**
 
+---
+
 ## The problem
 
-LLMs are fast and forgetful. They assume instead of asking, write 200 lines where 50 would do, "improve" code you didn't ask them to touch, and re-derive the same project quirks every session.
+You ask for a small change. You get 200 lines. Half of them "improve" code you never mentioned.
 
-Telling them not to doesn't stick. This plugin turns the workflow into steps they move through, with checkpoints you control — and, where the host supports it, checkpoints they **cannot skip**.
+You ask a question. It guesses instead of asking you back.
 
-## What it looks like
+You explain a quirk of your project. Next session, it's gone, and you explain it again.
 
-Say you ask for a real feature — the lifecycle gates in this repo, for instance.
+Telling it not to do these things doesn't work. Instructions like "always plan first" sit in a file the model reads once and then drifts away from twenty minutes into a long conversation.
 
-**1. It writes a plan and stops.** `PLAN-hook-gates.md` lands on disk: files explored and why they matter, the existing patterns it intends to reuse, one flagged deviation (a shared `hooks/lib/` directory, with pros and cons for both options), and open questions. No code yet.
+## The idea
 
-**2. You confirm. It writes a test plan and stops again.** What to test, how, and what counts as done. Negotiating "how would we know this works" on paper is cheaper than on code that already exists.
+Stop asking one assistant to do everything in one long conversation.
 
-**3. You confirm. Now it writes the tests first,** then the minimal implementation, and loops until green.
+Split the work into **five short jobs**. Each one starts fresh, knows only what it needs, does a single thing, hands you the result, and stops.
 
-**4. When something doesn't add up, it stops.** Real example from that feature: the recorded hook payloads didn't match the vendor documentation. Rather than guess, it surfaced the problem with options and tradeoffs and waited.
+That's the whole concept. Three things follow from it:
 
-**5. When it lands, the durable lessons get written down.** One-line footguns go to `## Gotchas` in `CLAUDE.md`; explanations worth two pages go to `memory/<topic>.md`, loaded only when relevant.
+**It can't skip a step.** Not because it's being watched, but because each step is a separate command you run. There's nothing to skip ahead to. The next step doesn't exist until you start it.
 
-Both "and stops" points are real gates, not politeness. The plan file also survives context compaction, which chat history does not.
+**It can't wander.** A job that only reads code is given tools that only read code. Four of the five jobs physically cannot write to your files. Only the build step can.
 
-## Five phases
+**It can't lose the thread.** Each job hands back a document, not a memory. The plan is a file on disk. When the conversation gets too long and the history is trimmed, the plan is still there.
 
-Each runs in a fresh context with its own tools, does one job, and stops. Only one of them can write.
+The cost is honest: five commands instead of one, and you're the one who moves between them. That's the trade. You get a checkpoint you actually read, twice, before any code is written.
 
-| Command | What it does | Writes |
+## What it feels like
+
+Say you ask for rate limiting on your public API.
+
+**1. It writes a plan and stops.**
+
+A file lands on disk: which files it looked at and why they matter, the patterns already in your codebase it intends to follow, anywhere it wants to deviate and the tradeoffs both ways, and what it's still unsure about. No code yet.
+
+**2. You say go. It writes a test plan and stops again.**
+
+What to test, how, and what "done" means. Four independent critics then attack that plan with one question: *could someone write code that passes all of this and still be wrong?* Arguing about how you'd know it works is much cheaper on paper than on code that already exists.
+
+**3. You say go. Now it writes the tests, runs them, and proves they fail.**
+
+A test that passes before the feature exists is testing nothing, and once everything is green you can't tell the difference. So it checks. Then it writes the smallest implementation that makes them pass, and loops until green.
+
+**4. When something doesn't add up, it stops and asks.**
+
+A real example from building this repo: the hook payloads it recorded didn't match the vendor's documentation. Instead of guessing, it laid out the options and waited.
+
+**5. When it lands, it writes down what it learned.**
+
+Short warnings go somewhere always loaded. Longer explanations go in a topic file that's only opened when relevant, so your always-on instructions stay small.
+
+## The five commands
+
+| Command | What it does | Can it write? |
 |---|---|---|
-| `/ultimate-workflow:plan` | Readers fan out over the code, your project docs, and matching memory topicals; a synthesiser writes the plan | No |
-| `/ultimate-workflow:tests` | Drafts a test plan, then four critics attack it: *could an implementation pass all this and still be wrong?* | No |
-| `/ultimate-workflow:build` | Writes the tests, **confirms they fail**, implements minimally, loops to green or escalates | **Yes** |
-| `/ultimate-workflow:review` | Four lenses in parallel, then an adversarial pass that tries to refute each finding | No |
-| `/ultimate-workflow:harvest` | Reads the plan, the diff, and what's already recorded; proposes what's worth keeping | No |
+| `/ultimate-workflow:plan` | Several readers explore the code in parallel, then one writes the plan | No |
+| `/ultimate-workflow:tests` | Drafts a test plan, then four critics try to break it | No |
+| `/ultimate-workflow:build` | Writes the tests, proves they fail, implements, loops to green | **Yes** |
+| `/ultimate-workflow:review` | Four reviewers, then a skeptic who tries to disprove each finding | No |
+| `/ultimate-workflow:harvest` | Works out which lessons from this feature are worth keeping | No |
 
-Four of five return proposals for you to apply. That's deliberate: a proposal you have to accept is a proposal you actually read.
+Four of the five hand you proposals instead of applying them. That's on purpose. A proposal you have to accept is a proposal you actually read.
 
-**On Cursor**, which has subagents but no scriptable orchestrator, the same five run as agent invocations you sequence yourself — same prompts, same write isolation, without the enforced ordering. The rule file says so plainly rather than implying parity.
+You don't need all five every time. A typo doesn't need a plan.
 
-## Two skills
+## Starting a brand new project?
+
+There's a separate mode for that: it interviews you, writes a PRD, designs the system with you, and sets up the living documents the workflow above then reads. Use it once, on an empty repo.
 
 | Skill | When |
 |---|---|
-| `the-ultimate-workflow-guidelines` | Daily work in an existing codebase. Plan, tests, minimal change, harvest. |
-| `project-bootstrap-guidelines` | Greenfield only. Produces `PRD.md`, a reviewed design, then `CLAUDE.md`, `ROADMAP.md`, `progress.md`, `memory.md`. |
+| `the-ultimate-workflow-guidelines` | Day-to-day work in an existing codebase |
+| `project-bootstrap-guidelines` | Greenfield only, run once |
 
-They hand off: once the bootstrap docs exist, the workflow skill reads them before planning anything.
-
-Under both sit four principles: **think before coding**, **simplicity first**, **surgical changes** (every changed line traces to your request), and **goal-driven execution**.
-
-## Gates
-
-The five phases make ordering structural. The gates cover what happens **outside** them — ad-hoc edits in a managed repo. They are **opt-in**: set `ULTIMATE_WORKFLOW_GATES=on`. Five lifecycle hooks reading a small YAML block in `PRD.md` or `PLAN-<feature>.md`:
-
-- No source edit before the plan is confirmed
-- No implementation before the tests are confirmed (test files exempt, that's the point)
-- No finishing a turn with unverified changes
-- Three failed verification rounds escalates to you
-- One line per prompt naming the current stage, so it survives compaction
-
-Even enabled, they are **completely inert** in a repo with no `PRD.md` or `PLAN-*.md`, so trivial work is never blocked. They fail open — an internal error blocks nothing.
-
-They shipped on by default in 2.4.0 and were demoted in 3.0.0 on measurement, not taste: full enforcement on one host, partial on one, unverified on two, and three separate routes to "installed and silently enforcing nothing". A default-on mechanism that fails open invisibly is worse than an opt-in one you chose.
-
-### Check they are actually running
-
-```bash
-node hooks/status.js
-```
-
-Reports whether the gates are live, what stage you are in, and what is blocking you right now.
-
-For a script or a CI step, `node hooks/status.js --json` emits the same facts as one object. Exit is always 0, blocking or not, so it stays usable under `set -e`:
-
-```bash
-node hooks/status.js --json
-```
-
-```jsonc
-{
-  "liveness": { "state": "live|stale|never|disabled", "ageSeconds": 12, "count": 41 },
-  "stage":    "none|bootstrap|feature",
-  "file":     "/abs/path/PLAN-feature.md",   // null at stage none
-  "state":    { "plan_confirmed": false },   // the plan's front matter, present keys only
-  "blocking": { "blocked": true, "reason": "Gate G1: ..." },
-  "g3Active": true
-}
-```
-
-Treat the key names as a contract: the human report and this object are rendered from one computed value, so they cannot disagree.
-
-Worth running once after installing, because **hook config is read at host startup**: a gate registered mid-session does nothing until you restart, and gives no indication of it. A hook that was never loaded, a hook that crashed, and a hook that correctly allowed all look identical from the outside — so every gate now leaves a heartbeat, and this reads it.
-
-### Gates are Claude Code only
-
-Everything above applies to Claude Code. **Cursor, Codex CLI, Gemini CLI, and claude.ai get the workflow as prose** — the checkpoints are observed, not enforced.
-
-That scope is deliberate and measured. On Cursor 3.17.19 a pre-edit hook returning `deny` is honoured for reads and **ignored for writes**: the file is created, and the following event reports success, so the model is never told it was blocked. Shipping gates there would look like enforcement while providing none.
-
-The Codex and Gemini hook contracts are documented and look nearly identical to Claude Code's, but neither has been exercised. Every defect found on the hosts we *did* exercise — a UTF-8 BOM that makes payload parsing throw, absolute paths defeating test-file detection, `workspace_roots` in place of `cwd` — was invisible in documentation and **failed open**. Until someone records real payloads with `hooks/dev/record.js`, those hosts get prose.
+Under both sit four principles: **think before coding**, **simplicity first**, **surgical changes** (every changed line traces back to something you asked for), and **goal-driven execution** (define "done" in terms you can check, then loop until it's true).
 
 ## Memory that compounds
 
-Two stores, different jobs:
+Two places, two jobs:
 
-- **`## Gotchas`** in `CLAUDE.md` — defensive one-liners, always loaded. *"Tests need a live Postgres, run `docker compose up -d db` first."*
-- **`memory/<topic>.md`** — explanatory knowledge, loaded on demand through a slim `memory.md` index. *"Auth uses short-lived JWTs because…"*
+- **Always loaded** — short defensive warnings. *"Tests need a live Postgres, run `docker compose up -d db` first."*
+- **Loaded on demand** — the longer explanations, in a topic file fetched only when the topic comes up. *"Auth uses short-lived JWTs because..."*
 
-Test: phrasable as *"beware"*? Gotcha. Phrasable as *"here's how"* or *"here's why"*? Memory.
+The test: if it starts with *"beware"*, it's a warning. If it starts with *"here's how"* or *"here's why"*, it's a topic file.
+
+This matters more than it sounds. Everything in the always-loaded pile is paid for on every single message, whether it's relevant or not. Keeping it small is what keeps it read.
 
 ## Install
 
@@ -121,6 +100,11 @@ Test: phrasable as *"beware"*? Gotcha. Phrasable as *"here's how"* or *"here's w
 
 ```
 /plugin marketplace add ValeroK/the-ultimate-workflow-guidelines
+```
+
+then
+
+```
 /plugin install ultimate-workflow
 ```
 
@@ -130,37 +114,48 @@ Test: phrasable as *"beware"*? Gotcha. Phrasable as *"here's how"* or *"here's w
 /add-plugin ValeroK/the-ultimate-workflow-guidelines
 ```
 
-**Claude Desktop** — download `the-ultimate-workflow-guidelines-plugin.zip` from the [latest release](https://github.com/ValeroK/the-ultimate-workflow-guidelines/releases/latest) and upload it. Requires a paid plan with code execution. The same ZIP serves an offline Cursor install.
+**Claude Desktop** — download `the-ultimate-workflow-guidelines-plugin.zip` from the [latest release](https://github.com/ValeroK/the-ultimate-workflow-guidelines/releases/latest) and upload it. Needs a paid plan with code execution. The same ZIP works for an offline Cursor install.
 
-**No plugin, one project** — drop the principles and workflow into a single repo:
+**Just one project, no plugin** — drop the whole workflow into a single repo as one file:
 
 ```bash
 curl -o CLAUDE.md https://raw.githubusercontent.com/ValeroK/the-ultimate-workflow-guidelines/main/skills/the-ultimate-workflow-guidelines/SKILL.md
 ```
 
-That fetches the full workflow as self-contained prose. It has no templates, no bootstrap skill, no phase commands, and no gates. See [CURSOR.md](CURSOR.md) for using individual `.mdc` rules standalone.
+You get the workflow as prose. No templates, no bootstrap mode, no commands. See [CURSOR.md](CURSOR.md) for using individual Cursor rules on their own.
+
+## What you get on which host
+
+Claude Code can run the five commands as real scripts, so the ordering is guaranteed. Nowhere else can.
+
+| | Claude Code | Cursor | Codex / Gemini / Desktop |
+|---|---|---|---|
+| The five jobs, each with fresh context | Yes | Yes, you invoke them | As prose |
+| Ordering guaranteed | Yes | You hold the sequence | You hold the sequence |
+| Only the builder can write | Yes | Yes | — |
+| Optional enforcement hooks | Yes | No | Not verified |
+
+Cursor keeps most of what matters: separate jobs, clean context each time, and only one of them able to write. What it loses is the guarantee, and its rule file says so plainly rather than implying otherwise.
+
+There's an optional enforcement layer for Claude Code — hooks that block an edit before the plan is confirmed, and so on. It's **off by default**; details and the honest limits are in **[docs/gates.md](docs/gates.md)**.
 
 ## Layout
 
 ```
-skills/     the two skill bodies, plus templates under references/
-rules/      Cursor's always-on index, plus uw-*.mdc loaded on demand
-commands/   the five slash commands; each calls its workflow script
-workflows/  the five phase scripts (Claude Code)
-agents/     five scoped agent definitions; only the implementer can write
-hooks/      gate.js + lib/ + status.js  (opt-in)
-memory/     topical knowledge, loaded on demand via memory.md
-evals/      trajectory scorer and the context-boundary fixtures
-CLAUDE.md   thin always-on index for this repo
+skills/     the two skill bodies, plus templates
+rules/      Cursor's rules: one always on, the rest fetched on demand
+commands/   the five slash commands
+workflows/  the scripts each command runs (Claude Code)
+agents/     the five roles; only the builder has write access
+hooks/      the optional enforcement layer
+memory/     topic files, loaded on demand
+evals/      checks that the instructions still get followed
 ```
 
-The skill bodies live once, in `skills/`, which both hosts read. `CLAUDE.md` and `rules/*.mdc` are thin always-on indexes, one per host, kept in step by `mirrors.test.js` rather than by discipline.
+## Credits and license
 
+Behavioural principles derived from [Andrej Karpathy's observations](https://x.com/karpathy/status/2015883857489522876) on LLM coding pitfalls.
 
-## No emojis
+The plugin refuses to write emoji into your files. They break Windows terminals and corrupt pipelines. Set `ALLOW_EMOJIS=1` if you want them.
 
-The plugin blocks emoji in any file an assistant writes — they break Windows terminals and corrupt pipelines. Set `ALLOW_EMOJIS=1` to override.
-
-## License
-
-MIT with Attribution — see [LICENSE](LICENSE). Redistributions, modifications, and derivative works must visibly credit `ValeroK` and link back to https://github.com/ValeroK/the-ultimate-workflow-guidelines on a user-facing surface (README, docs, About screen). Source-comment or LICENSE-only credit does not satisfy the requirement.
+MIT with Attribution — see [LICENSE](LICENSE). Redistributions, modifications, and derivative works must visibly credit `ValeroK` and link back to https://github.com/ValeroK/the-ultimate-workflow-guidelines somewhere a user can see it (README, docs, About screen). A source comment or the LICENSE file alone doesn't satisfy it.

@@ -4,6 +4,117 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0] - 2026-08-28
+
+Version 2.4.0 answered "the model ignores the workflow" with enforcement: five
+lifecycle hooks that block a bad edit. This release keeps them but stops leading
+with them, because measuring them changed the answer.
+
+Seven of the nine defects found in that work were in the vendor wire surface, not
+the logic -- a UTF-8 BOM that makes payload parsing throw, absolute paths defeating
+test-file detection, `workspace_roots` where `cwd` was expected -- and each failed
+*open and silently*. Three separate routes led to "installed, enforcing nothing,
+looking identical to working". A mechanism with that failure mode should not be on
+by default.
+
+The alternative turned out to be structural rather than defensive. **If each phase
+is its own invocation with its own fresh context and its own tools, ordering is not
+policed -- a phase you have not started cannot be skipped.** That is what this
+release is.
+
+### BREAKING
+
+- **Gates are now opt-in.** Set `ULTIMATE_WORKFLOW_GATES=on` to restore 2.4.0
+  behaviour. Absent or any other value means off. Anyone relying on gates firing by
+  default must set this, or they will silently get nothing -- which is exactly the
+  failure mode being fixed, so it is called out here rather than buried.
+
+  The variable's sense is inverted from 2.4.0, where it was `=off` to disable. The
+  old spelling now reads as "off", which is the safe direction to be wrong in.
+
+- **`CLAUDE.md` is a thin index**, 240 lines to 49. 1220 of its 2769 words were
+  byte-identical to `SKILL.md`. If you copied it into your own project, the
+  standalone artifact is now `skills/the-ultimate-workflow-guidelines/SKILL.md` --
+  the `curl` line in the README points there.
+
+### Added
+
+- **Five phase commands** -- `/ultimate-workflow:plan`, `:tests`, `:build`,
+  `:review`, `:harvest`. Each runs in a fresh context, does one job, and stops.
+  **Only `build` can write**; the other four return proposals you apply, which is
+  deliberate -- a proposal you have to accept is a proposal you actually read.
+- **Five scoped agent definitions** under `agents/`. Tool restriction is subtraction,
+  and it is a hard refusal that also covers the deferred tool registry -- verified,
+  not assumed. Four carry Cursor's `readonly: true` as well; `uw-implementer` carries
+  neither and is the only writer. `mirrors.test.js` asserts that invariant.
+- **`evals/`** -- a trajectory scorer plus eight context-boundary fixtures. The gap
+  named by Google's Day 1 paper: tests cover deterministic behaviour, nothing covered
+  trajectory or tool choice, and without both the practice is vibe coding regardless
+  of how good the prompts read. `evals/results/README.md` records what the recorded
+  runs do and do not support -- at length, because the headline number flatters this
+  change more than the evidence does.
+- **`memory/`** -- four topicals loaded on cue: `context-boundary`, `hooks-and-gates`,
+  `workflows-authoring`, `mirrors`.
+- **`mirrors.test.js`** -- heading parity, line caps, and command-surface coverage
+  across the hand-copied files. A documented divergence list with no check is a
+  comment, not a control, which is how the drift it now catches happened.
+- **`research/`** -- Google's May 2026 paper on agentic engineering, with a summary.
+
+### Changed
+
+- **Context is split by cue, not by length.** The rule: *keep what has no cue, move
+  what has a cue.* Retrieval fails when the trigger is an absence, so a hard
+  constraint nothing prompts you to look up stays always-on. Cursor's
+  `alwaysApply: false` rules are the direct analogue of `memory/` and got the same
+  treatment.
+- **Cursor gets the workflow as prompts, and the rule file says what that costs.**
+  Cursor has subagents but no scriptable orchestrator, so the phases are invocations
+  you sequence, the round cap is a number you honour rather than a counter, and
+  ordering is advisory. It keeps fresh context per phase, one narrow job per agent,
+  and the artifact on disk. Stated per layer instead of implying parity.
+- **`hooks/status.js`** distinguishes never-ran / live / stale / disabled. Every gate
+  writes a heartbeat, because a hook that never loaded, a hook that crashed, and a
+  hook that correctly allowed everything are otherwise indistinguishable.
+
+### Fixed
+
+- `coerce()` now unescapes what `format()` escaped. A double-quoted value had its
+  backslashes doubled on every write, corrupting a Windows `test_command` a little
+  more each time the gates touched the file -- and they touched it on every edit.
+- Tool paths are relativised against `cwd` before classification. Matching the raw
+  absolute path silently disabled the tests-first gate for any project under a
+  directory named `test`, and judged scratchpad edits elsewhere on disk against this
+  repository's plan. Invisible to a green 52-test suite, because those tests used
+  relative paths.
+- The Stop gate fails open when no verify command is configured. The shipped template
+  carried `test_command: ""`, which made that gate permanently unsatisfiable.
+- `hookEventName` is echoed from the payload rather than hardcoded, so the escalation
+  is not silently discarded by the host.
+- `looksLikeShellWrite` is deleted. It matched heredocs, arrow functions, and
+  `2>/dev/null` -- so every `git commit -F -` looked like a source write.
+- `progress-template.md` shipped a date regex with its backslashes eaten, and a
+  literal `YYYY-MM-DD` placeholder that left a bootstrapped project permanently
+  un-handed-off.
+
+### Known limitations
+
+- **Fan-out costs real money.** Measured on this repository: `/harvest` 158k tokens,
+  `/review` 460k, `/plan` 481k. Roughly a million tokens for a feature before
+  implementation starts. Weigh that against what they find -- `/review` located four
+  real defects in code with 136 green tests -- and treat them as once-per-feature.
+- **The eval baseline is one run per cell across eight fixtures.** It supports "no
+  detected regression" and nothing stronger. Three of the four pre-restructure
+  failures are files that did not exist yet, and most pass conditions were authored
+  after one arm's output was visible. Written down in `evals/results/README.md`
+  rather than left for a reader to discover.
+- **Gates remain Claude Code only.** On Cursor 3.17.19 a pre-edit `deny` is honoured
+  for reads and ignored for writes: the file is created and the next event reports
+  success, so the model is never told it was blocked. The Codex and Gemini contracts
+  are documented and look nearly identical to Claude Code's, but neither has been
+  exercised against a real payload. Every defect on the hosts that *were* exercised
+  was invisible in documentation. Until someone records payloads with
+  `hooks/dev/record.js`, those hosts get prose.
+
 ## [2.4.0] - 2026-08-25
 
 ### BREAKING

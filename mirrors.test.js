@@ -20,6 +20,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
+const { execFileSync } = require('node:child_process');
 
 const root = __dirname;
 const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
@@ -348,6 +349,28 @@ test('the site does not still describe the always-on files as body copies', () =
   const t = read(SITE);
   assert.doesNotMatch(t, /Mirrors skill 1's body/i, 'the site still says CLAUDE.md mirrors the skill body');
   assert.doesNotMatch(t, /Same body content/i, 'the site still says the Cursor rules are body copies');
+});
+
+test('no plan file is tracked outside internal/', () => {
+  // Broader than the docs/ check below, and it had to be: PLAN-graph-native.md
+  // was committed before .gitignore could matter -- an ignore rule does not
+  // apply to an already-tracked file -- so it shipped inside the v3.0.0 plugin
+  // ZIP, the artifact every Desktop and offline Cursor user downloads. The
+  // docs/ guard did not see it because it was at the repo root.
+  const tracked = execFileSync('git', ['ls-files'], { cwd: root, encoding: 'utf8' })
+    .split(String.fromCharCode(10))
+    .filter(Boolean);
+  const stray = tracked.filter(
+    // Case-sensitive on purpose: the working artifact is `PLAN-<feature>.md`,
+    // while `references/plan-template.md` is a shipped template and belongs in
+    // the ZIP. An /i match conflates the two.
+    (p) => /(^|\/)PLAN-.+\.md$/.test(p) && !p.startsWith('internal/')
+  );
+  assert.deepEqual(
+    stray,
+    [],
+    `tracked plan files outside internal/ ship in the release ZIP: ${stray.join(', ')}`
+  );
 });
 
 test('nothing under docs/ is an internal plan file', () => {

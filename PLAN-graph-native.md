@@ -99,35 +99,68 @@ Decided 2026-08-26. Cursor gets the plugin exactly as it was before this work be
 
 The Cursor adapter code stays in `adapters.js` with its measurements intact — it is tested, it costs nothing to keep, and it is the record of what was actually observed. It simply is not registered anywhere.
 
-## Sequencing
+## Sequencing (replanned 2026-08-28)
 
-**Step 0 — CONFIRMED 2026-08-26.** `agentType` inside a workflow does honour the definition's tool restrictions.
+The original five-step order held up. What changed is the definition of done: the Day 1 paper named a gap that this plan did not have a word for, and living under the gates found four more.
 
-Two agents, run in parallel, each asked to create a file using only a file-writing tool. The restricted one used the built-in `Explore` type, so the probe needed no new files and no restart.
+### What is actually proven
 
-| | Restricted (`Explore`) | Unrestricted (default) |
+| Phase | State | Evidence |
 |---|---|---|
-| Has a write tool | **No** | Yes |
-| File created | **No** | Yes |
+| Step 0, tool scoping | **Proven** | Restricted agent had no write tool, could not smuggle one via ToolSearch, created nothing |
+| `/harvest` | **Proven** | Two runs. Found a Gotcha that had gone stale in a day. Manufactured nothing on the idempotency run |
+| `/review` | **Proven** | Found four real defects in code with 136 green tests. Refuted 5 of 13 findings, one by live experiment |
+| `/plan` | **Proven** | Four genuine deviations, ten open questions, one of which was a correct critique of this plan's own invariant |
+| `/tests` | Written, never run | |
+| `/build` | Written, never run | |
 
-Two findings beyond the yes/no:
+Two read-only phases paid for themselves. That was the thing worth learning before building the writer.
 
-- **The restriction covers the deferred tool registry too.** The restricted agent ran `ToolSearch` for `Write, Edit, NotebookEdit, MultiEdit, create_file` and got back "No matching deferred tools found". So a restricted agent cannot smuggle a write tool in through tool search.
-- **`Bash` remains a write vector.** `Explore` has Bash and PowerShell, and a shell can obviously create files. The probe only proved the *file-writing tools* are gone.
+### The gap the paper named
 
-That second point sets the honest frame for this whole design: **tool scoping is a strong guardrail against drift, not a security boundary.** Our threat model is a model that wanders, not one that is hostile. Removing Write and Edit removes both the obvious path and the intended path, which is what drift actually takes. A read-only agent that needs Bash — the reviewer, to run tests; the harvester, to run `git diff` — keeps a theoretical write route, and that is accepted rather than papered over. If it ever matters, a Bash-matched `PreToolUse` hook inside those agent definitions closes it.
+> "Tests verify the deterministic parts of the system. Evals verify the parts that are not deterministic: did the agent take the right trajectory of steps, choose the right tools, and produce a final response that meets the quality bar. **Without both, the practice is always vibe coding, regardless of how sophisticated the prompts are.**"
 
-**Step 1 — `/harvest` alone.** Highest value, lowest risk, touches no enforcement. Ship it, use it, learn the workflow-authoring ergonomics on something that cannot break a build.
+We have 147 tests. Every one covers a pure predicate. **We have zero evals.** Nothing checks whether `/review` picks the right lenses, whether `/harvest` classifies Gotcha-versus-Memory correctly, or whether the verifier's refusals are sound.
 
-**Step 2 — `/review`.** Second-highest value, still read-only. Together these two prove the graph earns its cost before anything writes.
+The two runs that convinced us those phases work were **demos, not evals** — the exact distinction the paper draws for engineering leaders: "a working demo proves an agent can succeed once; a passing eval suite proves it succeeds reliably."
 
-**Step 3 — `/plan` and `/tests`.** The human-checkpoint phases.
+So by this plugin's own standard, the phases are vibe-coded. Shipping them as agentic engineering would be selling the discipline while not practising it.
 
-**Step 4 — `/build`.** Last, because it is the only one that writes and the only one with a verify loop.
+That is the single largest change to this plan: **an eval harness is a precondition for v3.0.0, not a follow-up.**
 
-**Step 5 — demote gates**, update README and CHANGELOG, ship as v3.0.0.
+### Three smaller gaps from the same source
 
-Deliberately: **read-only phases first.** Every writing phase is a phase that can go wrong.
+**No model routing.** Every agent runs on the session model. `/review` cost 460k tokens, `/plan` 481k. The paper's advice is explicit: frontier models for architecture and initial implementation, cheaper ones for test generation, review, and CI monitoring. `agent()` already takes `model` and `effort`; we have used neither.
+
+**The static/dynamic boundary was never reviewed.** `CLAUDE.md` is roughly 18KB and about 80 always-loaded instructions; `memory/` was empty until this commit. The paper says that boundary should be "reviewed and versioned like any other configuration". Ours grew in one direction by default.
+
+**Observability stops at liveness.** The heartbeat answers "did a gate run". It does not answer "is this getting better or quietly drifting", which is what the paper means by observability. Cost per phase is knowable and unrecorded.
+
+### What living under the gates taught, beyond the review
+
+- `looksLikeShellWrite` scored three false positives and no true ones. **Guessing intent from a command string does not work**; the removal note is in `dispatch.js`.
+- Backslash escaping through a `node -e` heredoc corrupted content **four separate times**, twice silently. Now a Gotcha, and the reason the fixture recordings for Cursor are gone.
+- Multiple `PLAN-*.md` at a root is genuinely ambiguous. `readState` picks by mtime, which locked out a bug fix because an unrelated generated plan happened to be newest.
+- Agent definitions load with **latency, not a restart** — the earlier conclusion was wrong and the Gotcha has been corrected once already.
+
+### Revised order
+
+**A. Eval harness.** A small labelled set per phase: inputs with known-right outputs. For `/harvest`, cases where the correct answer is a Gotcha, a topical, and nothing at all. For `/review`, a diff with a planted defect and a diff with none. Score trajectory as well as output: did it use the right lenses, did it refute what should be refuted. This is the precondition.
+
+**B. Model routing and cost recording.** Route the mechanical stages down a tier, record per-phase cost in the run output, and re-run the evals to confirm quality held. Without A, this is unmeasurable.
+
+**C. Run `/tests` and `/build` for real**, against the evals rather than a demo.
+
+**D. Fix the plan-file ambiguity.** Either require one active plan or add an explicit key. It is a latent bug that has already bitten once.
+
+**E. Review the static/dynamic boundary.** Move what is rarely relevant out of `CLAUDE.md` and into `memory/`, and measure whether compliance improves. The paper predicts it will.
+
+**F. Then ship v3.0.0** — demote gates to opt-in, update README and CHANGELOG.
+
+### What this reverses
+
+The previous order shipped the five phases and treated evaluation as something the user does by reading output. That was the position the paper calls vibe coding, and it took an outside description to see it. Steps A and B now come before shipping anything.
+
 
 ## Cost control
 

@@ -208,10 +208,23 @@ test('readState picks the most recently modified PLAN file when several exist', 
 
 // --- escape hatch ----------------------------------------------------------
 
-test('gatesDisabled honours ULTIMATE_WORKFLOW_GATES=off', () => {
-  assert.equal(state.gatesDisabled({ ULTIMATE_WORKFLOW_GATES: 'off' }), true);
-  assert.equal(state.gatesDisabled({ ULTIMATE_WORKFLOW_GATES: 'OFF' }), true);
-  assert.equal(state.gatesDisabled({ ULTIMATE_WORKFLOW_GATES: '0' }), true);
-  assert.equal(state.gatesDisabled({ ULTIMATE_WORKFLOW_GATES: 'on' }), false);
-  assert.equal(state.gatesDisabled({}), false);
+test('gates are OFF unless explicitly enabled', () => {
+  // v3 demoted these from the enforcement story to a backstop for ad-hoc work.
+  // A default-on mechanism that fails open and invisibly is worse than an
+  // opt-in one somebody chose.
+  assert.equal(state.gatesEnabled({}), false);
+  assert.equal(state.gatesEnabled({ ULTIMATE_WORKFLOW_GATES: '' }), false);
+  assert.equal(state.gatesEnabled({ ULTIMATE_WORKFLOW_GATES: 'off' }), false);
+});
+
+test('gates turn on for any affirmative spelling', () => {
+  for (const v of ['on', 'ON', '1', 'true', 'yes']) {
+    assert.equal(state.gatesEnabled({ ULTIMATE_WORKFLOW_GATES: v }), true, v);
+  }
+});
+
+test('gatesDisabled stays the exact inverse, so either caller agrees', () => {
+  for (const env of [{}, { ULTIMATE_WORKFLOW_GATES: 'on' }, { ULTIMATE_WORKFLOW_GATES: 'off' }]) {
+    assert.equal(state.gatesDisabled(env), !state.gatesEnabled(env));
+  }
 });

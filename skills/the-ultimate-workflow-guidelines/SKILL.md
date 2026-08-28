@@ -123,9 +123,11 @@ For any non-trivial task, follow this loop:
    - If the feature surfaced **longer-form** explanatory learning (architectural mental model, key decision + rationale, runbook), create or update `memory/<topic>.md` and add a pointer to `memory.md` if it's a new topic. One-liners still go to `## Gotchas`. Before deleting the per-feature `PLAN-<feature>.md`, scan it for durable learnings worth migrating. See *Memory* and *Gotchas vs Memory* below.
    - **Why:** the durable learning from a session has to land somewhere durable, or the next session re-derives it.
 
-### Gates: the workflow is enforced, not just described
+### Gates: an opt-in backstop for ad-hoc work
 
-Where the plugin's hooks are installed, the steps above are backed by deterministic gates. They read a small YAML front-matter block at the top of `PRD.md` (bootstrap) or `PLAN-<feature>.md` (feature work):
+The phase commands make ordering structural -- a phase you have not started cannot be skipped -- so the gates are no longer the enforcement story. What they still cover is work done outside the phases. They are **off unless you turn them on**: set `ULTIMATE_WORKFLOW_GATES=on`.
+
+When enabled, the steps above are backed by deterministic gates. They read a small YAML front-matter block at the top of `PRD.md` (bootstrap) or `PLAN-<feature>.md` (feature work):
 
 - No source edit lands before `plan_confirmed: true`.
 - No implementation lands before `tests_confirmed: true`. Test files are exempt -- that is the point.
@@ -134,7 +136,9 @@ Where the plugin's hooks are installed, the steps above are backed by determinis
 
 Set `plan_confirmed` and `tests_confirmed` to `true` **only after the user has actually confirmed** that stage. Do not set them to clear a block. The gates maintain every other field themselves.
 
-The gates are inert in a repository with neither `PRD.md` nor `PLAN-*.md`, so trivial work in unmanaged projects is never affected, and `ULTIMATE_WORKFLOW_GATES=off` disables them entirely. They fail open: an internal error blocks nothing.
+Even when enabled they are inert in a repository with neither `PRD.md` nor `PLAN-*.md`, so trivial work in unmanaged projects is never affected. They fail open: an internal error blocks nothing.
+
+The demotion was measured, not stylistic. Full enforcement on one host, partial on one, unverified on two -- and three separate routes to "installed and silently enforcing nothing". A default-on mechanism that fails open invisibly is worse than an opt-in one somebody chose. Run `node hooks/status.js` to see which of never-ran / live / stale / disabled you are actually in.
 
 The gates are **Claude Code only**. Cursor, Codex CLI, Gemini CLI, and claude.ai run the workflow above as prose, with the confirmation steps observed rather than enforced. That is a deliberate scope: a pre-edit denial is silently dropped on Cursor, and the Codex and Gemini hook contracts have never been exercised, so shipping gates there would look like enforcement while providing none.
 

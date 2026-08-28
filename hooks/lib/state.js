@@ -15,7 +15,7 @@ const path = require('node:path');
 /** Front matter is only front matter when it opens the file. */
 const FRONT_MATTER = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
 
-const DISABLED_VALUES = new Set(['off', '0', 'false', 'no']);
+const ENABLED_VALUES = new Set(['on', '1', 'true', 'yes']);
 
 /** Failing rounds allowed before the run escalates to a human. */
 const ROUND_CAP = 3;
@@ -166,9 +166,30 @@ function readState(dir) {
   return { stage, file, data: parseFrontMatter(text).data };
 }
 
-function gatesDisabled(env) {
+/**
+ * Gates are OPT-IN as of v3.
+ *
+ * They were on by default when they were the enforcement story. They are not
+ * any more: the phase commands make ordering structural, so a phase that has
+ * not been started cannot be skipped and there is nothing to intercept. What
+ * remains for the gates is ad-hoc work outside the phases, which is a backstop
+ * rather than a product.
+ *
+ * The measurement behind the demotion: full enforcement on one host, partial on
+ * one, unverified on two -- and three separate routes to "installed and
+ * silently enforcing nothing". A default-on mechanism that fails open and
+ * invisibly is worse than an opt-in one somebody chose.
+ *
+ * Set ULTIMATE_WORKFLOW_GATES to on/1/true/yes to enable.
+ */
+function gatesEnabled(env) {
   const v = env && env.ULTIMATE_WORKFLOW_GATES;
-  return typeof v === 'string' && DISABLED_VALUES.has(v.trim().toLowerCase());
+  return typeof v === 'string' && ENABLED_VALUES.has(v.trim().toLowerCase());
+}
+
+/** Retained so a caller reading either way gets a consistent answer. */
+function gatesDisabled(env) {
+  return !gatesEnabled(env);
 }
 
 module.exports = {
@@ -180,5 +201,6 @@ module.exports = {
   handoffComplete,
   resolveStage,
   readState,
+  gatesEnabled,
   gatesDisabled,
 };

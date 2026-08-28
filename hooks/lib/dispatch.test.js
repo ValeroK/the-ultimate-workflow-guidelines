@@ -159,6 +159,7 @@ function runGate(payloadText) {
     const stdout = execFileSync(process.execPath, [GATE], {
       input: payloadText,
       encoding: 'utf8',
+      env: { ...process.env, ULTIMATE_WORKFLOW_GATES: 'on' },
     });
     return { exit: 0, stdout };
   } catch (e) {

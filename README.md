@@ -57,7 +57,7 @@ Under both sit four principles: **think before coding**, **simplicity first**, *
 
 ## Gates
 
-The skills describe the workflow. The gates enforce it — five lifecycle hooks reading a small YAML block in `PRD.md` or `PLAN-<feature>.md`:
+The five phases make ordering structural. The gates cover what happens **outside** them — ad-hoc edits in a managed repo. They are **opt-in**: set `ULTIMATE_WORKFLOW_GATES=on`. Five lifecycle hooks reading a small YAML block in `PRD.md` or `PLAN-<feature>.md`:
 
 - No source edit before the plan is confirmed
 - No implementation before the tests are confirmed (test files exempt, that's the point)
@@ -65,7 +65,9 @@ The skills describe the workflow. The gates enforce it — five lifecycle hooks 
 - Three failed verification rounds escalates to you
 - One line per prompt naming the current stage, so it survives compaction
 
-They are **completely inert** in a repo with no `PRD.md` or `PLAN-*.md`, so trivial work is never blocked. `ULTIMATE_WORKFLOW_GATES=off` disables them. They fail open — an internal error blocks nothing.
+Even enabled, they are **completely inert** in a repo with no `PRD.md` or `PLAN-*.md`, so trivial work is never blocked. They fail open — an internal error blocks nothing.
+
+They shipped on by default in 2.4.0 and were demoted in 3.0.0 on measurement, not taste: full enforcement on one host, partial on one, unverified on two, and three separate routes to "installed and silently enforcing nothing". A default-on mechanism that fails open invisibly is worse than an opt-in one you chose.
 
 ### Check they are actually running
 

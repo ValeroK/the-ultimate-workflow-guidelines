@@ -20,7 +20,7 @@ function runStatus(cwd, env = {}) {
     const stdout = execFileSync(process.execPath, [STATUS], {
       cwd,
       encoding: 'utf8',
-      env: { ...process.env, ...env },
+      env: { ULTIMATE_WORKFLOW_GATES: 'on', ...process.env, ...env },
     });
     return { exit: 0, stdout };
   } catch (e) {

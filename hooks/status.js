@@ -22,7 +22,12 @@ const heartbeat = require('./lib/heartbeat.js');
 const out = [];
 const say = (s = '') => out.push(s);
 
-const SHOWN = ['plan_confirmed', 'tests_confirmed', 'prd_confirmed', 'design_confirmed', 'dirty', 'last_verify', 'verify_rounds', 'escalated', 'test_command'];
+// `gate_violation` is here because on a host that cannot block a write it is
+// the ONLY trace that a gate was bypassed. Omitting it meant the violation was
+// recorded in the plan front matter and shown to nobody, which is the same as
+// not recording it. Keys are filtered to those actually present, so this widens
+// nothing on a clean plan.
+const SHOWN = ['plan_confirmed', 'tests_confirmed', 'prd_confirmed', 'design_confirmed', 'dirty', 'last_verify', 'verify_rounds', 'escalated', 'test_command', 'gate_violation'];
 
 /**
  * The whole report as data. Shape pinned by PLAN-status-json.md; renaming a key

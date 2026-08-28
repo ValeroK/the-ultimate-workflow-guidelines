@@ -83,9 +83,22 @@ function dispatch(ev, state, opts = {}) {
     // whether one wrote a file was abandoned.
     if (!isVerifyCommand(ev.command, state)) return allow;
 
-    // No vendor puts an exit code in the payload, so pass or fail comes from
-    // WHICH event fired: the failure event means the command exited non-zero.
-    const passed = ev.event !== 'postToolFailure' && opts.failed !== true;
+    // Pass or fail must come from every signal available, not from the event
+    // name alone.
+    //
+    // It used to come from the event name alone, on the belief that a failing
+    // command arrives as `postToolFailure`. Claude Code does not appear to send
+    // that event: fixtures/claude-code/PostToolUse.18.json is a non-zero-exit
+    // command recorded as a plain `PostToolUse`, and no failure fixture exists
+    // among the recorded payloads. So a RED verification run was scored green
+    // and written to the plan as `last_verify: green` -- which does not merely
+    // weaken G3 and G4, it inverts them: failing the tests was the way to
+    // satisfy the gate that exists to make you pass them.
+    //
+    // `normalize()` already derives `ok` from `tool_response.success`, and did
+    // so before this bug was found; nothing read it. Any signal saying failure
+    // now means failure.
+    const passed = !(ev.event === 'postToolFailure' || opts.failed === true || ev.ok === false);
     const result = gates.roundCap(state, { passed });
 
     if (result.escalated && !result.alreadyEscalated) {
@@ -106,13 +119,29 @@ function dispatch(ev, state, opts = {}) {
     if (ev.status && ev.status !== 'completed') return allow;
 
     const verdict = gates.stopGate(state);
-    if (verdict.allow) return allow;
 
-    let reason = verdict.reason;
+    // A recorded violation is checked BEFORE stopGate's verdict, not after it.
+    //
+    // On a host that cannot block a write, a denied pre-edit is downgraded to
+    // "allow, but record the violation and let the stop follow-up correct it".
+    // That promise was empty: stopGate steps aside whenever no verification
+    // command is configured, and the shipped plan template ships
+    // `test_command: ""`. So on Cursor -- the only host this compensation
+    // exists for -- G1 and G2 were bypassed, the violation was written to the
+    // plan front matter, and nothing ever told anyone.
+    //
+    // "Revert that edit" is satisfiable with no verification command
+    // configured, so this branch does not need stopGate's verdict to fire.
     if (state.data.gate_violation) {
-      reason = `${state.data.gate_violation} That edit was not prevented on this host, so revert it before continuing. ${reason}`;
+      const tail = verdict.allow ? '' : ` ${verdict.reason}`;
+      return {
+        kind: 'stopBlock',
+        reason: `${state.data.gate_violation} That edit was not prevented on this host, so revert it before continuing.${tail}`,
+      };
     }
-    return { kind: 'stopBlock', reason };
+
+    if (verdict.allow) return allow;
+    return { kind: 'stopBlock', reason: verdict.reason };
   }
 
   // --- G5: phase pointer ---------------------------------------------------

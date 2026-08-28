@@ -14,12 +14,23 @@
 // not deterministic: two identical /harvest runs in this repo produced
 // different proposals. Scoring facts keeps the signal above that noise.
 
-/** Does a recorded path match an expectation? Suffix match, separator-agnostic. */
+/**
+ * Does a recorded path match an expectation? Suffix match at a SEPARATOR
+ * BOUNDARY, separator-agnostic.
+ *
+ * The boundary is the whole point and it was missing. An unanchored
+ * `endsWith(expected)` made `docs/team-memory/mirrors.md` match
+ * `memory/mirrors.md`, which corrupts the eval in both directions: a
+ * `mustNotRead` reports over-retrieval for a file the agent never opened, and a
+ * `mustRead` passes on a same-named file in some other directory. Those are the
+ * negative controls -- the checks that stop the eval rewarding over-retrieval --
+ * so a loose matcher quietly disables the part doing the real work.
+ */
 function pathMatches(recorded, expected) {
   const norm = (s) => String(s).replace(/\\/g, '/').toLowerCase();
   const r = norm(recorded);
-  const e = norm(expected);
-  return r === e || r.endsWith(`/${e}`) || r.includes(`/${e}/`) || norm(r).endsWith(e);
+  const e = norm(expected).replace(/^\.?\//, '');
+  return r === e || r.endsWith(`/${e}`);
 }
 
 function anyMatches(recordedList, expected) {

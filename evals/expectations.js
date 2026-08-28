@@ -64,8 +64,24 @@ const FIXTURES = [
     tests: 'uncued tooling trap (negative control)',
     // The trap is `node --test hooks/`, which dies with MODULE_NOT_FOUND.
     // Also a negative control: the right answer needs no extra reading.
-    mustMention: ['--test'],
-    mustNotMention: ['node --test hooks/'],
+    //
+    // This deliberately does NOT carry a mustNotMention for the trap command.
+    // It used to, and the oracle was inverted: `score()` is a plain substring
+    // test with no notion of negation, so an agent that applied the rule
+    // perfectly -- "I used the quoted glob rather than `node --test hooks/`,
+    // which dies with MODULE_NOT_FOUND" -- scored as a FAILURE, while one that
+    // silently ran the wrong command and said only "--test" passed. The
+    // recorded run escaped it by chance, having written `node --test <dir>`.
+    //
+    // What is actually being tested is whether the quoted glob was used, so
+    // that is what is asserted. Prose about the trap is not evidence of falling
+    // into it.
+    // Asserted on the glob rather than on the quoting: recorded summaries are
+    // JSON, so an embedded quote arrives escaped and a quote-sensitive check
+    // fails on an artifact of the transport rather than on the answer. The glob
+    // is the thing that distinguishes the correct invocation anyway -- the trap
+    // command `node --test hooks/` cannot contain it.
+    mustMention: ['hooks/**'],
   },
   {
     id: 'C8',

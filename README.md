@@ -77,6 +77,25 @@ node hooks/status.js
 
 Reports whether the gates are live, what stage you are in, and what is blocking you right now.
 
+For a script or a CI step, `node hooks/status.js --json` emits the same facts as one object. Exit is always 0, blocking or not, so it stays usable under `set -e`:
+
+```bash
+node hooks/status.js --json
+```
+
+```jsonc
+{
+  "liveness": { "state": "live|stale|never|disabled", "ageSeconds": 12, "count": 41 },
+  "stage":    "none|bootstrap|feature",
+  "file":     "/abs/path/PLAN-feature.md",   // null at stage none
+  "state":    { "plan_confirmed": false },   // the plan's front matter, present keys only
+  "blocking": { "blocked": true, "reason": "Gate G1: ..." },
+  "g3Active": true
+}
+```
+
+Treat the key names as a contract: the human report and this object are rendered from one computed value, so they cannot disagree.
+
 Worth running once after installing, because **hook config is read at host startup**: a gate registered mid-session does nothing until you restart, and gives no indication of it. A hook that was never loaded, a hook that crashed, and a hook that correctly allowed all look identical from the outside — so every gate now leaves a heartbeat, and this reads it.
 
 ### Gates are Claude Code only

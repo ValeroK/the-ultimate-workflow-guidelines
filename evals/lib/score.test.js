@@ -3,6 +3,9 @@
 const test = require('node:test');
 const assert = require('node:assert');
 
+const fs = require('node:fs');
+const path = require('node:path');
+
 const { score, compare, pathMatches } = require('./score.js');
 
 // --- path matching ---------------------------------------------------------
@@ -121,4 +124,56 @@ test('a fixture failing under both configurations is not a regression', () => {
 test('a fixture that only passes thin is recorded as a fix, not ignored', () => {
   const c = compare([{ id: 'C6', pass: false }], [{ id: 'C6', pass: true }]);
   assert.deepEqual(c.fixes, ['C6']);
+});
+
+// --- regressions from the v3.0.0 /review run --------------------------------
+
+test('a same-named file in a different directory is NOT a match', () => {
+  // The matcher used to end with an unanchored `endsWith(expected)`, so these
+  // both returned true. That corrupts the negative controls in both directions:
+  // mustNotRead reports over-retrieval for a file never opened, and mustRead
+  // passes on a same-named file somewhere else entirely.
+  assert.equal(pathMatches('C:/proj/docs/team-memory/mirrors.md', 'memory/mirrors.md'), false);
+  assert.equal(pathMatches('C:/proj/x/notmemory/hooks-and-gates.md', 'memory/hooks-and-gates.md'), false);
+  assert.equal(pathMatches('C:/proj/src/mypackage.json', 'package.json'), false);
+});
+
+test('a genuine path suffix still matches, on either separator', () => {
+  assert.equal(pathMatches('C:\\proj\\memory\\mirrors.md', 'memory/mirrors.md'), true);
+  assert.equal(pathMatches('/home/u/proj/memory/mirrors.md', 'memory/mirrors.md'), true);
+  assert.equal(pathMatches('memory/mirrors.md', 'memory/mirrors.md'), true);
+  assert.equal(pathMatches('C:/proj/package.json', 'package.json'), true);
+});
+
+test('the recorded baselines score exactly what results/README.md claims', () => {
+  // The only test that touched the baselines asserted `typeof pass === 'boolean'`,
+  // which is true for every possible input. So the numbers the README calls "a
+  // usable baseline going forward" were computed by nothing: tighten one
+  // expectation and the documented baseline silently becomes false while the
+  // suite stays green. A baseline nothing recomputes is a claim, not a baseline.
+  const { FIXTURES } = require('../expectations.js');
+  const results = path.join(__dirname, '..', 'results');
+
+  const scoreRun = (file) => {
+    const run = JSON.parse(fs.readFileSync(path.join(results, file), 'utf8'));
+    const byId = new Map(run.trajectories.map((t) => [t.id, t]));
+    const scored = FIXTURES.map((f) => score(f, byId.get(f.id)));
+    return {
+      passed: scored.filter((s) => s.pass).length,
+      failing: scored.filter((s) => !s.pass).map((s) => s.id),
+    };
+  };
+
+  const fat = scoreRun('fat.json');
+  const thin = scoreRun('thin.json');
+
+  assert.equal(thin.passed, 8, `thin baseline moved: now ${thin.passed}/8, failing ${thin.failing}`);
+  assert.deepEqual(thin.failing, []);
+  assert.equal(fat.passed, 4, `fat baseline moved: now ${fat.passed}/8`);
+  assert.deepEqual(fat.failing, ['C1', 'C5', 'C6', 'C8']);
+
+  // compare() must agree with the arithmetic, or the verdict string lies.
+  const cmp = compare(FIXTURES.map((f) => score(f, new Map(JSON.parse(fs.readFileSync(path.join(results, 'fat.json'), 'utf8')).trajectories.map((t) => [t.id, t])).get(f.id))),
+                      FIXTURES.map((f) => score(f, new Map(JSON.parse(fs.readFileSync(path.join(results, 'thin.json'), 'utf8')).trajectories.map((t) => [t.id, t])).get(f.id))));
+  assert.deepEqual(cmp.regressions, [], 'a regression appeared against the recorded runs');
 });

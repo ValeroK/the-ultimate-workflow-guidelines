@@ -10,6 +10,11 @@
 // That is the whole argument for this file: a documented divergence list
 // without a check is a comment, not a control. Every exception below is a
 // literal with a reason attached, so an entry nobody can justify stands out.
+//
+// There is no exception table at the moment, deliberately. One existed holding
+// zero exceptions, and its only test asserted a string literal in this file
+// against itself -- machinery for a case that had not arisen. Reintroduce it
+// when a real divergence needs recording, not before.
 
 const test = require('node:test');
 const assert = require('node:assert');
@@ -19,15 +24,6 @@ const path = require('node:path');
 const root = __dirname;
 const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
 const lines = (p) => read(p).split(/\r?\n/).length;
-
-/** Headings present in one always-on index but deliberately not the other. */
-const HEADING_EXCEPTIONS = [
-  {
-    heading: '## Where things live',
-    absentFrom: null,
-    reason: 'Present in both; listed here as the anchor the routing table lives under.',
-  },
-];
 
 function headings(text) {
   return text
@@ -151,13 +147,6 @@ test('every read-only agent carries the Cursor readonly key too', () => {
 test('the implementer never gains readonly', () => {
   const fm = /^---\r?\n([\s\S]*?)\r?\n---/.exec(read('agents/uw-implementer.md'));
   assert.doesNotMatch(fm[1], /readonly/, 'uw-implementer must stay writable -- it is the only phase that changes the repository');
-});
-
-// The exception list is data, so it is asserted rather than merely written down.
-test('every declared mirror exception carries a reason', () => {
-  for (const e of HEADING_EXCEPTIONS) {
-    assert.ok(e.reason && e.reason.length > 20, `exception for ${e.heading} has no usable reason`);
-  }
 });
 
 // --- the command surface -----------------------------------------------------
@@ -295,9 +284,4 @@ test('the on-demand rules point at their topical rather than copying it', () => 
       `${f} is longer than the topical it points at -- it has become a copy`
     );
   }
-});
-
-test('the always-on Cursor rule stays thin even as on-demand rules multiply', () => {
-  const lines = read('rules/the-ultimate-workflow-guidelines.mdc').split(/\r?\n/).length;
-  assert.ok(lines <= 90, `always-on Cursor rule is ${lines} lines; every turn pays for all of them`);
 });

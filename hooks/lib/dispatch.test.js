@@ -342,3 +342,115 @@ test('gate.js still decides correctly when the heartbeat cannot be written', () 
   assert.equal(r.exit, 2, 'a diagnostics failure must not change the decision');
   assert.match(JSON.parse(r.stdout).hookSpecificOutput.permissionDecisionReason, /plan_confirmed/);
 });
+
+// --- regressions from the v3.0.0 /review run --------------------------------
+//
+// Both of these were found by review lenses against code with 211 green tests,
+// and both were reproduced end to end by the adversarial verifier before being
+// accepted. Each test below fails against the code as it shipped.
+
+test('a failing verify run is NOT scored green just because the host sent postTool', () => {
+  // The bug: pass/fail was read from the event name alone, on the belief that a
+  // failure arrives as `postToolFailure`. Claude Code does not appear to send
+  // that event -- fixtures/claude-code/PostToolUse.18.json is a non-zero-exit
+  // command recorded as a plain PostToolUse. So a red run cleared `dirty` and
+  // reset the round counter: failing the tests satisfied the gate that exists
+  // to make you pass them.
+  const state = feature({ test_command: 'node --test', dirty: true, verify_rounds: 2 });
+  const r = dispatch(ev({ event: 'postTool', tool: 'shell', command: 'node --test', path: null, ok: false }), state, {});
+
+  assert.notEqual(r.patch.last_verify, 'green', 'a failing run must never be recorded as green');
+  assert.notEqual(r.patch.dirty, false, 'a failing run must not clear the dirty flag');
+  assert.ok(r.patch.verify_rounds > 2, `round counter must advance, got ${r.patch.verify_rounds}`);
+});
+
+test('a passing verify run on a plain postTool is still scored green', () => {
+  // The other direction, so the fix above cannot be "call everything a failure".
+  const state = feature({ test_command: 'node --test', dirty: true, verify_rounds: 1 });
+  const r = dispatch(ev({ event: 'postTool', tool: 'shell', command: 'node --test', path: null, ok: true }), state, {});
+
+  assert.equal(r.patch.last_verify, 'green');
+  assert.equal(r.patch.dirty, false);
+  assert.equal(r.patch.verify_rounds, 0);
+});
+
+test('a recorded gate violation blocks the stop even with no verify command set', () => {
+  // The bug: this is the ENTIRE compensation for a host that cannot block a
+  // write, and it only fired when stopGate independently blocked. stopGate
+  // steps aside when no verification command is configured, and the shipped
+  // plan template ships `test_command: ""` -- so on Cursor, the one host it
+  // exists for, a bypassed G1 was recorded and reported to nobody.
+  const state = feature({
+    plan_confirmed: false,
+    test_command: '',
+    dirty: true,
+    gate_violation: 'Gate G1: plan_confirmed is not true in PLAN-x.md.',
+  });
+
+  const r = dispatch(ev({ event: 'stop', status: 'completed', tool: null, path: null }), state, {});
+
+  assert.equal(r.kind, 'stopBlock', 'a recorded violation must reach the user');
+  assert.match(r.reason, /Gate G1/);
+  assert.match(r.reason, /revert/i, 'it must say what to do about it');
+});
+
+test('the violation still carries the stop reason when stopGate also blocks', () => {
+  const state = feature({
+    plan_confirmed: false,
+    test_command: 'node --test',
+    dirty: true,
+    gate_violation: 'Gate G1: plan_confirmed is not true in PLAN-x.md.',
+  });
+
+  const r = dispatch(ev({ event: 'stop', status: 'completed', tool: null, path: null }), state, {});
+
+  assert.equal(r.kind, 'stopBlock');
+  assert.match(r.reason, /Gate G1/);
+  assert.match(r.reason, /node --test/, 'the verification command must still be named');
+});
+
+test('no violation and nothing to verify still ends the turn', () => {
+  // The fix must not make a clean turn unfinishable.
+  const state = feature({ plan_confirmed: true, tests_confirmed: true, test_command: '', dirty: true });
+  const r = dispatch(ev({ event: 'stop', status: 'completed', tool: null, path: null }), state, {});
+  assert.equal(r.kind, 'allow');
+});
+
+test('gate.js echoes the real event name on a G4 escalation, end to end', () => {
+  // The hookEventName bug had two halves: adapters.respond() hardcoding
+  // 'UserPromptSubmit', and gate.js passing the real event through. The
+  // regression test in review-findings.test.js covers the first and REBUILDS
+  // the second by hand -- it calls adapters.respond() with the event spread in
+  // itself rather than invoking gate.js. So the gate.js half was protected by
+  // nothing: reverting that line left the whole suite green while every G4
+  // escalation and G5 pointer was discarded by the host for an event-name
+  // mismatch, which is the exact defect the file exists to prevent.
+  //
+  // This goes through gate.js, so it fails if either half regresses.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'uw-gate-g4-'));
+  fs.writeFileSync(
+    path.join(dir, 'PLAN-x.md'),
+    '---\nplan_confirmed: true\ntests_confirmed: true\ntest_command: node --test\ndirty: true\nverify_rounds: 2\n---\n'
+  );
+
+  const r = runGate(
+    JSON.stringify({
+      hook_event_name: 'PostToolUse',
+      cwd: dir,
+      tool_name: 'Bash',
+      tool_input: { command: 'node --test' },
+      tool_response: { success: false },
+    })
+  );
+
+  assert.equal(r.exit, 0);
+  assert.ok(r.stdout.trim(), 'the third failing round must emit an escalation');
+
+  const out = JSON.parse(r.stdout);
+  const eventName = out.hookSpecificOutput && out.hookSpecificOutput.hookEventName;
+  assert.equal(
+    eventName,
+    'PostToolUse',
+    `the host discards output whose event name does not match; got ${eventName}`
+  );
+});

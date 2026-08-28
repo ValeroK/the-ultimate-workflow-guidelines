@@ -1,0 +1,25 @@
+---
+description: Read before changing anything under hooks/: the gates, the vendor adapters, the heartbeat, or status.js. Also when a gate is not firing, when adding support for a new host, or when a hook appears installed but is enforcing nothing.
+globs: hooks/**
+alwaysApply: false
+---
+
+# hooks and gates
+
+**Read [`memory/hooks-and-gates.md`](../memory/hooks-and-gates.md) before going further.** This rule exists to
+fire on the topic and send you there; the knowledge itself lives in one place, not two.
+
+**Why it is worth the read:** Enforcement here fails OPEN, by three separate routes, and a hook that never loaded looks exactly like a hook that correctly allowed everything. Nothing in the source says which of those you are looking at.
+
+## Before you touch anything
+
+- Run `node hooks/status.js`. It separates never-ran / live / stale / disabled, which is the distinction the symptom does not give you.
+- If a gate is not firing, restart the host before debugging. Hook config is read at startup and a gate registered mid-session enforces nothing, silently.
+- Never match a raw absolute `file_path`. Relativise against `cwd` first -- `toProjectPath` in `hooks/lib/gates.js`.
+
+---
+
+*This rule is Cursor's retrieval mechanism for `memory/`. On Claude Code the same
+topical is reached through the Read-when cue in `memory.md`. Cursor does not act on
+that pointer, so without this rule the topicals were unreachable here -- the rule is
+the selector, the topical is the content, and neither duplicates the other.*

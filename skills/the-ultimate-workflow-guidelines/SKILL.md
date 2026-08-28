@@ -147,6 +147,25 @@ For any non-trivial task, follow this loop:
    - *Applies Goal-Driven Execution.*
    - **Why:** step 6 persists what the *repo* must remember; the handoff persists what the *next agent* must know — the in-flight state that no committed doc carries.
 
+### Gates: an opt-in backstop for ad-hoc work
+
+The phase commands make ordering structural -- a phase you have not started cannot be skipped -- so the gates are no longer the enforcement story. What they still cover is work done outside the phases. They are **off unless you turn them on**: set `ULTIMATE_WORKFLOW_GATES=on`.
+
+When enabled, the steps above are backed by deterministic gates. They read a small YAML front-matter block at the top of `PRD.md` (bootstrap) or `PLAN-<feature>.md` (feature work):
+
+- No source edit lands before `plan_confirmed: true`.
+- No implementation lands before `tests_confirmed: true`. Test files are exempt -- that is the point.
+- A turn cannot end while source has changed since the last green verification. Set `test_command` in the front matter so the gate can name it when it blocks.
+- Three failing verification rounds escalate to the user through the blocker protocol in step 5.
+
+Set `plan_confirmed` and `tests_confirmed` to `true` **only after the user has actually confirmed** that stage. Do not set them to clear a block. The gates maintain every other field themselves.
+
+Even when enabled they are inert in a repository with neither `PRD.md` nor `PLAN-*.md`, so trivial work in unmanaged projects is never affected. They fail open: an internal error blocks nothing.
+
+The demotion was measured, not stylistic. Full enforcement on one host, partial on one, unverified on two -- and three separate routes to "installed and silently enforcing nothing". A default-on mechanism that fails open invisibly is worse than an opt-in one somebody chose. Run `node hooks/status.js` to see which of never-ran / live / stale / disabled you are actually in.
+
+The gates are **Claude Code only**. Cursor, Codex CLI, Gemini CLI, and claude.ai run the workflow above as prose, with the confirmation steps observed rather than enforced. That is a deliberate scope: a pre-edit denial is silently dropped on Cursor, and the Codex and Gemini hook contracts have never been exercised, so shipping gates there would look like enforcement while providing none.
+
 ### `## Gotchas` in `AGENTS.md` — capturing repeating issues
 
 `AGENTS.md` is auto-loaded every turn. Its `## Gotchas` section is where empirical, discovered-the-hard-way project knowledge lives — the cousin of the "best practices" section, but for things nobody planned.

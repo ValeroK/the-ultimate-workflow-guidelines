@@ -11,3 +11,7 @@ dist/
 # OS noise
 .DS_Store
 Thumbs.db
+
+
+# Gate heartbeat: per-machine runtime evidence, not source.
+.ultimate-workflow/

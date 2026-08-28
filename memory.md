@@ -9,4 +9,11 @@
 > works" / "here's why we picked Y"), affects future feature work, not obvious
 > from reading the code. One-liners go to `AGENTS.md` `## Gotchas`.
 
-<!-- No topical files yet. See skills/the-ultimate-workflow-guidelines/references/memory-template.md for entry shape. -->
+- [research/new-sdlc-with-vibe-coding.md](research/new-sdlc-with-vibe-coding.md) *(external reference, not a `memory/` topical)* — Summary of Google's May 2026 paper on agentic engineering: the vibe-coding spectrum, `Agent = Model + Harness`, static vs dynamic context, and the CapEx/OpEx economics. **Read when** designing agent orchestration, deciding what belongs in always-on context, arguing whether a problem is the model or the harness, or justifying upfront structure. Full PDF alongside it.
+
+- [memory/context-boundary.md](memory/context-boundary.md) — Why `CLAUDE.md` is a thin index, the keep-what-has-no-cue rule, and what stops it growing back. **Read when** editing `CLAUDE.md`, `memory.md`, `SKILL.md`, `rules/*.mdc`, or deciding whether something belongs in always-on context.
+- [memory/hooks-and-gates.md](memory/hooks-and-gates.md) — How enforcement works, why a fail-open gate goes silently dead, and what was measured per host. **Read when** `hooks/**`, `gate.js`, adapters, heartbeat, `status.js`, adding a host, or "a gate is not firing".
+- [memory/workflows-authoring.md](memory/workflows-authoring.md) — How the phase scripts are built, what the runtime forbids, and what each phase costs. **Read when** `workflows/*.js`, `agents/uw-*.md`, adding a phase, or `parallel()` returns nothing.
+- [memory/mirrors.md](memory/mirrors.md) — Which files are hand-copies, which differences are deliberate, and what CI cannot see. **Read when** editing `SKILL.md`, `rules/*.mdc`, `references/`, or `agents/`.
+
+<!-- Add topical files under memory/ as they earn their place. See skills/the-ultimate-workflow-guidelines/references/memory-template.md for entry shape. -->

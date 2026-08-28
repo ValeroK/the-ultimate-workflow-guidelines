@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>The Ultimate Workflow Guidelines</title>
-<meta name="description" content="A two-skill plugin for Claude Code, Cursor, and Claude Desktop that makes LLM coding assistants plan first, test first, respect existing design, and accumulate per-repo knowledge across sessions.">
+<meta name="description" content="Splits AI coding work into five short jobs that each start fresh, do one thing, and stop. For Claude Code, Cursor, Codex CLI, Gemini CLI and Claude Desktop.">
 <style>
   :root {
     --bg: #fbfbfa;
@@ -90,17 +90,21 @@
 <main>
 
 <h1>The Ultimate Workflow Guidelines</h1>
-<p class="subtitle">A two-skill plugin for Claude Code, Cursor, and Claude Desktop that makes LLM coding assistants plan first, test first, respect existing design, and accumulate per-repo knowledge across sessions.</p>
+<p class="subtitle">Your AI coding assistant is fast, confident, and forgets everything. This makes it slow down, show you a plan, write the tests first, and remember what it learned. For Claude Code, Cursor, Codex CLI, Gemini CLI and Claude Desktop.</p>
 
 <div class="pill-row">
   <a class="pill" href="#install">Install for Claude Code</a>
   <a class="pill" href="#install">Install for Cursor</a>
   <a class="pill" href="#install">Install for Claude Desktop</a>
+  <a class="pill" href="gates.md">The optional gates</a>
   <a class="pill" href="https://github.com/ValeroK/the-ultimate-workflow-guidelines">GitHub repo →</a>
 </div>
 
 <h2>The problem</h2>
-<p>LLM coding assistants are fast but forgetful. They assume when they should ask, write 200 lines when 50 would do, touch unrelated code "while they're in there," and re-derive the same project quirks every session.</p>
+<p>You ask for a small change. You get 200 lines. Half of them "improve" code you never mentioned.</p>
+<p>You ask a question. It guesses instead of asking you back.</p>
+<p>You explain a quirk of your project. Next session it's gone, and you explain it again.</p>
+<p>Telling it not to do these things doesn't work. An instruction like "always plan first" sits in a file the model reads once and then drifts away from twenty minutes into a long conversation.</p>
 
 <blockquote>
   "The models make wrong assumptions on your behalf and just run along with them without checking. They don't manage their confusion, don't seek clarifications, don't surface inconsistencies, don't present tradeoffs, don't push back when they should."
@@ -109,28 +113,74 @@
 
 <p>The behavioral principles in this plugin are derived from those observations. The plan-first workflow, greenfield bootstrap, and per-repo memory pattern are layered on top — operationalizing the principles so the model actually applies them, every turn.</p>
 
-<h2>The two workflows</h2>
+<h2>The idea</h2>
+
+<p>Stop asking one assistant to do everything in one long conversation.</p>
+
+<p>Split the work into <strong>five short jobs</strong>. Each one starts fresh, knows only what it needs, does a single thing, hands you the result, and stops.</p>
+
+<p>That's the whole concept. Three things follow from it:</p>
+
+<div class="card">
+  <h3>It can't skip a step</h3>
+  <p>Not because it is being watched, but because each step is a separate command you run. There is nothing to skip ahead to. The next step does not exist until you start it.</p>
+</div>
+
+<div class="card">
+  <h3>It can't wander</h3>
+  <p>A job that only reads code is given tools that only read code. Four of the five jobs physically cannot write to your files. Only the build step can.</p>
+</div>
+
+<div class="card">
+  <h3>It can't lose the thread</h3>
+  <p>Each job hands back a document, not a memory. The plan is a file on disk, so when the conversation gets too long and the history is trimmed, the plan is still there.</p>
+</div>
+
+<p>The cost is honest: five commands instead of one, and you are the one who moves between them. That is the trade. You get a checkpoint you actually read, twice, before any code is written.</p>
+
+<h2>The five commands</h2>
+
+<table>
+  <thead>
+    <tr><th>Command</th><th>What it does</th><th>Can it write?</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>plan</code></td><td>Several readers explore the code in parallel, then one writes the plan</td><td>No</td></tr>
+    <tr><td><code>tests</code></td><td>Drafts a test plan, then four critics try to break it</td><td>No</td></tr>
+    <tr><td><code>build</code></td><td>Writes the tests, proves they fail, implements, loops to green</td><td><strong>Yes</strong></td></tr>
+    <tr><td><code>review</code></td><td>Four reviewers, then a skeptic who tries to disprove each finding</td><td>No</td></tr>
+    <tr><td><code>harvest</code></td><td>Works out which lessons from this feature are worth keeping</td><td>No</td></tr>
+  </tbody>
+</table>
+
+<p>Four of the five hand you proposals instead of applying them. That is on purpose: a proposal you have to accept is a proposal you actually read.</p>
+
+<p>You do not need all five every time. A typo does not need a plan.</p>
+
+<h2>Starting a brand new project?</h2>
+
+<p>There is a separate mode for that. It interviews you, writes a PRD, designs the system with you, and sets up the living documents the workflow above then reads. Use it once, on an empty repo.</p>
 
 <div class="card-grid card-grid-2">
   <div class="card">
     <h3>the-ultimate-workflow-guidelines</h3>
-    <p><strong>Daily feature work in an existing codebase.</strong> Any non-trivial change — new feature, bug fix, refactor.</p>
+    <p><strong>Day-to-day work in an existing codebase.</strong> Any non-trivial change: new feature, bug fix, refactor.</p>
     <p>Produces:</p>
     <ul>
-      <li>A <code>PLAN-&lt;feature&gt;.md</code> on disk with goal, files explored, existing-design review, deviation justification.</li>
+      <li>A <code>PLAN-&lt;feature&gt;.md</code> on disk with the goal, files explored, a review of the existing design, and every intended deviation argued both ways.</li>
       <li>A test plan you confirm <em>before</em> code is written.</li>
-      <li>A minimal implementation that respects existing patterns.</li>
-      <li>Updates to <code>progress.md</code>, <code>## Gotchas</code>, and <code>memory/</code> after landing.</li>
+      <li>A minimal implementation that respects the patterns already there.</li>
+      <li>Proposals for what to record once it lands.</li>
     </ul>
   </div>
   <div class="card">
     <h3>project-bootstrap-guidelines</h3>
-    <p><strong>Greenfield only.</strong> From a blank slate to a project that's ready for feature work.</p>
+    <p><strong>Greenfield only.</strong> From a blank slate to a project that is ready for feature work.</p>
     <p>Produces:</p>
     <ul>
-      <li><code>PRD.md</code> (with Mermaid flow diagram + framework choices and alternatives documented).</li>
-      <li><code>CLAUDE.md</code>, <code>ROADMAP.md</code>, <code>progress.md</code>, an empty <code>memory.md</code>.</li>
-      <li>A clean hand-off to the workflow skill once the first feature is scoped.</li>
+      <li><code>PRD.md</code>, with a flow diagram and every framework choice recorded alongside the alternatives.</li>
+      <li><code>CLAUDE.md</code>, <code>ROADMAP.md</code>, <code>progress.md</code>, and an empty <code>memory.md</code>.</li>
+      <li>A clean hand-off to the workflow above once the first feature is scoped.</li>
     </ul>
   </div>
 </div>
@@ -162,7 +212,7 @@
 
 <div class="card">
   <h3>CLAUDE.md</h3>
-  <p><strong>Always-on behavioral guidance.</strong> Auto-loaded by Claude Code on every turn. Mirrors skill 1's body so the workflow + principles + memory protocol reach Claude even outside the plugin context. <em>Why we need it:</em> keeps the model aligned without per-session reminders.</p>
+  <p><strong>A thin always-on index.</strong> Auto-loaded by Claude Code on every turn, which is exactly why it is kept short: everything in it is paid for on every single message, whether it is relevant or not. It is deliberately <em>not</em> a copy of the skill body any more. It holds what has no retrieval cue, and points at everything that does. <em>Why we need it:</em> the constraints nothing would prompt you to go and look up.</p>
 </div>
 
 <div class="card">
@@ -197,7 +247,7 @@
 
 <div class="card">
   <h3>rules/*.mdc</h3>
-  <p><strong>Cursor mirror of the skills.</strong> Same body content, Cursor-shaped frontmatter (<code>alwaysApply: true</code> for skill 1; <code>false</code> for skill 2 since it's greenfield-only). <em>Why we need it:</em> Cursor doesn't auto-load <code>CLAUDE.md</code>; the rule files are the per-turn entry point in that ecosystem.</p>
+  <p><strong>Cursor's entry point, and its retrieval mechanism.</strong> One thin <code>alwaysApply: true</code> rule, which is Cursor's equivalent of <code>CLAUDE.md</code>, plus a set of <code>alwaysApply: false</code> rules Cursor selects on its own by description. Those on-demand rules are how <code>memory/</code> is reachable at all on Cursor, which does not follow a pointer list the way Claude Code does. <em>Why we need it:</em> Cursor does not auto-load <code>CLAUDE.md</code>.</p>
 </div>
 
 <div class="card">
@@ -239,11 +289,31 @@
   </tbody>
 </table>
 
+<h2>What you get on which host</h2>
+
+<p>Claude Code can run the five commands as real scripts, so the ordering is guaranteed. Nowhere else can.</p>
+
+<table>
+  <thead>
+    <tr><th></th><th>Claude Code</th><th>Cursor</th><th>Codex / Gemini / Desktop</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>The five jobs, each with fresh context</td><td>Yes</td><td>Yes, you invoke them</td><td>As prose</td></tr>
+    <tr><td>Ordering guaranteed</td><td>Yes</td><td>You hold the sequence</td><td>You hold the sequence</td></tr>
+    <tr><td>Only the builder can write</td><td>Yes</td><td>Yes</td><td>&mdash;</td></tr>
+    <tr><td>Optional enforcement hooks</td><td>Yes</td><td>No</td><td>Not verified</td></tr>
+  </tbody>
+</table>
+
+<p>Cursor keeps most of what matters: separate jobs, a clean context each time, and only one of them able to write. What it loses is the guarantee, and its rule file says so plainly rather than implying otherwise.</p>
+
+<p>There is an optional enforcement layer for Claude Code, which blocks an edit before the plan is confirmed and so on. It is <strong>off by default</strong>. The details, and the honest limits, are in <a href="gates.md">the gates document</a>.</p>
+
 <h2 id="install">Install</h2>
 
 <h3>Claude Code (plugin)</h3>
 <pre><code>/plugin marketplace add ValeroK/the-ultimate-workflow-guidelines
-/plugin install the-ultimate-workflow-guidelines</code></pre>
+/plugin install ultimate-workflow</code></pre>
 
 <h3>Cursor</h3>
 <pre><code>/add-plugin ValeroK/the-ultimate-workflow-guidelines</code></pre>

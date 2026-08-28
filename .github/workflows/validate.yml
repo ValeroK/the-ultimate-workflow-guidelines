@@ -6,6 +6,21 @@ on:
     branches: [main]
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Hook gate unit tests
+        # The glob is quoted so Node expands it, not the shell -- identical on
+        # Windows and Linux. `node --test hooks/` does NOT work: a directory
+        # argument is resolved as a module path, not a search root.
+        run: node --test "hooks/**/*.test.js" "evals/**/*.test.js" mirrors.test.js
+
   validate:
     runs-on: ubuntu-latest
     steps:
@@ -49,3 +64,33 @@ jobs:
             exit 1
           fi
           echo "All four version slots agree on $CANON."
+
+      - name: Manifest name consistency
+        # The plugin name namespaces every skill, command, and workflow it
+        # ships, so a mismatch silently changes how users invoke them.
+        # The marketplace's own top-level name is deliberately NOT checked:
+        # it identifies the marketplace, not the plugin.
+        run: |
+          set -e
+          CANON=$(jq -r '.name' .claude-plugin/plugin.json)
+          echo "Canonical plugin name: $CANON"
+
+          CURSOR=$(jq -r '.name' .cursor-plugin/plugin.json)
+          MKT=$(jq -r '.plugins[0].name' .claude-plugin/marketplace.json)
+
+          fail=0
+          for pair in \
+            ".cursor-plugin/plugin.json:$CURSOR" \
+            ".claude-plugin/marketplace.json#plugins[0].name:$MKT"; do
+            label="${pair%%:*}"
+            value="${pair##*:}"
+            if [ "$value" != "$CANON" ]; then
+              echo "::error::Name mismatch at $label: got '$value', expected '$CANON'"
+              fail=1
+            fi
+          done
+
+          if [ "$fail" -ne 0 ]; then
+            exit 1
+          fi
+          echo "All plugin name slots agree on $CANON."

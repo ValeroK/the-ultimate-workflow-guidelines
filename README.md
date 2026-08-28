@@ -1,178 +1,165 @@
-# The Ultimate Workflow Guidelines
+# Ultimate Workflow
 
-A two-skill plugin for **Claude Code**, **Cursor**, and **Claude Desktop** that makes LLM coding assistants plan first, test first, respect existing design, and accumulate per-repo knowledge across sessions. Behavioral principles derived from [Andrej Karpathy's observations](https://x.com/karpathy/status/2015883857489522876) on LLM coding pitfalls; the workflow and bootstrap procedures are layered on top.
+Your AI coding assistant is fast, confident, and forgets everything. This makes it slow down, show you a plan, write the tests first, and remember what it learned.
 
-📖 Visual walkthrough: **https://valerok.github.io/the-ultimate-workflow-guidelines/** *(live after Pages is enabled — see [Install](#install))*
+Works in **Claude Code**, **Cursor**, **Codex CLI**, **Gemini CLI**, and **Claude Desktop**.
 
-## What this gives you
+Visual walkthrough: **https://valerok.github.io/the-ultimate-workflow-guidelines/**
 
-LLMs are fast but forgetful. They assume when they should ask, write 200 lines when 50 would do, touch unrelated code "while they're in there," and re-derive the same project quirks every session. This plugin is a working set of guardrails:
+---
 
-- **Plan-first, test-first workflow** for every non-trivial change. `PLAN-<feature>.md` on disk, tests before code, confirmation gates between stages.
-- **Greenfield bootstrap flow.** PRD → architecture → living docs (`AGENTS.md`, `ROADMAP.md`, `progress.md`, `memory.md`).
-- **Behavioral principles** under the workflow: Think Before Coding, Simplicity First, Surgical Changes, Goal-Driven Execution.
-- **Per-repo memory that compounds across sessions** — `## Gotchas` in `AGENTS.md` for defensive warnings (always loaded), `memory/` for explanatory knowledge (lazy-loaded).
-- **Cross-tool by default.** The skill writes `AGENTS.md` at the project root (Cursor reads it natively per [Cursor docs](https://cursor.com/docs/rules)) plus a two-line `CLAUDE.md` import stub that pulls the same content into Claude Code (per the [Claude Code memory docs](https://code.claude.com/docs/en/memory)). One source of truth, both hosts.
+## The problem
 
-## Repository structure
+You ask for a small change. You get 200 lines. Half of them "improve" code you never mentioned.
 
-| Path | Purpose | Loaded by | When |
-|---|---|---|---|
-| `README.md` | Repo entry point. | Humans | On GitHub |
-| `LICENSE` | MIT with Attribution. | — | — |
-| `AGENTS.md` | Always-on guidance in this repo. Mirrors skill 1's body. Read natively by Cursor; Claude Code loads it via the `@AGENTS.md` import in `CLAUDE.md`. | Cursor, Claude Code | Every turn |
-| `CLAUDE.md` | Two-line import stub: `@AGENTS.md`. Exists because Claude Code only reads `CLAUDE.md`, not `AGENTS.md` (per [Claude Code memory docs](https://code.claude.com/docs/en/memory)). All content lives in `AGENTS.md` — no drift. | Claude Code | Every turn |
-| `memory.md` | Slim index of topical knowledge for this repo (lazy-loaded topicals under `memory/`). | Claude Code, Cursor | Read by the workflow skill at the start of any non-trivial task |
-| `.claude-plugin/plugin.json` | Claude Code plugin manifest. | Claude Code | On `/plugin install` |
-| `.claude-plugin/marketplace.json` | Claude Code marketplace metadata. | Claude Code | On `/plugin marketplace add` |
-| `.cursor-plugin/plugin.json` | Cursor plugin manifest. | Cursor | On `/add-plugin` |
-| `.github/workflows/release-skills.yml` | Builds three release ZIPs and attaches them to the GitHub release. | GitHub Actions | On `v*` tag push (or manual dispatch) |
-| `docs/index.html` | Visual walkthrough served via GitHub Pages. | Humans | On read |
-| `rules/the-ultimate-workflow-guidelines.mdc` | Cursor rule, `alwaysApply: true`. Mirrors skill 1's body. | Cursor | Every turn |
-| `rules/project-bootstrap-guidelines.mdc` | Cursor rule, `alwaysApply: false`. Mirrors skill 2's body. | Cursor | When the rule's description matches (greenfield phrasings) |
-| `skills/the-ultimate-workflow-guidelines/SKILL.md` | Skill 1 body — workflow + principles + memory protocol. | Claude Code, Cursor | When the skill's description matches |
-| `skills/the-ultimate-workflow-guidelines/references/plan-template.md` | `PLAN-<feature>.md` skeleton. | Claude Code, Cursor | Linked from SKILL.md, read on demand |
-| `skills/the-ultimate-workflow-guidelines/references/memory-template.md` | `memory.md` index + topical-file templates. | Claude Code, Cursor | Linked from SKILL.md, read on demand |
-| `skills/project-bootstrap-guidelines/SKILL.md` | Skill 2 body — greenfield bootstrap (PRD → design → living docs). | Claude Code, Cursor | When the skill's description matches |
-| `skills/project-bootstrap-guidelines/references/prd-template.md` | `PRD.md` skeleton. | Claude Code, Cursor | Linked from SKILL.md |
-| `skills/project-bootstrap-guidelines/references/prd-questions.md` | Question bank for PRD review. | Claude Code, Cursor | Linked from SKILL.md |
-| `skills/project-bootstrap-guidelines/references/roadmap-template.md` | `ROADMAP.md` skeleton. | Claude Code, Cursor | Linked from SKILL.md |
-| `skills/project-bootstrap-guidelines/references/progress-template.md` | `progress.md` skeleton. | Claude Code, Cursor | Linked from SKILL.md |
-| `skills/project-bootstrap-guidelines/references/agents-md-template.md` | Project `AGENTS.md` skeleton (with `## Key files` + `## Gotchas`). | Claude Code, Cursor | Linked from SKILL.md |
-| `skills/project-bootstrap-guidelines/references/memory-template.md` | `memory.md` index + topical-file templates. | Claude Code, Cursor | Linked from SKILL.md |
-| `commands/handoff.md` | `/handoff` slash command — writes a session handoff doc for the next agent. Auto-discovered from the plugin root by both hosts. | Claude Code, Cursor | On `/handoff` |
-| `hooks/hooks.json` | Claude Code plugin hooks manifest. Wires the no-emoji enforcement below. | Claude Code | On `/plugin install` |
-| `hooks/no-emoji-prompt.js` | `UserPromptSubmit` hook — injects a no-emoji reminder into every turn. | Claude Code | Every prompt |
-| `hooks/no-emoji-write.js` | `PreToolUse` hook on `Write`/`Edit`/`MultiEdit`/`NotebookEdit` — blocks the tool call if the new content contains emoji codepoints. | Claude Code | Every file write |
+You ask a question. It guesses instead of asking you back.
 
-**Mirror discipline.** The bodies of skill 1 (`SKILL.md` ↔ `AGENTS.md` ↔ `rules/the-ultimate-workflow-guidelines.mdc`) and skill 2 (`SKILL.md` ↔ `rules/project-bootstrap-guidelines.mdc`) are kept in sync by hand. Changes land in all copies in the same commit.
+You explain a quirk of your project. Next session, it's gone, and you explain it again.
 
-## The two skills
+Telling it not to do these things doesn't work. Instructions like "always plan first" sit in a file the model reads once and then drifts away from twenty minutes into a long conversation.
 
-**`the-ultimate-workflow-guidelines`** — daily feature work in an **existing** codebase. Any non-trivial change gets a `PLAN-<feature>.md` on disk, then tests, then a minimal implementation. Confirmation gates between each stage. Blockers surface 2–3 options with tradeoffs instead of silent picks. After landing, the skill updates `progress.md`, `## Gotchas`, and `memory/<topic>.md` as needed.
+## The idea
 
-**`project-bootstrap-guidelines`** — greenfield only. From a blank slate, produces `PRD.md` (with Mermaid flow + confirmed framework choices and alternatives), `AGENTS.md`, `ROADMAP.md`, `progress.md`, and an empty `memory.md`. Once these exist, the workflow skill takes over.
+Stop asking one assistant to do everything in one long conversation.
 
-The two skills hand off cleanly: skill 1 reads what skill 2 produced (especially `PRD.md`, `AGENTS.md`, and `memory.md`) before planning any feature.
+Split the work into **five short jobs**. Each one starts fresh, knows only what it needs, does a single thing, hands you the result, and stops.
 
-## The `/handoff` command
+That's the whole concept. Three things follow from it:
 
-Both skills persist knowledge for the *repo* — `progress.md`, `## Gotchas`, `memory/`. Neither persists what the *next agent* needs: the in-flight state that hasn't landed in any committed file yet. `/handoff` fills that gap.
+**It can't skip a step.** Not because it's being watched, but because each step is a separate command you run. There's nothing to skip ahead to. The next step doesn't exist until you start it.
 
-```
-/handoff                                  # summarise the whole session
-/handoff finish the retry logic in the poller   # scope the doc to what's next
-```
+**It can't wander.** A job that only reads code is given tools that only read code. Four of the five jobs physically cannot write to your files. Only the build step can.
 
-It writes `HANDOFF-<topic>.md` in the project root and surfaces it as a download in chat, covering purpose and background, tools and how to run them, policies and schemas, **suggested skills** for the next agent to invoke, current state, open issues, and candidate next steps. Two constraints keep it useful: it references `PLAN-<feature>.md`, `progress.md`, commits, and PRs by path instead of restating them, and it briefs the next agent without ordering it to start working. Secrets and PII are redacted.
+**It can't lose the thread.** Each job hands back a document, not a memory. The plan is a file on disk. When the conversation gets too long and the history is trimmed, the plan is still there.
 
-Where it's wired in: [workflow skill step 7](skills/the-ultimate-workflow-guidelines/SKILL.md), and [bootstrap Phase 4](skills/project-bootstrap-guidelines/SKILL.md) for sessions that end mid-bootstrap.
+The cost is honest: five commands instead of one, and you're the one who moves between them. That's the trade. You get a checkpoint you actually read, twice, before any code is written.
 
-`commands/` sits at the plugin root, which both [Claude Code](https://code.claude.com/docs/en/plugins-reference) and Cursor auto-discover — one file, both hosts. It's carried by the full-plugin ZIP but **not** by the single-skill ZIPs, since a command is a plugin-level component; on those installs, both skills tell the model to write the same document by hand.
+## What it feels like
 
-`disable-model-invocation: true` is set deliberately — a handoff doc is written when *you* decide the session is ending, not when the model guesses it is.
+Say you ask for rate limiting on your public API.
 
-## The behavioral layer (Principles)
+**1. It writes a plan and stops.**
 
-Both skills apply four principles before any procedural step:
+A file lands on disk: which files it looked at and why they matter, the patterns already in your codebase it intends to follow, anywhere it wants to deviate and the tradeoffs both ways, and what it's still unsure about. No code yet.
 
-- **Think Before Coding** — surface assumptions; ask when unclear; name tradeoffs.
-- **Simplicity First** — minimum code that solves the problem; nothing speculative.
-- **Surgical Changes** — touch only what the request requires.
-- **Goal-Driven Execution** — define verifiable success criteria; loop until green.
+**2. You say go. It writes a test plan and stops again.**
 
-The workflow is *how* to work; the principles are *how to think*.
+What to test, how, and what "done" means. Four independent critics then attack that plan with one question: *could someone write code that passes all of this and still be wrong?* Arguing about how you'd know it works is much cheaper on paper than on code that already exists.
 
-## Per-repo storage: `## Gotchas` vs `memory/`
+**3. You say go. Now it writes the tests, runs them, and proves they fail.**
 
-Two stores, distinct purposes:
+A test that passes before the feature exists is testing nothing, and once everything is green you can't tell the difference. So it checks. Then it writes the smallest implementation that makes them pass, and loops until green.
 
-| | `## Gotchas` (in `AGENTS.md`) | `memory/<topic>.md` |
+**4. When something doesn't add up, it stops and asks.**
+
+A real example from building this repo: the hook payloads it recorded didn't match the vendor's documentation. Instead of guessing, it laid out the options and waited.
+
+**5. When it lands, it writes down what it learned.**
+
+Short warnings go somewhere always loaded. Longer explanations go in a topic file that's only opened when relevant, so your always-on instructions stay small.
+
+## The five commands
+
+| Command | What it does | Can it write? |
 |---|---|---|
-| **Purpose** | Defensive warning | Explanatory knowledge |
-| **Voice** | "Beware…" / "Don't…" / "Note that…" | "Here's how…" / "Here's why…" |
-| **Posture** | Reactive — alerts to a footgun | Proactive — builds understanding |
-| **Always loaded?** | Yes — short, lives in `AGENTS.md` | No — lazy-loaded via Read tool when the topic is relevant |
-| **Example** | "Tests need a live Postgres — run `docker compose up -d db` first." | A 2-page `memory/auth.md` covering token lifecycle + role checks + library decisions |
+| `/ultimate-workflow:plan` | Several readers explore the code in parallel, then one writes the plan | No |
+| `/ultimate-workflow:tests` | Drafts a test plan, then four critics try to break it | No |
+| `/ultimate-workflow:build` | Writes the tests, proves they fail, implements, loops to green | **Yes** |
+| `/ultimate-workflow:review` | Four reviewers, then a skeptic who tries to disprove each finding | No |
+| `/ultimate-workflow:harvest` | Works out which lessons from this feature are worth keeping | No |
 
-**Decision test:**
-- Phrasable as *"Beware:"* or *"Don't…"*? → Gotcha.
-- Phrasable as *"Here's how X works"* or *"Here's why we picked Y"*? → Memory.
+Four of the five hand you proposals instead of applying them. That's on purpose. A proposal you have to accept is a proposal you actually read.
 
-`memory.md` at the repo root is a slim index of one-line pointers to `memory/<topic>.md` files, each with a "Read when..." cue (keywords / file globs). The workflow skill's read protocol: read `memory.md`, then for every entry whose cue matches the current task, Read the topical file before drafting the plan.
+You don't need all five every time. A typo doesn't need a plan.
 
-## No-emoji enforcement (Claude Code only)
+There is a sixth command that is not part of the loop: **`/handoff`** writes a handoff document when a session ends with work still in flight, so the next agent inherits the state that hasn't landed in any committed file yet. You run it; it is never invoked on your behalf.
 
-The plugin ships two hooks that enforce a hard "no emojis" rule on consumers:
+## Starting a brand new project?
 
-- **Soft reminder.** A `UserPromptSubmit` hook prepends a one-line reminder to every turn so the model doesn't try in the first place.
-- **Hard backstop.** A `PreToolUse` hook on `Write`/`Edit`/`MultiEdit`/`NotebookEdit` scans the new content and aborts the tool call if any emoji codepoint is present (matched against `\p{Extended_Pictographic}`). The model receives the rejection reason and retries without emojis.
+There's a separate mode for that: it interviews you, writes a PRD, designs the system with you, and sets up the living documents the workflow above then reads. Use it once, on an empty repo.
 
-**Why:** emojis break Windows terminals, corrupt downstream pipelines, and clutter diffs. The rule is universal in this plugin.
+| Skill | When |
+|---|---|
+| `the-ultimate-workflow-guidelines` | Day-to-day work in an existing codebase |
+| `project-bootstrap-guidelines` | Greenfield only, run once |
 
-**Escape hatch.** Set `ALLOW_EMOJIS=1` in the environment to bypass both hooks (e.g. when legitimately editing emoji-related content).
+Under both sit four principles: **think before coding**, **simplicity first**, **surgical changes** (every changed line traces back to something you asked for), and **goal-driven execution** (define "done" in terms you can check, then loop until it's true).
 
-**Scope.** Hooks only run for users who install the plugin in Claude Code with hooks enabled; Cursor and Claude Desktop don't execute these hooks. The skill bodies still mention the rule, but only the Claude Code path enforces it deterministically.
+## Memory that compounds
+
+Two places, two jobs:
+
+- **Always loaded** — short defensive warnings. *"Tests need a live Postgres, run `docker compose up -d db` first."*
+- **Loaded on demand** — the longer explanations, in a topic file fetched only when the topic comes up. *"Auth uses short-lived JWTs because..."*
+
+The test: if it starts with *"beware"*, it's a warning. If it starts with *"here's how"* or *"here's why"*, it's a topic file.
+
+This matters more than it sounds. Everything in the always-loaded pile is paid for on every single message, whether it's relevant or not. Keeping it small is what keeps it read.
 
 ## Install
 
-### Claude Code (plugin)
+**Claude Code**
 
 ```
 /plugin marketplace add ValeroK/the-ultimate-workflow-guidelines
-/plugin install the-ultimate-workflow-guidelines
 ```
 
-Both skills become available across all your projects. Replace `ValeroK` with your own GitHub handle if you forked the repo.
+then
 
-### Cursor (Marketplace)
+```
+/plugin install ultimate-workflow
+```
+
+**Cursor**
 
 ```
 /add-plugin ValeroK/the-ultimate-workflow-guidelines
 ```
 
-Or browse [Cursor Marketplace](https://cursor.com/marketplace) once the listing is live. Cursor auto-discovers `skills/` and `rules/` — both skills and their `alwaysApply` flags activate immediately.
+**Claude Desktop** — download `the-ultimate-workflow-guidelines-plugin.zip` from the [latest release](https://github.com/ValeroK/the-ultimate-workflow-guidelines/releases/latest) and upload it. Needs a paid plan with code execution. The same ZIP works for an offline Cursor install.
 
-For an offline install, download `the-ultimate-workflow-guidelines-plugin.zip` from the [latest release](https://github.com/ValeroK/the-ultimate-workflow-guidelines/releases/latest) — the same ZIP serves Claude Desktop and Cursor.
-
-**Without the plugin (Cursor):** copy any `.mdc` files you want from [`rules/`](rules/) into the target project's `.cursor/rules/` directory. Or copy [`AGENTS.md`](AGENTS.md) into the target project's root — Cursor reads it natively (per [Cursor docs](https://cursor.com/docs/rules)).
-
-**Personal skills (Cursor):** symlink or copy `skills/the-ultimate-workflow-guidelines/SKILL.md` and `skills/project-bootstrap-guidelines/SKILL.md` into `~/.cursor/skills/` to use them outside any single project.
-
-### Claude Desktop (claude.ai)
-
-Requires Pro, Max, Team, or Enterprise plan with code execution enabled.
-
-**Plugin upload — installs both skills at once (recommended):**
-
-1. Download `the-ultimate-workflow-guidelines-plugin.zip` from the [latest release](https://github.com/ValeroK/the-ultimate-workflow-guidelines/releases/latest).
-2. In claude.ai, open the plugin upload UI and select the ZIP. The same ZIP also works as a manual install for Cursor.
-
-**Skills upload — one skill at a time:**
-
-If your install surface accepts single-skill ZIPs only:
-
-1. Download `the-ultimate-workflow-guidelines.zip` and/or `project-bootstrap-guidelines.zip` from the [latest release](https://github.com/ValeroK/the-ultimate-workflow-guidelines/releases/latest).
-2. In claude.ai, go to **Settings → Features → Skills → Upload Skill** and select the ZIP.
-
-Install is per-user; each teammate uploads separately. Skills in claude.ai don't share state with Claude Code installs — this is a parallel surface.
-
-### Per-project `AGENTS.md` (no plugin)
-
-Drop the principles + workflow into one project without installing anything. Run from the target project root:
+**Just one project, no plugin** — drop the whole workflow into a single repo as one file:
 
 ```bash
-# fetch the content into AGENTS.md (read natively by Cursor)
-curl -o AGENTS.md https://raw.githubusercontent.com/ValeroK/the-ultimate-workflow-guidelines/main/AGENTS.md
-
-# create a 2-line CLAUDE.md so Claude Code reads the same content
-printf '%s\n' '@AGENTS.md' > CLAUDE.md
+curl -o CLAUDE.md https://raw.githubusercontent.com/ValeroK/the-ultimate-workflow-guidelines/main/skills/the-ultimate-workflow-guidelines/SKILL.md
 ```
 
-Cursor reads `AGENTS.md` natively. Claude Code reads `CLAUDE.md`, which imports `AGENTS.md` via the `@` syntax — both hosts now see the same content with no duplication.
+You get the workflow as prose. No templates, no bootstrap mode, no commands. Cursor users can drop individual `.mdc` files from `rules/` into `.cursor/rules/` instead.
 
-This path **doesn't include** the references/ templates or skill 2 (bootstrap). For everything, use the plugin paths above.
+## What you get on which host
 
-## License
+Claude Code can run the five commands as real scripts, so the ordering is guaranteed. Nowhere else can.
 
-MIT with Attribution — see [LICENSE](LICENSE). Redistributions, modifications, and derivative works must visibly credit `ValeroK` and link back to https://github.com/ValeroK/the-ultimate-workflow-guidelines on a user-facing surface (README, docs, About screen). Source-comment or LICENSE-only credit does not satisfy the requirement.
+| | Claude Code | Cursor | Codex / Gemini / Desktop |
+|---|---|---|---|
+| The five jobs, each with fresh context | Yes | Yes, you invoke them | As prose |
+| Ordering guaranteed | Yes | You hold the sequence | You hold the sequence |
+| Only the builder can write | Yes | Yes | — |
+| Optional enforcement hooks | Yes | No | Not verified |
+
+Cursor keeps most of what matters: separate jobs, clean context each time, and only one of them able to write. What it loses is the guarantee, and its rule file says so plainly rather than implying otherwise.
+
+There's an optional enforcement layer for Claude Code — hooks that block an edit before the plan is confirmed, and so on. It's **off by default**; details and the honest limits are in **[docs/gates.md](docs/gates.md)**.
+
+## Layout
+
+```
+AGENTS.md   the always-on instructions, thin on purpose
+CLAUDE.md   one line: @AGENTS.md, because Claude Code reads only this name
+skills/     the two skill bodies, plus templates
+rules/      Cursor's rules: one always on, the rest fetched on demand
+commands/   the five phase commands, plus /handoff
+workflows/  the scripts each command runs (Claude Code)
+agents/     the five roles; only the builder has write access
+hooks/      the optional enforcement layer
+memory/     topic files, loaded on demand
+evals/      checks that the instructions still get followed
+```
+
+## Credits and license
+
+Behavioural principles derived from [Andrej Karpathy's observations](https://x.com/karpathy/status/2015883857489522876) on LLM coding pitfalls.
+
+The workflow tells the assistant to keep emoji out of code, because they break Windows terminals and corrupt pipelines. It is an instruction, not a blocked write -- prose and docs are unaffected.
+
+MIT with Attribution — see [LICENSE](LICENSE). Redistributions, modifications, and derivative works must visibly credit `ValeroK` and link back to https://github.com/ValeroK/the-ultimate-workflow-guidelines somewhere a user can see it (README, docs, About screen). A source comment or the LICENSE file alone doesn't satisfy it.

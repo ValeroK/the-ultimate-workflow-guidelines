@@ -51,9 +51,28 @@ jobs:
             -x '.github/*' \
             -x 'dist/*' \
             -x '.gitignore' \
+            -x 'CLAUDE.md' \
             -x 'AGENTS.md' \
-            -x 'CLAUDE.md'
+            -x 'research/*.pdf' \
+            -x 'fixtures/*' \
+            -x 'evals/results/*' \
+            -x 'internal/*'
           ls -la dist/
+
+      - name: Fail if the plugin ZIP has grown past what a plugin should be
+        # research/new-sdlc-with-vibe-coding.pdf is 9.97 MB of a 10.6 MB repo,
+        # and for one release it shipped inside this ZIP -- the file Claude
+        # Desktop and offline Cursor users download -- taking it from under 1 MB
+        # to roughly 10 MB for a third-party binary no skill, workflow, hook or
+        # test reads. Only its 9 KB summary is indexed. Nobody noticed because
+        # nothing looked at the size.
+        run: |
+          BYTES=$(stat -c%s dist/the-ultimate-workflow-guidelines-plugin.zip)
+          echo "Plugin ZIP: $BYTES bytes"
+          if [ "$BYTES" -gt 2000000 ]; then
+            echo "::error::Plugin ZIP is $BYTES bytes, over the 2 MB ceiling. Something large was added to the repo root; exclude it above or keep it out of the repo."
+            exit 1
+          fi
 
       - name: Upload to GitHub Release (create if missing)
         env:

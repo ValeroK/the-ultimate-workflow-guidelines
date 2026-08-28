@@ -1,3 +1,19 @@
+---
+scale: weekend
+prd_confirmed: false
+design_confirmed: false
+scaffold_verify: unrun
+build_command: ""
+verify_rounds: 0
+dirty: false
+escalated: false
+---
+
+> The block above is read by the workflow gates during bootstrap. `scale` is the
+> answer to the intake question (`weekend` | `product` | `platform`) and sizes
+> every later fan-out. `design_confirmed` guards the decision that is hardest to
+> reverse: no source is written until it is true.
+
 # PRD: <project name>
 
 > Canonical skeleton for the PRD produced in Phase 1 of `project-bootstrap-guidelines`.

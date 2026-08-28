@@ -1,0 +1,25 @@
+---
+description: Read before editing SKILL.md, any .mdc rule, anything under references/, or an agent definition -- any file that has a hand-maintained counterpart. Also when you change one of a pair and need to know whether the other must follow.
+globs: skills/**,rules/**,agents/**
+alwaysApply: false
+---
+
+# mirrors
+
+**Read [`memory/mirrors.md`](../memory/mirrors.md) before going further.** This rule exists to
+fire on the topic and send you there; the knowledge itself lives in one place, not two.
+
+**Why it is worth the read:** Several files here are hand-copies of each other. Some differences are deliberate and some are drift, and reading either file alone cannot tell you which.
+
+## Before you touch anything
+
+- Change one half of a mirrored pair and you must consider the other. `mirrors.test.js` catches structure, not meaning.
+- A deliberate divergence goes in the exception list with a reason. An undocumented one is how the drift this release fixed got in.
+- Run `node --test mirrors.test.js` before concluding a mirrored edit is finished.
+
+---
+
+*This rule is Cursor's retrieval mechanism for `memory/`. On Claude Code the same
+topical is reached through the Read-when cue in `memory.md`. Cursor does not act on
+that pointer, so without this rule the topicals were unreachable here -- the rule is
+the selector, the topical is the content, and neither duplicates the other.*

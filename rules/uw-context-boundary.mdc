@@ -1,0 +1,25 @@
+---
+description: Read before adding anything to an always-applied rule, to CLAUDE.md, or to memory.md, and before deciding whether a lesson belongs in always-on context or in a topical file. Also when a rule feels too thin and you are tempted to inline what it points at.
+globs: CLAUDE.md,memory.md,rules/**,skills/**
+alwaysApply: false
+---
+
+# context boundary
+
+**Read [`memory/context-boundary.md`](../memory/context-boundary.md) before going further.** This rule exists to
+fire on the topic and send you there; the knowledge itself lives in one place, not two.
+
+**Why it is worth the read:** The thinness is the feature and it looks like an omission, so the default instinct -- helpfully re-inlining what was deliberately moved out -- undoes the work without anyone deciding to.
+
+## Before you touch anything
+
+- The rule is: keep what has no cue, move what has a cue. Retrieval fails when the trigger is an absence, so a constraint nothing prompts you to look up stays always-on.
+- Always-on text is paid for on every turn whether relevant or not. Adding a paragraph here is a recurring cost, not a one-off.
+- Defensive one-liner ("beware", "do not") goes to Gotchas. Explanatory ("here is how", "here is why") goes to a topical.
+
+---
+
+*This rule is Cursor's retrieval mechanism for `memory/`. On Claude Code the same
+topical is reached through the Read-when cue in `memory.md`. Cursor does not act on
+that pointer, so without this rule the topicals were unreachable here -- the rule is
+the selector, the topical is the content, and neither duplicates the other.*

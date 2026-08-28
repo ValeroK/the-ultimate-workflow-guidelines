@@ -1,0 +1,25 @@
+---
+description: Read before writing or editing a phase script under workflows/, or an agent definition under agents/. Also when adding a phase, choosing between parallel and pipeline, or when a fan-out returns nothing and you need to know whether that means failure or an empty result.
+globs: workflows/**,agents/**
+alwaysApply: false
+---
+
+# workflows authoring
+
+**Read [`memory/workflows-authoring.md`](../memory/workflows-authoring.md) before going further.** This rule exists to
+fire on the topic and send you there; the knowledge itself lives in one place, not two.
+
+**Why it is worth the read:** The workflow runtime forbids more than it looks like it does -- no filesystem, no require, no Date.now -- and `parallel()` reports total failure and a genuinely empty result identically.
+
+## Before you touch anything
+
+- A `null` from `parallel()` means that branch FAILED, not that it found nothing. Return an explicit failure when every branch is null; three dead agents once reported a clean "no candidates surfaced".
+- Scripts have no filesystem and no `require`. Anything a script needs must be inline or arrive through `args`.
+- Phases cost six figures of tokens each. They are once-per-feature commands, not casual ones.
+
+---
+
+*This rule is Cursor's retrieval mechanism for `memory/`. On Claude Code the same
+topical is reached through the Read-when cue in `memory.md`. Cursor does not act on
+that pointer, so without this rule the topicals were unreachable here -- the rule is
+the selector, the topical is the content, and neither duplicates the other.*

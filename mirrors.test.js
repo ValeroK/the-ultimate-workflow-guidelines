@@ -224,3 +224,80 @@ test('the phase count in the prose matches the number of phases that exist', () 
     }
   }
 });
+
+// --- Cursor's retrieval mechanism -------------------------------------------
+//
+// On Claude Code a topical is reached through its Read-when cue in memory.md.
+// Cursor does not act on that pointer; its dynamic-context mechanism is an
+// alwaysApply: false rule selected by description. So each topical needs a
+// matching on-demand rule or it is simply unreachable on that host -- which it
+// was, silently, until v3.0.0. These checks keep the two sets in step.
+
+function topicals() {
+  return fs
+    .readdirSync(path.join(root, 'memory'))
+    .filter((f) => f.endsWith('.md'))
+    .map((f) => f.replace(/\.md$/, ''));
+}
+
+function onDemandRules() {
+  return fs
+    .readdirSync(path.join(root, 'rules'))
+    .filter((f) => f.startsWith('uw-') && f.endsWith('.mdc'));
+}
+
+test('every memory topical has an on-demand Cursor rule to reach it', () => {
+  for (const t of topicals()) {
+    const rule = path.join(root, 'rules', `uw-${t}.mdc`);
+    assert.ok(
+      fs.existsSync(rule),
+      `memory/${t}.md has no rules/uw-${t}.mdc, so Cursor can never retrieve it`
+    );
+  }
+});
+
+test('no on-demand rule points at a topical that does not exist', () => {
+  for (const f of onDemandRules()) {
+    const text = fs.readFileSync(path.join(root, 'rules', f), 'utf8');
+    const m = /memory\/([a-z-]+)\.md/.exec(text);
+    assert.ok(m, `${f} never names a topical, so it carries no content`);
+    assert.ok(
+      fs.existsSync(path.join(root, 'memory', `${m[1]}.md`)),
+      `${f} points at memory/${m[1]}.md, which does not exist`
+    );
+  }
+});
+
+test('on-demand rules are on-demand, and carry a selection cue', () => {
+  for (const f of onDemandRules()) {
+    const fm = /^---\r?\n([\s\S]*?)\r?\n---/.exec(fs.readFileSync(path.join(root, 'rules', f), 'utf8'));
+    assert.ok(fm, `${f} has no front matter`);
+    assert.match(fm[1], /alwaysApply:\s*false/, `${f} is always-on, which defeats the point of moving it`);
+    // The description IS the retrieval trigger on Cursor. A vague one does not fire.
+    const desc = /description:\s*(.+)/.exec(fm[1]);
+    assert.ok(desc, `${f} has no description`);
+    assert.ok(
+      desc[1].trim().length > 60,
+      `${f} has a description too vague to select on: "${desc[1].trim()}"`
+    );
+  }
+});
+
+test('the on-demand rules point at their topical rather than copying it', () => {
+  // A fifth hand-maintained copy of the same prose is exactly the drift the
+  // rest of this file exists to prevent.
+  for (const f of onDemandRules()) {
+    const rule = fs.readFileSync(path.join(root, 'rules', f), 'utf8');
+    const m = /memory\/([a-z-]+)\.md/.exec(rule);
+    const topical = fs.readFileSync(path.join(root, 'memory', `${m[1]}.md`), 'utf8');
+    assert.ok(
+      rule.length < topical.length,
+      `${f} is longer than the topical it points at -- it has become a copy`
+    );
+  }
+});
+
+test('the always-on Cursor rule stays thin even as on-demand rules multiply', () => {
+  const lines = read('rules/the-ultimate-workflow-guidelines.mdc').split(/\r?\n/).length;
+  assert.ok(lines <= 90, `always-on Cursor rule is ${lines} lines; every turn pays for all of them`);
+});

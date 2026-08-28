@@ -48,7 +48,7 @@ Typos and formatting. Single-line fixes with an obvious cause. Pure-doc edits. T
 
 ## Where things live
 
-Read `memory.md` at the start of any non-trivial task and open whatever its **Read when** cues match. In particular:
+Each row below also ships as an on-demand rule (`rules/uw-*.mdc`, `alwaysApply: false`) that Cursor selects on its own — that is Cursor's retrieval mechanism, and it is why these topicals are reachable here at all. If one fires, follow it. If none does, read `memory.md` and open whatever its **Read when** cues match:
 
 | Read when | File |
 |---|---|

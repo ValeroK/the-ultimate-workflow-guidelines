@@ -60,6 +60,14 @@ release is.
   comment, not a control, which is how the drift it now catches happened.
 - **`research/`** -- Google's May 2026 paper on agentic engineering, with a summary.
 
+### Removed
+
+- **The two no-emoji hooks are gone**, along with their registrations. `hooks/hooks.json` now registers `gate.js` and nothing else, and `ALLOW_EMOJIS=1` no longer does anything. Nothing blocks a write containing emoji any more.
+
+  The rule survives as a standing instruction, once per host, in `CLAUDE.md` and the Cursor always-on rule — and narrowed from "no emojis anywhere" to **"no emojis in code"**. Code is where the breakage is: a terminal rendering a source file, a pipeline parsing output. Prose was never the problem, and the blanket version had the project enforcing against its own public page, which carries four principle icons by design.
+
+  If you relied on the hook to keep emoji out of files, it is no longer there.
+
 ### Changed
 
 - **Context is split by cue, not by length.** The rule: *keep what has no cue, move

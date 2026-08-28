@@ -110,6 +110,27 @@ then
 /plugin install ultimate-workflow
 ```
 
+Upgrading from 2.x? The plugin was renamed, so an update won't find it — uninstall `the-ultimate-workflow-guidelines` first, then install the line above.
+
+<details>
+<summary>If the install fails with <code>git@github.com: Permission denied (publickey)</code></summary>
+
+You clone over HTTPS and have no SSH key. Claude Code clones plugin sources over SSH, so the install fails before it reaches this repo. Nothing here can change that — a marketplace entry can only declare a GitHub repo, not the protocol used to fetch it.
+
+One global git setting fixes it, for this plugin and every other SSH-shaped URL:
+
+```bash
+git config --global url."https://github.com/".insteadOf "git@github.com:"
+```
+
+To avoid changing anything permanently, scope it to the one command instead:
+
+```bash
+GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0="url.https://github.com/.insteadOf" GIT_CONFIG_VALUE_0="git@github.com:" claude plugin install ultimate-workflow@the-ultimate-workflow-guidelines
+```
+
+</details>
+
 **Cursor**
 
 ```

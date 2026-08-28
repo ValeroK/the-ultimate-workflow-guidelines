@@ -314,6 +314,9 @@
 <h3>Claude Code (plugin)</h3>
 <pre><code>/plugin marketplace add ValeroK/the-ultimate-workflow-guidelines
 /plugin install ultimate-workflow</code></pre>
+<p>Upgrading from 2.x? The plugin was renamed, so an update will not find it — uninstall <code>the-ultimate-workflow-guidelines</code> first, then run the install above.</p>
+<p>If the install fails with <code>git@github.com: Permission denied (publickey)</code>, you clone over HTTPS and have no SSH key. Claude Code fetches plugin sources over SSH, so it fails before it reaches this repo, and no marketplace setting can change that. One global git setting fixes it, here and for every other SSH-shaped URL:</p>
+<pre><code>git config --global url."https://github.com/".insteadOf "git@github.com:"</code></pre>
 
 <h3>Cursor</h3>
 <pre><code>/add-plugin ValeroK/the-ultimate-workflow-guidelines</code></pre>

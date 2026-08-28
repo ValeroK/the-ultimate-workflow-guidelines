@@ -285,3 +285,72 @@ test('the on-demand rules point at their topical rather than copying it', () => 
     );
   }
 });
+
+// --- the public site --------------------------------------------------------
+//
+// docs/index.html is what the README calls the "Visual walkthrough", and it
+// drifted an entire major version without anything noticing: it still said
+// "two-skill plugin" and "the two workflows" after the five phases shipped,
+// still told readers CLAUDE.md "mirrors skill 1's body" (the precise thing v3
+// stopped doing), and still printed an install command for a plugin name that
+// was renamed two releases earlier -- so following the page verbatim failed.
+//
+// It is a mirror of the README in everything but format, so it belongs here.
+
+const SITE = 'docs/index.html';
+
+test('the site names every phase, and the count matches the scripts', () => {
+  const t = read(SITE);
+  for (const p of PHASES) {
+    assert.match(t, new RegExp(`<code>${p}</code>`), `the site never mentions the ${p} phase`);
+  }
+  const scripts = fs.readdirSync(path.join(root, 'workflows')).filter((f) => f.endsWith('.js'));
+  assert.equal(scripts.length, PHASES.length, 'a phase was added or removed without updating the site');
+});
+
+test('the site does not advertise an install command for the old plugin name', () => {
+  // The plugin name namespaces everything it ships, so a stale one is not a
+  // cosmetic error -- the command fails.
+  const t = read(SITE);
+  const canonical = JSON.parse(read('.claude-plugin/plugin.json')).name;
+  const installs = [...t.matchAll(/\/plugin install ([\w-]+)/g)].map((m) => m[1]);
+  assert.ok(installs.length > 0, 'the site no longer documents how to install');
+  for (const name of installs) {
+    assert.equal(name, canonical, `the site installs "${name}", but the manifest name is "${canonical}"`);
+  }
+});
+
+test('the site and the README claim the same hosts', () => {
+  const site = read(SITE);
+  const readme = read('README.md');
+  for (const host of ['Claude Code', 'Cursor', 'Codex CLI', 'Gemini CLI', 'Claude Desktop']) {
+    assert.ok(readme.includes(host), `README stopped naming ${host}`);
+    // The site may abbreviate in its table, so match the distinctive word.
+    const key = host.split(' ')[0];
+    assert.ok(site.includes(key), `the site never names ${host}, which the README promises`);
+  }
+});
+
+test('the site does not still describe the always-on files as body copies', () => {
+  // This is the claim that was actively harmful: a reader following it
+  // re-inlines the skill body into CLAUDE.md and undoes the restructure.
+  const t = read(SITE);
+  assert.doesNotMatch(t, /Mirrors skill 1's body/i, 'the site still says CLAUDE.md mirrors the skill body');
+  assert.doesNotMatch(t, /Same body content/i, 'the site still says the Cursor rules are body copies');
+});
+
+test('nothing under docs/ is an internal plan file', () => {
+  // GitHub Pages serves docs/. Working notes are candid by design and are not
+  // written to be read by strangers, so the publish root is the wrong home.
+  const walk = (dir) =>
+    fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+      e.isDirectory() ? walk(path.join(dir, e.name)) : [path.join(dir, e.name)]
+    );
+  for (const f of walk(path.join(root, 'docs'))) {
+    assert.doesNotMatch(
+      path.basename(f),
+      /^PLAN-.+\.md$/i,
+      `${path.relative(root, f)} would be published by GitHub Pages; internal/plans/ is its home`
+    );
+  }
+});

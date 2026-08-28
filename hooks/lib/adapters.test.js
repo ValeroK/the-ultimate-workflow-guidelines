@@ -5,7 +5,7 @@
 // These run against payloads RECORDED from real sessions, not hand-written from
 // documentation. Every defect found so far -- the UTF-8 BOM, absolute paths,
 // paths outside cwd, workspace_roots instead of cwd -- was invisible to
-// docs-derived fixtures and failed open. See PLAN-hook-gates.md.
+// docs-derived fixtures and failed open. See internal/plans/PLAN-hook-gates.md.
 
 const test = require('node:test');
 const assert = require('node:assert');

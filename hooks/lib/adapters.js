@@ -4,7 +4,7 @@
 // canonical shape. The gate predicates in gates.js decide; these only translate.
 //
 // Everything here that looks arbitrary was measured from recorded payloads
-// rather than read from documentation. See PLAN-hook-gates.md for the defects
+// rather than read from documentation. See internal/plans/PLAN-hook-gates.md for the defects
 // that motivated each piece.
 
 /** Canonical events the gates care about. */

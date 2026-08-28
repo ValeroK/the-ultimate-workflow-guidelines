@@ -6,7 +6,7 @@
 // vendor adapters: front-matter parsing, stage resolution, and the handoff
 // predicate from PRD-graph-orchestration.md section 4.8.
 //
-// Deliberately dependency-free -- Node builtins only. See PLAN-hook-gates.md,
+// Deliberately dependency-free -- Node builtins only. See internal/plans/PLAN-hook-gates.md,
 // "Deviation justification".
 
 const fs = require('node:fs');

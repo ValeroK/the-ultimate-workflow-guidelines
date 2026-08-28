@@ -3,7 +3,7 @@
 //
 // Purpose: capture real hook payloads from each vendor so the adapter contract
 // tests run against reality rather than against documentation. See
-// PLAN-hook-gates.md, "Tests / Build order" step 1.
+// internal/plans/PLAN-hook-gates.md, "Tests / Build order" step 1.
 //
 // Usage: register for every hook event in one CLI, run one ordinary session,
 // then unregister. Writes fixtures/<vendor>/<event>.json.

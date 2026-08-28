@@ -33,7 +33,7 @@ The 1220 duplicated words carried close to zero information risk: deleting them 
 ## Key decisions
 
 - **Principle *names* stay, full text moves.** The name is the retrieval hook that makes the model recognise the skill applies at all. "Every changed line traces directly to the request" is ten words carrying most of the behavioural weight of seven bullets.
-- **Hard constraints never move.** No `package.json`, no build step, no dependency; no emoji; the verify command. All are uncued.
+- **Hard constraints never move.** No `package.json`, no build step, no dependency; no emoji in code; the verify command. All are uncued.
 - **Two Gotchas stay despite looking subsystem-scoped.** The `node -e` backslash collapse and `node --test <dir>` read like tooling trivia, but their cue is "you are about to run a shell command", which no topical will ever be read for. The first has hit three times and corrupted a test file, a regex, and a fixture directory.
 - **The memory protocol moved to `references/memory-protocol.md`.** Its real consumer is already `workflows/harvest.js`, which inlines the decision test into the router agent's prompt — delivered at the moment of use, in a fresh context, by a fixed script rather than a model remembering to consult it. Keeping 715 always-on words was paying twice for the second-best copy.
 - **`CLAUDE.md` stopped being the standalone artifact.** The README's `curl` one-liner now points at `SKILL.md`, which is self-contained prose. A thin index has dead pointers for someone holding one file. This also collapsed a three-way mirror to a pair.

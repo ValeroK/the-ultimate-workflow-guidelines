@@ -52,7 +52,7 @@ test('both always-on files state the same hard constraints', () => {
   for (const f of ['CLAUDE.md', 'rules/the-ultimate-workflow-guidelines.mdc']) {
     const t = read(f);
     assert.match(t, /no `package.json`/i, `${f} lost the dependency constraint`);
-    assert.match(t, /no emojis/i, `${f} lost the emoji constraint`);
+    assert.match(t, /no emojis in code/i, `${f} lost the emoji constraint`);
     assert.match(t, /node --test/, `${f} lost the verify command`);
   }
 });

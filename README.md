@@ -156,6 +156,6 @@ evals/      checks that the instructions still get followed
 
 Behavioural principles derived from [Andrej Karpathy's observations](https://x.com/karpathy/status/2015883857489522876) on LLM coding pitfalls.
 
-The plugin refuses to write emoji into your files. They break Windows terminals and corrupt pipelines. Set `ALLOW_EMOJIS=1` if you want them.
+The workflow tells the assistant to keep emoji out of code, because they break Windows terminals and corrupt pipelines. It is an instruction, not a blocked write -- prose and docs are unaffected.
 
 MIT with Attribution — see [LICENSE](LICENSE). Redistributions, modifications, and derivative works must visibly credit `ValeroK` and link back to https://github.com/ValeroK/the-ultimate-workflow-guidelines somewhere a user can see it (README, docs, About screen). A source comment or the LICENSE file alone doesn't satisfy it.

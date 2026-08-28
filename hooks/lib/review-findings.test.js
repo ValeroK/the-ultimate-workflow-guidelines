@@ -133,50 +133,30 @@ test('the stop gate still blocks once a verification command exists', () => {
 // design addresses. What IS possible is refusing to report a clean tree when a
 // shell command may have written to it.
 
-test('a shell command that redirects into a source file marks the tree dirty', () => {
-  const r = dispatch(
-    {
-      vendor: 'claude',
-      event: 'postTool',
-      tool: 'shell',
-      command: 'sed -i "s/a/b/" src/app.js',
-      path: null,
-      cwd: 'C:/proj',
-    },
-    { stage: 'feature', file: 'PLAN-x.md', data: { plan_confirmed: true, tests_confirmed: true } },
-    {}
-  );
-  assert.equal(r.patch && r.patch.dirty, true, 'a shell write must not leave the tree looking clean');
-});
+test('a shell command is not guessed at, in either direction', () => {
+  // The heuristic that used to live here scored three false positives and no
+  // true ones. Shell writes are now handled structurally by tool scoping, not
+  // by inferring intent from a command string, so nothing here should mark the
+  // tree dirty -- including the commands that used to trip it.
+  const shellEvent = (command) => ({
+    vendor: 'claude',
+    event: 'postTool',
+    tool: 'shell',
+    command,
+    path: null,
+    cwd: 'C:/proj',
+  });
+  const st = { stage: 'feature', file: 'PLAN-x.md', data: { plan_confirmed: true, tests_confirmed: true } };
 
-test('a read-only shell command does not mark the tree dirty', () => {
-  const r = dispatch(
-    {
-      vendor: 'claude',
-      event: 'postTool',
-      tool: 'shell',
-      command: 'git status --short',
-      path: null,
-      cwd: 'C:/proj',
-    },
-    { stage: 'feature', file: 'PLAN-x.md', data: { plan_confirmed: true, tests_confirmed: true } },
-    {}
-  );
-  assert.equal(r.patch, undefined);
-});
-
-test('a commit whose message arrives by heredoc does not mark the tree dirty', () => {
-  // Found by the gate blocking a turn immediately after this heuristic shipped:
-  // every `git commit -F -` uses a heredoc, so the gate demanded a test run
-  // after every commit. A bare heredoc feeds stdin, not a file.
-  const { looksLikeShellWrite } = require('./dispatch.js');
-  assert.equal(looksLikeShellWrite("git commit -q -F - <<'MSG'\nsubject\nMSG"), false);
-  assert.equal(looksLikeShellWrite('node - <<SCRIPT\nconsole.log(1)\nSCRIPT'), false);
-});
-
-test('a heredoc redirected into a file still counts as a write', () => {
-  const { looksLikeShellWrite } = require('./dispatch.js');
-  assert.equal(looksLikeShellWrite("cat > src/a.js <<'EOF'\nx\nEOF"), true);
+  for (const cmd of [
+    'git status --short',
+    ["git commit -q -F - <<'MSG'", 'subject', 'MSG'].join('\n'),
+    'node -e "xs.forEach((x) => console.log(x))"',
+    'command -v node 2>/dev/null',
+    'sed -i "s/a/b/" src/app.js',
+  ]) {
+    assert.equal(dispatch(shellEvent(cmd), st, {}).patch, undefined, cmd);
+  }
 });
 
 test('the verify command itself is not treated as a source write', () => {

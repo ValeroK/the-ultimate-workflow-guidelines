@@ -9,4 +9,6 @@
 > works" / "here's why we picked Y"), affects future feature work, not obvious
 > from reading the code. One-liners go to `CLAUDE.md` `## Gotchas`.
 
-<!-- No topical files yet. See skills/the-ultimate-workflow-guidelines/references/memory-template.md for entry shape. -->
+- [research/new-sdlc-with-vibe-coding.md](research/new-sdlc-with-vibe-coding.md) — Summary of Google's May 2026 paper on agentic engineering: the vibe-coding spectrum, `Agent = Model + Harness`, static vs dynamic context, and the CapEx/OpEx economics. **Read when** designing agent orchestration, deciding what belongs in always-on context, arguing whether a problem is the model or the harness, or justifying upfront structure. Full PDF alongside it.
+
+<!-- Add topical files under memory/ as they earn their place. See skills/the-ultimate-workflow-guidelines/references/memory-template.md for entry shape. -->

@@ -19,27 +19,20 @@ function isVerifyCommand(command, state) {
   return cmd.includes(String(configured).trim());
 }
 
-/**
- * Whether a shell command plausibly wrote to a file.
- *
- * Deliberately over-inclusive. A false positive costs one test run; a false
- * negative means source changed and the tree still looks verified.
- */
-function looksLikeShellWrite(command) {
-  const cmd = String(command || '');
-  if (!cmd) return false;
-  return (
-    />>?\s*\S/.test(cmd) || // redirection into a file
-    /\bsed\b[^|]*\s-i\b/.test(cmd) || // in-place sed
-    /\b(tee|cp|mv|install|patch|truncate)\b/.test(cmd) ||
-    /\b(mkdir|touch|rm)\b/.test(cmd)
-  );
-
-  // Deliberately NOT matched: a bare heredoc. `cmd <<EOF` feeds stdin, not a
-  // file -- writing one needs `cat > file <<EOF`, which the redirection rule
-  // above already catches. Matching it marked the tree dirty on every
-  // `git commit -F -`, so the gate demanded a test run after every commit.
-}
+// A `looksLikeShellWrite` heuristic used to live here, marking the tree dirty
+// when a shell command appeared to write a file. Removed after three false
+// positives and zero true positives in real use: a heredoc (every
+// `git commit -F -`), an arrow function (every `node -e` one-liner), and
+// `2>/dev/null` (ordinary stderr suppression, which writes nothing).
+//
+// Its own comment claimed "over-marking costs one test run". That was wrong:
+// it cost a test run after nearly every command, which is how a gate gets
+// switched off rather than fixed.
+//
+// The gap it aimed at is real -- a shell CAN write source, and the harness
+// pushes agents toward sed and heredocs. But inferring intent from a command
+// string is the wrong instrument. Tool scoping answers it structurally: an
+// agent without Bash cannot route around anything.
 
 /**
  * @param {object} ev    normalised event from adapters.normalize
@@ -86,15 +79,9 @@ function dispatch(ev, state, opts = {}) {
 
   // --- G4: round cap on the verify command ---------------------------------
   if ((ev.event === 'postTool' || ev.event === 'postToolFailure') && ev.tool === 'shell') {
-    if (!isVerifyCommand(ev.command, state)) {
-      // A shell command can write source, and the harness's own auto-mode
-      // guidance actively pushes agents toward sed and heredocs for file
-      // changes. Tool-name matching cannot prevent that -- only the
-      // phase-scoped design can -- but the tree must not be reported clean
-      // when a shell command may have written to it. Over-marking costs one
-      // test run; under-marking silently loses the verification requirement.
-      return looksLikeShellWrite(ev.command) ? { kind: 'allow', patch: { dirty: true } } : allow;
-    }
+    // Any other shell command is left alone. See the note above on why guessing
+    // whether one wrote a file was abandoned.
+    if (!isVerifyCommand(ev.command, state)) return allow;
 
     // No vendor puts an exit code in the payload, so pass or fail comes from
     // WHICH event fired: the failure event means the command exited non-zero.
@@ -138,4 +125,4 @@ function dispatch(ev, state, opts = {}) {
   return allow;
 }
 
-module.exports = { dispatch, isVerifyCommand, looksLikeShellWrite };
+module.exports = { dispatch, isVerifyCommand };

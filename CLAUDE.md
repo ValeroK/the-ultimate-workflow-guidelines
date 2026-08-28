@@ -39,11 +39,12 @@ Typos and formatting. Single-line fixes with an obvious cause. Pure-doc edits. T
 
 - **No `package.json`, no build step, no dependency.** The one-command, no-install path across five host apps and three operating systems is the criterion that decided this architecture — it is why the Python plus LangGraph plus MCP design in `PRD-graph-orchestration.md` section 7 was rejected. Tests use `node:test` and `node:assert` from the standard library for exactly this reason.
 - **No emojis anywhere.** They break Windows terminals and corrupt pipelines.
-- **Verify with `node --test "hooks/**/*.test.js" "evals/**/*.test.js"`.** Quoted, so Node expands the glob rather than the shell.
+- **Verify with `node --test "hooks/**/*.test.js" "evals/**/*.test.js" mirrors.test.js`.** Quoted, so Node expands the globs rather than the shell. `mirrors.test.js` sits at the repo root and neither glob reaches it, so the shorter form skips the mirror-drift check entirely and goes green locally while CI goes red.
 
 ## Gotchas
 
 > Defensive one-liners only, and only those with no topical cue. Subsystem-specific warnings live in the `memory/` topicals above. Threshold and format: `references/memory-protocol.md`.
 
-- **Don't do backslash string surgery through `node -e` or a heredoc.** The pipeline collapses a doubled backslash before Node sees it, so a replacement meant to emit `C:\\Users` emits `C:\Users` — invalid inside a JSON string. This corrupted a test file, a BOM-stripping regex, and a directory of recorded fixtures in one session, each time silently until something downstream failed to parse. Use the Write or Edit tools, or write the script to a file first. (Discovered 2026-08-26, hit 4x)
+- **Don't do backslash string surgery through `node -e` or a heredoc.** The pipeline collapses a doubled backslash before Node sees it, so a replacement meant to emit `C:\\Users` emits `C:\Users` — invalid inside a JSON string. This corrupted a test file, a BOM-stripping regex, a directory of recorded fixtures, and an eval assertion, each time silently until something downstream failed to parse. Use the Write or Edit tools, or write the script to a file first. (Discovered 2026-08-26, hit 5x)
+- **Don't assert on `stderr` from `execFileSync`.** It returns stdout alone and forwards the child's stderr to the parent's, so `result.stderr` is `undefined` and every stderr assertion passes vacuously against a green suite. This voided all of them in `hooks/status.test.js`, including the one claiming to prove no stack trace escapes. Use `spawnSync`, which captures both. (Discovered 2026-08-28)
 - **Don't run `node --test <dir>`.** Node resolves a directory argument as a module path and dies with `MODULE_NOT_FOUND`, not as a search root. Use the quoted glob above. (Discovered 2026-08-25)

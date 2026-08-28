@@ -62,11 +62,12 @@ Each row below also ships as an on-demand rule (`rules/uw-*.mdc`, `alwaysApply: 
 
 - **No `package.json`, no build step, no dependency.** The one-command, no-install path across five host apps is the criterion that decided this architecture.
 - **No emojis anywhere.** They break Windows terminals and corrupt pipelines.
-- **Verify with `node --test "hooks/**/*.test.js" "evals/**/*.test.js"`.** Quoted, so Node expands the glob rather than the shell.
+- **Verify with `node --test "hooks/**/*.test.js" "evals/**/*.test.js" mirrors.test.js`.** Quoted, so Node expands the globs rather than the shell. `mirrors.test.js` sits at the repo root and neither glob reaches it, so the shorter form skips the mirror-drift check entirely and goes green locally while CI goes red.
 
 ## Gotchas
 
 > Defensive one-liners with no topical cue. Subsystem warnings live in the `memory/` topicals above.
 
 - **Don't do backslash string surgery through `node -e` or a heredoc.** The pipeline collapses a doubled backslash before Node sees it, so a replacement meant to emit `C:\\Users` emits `C:\Users` — invalid inside a JSON string. It has corrupted a test file, a regex, and a directory of fixtures, each time silently until something downstream failed to parse.
+- **Don't assert on `stderr` from `execFileSync`.** It returns stdout alone and forwards the child's stderr to the parent's, so `result.stderr` is `undefined` and every stderr assertion passes vacuously. Use `spawnSync`, which captures both.
 - **Don't run `node --test <dir>`.** Node resolves a directory argument as a module path, not a search root. Use the quoted glob above.

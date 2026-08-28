@@ -45,5 +45,7 @@ Per run, against this repository:
 | `/harvest` | 4 | 158k | ~5.5 min |
 | `/review` | 5 | 460k | ~18.6 min |
 | `/plan` | 6 | 481k | ~8.5 min |
+| `/tests` | 6 | 215k | ~13 min |
+| `/build` | 2 | 115k | ~7 min |
 
 Roughly a million tokens for a feature before implementation starts. That is the number to weigh against the defects these phases actually find — `/review` found four real ones in code with 136 green tests. Treat them as once-per-feature commands, not casual ones.

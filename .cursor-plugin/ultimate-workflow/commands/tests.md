@@ -1,5 +1,5 @@
 ---
-description: Draft a test plan, then attack it from four angles: could an implementation pass all of this and still be wrong? Writes nothing.
+description: "Draft a test plan, then attack it from four angles: could an implementation pass all of this and still be wrong? Writes nothing."
 argument-hint: "<plan file, or leave empty for the newest>"
 ---
 

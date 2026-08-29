@@ -137,6 +137,8 @@ GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0="url.https://github.com/.insteadOf" GIT_CONF
 /add-plugin ValeroK/the-ultimate-workflow-guidelines
 ```
 
+The shippable plugin lives under `.cursor-plugin/ultimate-workflow/` so Cursor's marketplace sparse-checkout actually keeps `rules/`, `agents/`, `skills/`, and `commands/` (a root-level layout looked installed and was empty). After adding the marketplace, install **ultimate-workflow** and confirm those folders exist under the plugin cache. For local dogfood of this repo, symlink `~/.cursor/plugins/local/ultimate-workflow` → `<repo>/.cursor-plugin/ultimate-workflow` and reload. Details: `memory/cursor-install.md` inside the plugin tree.
+
 **Claude Desktop** — download `the-ultimate-workflow-guidelines-plugin.zip` from the [latest release](https://github.com/ValeroK/the-ultimate-workflow-guidelines/releases/latest) and upload it. Needs a paid plan with code execution. The same ZIP works for an offline Cursor install.
 
 **Just one project, no plugin** — drop the whole workflow into a single repo as one file:
@@ -165,17 +167,16 @@ There's an optional enforcement layer for Claude Code — hooks that block an ed
 ## Layout
 
 ```
-AGENTS.md   the always-on instructions, thin on purpose
-CLAUDE.md   one line: @AGENTS.md, because Claude Code reads only this name
-skills/     the two skill bodies, plus templates
-rules/      Cursor's rules: one always on, the rest fetched on demand
-commands/   the five phase commands, plus /handoff
-workflows/  the scripts each command runs (Claude Code)
-agents/     the five roles; only the builder has write access
-hooks/      the optional enforcement layer
-memory/     topic files, loaded on demand
-evals/      checks that the instructions still get followed
+AGENTS.md                         repo dogfood always-on (not shipped in the plugin ZIP)
+CLAUDE.md                         one line: @AGENTS.md
+.claude-plugin/marketplace.json   Claude marketplace catalog
+.cursor-plugin/marketplace.json   Cursor marketplace catalog
+.cursor-plugin/ultimate-workflow/ shippable plugin (Claude + Cursor payload)
+  skills/   rules/   agents/   commands/   workflows/   hooks/   memory/
+evals/                            checks that the instructions still get followed
 ```
+
+The plugin sits under `.cursor-plugin/` because Cursor marketplace sparse-checkout only materializes that tree (and `.claude-plugin/`). See `.cursor-plugin/ultimate-workflow/memory/cursor-install.md`.
 
 ## Credits and license
 

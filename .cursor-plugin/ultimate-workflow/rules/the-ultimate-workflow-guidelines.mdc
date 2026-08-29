@@ -58,13 +58,14 @@ Each row below also ships as an on-demand rule (`rules/uw-*.mdc`, `alwaysApply: 
 | Touching `hooks/**`, adapters, `status.js`; adding a host | `memory/hooks-and-gates.md` |
 | Touching `workflows/*.js` or `agents/uw-*.md` | `memory/workflows-authoring.md` |
 | Editing `SKILL.md`, `rules/*.mdc`, `references/`, `agents/` | `memory/mirrors.md` |
+| Marketplace sources, `/add-plugin`, release ZIP, empty Cursor install | `memory/cursor-install.md` |
 | A feature has landed and its lessons need a home | `skills/the-ultimate-workflow-guidelines/references/memory-protocol.md` |
 
 ## Hard constraints
 
 - **No `package.json`, no build step, no dependency.** The one-command, no-install path across five host apps is the criterion that decided this architecture.
 - **No emojis in code.** They break Windows terminals and corrupt pipelines. Prose and docs are fine.
-- **Verify with `node --test "hooks/**/*.test.js" "evals/**/*.test.js" mirrors.test.js`.** Quoted, so Node expands the globs rather than the shell. `mirrors.test.js` sits at the repo root and neither glob reaches it, so the shorter form skips the mirror-drift check entirely and goes green locally while CI goes red.
+- **Verify with `node --test ".cursor-plugin/ultimate-workflow/hooks/**/*.test.js" "evals/**/*.test.js" mirrors.test.js`.** Quoted, so Node expands the globs rather than the shell. `mirrors.test.js` sits at the repo root and neither glob reaches it, so the shorter form skips the mirror-drift check entirely and goes green locally while CI goes red.
 
 ## Gotchas
 

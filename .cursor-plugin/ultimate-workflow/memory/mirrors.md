@@ -17,10 +17,11 @@ So the body is duplicated by hand. The check is thinner than it sounds: `mirrors
 | `skills/the-ultimate-workflow-guidelines/SKILL.md` ↔ `rules/the-ultimate-workflow-guidelines.mdc` | **No longer a body mirror.** The `.mdc` is the Cursor twin of `CLAUDE.md` and shares its heading set; `SKILL.md` is the full text the index points at |
 | `skills/project-bootstrap-guidelines/SKILL.md` ↔ `rules/project-bootstrap-guidelines.mdc` | Same body, different frontmatter. **The only genuine body mirror left, and nothing checks it** |
 | `skills/project-bootstrap-guidelines/references/memory-template.md` ↔ `skills/the-ultimate-workflow-guidelines/references/memory-template.md` | Byte-identical |
-| `AGENTS.md` ↔ `CLAUDE.md` | **Not a mirror, an import.** CLAUDE.md is the single line `@AGENTS.md`, because Claude Code reads only that filename while Cursor reads AGENTS.md natively. One source, two hosts. A test asserts the stub stays bare |
+| `AGENTS.md` ↔ `CLAUDE.md` | **Not a mirror, an import.** CLAUDE.md is the single line `@AGENTS.md`, because Claude Code reads only that filename while Cursor reads AGENTS.md natively. One source, two hosts. A test asserts the stub stays bare. **Repo dogfood only** — the shippable Cursor always-on is the `.mdc` inside `.cursor-plugin/ultimate-workflow/` |
 | `agents/` ↔ `.claude/agents/` | Local dogfood copy, **gitignored, invisible to CI** |
 | `commands/<phase>.md` ↔ `workflows/<phase>.js` | **Existence pair.** Neither contains the other's text; one without the other is an advertised command that does nothing, or a script nothing can reach |
 | `rules/uw-<topic>.mdc` ↔ `memory/<topic>.md` | **Selector and content.** The rule fires and points; the topical holds the knowledge. Deliberately NOT a text mirror -- a test asserts each rule stays shorter than what it points at |
+| Marketplace catalogs ↔ plugin payload | **Layout pair.** Root `.claude-plugin/marketplace.json` and `.cursor-plugin/marketplace.json` both `source` the nested tree `.cursor-plugin/ultimate-workflow/`. See `memory/cursor-install.md` |
 
 ## Key decisions
 

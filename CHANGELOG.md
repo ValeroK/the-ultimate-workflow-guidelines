@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [3.0.1] - 2026-08-29
+
+### Fixed
+
+- **Cursor `/add-plugin` delivered an empty plugin.** Marketplace clones use a sparse-checkout that only keeps `/.cursor-plugin/` and `/.claude-plugin/`, so root-level `rules/`, `agents/`, `skills/`, and `commands/` never landed on disk. The shippable tree now lives at `.cursor-plugin/ultimate-workflow/`; both marketplaces use a relative `source` pointing there; the release ZIP is built from that directory. Documented in `memory/cursor-install.md`. **Reinstall** the plugin on both Claude Code and Cursor after pulling this change.
+- **`commands/tests.md` frontmatter** — unquoted `:` in the description broke Claude's YAML parser (`claude plugin validate`), so the command loaded with empty metadata.
+
+### Changed
+
+- Verify command and CI globs: `".cursor-plugin/ultimate-workflow/hooks/**/*.test.js"`.
+- `mirrors.test.js` asserts Cursor sparse-cone inclusion and simulated ZIP membership for the nested payload.
+
 ## [3.0.0] - 2026-08-28
 
 The gates in this release were built to answer "the model ignores the workflow"

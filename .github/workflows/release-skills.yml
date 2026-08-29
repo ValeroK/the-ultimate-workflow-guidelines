@@ -35,29 +35,20 @@ jobs:
       - name: Build per-skill ZIPs
         run: |
           mkdir -p dist
-          cd skills
-          zip -r ../dist/the-ultimate-workflow-guidelines.zip the-ultimate-workflow-guidelines
-          zip -r ../dist/project-bootstrap-guidelines.zip project-bootstrap-guidelines
+          cd .cursor-plugin/ultimate-workflow/skills
+          zip -r ../../../dist/the-ultimate-workflow-guidelines.zip the-ultimate-workflow-guidelines
+          zip -r ../../../dist/project-bootstrap-guidelines.zip project-bootstrap-guidelines
 
       - name: Build full-plugin ZIP (dual Claude + Cursor)
-        # The same ZIP works for both ecosystems: Claude Desktop reads
-        # .claude-plugin/plugin.json, Cursor reads .cursor-plugin/plugin.json,
-        # and each ignores the other's metadata. Skills live under skills/,
-        # Cursor rules under rules/. Excludes only dev/CI files that don't
-        # belong in a published plugin.
+        # Zip the nested plugin directory so the archive root is the plugin
+        # root (.*-plugin/plugin.json siblings with skills/rules/agents).
+        # That is also the tree Cursor marketplace sparse-checkout keeps
+        # when the source points here — see memory/cursor-install.md.
         run: |
-          zip -r dist/the-ultimate-workflow-guidelines-plugin.zip . \
-            -x '.git/*' \
-            -x '.github/*' \
-            -x 'dist/*' \
-            -x '.gitignore' \
-            -x 'CLAUDE.md' \
-            -x 'AGENTS.md' \
-            -x 'research/*.pdf' \
-            -x 'fixtures/*' \
-            -x 'evals/results/*' \
-            -x 'internal/*'
-          ls -la dist/
+          cd .cursor-plugin/ultimate-workflow
+          zip -r ../../dist/the-ultimate-workflow-guidelines-plugin.zip . \
+            -x 'fixtures/*'
+          ls -la ../../dist/
 
       - name: Fail if the plugin ZIP has grown past what a plugin should be
         # research/new-sdlc-with-vibe-coding.pdf is 9.97 MB of a 10.6 MB repo,
@@ -70,7 +61,7 @@ jobs:
           BYTES=$(stat -c%s dist/the-ultimate-workflow-guidelines-plugin.zip)
           echo "Plugin ZIP: $BYTES bytes"
           if [ "$BYTES" -gt 2000000 ]; then
-            echo "::error::Plugin ZIP is $BYTES bytes, over the 2 MB ceiling. Something large was added to the repo root; exclude it above or keep it out of the repo."
+            echo "::error::Plugin ZIP is $BYTES bytes, over the 2 MB ceiling. Something large was added to the plugin payload; exclude it above or keep it out of .cursor-plugin/ultimate-workflow/."
             exit 1
           fi
 

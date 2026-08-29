@@ -1,0 +1,25 @@
+---
+description: Read before changing plugin packaging, marketplace.json source fields, the .cursor-plugin/ultimate-workflow layout, release ZIP contents, or when diagnosing an empty Cursor /add-plugin install that still shows the plugin as installed.
+globs: .cursor-plugin/**,.claude-plugin/**,.github/workflows/release-skills.yml,mirrors.test.js
+alwaysApply: false
+---
+
+# cursor install
+
+**Read [`memory/cursor-install.md`](../memory/cursor-install.md) before going further.** This rule exists to
+fire on the topic and send you there; the knowledge itself lives in one place, not two.
+
+**Why it is worth the read:** Cursor marketplace sparse-checkout only keeps `/.cursor-plugin/` and `/.claude-plugin/`. Moving the plugin back to the repo root looks cleaner and silently empties every Cursor install.
+
+## Before you touch anything
+
+- The shippable tree is `.cursor-plugin/ultimate-workflow/`. Marketplace `source` fields must point there, not at github-of-self root.
+- `mirrors.test.js` sparse-cone and ZIP membership checks are the control — a green suite without them is not evidence the install works.
+- Root `AGENTS.md` is dogfood for this repo; it is not what Cursor loads from a plugin install.
+
+---
+
+*This rule is Cursor's retrieval mechanism for `memory/`. On Claude Code the same
+topical is reached through the Read-when cue in `memory.md`. Cursor does not act on
+that pointer, so without this rule the topicals were unreachable here -- the rule is
+the selector, the topical is the content, and neither duplicates the other.*

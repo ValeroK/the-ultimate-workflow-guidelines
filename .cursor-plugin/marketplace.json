@@ -1,0 +1,31 @@
+{
+  "name": "the-ultimate-workflow-guidelines",
+  "owner": {
+    "name": "ValeroK"
+  },
+  "metadata": {
+    "description": "Plan-first, test-first workflow for AI coding assistants. Five phase commands, two skills, and opt-in lifecycle gates."
+  },
+  "plugins": [
+    {
+      "name": "ultimate-workflow",
+      "source": ".cursor-plugin/ultimate-workflow",
+      "description": "Plan-first, test-first workflow for AI coding assistants. Five phase commands (plan, tests, build, review, harvest) that each run in a fresh context with scoped tools, two skills for feature work and greenfield bootstrap, and opt-in lifecycle gates.",
+      "version": "3.0.1",
+      "author": {
+        "name": "ValeroK"
+      },
+      "keywords": [
+        "workflow",
+        "planning",
+        "tdd",
+        "bootstrap",
+        "prd",
+        "karpathy",
+        "guidelines",
+        "best-practices",
+        "coding"
+      ]
+    }
+  ]
+}

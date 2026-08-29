@@ -23,8 +23,26 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 
 const root = __dirname;
+// Shippable plugin payload. Lives under .cursor-plugin/ so Cursor's
+// marketplace sparse-checkout (which only keeps /.cursor-plugin/ and
+// /.claude-plugin/) actually materializes rules/agents/skills/commands.
+const PLUGIN = path.join('.cursor-plugin', 'ultimate-workflow');
 const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
 const lines = (p) => read(p).split(/\r?\n/).length;
+const pread = (p) => read(path.join(PLUGIN, p));
+const plines = (p) => pread(p).split(/\r?\n/).length;
+const pjoin = (...parts) => path.join(PLUGIN, ...parts);
+
+/** Resolve a backtick path from an always-on index: plugin-relative or repo-root. */
+function resolveIndexRef(ref, fromPluginRule) {
+  if (fromPluginRule) return pjoin(ref);
+  // Repo AGENTS.md may use the plugin prefix or a short path (legacy).
+  if (ref.startsWith('.cursor-plugin/') || ref.startsWith('research/') || ref.startsWith('PRD-')) {
+    return path.join(root, ref);
+  }
+  if (fs.existsSync(path.join(root, ref))) return path.join(root, ref);
+  return pjoin(ref);
+}
 
 function headings(text) {
   return text
@@ -44,7 +62,7 @@ function headings(text) {
 
 test('the two always-on indexes cover the same sections', () => {
   const claude = headings(read('AGENTS.md'));
-  const cursor = headings(read('rules/the-ultimate-workflow-guidelines.mdc'));
+  const cursor = headings(pread('rules/the-ultimate-workflow-guidelines.mdc'));
 
   const core = ['## Principles', '## Workflow', '## When to skip', '## Where things live', '## Hard constraints', '## Gotchas'];
   for (const h of core) {
@@ -54,7 +72,7 @@ test('the two always-on indexes cover the same sections', () => {
 });
 
 test('both always-on files state the same hard constraints', () => {
-  for (const f of ['AGENTS.md', 'rules/the-ultimate-workflow-guidelines.mdc']) {
+  for (const f of ['AGENTS.md', path.join(PLUGIN, 'rules/the-ultimate-workflow-guidelines.mdc')]) {
     const t = read(f);
     assert.match(t, /no `package.json`/i, `${f} lost the dependency constraint`);
     assert.match(t, /no emojis in code/i, `${f} lost the emoji constraint`);
@@ -72,15 +90,15 @@ test('CLAUDE.md stays a thin index', () => {
 });
 
 test('the Cursor always-on rule stays thin', () => {
-  const n = lines('rules/the-ultimate-workflow-guidelines.mdc');
+  const n = plines('rules/the-ultimate-workflow-guidelines.mdc');
   assert.ok(n <= 90, `the Cursor rule is ${n} lines; the cap is 90.`);
 });
 
 // --- the duplicated template ----------------------------------------------
 
 test('the two memory-template copies are byte-identical', () => {
-  const a = read('skills/project-bootstrap-guidelines/references/memory-template.md');
-  const b = read('skills/the-ultimate-workflow-guidelines/references/memory-template.md');
+  const a = pread('skills/project-bootstrap-guidelines/references/memory-template.md');
+  const b = pread('skills/the-ultimate-workflow-guidelines/references/memory-template.md');
   assert.equal(
     a,
     b,
@@ -94,31 +112,44 @@ test('the two memory-template copies are byte-identical', () => {
 // sends the reader nowhere.
 
 test('every file the always-on indexes point at actually exists', () => {
-  for (const f of ['AGENTS.md', 'rules/the-ultimate-workflow-guidelines.mdc']) {
-    const text = read(f);
-    const refs = [...text.matchAll(/`((?:memory|skills|research|hooks|workflows|agents)\/[^`]+?\.(?:md|js))`/g)]
+  const indexes = [
+    { file: 'AGENTS.md', fromPlugin: false },
+    { file: path.join(PLUGIN, 'rules/the-ultimate-workflow-guidelines.mdc'), fromPlugin: true },
+  ];
+  for (const { file, fromPlugin } of indexes) {
+    const text = read(file);
+    const refs = [
+      ...text.matchAll(
+        /`((?:\.cursor-plugin\/ultimate-workflow\/)?(?:memory|skills|research|hooks|workflows|agents)\/[^`]+?\.(?:md|js)|PRD-[^`]+?\.md)`/g
+      ),
+    ]
       .map((m) => m[1])
-      // Globs like `workflows/*.js` name a set, not a file. Resolving them is a
-      // different check; treating one as a path is a false positive.
       .filter((r) => !r.includes('*'));
-    assert.ok(refs.length > 0, `${f} points at nothing, which defeats an index`);
+    assert.ok(refs.length > 0, `${file} points at nothing, which defeats an index`);
     for (const r of refs) {
-      assert.ok(fs.existsSync(path.join(root, r)), `${f} points at ${r}, which does not exist`);
+      let target;
+      if (r.startsWith('.cursor-plugin/') || r.startsWith('research/') || r.startsWith('PRD-')) {
+        target = path.join(root, r);
+      } else {
+        target = resolveIndexRef(r, fromPlugin);
+      }
+      assert.ok(fs.existsSync(target), `${file} points at ${r}, which does not exist (tried ${target})`);
     }
   }
 });
 
 test('every memory.md entry points at a file that exists', () => {
-  const idx = read('memory.md');
+  const idx = pread('memory.md');
   const refs = [...idx.matchAll(/\]\(([^)]+\.md)\)/g)].map((m) => m[1]);
   assert.ok(refs.length >= 4, 'memory.md should index the topicals');
   for (const r of refs) {
-    assert.ok(fs.existsSync(path.join(root, r)), `memory.md points at ${r}, which does not exist`);
+    const target = r.startsWith('research/') ? path.join(root, r) : pjoin(r);
+    assert.ok(fs.existsSync(target), `memory.md points at ${r}, which does not exist`);
   }
 });
 
 test('every memory.md entry carries a Read when cue', () => {
-  const idx = read('memory.md');
+  const idx = pread('memory.md');
   const entries = idx.split(/\r?\n/).filter((l) => /^- \[/.test(l));
   assert.ok(entries.length >= 4);
   for (const e of entries) {
@@ -129,7 +160,7 @@ test('every memory.md entry carries a Read when cue', () => {
 // --- the write-isolation invariant ----------------------------------------
 
 test('exactly one agent can write, and it is the implementer', () => {
-  const dir = path.join(root, 'agents');
+  const dir = pjoin('agents');
   const writers = fs
     .readdirSync(dir)
     .filter((f) => f.endsWith('.md'))
@@ -142,7 +173,7 @@ test('exactly one agent can write, and it is the implementer', () => {
 });
 
 test('every read-only agent carries the Cursor readonly key too', () => {
-  const dir = path.join(root, 'agents');
+  const dir = pjoin('agents');
   for (const f of fs.readdirSync(dir).filter((x) => x.endsWith('.md') && x !== 'uw-implementer.md')) {
     const fm = /^---\r?\n([\s\S]*?)\r?\n---/.exec(fs.readFileSync(path.join(dir, f), 'utf8'));
     assert.match(fm[1], /readonly:\s*true/, `${f} restricts tools for Claude Code but not writes for Cursor`);
@@ -150,7 +181,7 @@ test('every read-only agent carries the Cursor readonly key too', () => {
 });
 
 test('the implementer never gains readonly', () => {
-  const fm = /^---\r?\n([\s\S]*?)\r?\n---/.exec(read('agents/uw-implementer.md'));
+  const fm = /^---\r?\n([\s\S]*?)\r?\n---/.exec(pread('agents/uw-implementer.md'));
   assert.doesNotMatch(fm[1], /readonly/, 'uw-implementer must stay writable -- it is the only phase that changes the repository');
 });
 
@@ -166,13 +197,13 @@ const PHASES = ['plan', 'tests', 'build', 'review', 'harvest'];
 
 test('every advertised phase has both a command and a script', () => {
   for (const p of PHASES) {
-    assert.ok(fs.existsSync(path.join(root, 'commands', `${p}.md`)), `no command for /${p}`);
-    assert.ok(fs.existsSync(path.join(root, 'workflows', `${p}.js`)), `no script for /${p}`);
+    assert.ok(fs.existsSync(pjoin('commands', `${p}.md`)), `no command for /${p}`);
+    assert.ok(fs.existsSync(pjoin('workflows', `${p}.js`)), `no script for /${p}`);
   }
 });
 
 test('no command points at a script that does not exist', () => {
-  const dir = path.join(root, 'commands');
+  const dir = pjoin('commands');
   for (const f of fs.readdirSync(dir).filter((x) => x.endsWith('.md'))) {
     const text = fs.readFileSync(path.join(dir, f), 'utf8');
     const m = /workflows\/([a-z-]+)\.js/.exec(text);
@@ -185,7 +216,7 @@ test('no command points at a script that does not exist', () => {
     }
     assert.ok(m, `${f} never names a workflow script`);
     assert.ok(
-      fs.existsSync(path.join(root, 'workflows', `${m[1]}.js`)),
+      fs.existsSync(pjoin('workflows', `${m[1]}.js`)),
       `${f} points at workflows/${m[1]}.js, which does not exist`
     );
   }
@@ -193,19 +224,19 @@ test('no command points at a script that does not exist', () => {
 
 test('no script is left without a command to invoke it', () => {
   const scripts = fs
-    .readdirSync(path.join(root, 'workflows'))
+    .readdirSync(pjoin('workflows'))
     .filter((f) => f.endsWith('.js'))
     .map((f) => f.replace(/\.js$/, ''));
   for (const s of scripts) {
     assert.ok(
-      fs.existsSync(path.join(root, 'commands', `${s}.md`)),
+      fs.existsSync(pjoin('commands', `${s}.md`)),
       `workflows/${s}.js has no command, so nothing can reach it`
     );
   }
 });
 
 test('each command declares a description, or the plugin lists it blank', () => {
-  const dir = path.join(root, 'commands');
+  const dir = pjoin('commands');
   for (const f of fs.readdirSync(dir).filter((x) => x.endsWith('.md'))) {
     const fm = /^---\r?\n([\s\S]*?)\r?\n---/.exec(fs.readFileSync(path.join(dir, f), 'utf8'));
     assert.ok(fm, `${f} has no front matter`);
@@ -220,7 +251,7 @@ test('the phase count in the prose matches the number of phases that exist', () 
   for (const rel of ['README.md', 'CLAUDE.md']) {
     const t = read(rel);
     if (/\bfive phases\b/i.test(t) || /\bFive phases\b/.test(t)) {
-      assert.equal(fs.readdirSync(path.join(root, 'workflows')).filter((f) => f.endsWith('.js')).length, 5,
+      assert.equal(fs.readdirSync(pjoin('workflows')).filter((f) => f.endsWith('.js')).length, 5,
         `${rel} says five phases`);
     }
   }
@@ -236,20 +267,20 @@ test('the phase count in the prose matches the number of phases that exist', () 
 
 function topicals() {
   return fs
-    .readdirSync(path.join(root, 'memory'))
+    .readdirSync(pjoin('memory'))
     .filter((f) => f.endsWith('.md'))
     .map((f) => f.replace(/\.md$/, ''));
 }
 
 function onDemandRules() {
   return fs
-    .readdirSync(path.join(root, 'rules'))
+    .readdirSync(pjoin('rules'))
     .filter((f) => f.startsWith('uw-') && f.endsWith('.mdc'));
 }
 
 test('every memory topical has an on-demand Cursor rule to reach it', () => {
   for (const t of topicals()) {
-    const rule = path.join(root, 'rules', `uw-${t}.mdc`);
+    const rule = pjoin('rules', `uw-${t}.mdc`);
     assert.ok(
       fs.existsSync(rule),
       `memory/${t}.md has no rules/uw-${t}.mdc, so Cursor can never retrieve it`
@@ -259,11 +290,11 @@ test('every memory topical has an on-demand Cursor rule to reach it', () => {
 
 test('no on-demand rule points at a topical that does not exist', () => {
   for (const f of onDemandRules()) {
-    const text = fs.readFileSync(path.join(root, 'rules', f), 'utf8');
+    const text = fs.readFileSync(pjoin('rules', f), 'utf8');
     const m = /memory\/([a-z-]+)\.md/.exec(text);
     assert.ok(m, `${f} never names a topical, so it carries no content`);
     assert.ok(
-      fs.existsSync(path.join(root, 'memory', `${m[1]}.md`)),
+      fs.existsSync(pjoin('memory', `${m[1]}.md`)),
       `${f} points at memory/${m[1]}.md, which does not exist`
     );
   }
@@ -271,7 +302,7 @@ test('no on-demand rule points at a topical that does not exist', () => {
 
 test('on-demand rules are on-demand, and carry a selection cue', () => {
   for (const f of onDemandRules()) {
-    const fm = /^---\r?\n([\s\S]*?)\r?\n---/.exec(fs.readFileSync(path.join(root, 'rules', f), 'utf8'));
+    const fm = /^---\r?\n([\s\S]*?)\r?\n---/.exec(fs.readFileSync(pjoin('rules', f), 'utf8'));
     assert.ok(fm, `${f} has no front matter`);
     assert.match(fm[1], /alwaysApply:\s*false/, `${f} is always-on, which defeats the point of moving it`);
     // The description IS the retrieval trigger on Cursor. A vague one does not fire.
@@ -288,9 +319,9 @@ test('the on-demand rules point at their topical rather than copying it', () => 
   // A fifth hand-maintained copy of the same prose is exactly the drift the
   // rest of this file exists to prevent.
   for (const f of onDemandRules()) {
-    const rule = fs.readFileSync(path.join(root, 'rules', f), 'utf8');
+    const rule = fs.readFileSync(pjoin('rules', f), 'utf8');
     const m = /memory\/([a-z-]+)\.md/.exec(rule);
-    const topical = fs.readFileSync(path.join(root, 'memory', `${m[1]}.md`), 'utf8');
+    const topical = fs.readFileSync(pjoin('memory', `${m[1]}.md`), 'utf8');
     assert.ok(
       rule.length < topical.length,
       `${f} is longer than the topical it points at -- it has become a copy`
@@ -316,7 +347,7 @@ test('the site names every phase, and the count matches the scripts', () => {
   for (const p of PHASES) {
     assert.match(t, new RegExp(`<code>${p}</code>`), `the site never mentions the ${p} phase`);
   }
-  const scripts = fs.readdirSync(path.join(root, 'workflows')).filter((f) => f.endsWith('.js'));
+  const scripts = fs.readdirSync(pjoin('workflows')).filter((f) => f.endsWith('.js'));
   assert.equal(scripts.length, PHASES.length, 'a phase was added or removed without updating the site');
 });
 
@@ -324,7 +355,7 @@ test('the site does not advertise an install command for the old plugin name', (
   // The plugin name namespaces everything it ships, so a stale one is not a
   // cosmetic error -- the command fails.
   const t = read(SITE);
-  const canonical = JSON.parse(read('.claude-plugin/plugin.json')).name;
+  const canonical = JSON.parse(pread('.claude-plugin/plugin.json')).name;
   const installs = [...t.matchAll(/\/plugin install ([\w-]+)/g)].map((m) => m[1]);
   assert.ok(installs.length > 0, 'the site no longer documents how to install');
   for (const name of installs) {
@@ -387,4 +418,99 @@ test('nothing under docs/ is an internal plan file', () => {
       `${path.relative(root, f)} would be published by GitHub Pages; internal/plans/ is its home`
     );
   }
+});
+
+// --- Cursor / Claude install materialization --------------------------------
+//
+// Cursor marketplace clones of this repo use a cone sparse-checkout that keeps
+// only root files plus /.cursor-plugin/ and /.claude-plugin/. A plugin whose
+// rules/agents/skills/commands lived at the repo root looked installed and was
+// empty. The shippable tree now lives under .cursor-plugin/ultimate-workflow/
+// so the cone includes it. These checks pin that invariant without running
+// Cursor or zip(1).
+
+const CURSOR_SPARSE_INCLUDED_PREFIXES = ['.claude-plugin/', '.cursor-plugin/'];
+
+function cursorSparseIncludes(relPosix) {
+  const n = relPosix.replace(/\\/g, '/');
+  // Root files (no slash) are included by /* ; directories only if under a prefix.
+  if (!n.includes('/')) return true;
+  return CURSOR_SPARSE_INCLUDED_PREFIXES.some((p) => n === p.slice(0, -1) || n.startsWith(p));
+}
+
+const REQUIRED_PLUGIN_FILES = [
+  '.claude-plugin/plugin.json',
+  '.cursor-plugin/plugin.json',
+  'skills/the-ultimate-workflow-guidelines/SKILL.md',
+  'skills/project-bootstrap-guidelines/SKILL.md',
+  'rules/the-ultimate-workflow-guidelines.mdc',
+  'agents/uw-explorer.md',
+  'agents/uw-implementer.md',
+  'commands/plan.md',
+  'commands/build.md',
+  'memory.md',
+  'memory/mirrors.md',
+  'hooks/hooks.json',
+  'workflows/plan.js',
+];
+
+test('the plugin root is under a Cursor sparse-included prefix', () => {
+  const pluginPosix = PLUGIN.replace(/\\/g, '/');
+  assert.ok(
+    cursorSparseIncludes(pluginPosix + '/agents/uw-explorer.md'),
+    `${pluginPosix} is outside Cursor's marketplace sparse cone; /add-plugin would ship an empty plugin`
+  );
+});
+
+test('every required plugin file survives the Cursor sparse cone', () => {
+  for (const rel of REQUIRED_PLUGIN_FILES) {
+    const full = path.join(PLUGIN, rel).replace(/\\/g, '/');
+    assert.ok(fs.existsSync(path.join(root, PLUGIN, rel)), `missing ${full}`);
+    assert.ok(
+      cursorSparseIncludes(full),
+      `${full} would be stripped by Cursor marketplace sparse-checkout`
+    );
+  }
+});
+
+test('both marketplaces point at the nested plugin, not github-of-self root', () => {
+  const claude = JSON.parse(read('.claude-plugin/marketplace.json'));
+  const cursor = JSON.parse(read('.cursor-plugin/marketplace.json'));
+  const cSrc = claude.plugins[0].source;
+  const uSrc = cursor.plugins[0].source;
+  assert.equal(typeof cSrc, 'string', 'Claude marketplace must use a relative path source after the nest');
+  assert.equal(typeof uSrc, 'string', 'Cursor marketplace must use a relative path source after the nest');
+  assert.match(String(cSrc), /ultimate-workflow/, `Claude source is ${cSrc}`);
+  assert.match(String(uSrc), /ultimate-workflow/, `Cursor source is ${uSrc}`);
+  assert.notEqual(cSrc, './', 'Claude source must not be marketplace root');
+  assert.ok(
+    fs.existsSync(path.join(root, String(cSrc).replace(/^\.\//, ''), '.claude-plugin/plugin.json')),
+    `Claude source ${cSrc} has no plugin.json`
+  );
+  assert.ok(
+    fs.existsSync(path.join(root, String(uSrc).replace(/^\.\//, ''), '.cursor-plugin/plugin.json')),
+    `Cursor source ${uSrc} has no plugin.json`
+  );
+});
+
+test('simulated release ZIP from the plugin root includes the Cursor payload', () => {
+  // release-skills.yml zips the plugin directory. Membership ~= git ls-files
+  // under PLUGIN, minus paths that would be excluded if present.
+  const tracked = execFileSync('git', ['ls-files', '-z', PLUGIN], { cwd: root })
+    .toString('utf8')
+    .split('\0')
+    .filter(Boolean)
+    .map((p) => p.replace(/\\/g, '/'));
+  const pluginPrefix = PLUGIN.replace(/\\/g, '/') + '/';
+  const members = tracked
+    .filter((p) => p.startsWith(pluginPrefix))
+    .map((p) => p.slice(pluginPrefix.length));
+  for (const rel of REQUIRED_PLUGIN_FILES) {
+    assert.ok(
+      members.includes(rel.replace(/\\/g, '/')),
+      `release ZIP would omit ${rel}`
+    );
+  }
+  assert.ok(!members.some((m) => /(^|\/)PLAN-.+\.md$/.test(m)), 'release ZIP must not contain PLAN-*.md');
+  assert.ok(!members.includes('AGENTS.md'), 'AGENTS.md is repo dogfood, not the plugin always-on');
 });

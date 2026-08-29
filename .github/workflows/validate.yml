@@ -19,7 +19,9 @@ jobs:
         # The glob is quoted so Node expands it, not the shell -- identical on
         # Windows and Linux. `node --test hooks/` does NOT work: a directory
         # argument is resolved as a module path, not a search root.
-        run: node --test "hooks/**/*.test.js" "evals/**/*.test.js" mirrors.test.js
+        # Plugin payload lives under .cursor-plugin/ultimate-workflow/ so Cursor
+        # marketplace sparse-checkout materializes it (see memory/cursor-install.md).
+        run: node --test ".cursor-plugin/ultimate-workflow/hooks/**/*.test.js" "evals/**/*.test.js" mirrors.test.js
 
   validate:
     runs-on: ubuntu-latest
@@ -30,9 +32,10 @@ jobs:
         run: |
           set -e
           for f in \
-            .claude-plugin/plugin.json \
+            .cursor-plugin/ultimate-workflow/.claude-plugin/plugin.json \
+            .cursor-plugin/ultimate-workflow/.cursor-plugin/plugin.json \
             .claude-plugin/marketplace.json \
-            .cursor-plugin/plugin.json; do
+            .cursor-plugin/marketplace.json; do
             echo "Checking $f"
             python -m json.tool "$f" > /dev/null
           done
@@ -40,18 +43,20 @@ jobs:
       - name: Manifest version consistency
         run: |
           set -e
-          CANON=$(jq -r '.version' .claude-plugin/plugin.json)
+          CANON=$(jq -r '.version' .cursor-plugin/ultimate-workflow/.claude-plugin/plugin.json)
           echo "Canonical version (.claude-plugin/plugin.json): $CANON"
 
-          CURSOR=$(jq -r '.version' .cursor-plugin/plugin.json)
+          CURSOR=$(jq -r '.version' .cursor-plugin/ultimate-workflow/.cursor-plugin/plugin.json)
           MKT_META=$(jq -r '.metadata.version' .claude-plugin/marketplace.json)
           MKT_PLUGIN=$(jq -r '.plugins[0].version' .claude-plugin/marketplace.json)
+          CURSOR_MKT=$(jq -r '.plugins[0].version' .cursor-plugin/marketplace.json)
 
           fail=0
           for pair in \
             ".cursor-plugin/plugin.json:$CURSOR" \
             ".claude-plugin/marketplace.json#metadata.version:$MKT_META" \
-            ".claude-plugin/marketplace.json#plugins[0].version:$MKT_PLUGIN"; do
+            ".claude-plugin/marketplace.json#plugins[0].version:$MKT_PLUGIN" \
+            ".cursor-plugin/marketplace.json#plugins[0].version:$CURSOR_MKT"; do
             label="${pair%%:*}"
             value="${pair##*:}"
             if [ "$value" != "$CANON" ]; then
@@ -63,7 +68,7 @@ jobs:
           if [ "$fail" -ne 0 ]; then
             exit 1
           fi
-          echo "All four version slots agree on $CANON."
+          echo "All version slots agree on $CANON."
 
       - name: Manifest name consistency
         # The plugin name namespaces every skill, command, and workflow it
@@ -72,16 +77,18 @@ jobs:
         # it identifies the marketplace, not the plugin.
         run: |
           set -e
-          CANON=$(jq -r '.name' .claude-plugin/plugin.json)
+          CANON=$(jq -r '.name' .cursor-plugin/ultimate-workflow/.claude-plugin/plugin.json)
           echo "Canonical plugin name: $CANON"
 
-          CURSOR=$(jq -r '.name' .cursor-plugin/plugin.json)
+          CURSOR=$(jq -r '.name' .cursor-plugin/ultimate-workflow/.cursor-plugin/plugin.json)
           MKT=$(jq -r '.plugins[0].name' .claude-plugin/marketplace.json)
+          CURSOR_MKT=$(jq -r '.plugins[0].name' .cursor-plugin/marketplace.json)
 
           fail=0
           for pair in \
             ".cursor-plugin/plugin.json:$CURSOR" \
-            ".claude-plugin/marketplace.json#plugins[0].name:$MKT"; do
+            ".claude-plugin/marketplace.json#plugins[0].name:$MKT" \
+            ".cursor-plugin/marketplace.json#plugins[0].name:$CURSOR_MKT"; do
             label="${pair%%:*}"
             value="${pair##*:}"
             if [ "$value" != "$CANON" ]; then

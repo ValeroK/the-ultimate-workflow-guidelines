@@ -225,6 +225,8 @@ release is.
 
 For commits prior to `v2.1.0`, see `git log`. Highlights include the original Cursor-plugin migration, the marketplace manifest, and the first round of plugin-structure fixes.
 
+[3.0.1]: https://github.com/ValeroK/the-ultimate-workflow-guidelines/releases/tag/v3.0.1
+[3.0.0]: https://github.com/ValeroK/the-ultimate-workflow-guidelines/releases/tag/v3.0.0
 [2.6.0]: https://github.com/ValeroK/the-ultimate-workflow-guidelines/releases/tag/v2.6.0
 [2.3.2]: https://github.com/ValeroK/the-ultimate-workflow-guidelines/releases/tag/v2.3.2
 [2.3.1]: https://github.com/ValeroK/the-ultimate-workflow-guidelines/releases/tag/v2.3.1

@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [3.0.2] - 2026-08-30
+
+### Fixed
+
+- **Three references inside the shipped payload were dead for installed users.** All of them resolved from the repo root, so nobody working in the repo could see them — the only reader affected was the one who could not report it. `memory.md` linked a research summary that is deliberately not shipped (the entry already said so in prose, and now stops contradicting itself with a hyperlink); `memory/context-boundary.md` pointed at a `memory-protocol.md` path the v3.0.1 restructure invalidated; and `memory-protocol.md` named `references/memory-template.md` while sitting inside `references/` itself.
+- **Three root-doc paths left behind by the restructure**, two of them in the always-on `AGENTS.md` and one in `docs/gates.md`, which told a reader to run `hooks/dev/record.js` at a path that no longer exists.
+
+### Added
+
+- **`mirrors.test.js` guard: no shipped file may reference a path that does not resolve inside the payload.** This is the class the v3.0.1 restructure created, and nothing caught it.
+
+  The first version of the guard only flagged paths that still resolved at the repo root, on the theory that those were the move's leftovers. Reintroducing a real defect left it green — two of the three findings pointed at paths resolving under no root at all. A guard that passes against the bug it was written for is worse than none, because it certifies what it cannot see. Broadened, then mutation-tested against each finding.
+
+  It carries three filters, each with its reasoning recorded: placeholders (`memory/<topic>.md`), template examples a skill tells the *user* to create (`memory/auth.md`), and leading-dot directories. That last one matters — `.ultimate-workflow/heartbeat.json` resolved here only because this repo has a heartbeat file from dogfooding, the kind of coincidence that turns a check into a liar.
+
 ## [3.0.1] - 2026-08-29
 
 ### Fixed

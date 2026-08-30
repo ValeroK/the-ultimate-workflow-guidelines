@@ -74,4 +74,4 @@ That scope is measured, not assumed. On Cursor 3.17.19 a pre-edit hook returning
 
 The Codex and Gemini hook contracts are documented and look nearly identical to Claude Code's, but neither has been exercised against a real payload. Every defect found on the hosts that *were* exercised — a UTF-8 byte-order mark that makes payload parsing throw, absolute paths defeating test-file detection, `workspace_roots` in place of `cwd` — was invisible in the documentation and failed open.
 
-Until someone records real payloads with `hooks/dev/record.js`, those hosts get prose. Prose that works is better than enforcement that silently doesn't.
+Until someone records real payloads with `.cursor-plugin/ultimate-workflow/hooks/dev/record.js`, those hosts get prose. Prose that works is better than enforcement that silently doesn't.

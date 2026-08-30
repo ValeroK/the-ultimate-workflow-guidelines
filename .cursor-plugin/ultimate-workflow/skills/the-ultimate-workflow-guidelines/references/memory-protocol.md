@@ -26,7 +26,7 @@ One-off typos or things the next reader would catch instantly: **don't log.** No
 
 `CLAUDE.md`'s `## Gotchas` catches **defensive warnings** ("beware X", "don't do Y"). Memory catches **explanatory knowledge** ("here's how X works", "here's why we picked Y"). Different purposes — see *Gotchas vs Memory* below for the full distinction.
 
-Topicals live at the repo root as a slim **`memory.md`** index plus per-topic files under **`memory/`**. Template: [`references/memory-template.md`](references/memory-template.md).
+Topicals live at the repo root as a slim **`memory.md`** index plus per-topic files under **`memory/`**. Template: [`memory-template.md`](memory-template.md), beside this file.
 
 **`memory.md` shape:** one-line pointer per topical, each with a **Read when** cue (concrete keywords + file globs). Example entry:
 

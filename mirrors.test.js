@@ -514,3 +514,95 @@ test('simulated release ZIP from the plugin root includes the Cursor payload', (
   assert.ok(!members.some((m) => /(^|\/)PLAN-.+\.md$/.test(m)), 'release ZIP must not contain PLAN-*.md');
   assert.ok(!members.includes('AGENTS.md'), 'AGENTS.md is repo dogfood, not the plugin always-on');
 });
+
+// --- shipped links -----------------------------------------------------------
+//
+// The v3.0.1 restructure moved the payload to .cursor-plugin/ultimate-workflow/
+// and broke three references inside it: memory.md linked a research summary that
+// is not shipped, context-boundary.md pointed at a memory-protocol.md path that
+// no longer resolved, and memory-protocol.md named `references/memory-template.md`
+// while sitting inside `references/` itself.
+//
+// All three resolved fine from the repo root, so nobody working here could see
+// them. They were dead only for someone who had installed the plugin -- which is
+// the one reader who cannot report the problem.
+
+const PAYLOAD = path.join(root, '.cursor-plugin', 'ultimate-workflow');
+
+// A placeholder is not a link.
+const PLACEHOLDER = /[<>]/;
+
+// Files a TEMPLATE tells the USER to create in their own project. They are
+// examples, not our files, and will never exist here.
+const TEMPLATE_EXAMPLES = new Set([
+  'memory/auth.md', 'memory/db.md', 'memory/gotchas.md',
+  'memory/api.md', 'memory/testing.md', 'memory/deploy.md',
+]);
+
+// Without both filters this check reports 34 false positives and gets deleted by
+// whoever sees it fail next. That is the failure mode it is designed against.
+
+function shippedDocs(dir, acc = []) {
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    const p = path.join(dir, e.name);
+    if (e.isDirectory()) shippedDocs(p, acc);
+    else if (/\.(md|mdc)$/i.test(e.name)) acc.push(p);
+  }
+  return acc;
+}
+
+function pathRefs(text) {
+  const out = new Set();
+  for (const m of text.matchAll(/\[[^\]]*\]\(([^)\s]+)\)/g)) out.add(m[1]);
+  for (const m of text.matchAll(/`([^`\n]+)`/g)) {
+    const v = m[1].trim();
+    if (v.includes('/') && /\.(md|mdc|js|json|html)$/i.test(v) && !v.includes(' ')) out.add(v);
+  }
+  return [...out]
+    .map((r) => r.split('#')[0].trim())
+    .filter((r) => r && !/^(https?:|mailto:|#|\$\{)/.test(r))
+    .filter((r) => !r.includes('*'))
+    .filter((r) => !PLACEHOLDER.test(r))
+    .filter((r) => !TEMPLATE_EXAMPLES.has(r))
+    // A leading-dot directory is packaging or runtime, never shipped content:
+    // `.claude-plugin/` and `.cursor-plugin/` are the repo's marketplace
+    // catalogs (cursor-install.md says so on the line above), and
+    // `.ultimate-workflow/` is the heartbeat directory inside the USER's
+    // project. That last one resolved here only by accident -- this repo has a
+    // heartbeat file from dogfooding, which is exactly the kind of coincidence
+    // that turns a check into a liar.
+    .filter((r) => !r.startsWith('.'));
+}
+
+test('no shipped file points at a path that exists only outside the payload', () => {
+  const offenders = [];
+
+  for (const file of shippedDocs(PAYLOAD)) {
+    const text = fs.readFileSync(file, 'utf8');
+    for (const ref of pathRefs(text)) {
+      const fromOwnDir = fs.existsSync(path.resolve(path.dirname(file), ref));
+      const fromPayload = fs.existsSync(path.join(PAYLOAD, ref));
+      if (fromOwnDir || fromPayload) continue;
+
+      // Anything that resolves NOWHERE is a finding, not just paths left behind
+      // by the move.
+      //
+      // The first version of this check only flagged refs that still resolved at
+      // the repo root, on the theory that those were the move's leftovers. Then
+      // reintroducing a real defect failed to turn it red: two of the three
+      // findings it was written for pointed at paths that existed under no root
+      // at all. A guard that passes against the bug it was built for is worse
+      // than none, because it certifies the thing it cannot see.
+      const whereItDoesResolve = fs.existsSync(path.join(root, ref))
+        ? ' (resolves at the repo root -- left behind by the payload move)'
+        : ' (resolves nowhere)';
+      offenders.push(`${path.relative(root, file)} -> ${ref}${whereItDoesResolve}`);
+    }
+  }
+
+  assert.deepEqual(
+    offenders,
+    [],
+    `these resolve for a contributor and are dead for an installed user:\n  ${offenders.join('\n  ')}`
+  );
+});

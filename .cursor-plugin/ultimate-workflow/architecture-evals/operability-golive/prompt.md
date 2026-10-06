@@ -7,4 +7,4 @@ timeout_seconds: 240
 allowed_tools: [Skill]
 ---
 
-We are about to ship a new checkout service to production next week. What do we need in place before go-live? (Answer from this description alone; there is no repository to inspect.)
+We are about to ship a new checkout service to production next week. What do we need in place before go-live?

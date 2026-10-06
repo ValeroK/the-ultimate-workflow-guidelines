@@ -1,6 +1,6 @@
 ---
 name: distributed-systems-resilience-guidelines
-description: Failure-aware design for anything that crosses a process or machine boundary, in any language. Use this skill whenever code calls another service, API, database, queue, or third-party over a network; adds retries, timeouts, caching, or a message consumer or producer; coordinates writes across more than one datastore; or when someone asks "what happens if it times out", "is this safe to retry", "make this reliable", "handle duplicate messages", "exactly-once", "cascading failure", "idempotent", "eventual consistency", or "saga". Also use when reviewing a design for partial-failure behaviour. Not for purely in-process logic with no I/O, and not for deployment or monitoring setup (operability-guidelines).
+description: Use whenever code or a design makes a call across a network or process boundary or handles messages: HTTP, API, database or queue calls; timeouts and hangs; retries and retry loops; duplicate, lost or out-of-order messages; idempotency; exactly-once; writes spanning several services or datastores; partial or cascading failure. Loads the failure checklist (timeout, error class, idempotency, backoff with jitter, retry budget, outbox, saga). Load before advising on or writing the call. Not for pure in-process logic.
 license: LicenseRef-MIT-Attribution
 ---
 

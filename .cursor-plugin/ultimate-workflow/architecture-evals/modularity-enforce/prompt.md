@@ -7,4 +7,4 @@ timeout_seconds: 240
 allowed_tools: [Skill]
 ---
 
-We agreed that the payments module must never import from the reporting module, but people keep doing it. How do we make this stick? (Answer from this description alone; there is no repository to inspect.)
+We agreed that the payments module must never import from the reporting module, but people keep doing it. How do we make this stick?

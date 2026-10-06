@@ -1,6 +1,6 @@
 ---
 name: greenfield-architecture-guidelines
-description: Architecture reasoning for a brand-new system, service, or major subsystem that has no existing structure to follow. Use this skill whenever the user is designing something from a blank slate and needs to decide its shape — "design the architecture for X", "how should I structure a new Y", "what stack and layout for a greenfield Z", "should this be a monolith or microservices", "set up the skeleton" — even if they never say "architecture". Produces quality-attribute scenarios, a modular-monolith-first structure with explicit boundaries, a walking skeleton, and decision records for the one-way doors. Use it inside project-bootstrap-guidelines Phase 2 (system design). Not for changing an existing codebase (use system-architect-engineering-guidelines) and not for a one-file script.
+description: Use when starting a new system, product, service, tool or prototype from scratch and deciding its architecture, project layout, stack, or monolith versus microservices: 'where do I start', 'how should I lay this out', 'what stack', 'new app/platform/tool'. Loads quality-attribute scenarios, the modular-monolith-first default and walking-skeleton steps, and challenges unevidenced scale assumptions; use before proposing any structure. Use inside project-bootstrap-guidelines Phase 2. Not for changes to an existing codebase or one-file scripts.
 license: LicenseRef-MIT-Attribution
 ---
 

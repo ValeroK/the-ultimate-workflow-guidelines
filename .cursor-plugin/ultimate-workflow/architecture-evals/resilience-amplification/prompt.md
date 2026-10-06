@@ -7,4 +7,4 @@ timeout_seconds: 240
 allowed_tools: [Skill]
 ---
 
-Service A calls service B, which calls service C. Each of the three layers retries failed calls 3 times. C is currently slow and timing out. Is this retry setup fine? (Answer from this description alone; there is no repository to inspect.)
+Service A calls service B, which calls service C. Each of the three layers retries failed calls 3 times. C is currently slow and timing out. Is this retry setup fine?

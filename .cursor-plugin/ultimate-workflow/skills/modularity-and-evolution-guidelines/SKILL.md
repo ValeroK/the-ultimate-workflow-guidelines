@@ -1,6 +1,6 @@
 ---
 name: modularity-and-evolution-guidelines
-description: How to draw module boundaries, control coupling, and change a system's structure safely over time, in any language or stack. Use this skill whenever the task is about splitting or merging modules or services, untangling a dependency cycle, deciding where a piece of logic or data should live, enforcing architecture rules in CI, migrating off a legacy component, changing a schema or API without breaking callers, or when someone says "this is a big ball of mud", "distributed monolith", "strangle it", "extract a service", "shared database", "circular dependency", or "how do we migrate this incrementally". Not for the first design of a new system (greenfield-architecture-guidelines) and not for runtime failure handling (distributed-systems-resilience-guidelines).
+description: Use when deciding where code, data or responsibility belongs and how structure should change: module or service boundaries, splitting or extracting a service, circular or tangled dependencies, a shared or 'utils/common' package, a shared database, enforcing import rules in CI, migrating off legacy parts, and any change to a public API field, schema or contract that existing callers depend on. Loads boundary rules, expand-then-contract and strangler steps. Not for the first design of a new system.
 license: LicenseRef-MIT-Attribution
 ---
 

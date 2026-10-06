@@ -1,6 +1,6 @@
 ---
 name: operability-guidelines
-description: Design so a system can be run, observed, and rolled back safely in production, in any language or platform. Use this skill whenever a change affects how a service is deployed, released, monitored, alerted on, configured, or recovered; when adding logging, metrics, tracing, health checks, feature flags, config, or a migration; when defining reliability targets (SLO, error budget, availability goal); or when someone asks "how will we know it is broken", "how do we roll this back", "what should we alert on", "is this safe to ship", "add observability", or "make this production-ready". Not for in-code failure handling such as retries and timeouts (distributed-systems-resilience-guidelines).
+description: Use when the question is about running software in production: releases, deploys, rollback, outages, uptime or availability targets (SLO, 99.9x), monitoring, logging, metrics, tracing, alerting or paging, health checks, runbooks, config and secrets, backups, go-live or production readiness. Loads the production-readiness checklist (reliability target, observability, symptom-based alerts, rollback path, cost drivers). Load before advising. Not for in-code retries and timeouts.
 license: LicenseRef-MIT-Attribution
 ---
 

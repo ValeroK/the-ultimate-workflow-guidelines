@@ -1,6 +1,6 @@
 ---
 name: system-architect-engineering-guidelines
-description: Architect and principal-engineer judgment for design-level decisions in an existing codebase. Use this skill whenever a change introduces or alters a module boundary, public API or contract, data model or schema, external dependency or integration, concurrency or failure behaviour, auth or security surface, or a migration — and whenever the user asks "how should I structure", "which approach", "is this design OK", "review this architecture", "should I add an abstraction/interface/library", or wants a design reviewed before building. Also use when reviewing a diff for structural problems (coupling, leaky abstractions, over-engineering). Not for typos, formatting, single-line fixes, or pure-doc edits. Complements the-ultimate-workflow-guidelines (process); this skill supplies the design lens.
+description: Use BEFORE answering or implementing any design question in an existing codebase: whether to add a layer, cache, queue, event bus, interface, abstraction, pattern or dependency; how to structure a change; or reviewing a design or diff for over-engineering, coupling or leaky abstractions. Applies a design lens (requirements, boundaries, contracts, failure, security, operability) plus a one-way-door check and an abstraction-budget test, so the answer weighs concrete need against cost instead of reflexively adding structure. Not for typos, formatting, single-line fixes, or pure-doc edits.
 license: LicenseRef-MIT-Attribution
 ---
 

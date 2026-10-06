@@ -37,7 +37,7 @@ Fire rate, right skill loaded, 3 runs per prompt:
 
 | Descriptions | Held-out (15 positive) | Tuning set (12 positive) | False positives |
 |---|---|---|---|
-| First draft | 61% | 58% | none seen |
+| First draft | 53% | 58% | none seen |
 | Rewritten (current) | 100% | 92% | none seen (3 and 1 negatives) |
 
 The first-draft quality suite also carried a prompt suffix ("answer from this description
@@ -60,3 +60,11 @@ All other cases score 1.0 in both arms.
 - **Artificial setup.** The agent has only the `Skill` tool and an empty working directory.
 - **Claims unverified.** The skills' architecture content was written from recall; primary
   sources were unreachable from the authoring environment.
+
+Correction recorded 2026-10-06: an earlier summary reported the first-draft held-out rate as 61%.
+That counted the three negative prompts (which pass by not firing) as hits. The correct figure is
+53% (24 of 45). Compute rates with the summarize script in the source repository, which excludes
+negatives.
+
+The saved result files and that script live in the source repository under evals/results/architecture-skills,
+outside the plugin payload on purpose, so they do not ship in the release ZIP and are not present in an installed plugin.

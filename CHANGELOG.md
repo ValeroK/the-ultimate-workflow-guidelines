@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-10-06
+
 ### Added
 
 - **Five architecture skills**: `system-architect-engineering-guidelines`, `greenfield-architecture-guidelines`, `modularity-and-evolution-guidelines`, `distributed-systems-resilience-guidelines` and `operability-guidelines`. Language-agnostic design guidance loaded by description, with an ADR template, a smell-to-pattern reference and quality-attribute scenarios.

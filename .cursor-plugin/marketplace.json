@@ -11,7 +11,7 @@
       "name": "ultimate-workflow",
       "source": ".cursor-plugin/ultimate-workflow",
       "description": "Plan-first, test-first workflow for AI coding assistants. Five phase commands (plan, tests, build, review, harvest) that each run in a fresh context with scoped tools, seven skills (feature workflow, greenfield bootstrap, and five architecture skills for design review, greenfield design, modularity, resilience and operability), and opt-in lifecycle gates.",
-      "version": "3.0.2",
+      "version": "3.1.0",
       "author": {
         "name": "ValeroK"
       },

@@ -1,0 +1,24 @@
+schema_version: '1.1'
+name: modularity-enforce
+tags:
+- quality
+- modularity
+- hard
+runs: 2
+execution:
+  prompt: We agreed that the payments module must never import from the reporting module, but people keep doing it. How do we make this stick?
+  max_turns: 6
+  timeout_seconds: 240
+  allowed_tools:
+  - Skill
+graders:
+- name: automated-check
+  type: regex
+  pattern: CI|fitness|lint|automated|pipeline|build fail|fail the build|architecture test|dependency rule
+  flags: i
+  match: contains
+  target: last_message
+- name: skill-fired
+  type: tool_used
+  tool: Skill
+  input_match: modularity-and-evolution-guidelines

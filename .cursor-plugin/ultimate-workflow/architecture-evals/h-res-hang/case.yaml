@@ -1,0 +1,17 @@
+schema_version: '1.1'
+name: h-res-hang
+tags:
+- trigger
+runs: 3
+execution:
+  prompt: Our worker calls the inventory API inside a loop for every order line. Occasionally one call hangs for minutes and the whole batch stalls. What should I change?
+  max_turns: 3
+  timeout_seconds: 120
+  allowed_tools:
+  - Skill
+graders:
+- name: skill-fired
+  type: tool_used
+  tool: Skill
+  input_match: distributed-systems-resilience-guidelines
+  arm: both

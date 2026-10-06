@@ -1,0 +1,17 @@
+schema_version: '1.1'
+name: h-op-telemetry
+tags:
+- trigger
+runs: 3
+execution:
+  prompt: What logging and metrics should I add to the new image-processing worker before it goes live?
+  max_turns: 3
+  timeout_seconds: 120
+  allowed_tools:
+  - Skill
+graders:
+- name: skill-fired
+  type: tool_used
+  tool: Skill
+  input_match: operability-guidelines
+  arm: both

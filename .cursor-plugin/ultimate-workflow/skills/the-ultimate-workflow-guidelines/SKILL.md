@@ -108,6 +108,8 @@ For any non-trivial task, follow this loop:
 
    **If the project has bootstrap docs** (`PRD.md`, `ROADMAP.md`, `AGENTS.md`, `progress.md` produced by `project-bootstrap-guidelines`), read them as part of the existing-design review. `PRD.md` tells you *what* the project is meant to do; `AGENTS.md` carries the project's frameworks, conventions, and `## Gotchas` (mistakes prior sessions learned not to repeat).
 
+   **If the feature involves a design decision, load the matching architecture skill before drafting the plan** (they also load by description; this is the plan-stage cue): `system-architect-engineering-guidelines` for adding a layer, abstraction, cache or dependency; `modularity-and-evolution-guidelines` for boundaries, migrations, API or schema changes; `distributed-systems-resilience-guidelines` for anything crossing a network; `operability-guidelines` for release, rollback and monitoring. Skip for changes that touch no boundary, contract or I/O.
+
    **If the project has a `memory.md` index**, read it. For each topical pointer whose **Read when** cue plausibly matches the feature, read the corresponding `memory/<topic>.md` before drafting the plan. Topical memory often contains the rationale ("why this pattern?") that turns a deviation-justification question into a one-line answer. See *Memory* below.
 
    **Stop and ask for confirmation before moving on.** Use the host's ask-user tool (`AskUserQuestion` in Claude Code, `AskQuestion` in Cursor) — see [*How to stop and ask*](#how-to-stop-and-ask).

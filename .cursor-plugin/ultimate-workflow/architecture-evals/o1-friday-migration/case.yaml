@@ -1,0 +1,41 @@
+schema_version: '1.1'
+name: o1-friday-migration
+tags:
+- hard
+- operability
+runs: 3
+execution:
+  prompt: 'Release plan for Friday 5pm: run ALTER TABLE users DROP COLUMN legacy_id as a migration, then deploy v2 to all pods at once. If anything breaks we redeploy v1. Sign off?'
+  max_turns: 4
+  timeout_seconds: 180
+  allowed_tools:
+  - Skill
+graders:
+- name: expand-contract
+  type: regex
+  pattern: expand|contract|backward.compat|two.step|separate release|later release|deprecat
+  flags: i
+  match: contains
+  target: last_message
+- name: irreversible
+  type: regex
+  pattern: irreversib|cannot (be )?roll|can.t (be )?roll|data loss|old version|v1.*(column|legacy_id)
+  flags: i
+  match: contains
+  target: last_message
+- name: progressive
+  type: regex
+  pattern: canary|gradual|progressive|rolling|percent|small slice|feature flag
+  flags: i
+  match: contains
+  target: last_message
+- name: skill-fired
+  type: tool_used
+  tool: Skill
+  input_match: operability-guidelines
+- name: timing
+  type: regex
+  pattern: friday|weekend|on.call|off.hours
+  flags: i
+  match: contains
+  target: last_message

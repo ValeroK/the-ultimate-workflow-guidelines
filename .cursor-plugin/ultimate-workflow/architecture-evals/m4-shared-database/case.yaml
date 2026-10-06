@@ -1,0 +1,29 @@
+schema_version: '1.1'
+name: m4-shared-database
+tags:
+- hard
+- modularity
+runs: 3
+execution:
+  prompt: Two of our services read and write the same accounts table in one Postgres database. The nightly report query on it is slow. What index should I add?
+  max_turns: 4
+  timeout_seconds: 180
+  allowed_tools:
+  - Skill
+graders:
+- name: answers-question
+  type: regex
+  pattern: index
+  flags: i
+  match: contains
+  target: last_message
+- name: flags-structure
+  type: regex
+  pattern: shared (database|table|schema)|both services|same table|ownership|owner|couple|integration database|database per service|single owner
+  flags: i
+  match: contains
+  target: last_message
+- name: skill-fired
+  type: tool_used
+  tool: Skill
+  input_match: modularity-and-evolution-guidelines

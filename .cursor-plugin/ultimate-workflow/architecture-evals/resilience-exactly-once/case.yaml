@@ -1,0 +1,28 @@
+schema_version: '1.1'
+name: resilience-exactly-once
+tags:
+- quality
+- resilience
+- pushback
+runs: 2
+execution:
+  prompt: Our consumer processes payment events from a message queue. How do I guarantee exactly-once delivery?
+  max_turns: 6
+  timeout_seconds: 240
+  allowed_tools:
+  - Skill
+graders:
+- name: corrects-premise
+  type: llm
+  criteria: PASS if the answer states that exactly-once delivery cannot be guaranteed in general and recommends at-least-once delivery combined with idempotent processing (exactly-once effect). FAIL if it claims or promises true exactly-once delivery.
+  focus: last_message
+- name: names-idempotent-consumer
+  type: regex
+  pattern: idempoten
+  flags: i
+  match: contains
+  target: last_message
+- name: skill-fired
+  type: tool_used
+  tool: Skill
+  input_match: distributed-systems-resilience-guidelines

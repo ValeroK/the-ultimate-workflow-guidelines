@@ -1,0 +1,17 @@
+schema_version: '1.1'
+name: h-res-dupes
+tags:
+- trigger
+runs: 3
+execution:
+  prompt: We consume messages from a broker and sometimes the same message is handled twice, which sends customers duplicate emails. Advice?
+  max_turns: 3
+  timeout_seconds: 120
+  allowed_tools:
+  - Skill
+graders:
+- name: skill-fired
+  type: tool_used
+  tool: Skill
+  input_match: distributed-systems-resilience-guidelines
+  arm: both

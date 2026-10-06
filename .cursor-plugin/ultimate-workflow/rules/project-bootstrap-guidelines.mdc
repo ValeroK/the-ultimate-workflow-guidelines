@@ -47,7 +47,7 @@ Review the draft with the user via the host's ask-user tool (`AskUserQuestion` i
 With the PRD confirmed, design the system:
 
 1. **Flow diagram** — how users and data move through the system. Use Mermaid embedded in `PRD.md` (promote to a separate `DESIGN.md` only if it outgrows the PRD).
-2. **Architecture** — components, responsibilities, boundaries, interfaces between them.
+2. **Architecture** — components, responsibilities, boundaries, interfaces between them. Load `greenfield-architecture-guidelines` for how to choose it (quality-attribute scenarios, modular-monolith start, walking skeleton); fold the outcome into `PRD.md`.
 3. **Framework / library / tooling choices** — for each major choice (language, framework, DB, queue, auth, deployment target, testing stack, CI), document:
    - What we picked.
    - Alternatives considered.

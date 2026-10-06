@@ -1,0 +1,18 @@
+schema_version: '1.1'
+name: h-neg-rename
+tags:
+- trigger
+runs: 3
+execution:
+  prompt: 'Rename the variable x to count in this function: function f(x) { return x + 1 }'
+  max_turns: 3
+  timeout_seconds: 120
+  allowed_tools:
+  - Skill
+graders:
+- name: skill-fired
+  type: tool_used
+  tool: Skill
+  min: 0
+  max: 0
+  arm: both

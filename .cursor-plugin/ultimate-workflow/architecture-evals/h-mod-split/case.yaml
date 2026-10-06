@@ -1,0 +1,17 @@
+schema_version: '1.1'
+name: h-mod-split
+tags:
+- trigger
+runs: 3
+execution:
+  prompt: Should we split our user module out into its own microservice?
+  max_turns: 3
+  timeout_seconds: 120
+  allowed_tools:
+  - Skill
+graders:
+- name: skill-fired
+  type: tool_used
+  tool: Skill
+  input_match: modularity-and-evolution-guidelines
+  arm: both

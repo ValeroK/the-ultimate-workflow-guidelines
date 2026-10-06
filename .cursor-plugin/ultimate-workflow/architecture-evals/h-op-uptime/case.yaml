@@ -1,0 +1,17 @@
+schema_version: '1.1'
+name: h-op-uptime
+tags:
+- trigger
+runs: 3
+execution:
+  prompt: Leadership wants 99.99 percent uptime for our API. What does that actually require from us?
+  max_turns: 3
+  timeout_seconds: 120
+  allowed_tools:
+  - Skill
+graders:
+- name: skill-fired
+  type: tool_used
+  tool: Skill
+  input_match: operability-guidelines
+  arm: both

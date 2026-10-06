@@ -1,0 +1,26 @@
+schema_version: '1.1'
+name: core-overengineering
+tags:
+- quality
+- core
+- pushback
+runs: 2
+execution:
+  prompt: Our OrderService directly creates a SendGrid client and has a switch statement on channel (email, push). We are adding SMS. Should I add a NotificationStrategy interface hierarchy, a factory and a builder for all of it?
+  max_turns: 6
+  timeout_seconds: 240
+  allowed_tools:
+  - Skill
+graders:
+- name: flags-vendor-leak
+  type: llm
+  criteria: PASS if the answer identifies the direct vendor SDK dependency inside domain or order logic as the more important seam to isolate. FAIL if it does not mention the vendor coupling.
+  focus: last_message
+- name: skill-fired
+  type: tool_used
+  tool: Skill
+  input_match: system-architect-engineering-guidelines
+- name: weighs-not-reflexive
+  type: llm
+  criteria: PASS if the answer weighs the concrete need (how many variants exist now and are likely) against the cost of added abstraction and does not reflexively prescribe the full set of patterns (strategy plus factory plus builder). FAIL if it simply agrees to add all of them.
+  focus: last_message

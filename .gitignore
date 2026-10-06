@@ -15,3 +15,6 @@ Thumbs.db
 
 # Gate heartbeat: per-machine runtime evidence, not source.
 .ultimate-workflow/
+
+# claude plugin eval output: per-run reports, not source.
+.cursor-plugin/ultimate-workflow/*evals/results/

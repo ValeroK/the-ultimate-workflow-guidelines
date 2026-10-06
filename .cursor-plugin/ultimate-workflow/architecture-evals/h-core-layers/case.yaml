@@ -1,0 +1,17 @@
+schema_version: '1.1'
+name: h-core-layers
+tags:
+- trigger
+runs: 3
+execution:
+  prompt: Our controllers call the database directly. I am planning to add a repository layer, a service layer and a mapper for every table. Is that worth it?
+  max_turns: 3
+  timeout_seconds: 120
+  allowed_tools:
+  - Skill
+graders:
+- name: skill-fired
+  type: tool_used
+  tool: Skill
+  input_match: system-architect-engineering-guidelines
+  arm: both

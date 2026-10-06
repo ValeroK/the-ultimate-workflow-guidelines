@@ -1,0 +1,26 @@
+schema_version: '1.1'
+name: greenfield-shape
+tags:
+- quality
+- greenfield
+- trigger
+runs: 2
+execution:
+  prompt: I am starting a new B2B invoicing SaaS from scratch with a team of four engineers. Should we go microservices? What should the initial architecture look like?
+  max_turns: 6
+  timeout_seconds: 240
+  allowed_tools:
+  - Skill
+graders:
+- name: asks-for-measures
+  type: llm
+  criteria: PASS if the answer asks for, or states as explicit assumptions, concrete measurable quality attributes (for example latency, availability, data volume, compliance) before fixing the structure. FAIL if it prescribes structure with no mention of what must be measurably true.
+  focus: last_message
+- name: skill-fired
+  type: tool_used
+  tool: Skill
+  input_match: greenfield-architecture-guidelines
+- name: starts-simple
+  type: llm
+  criteria: PASS if the answer recommends starting as a single deployable (a modular monolith or equivalent) with explicit internal module boundaries, and gives a concrete reason. FAIL if it recommends microservices or a multi-service split as the starting point without a stated forcing reason.
+  focus: last_message

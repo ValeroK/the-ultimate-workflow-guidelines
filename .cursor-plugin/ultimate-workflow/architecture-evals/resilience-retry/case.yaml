@@ -1,0 +1,36 @@
+schema_version: '1.1'
+name: resilience-retry
+tags:
+- quality
+- resilience
+- trigger
+runs: 2
+execution:
+  prompt: My order service calls a third-party payments API to charge cards. It sometimes times out. Design the call and add retry logic so it is reliable.
+  max_turns: 6
+  timeout_seconds: 240
+  allowed_tools:
+  - Skill
+graders:
+- name: mentions-idempotency
+  type: regex
+  pattern: idempoten|dedup|de-dup
+  flags: i
+  match: contains
+  target: last_message
+- name: mentions-jitter
+  type: regex
+  pattern: jitter
+  flags: i
+  match: contains
+  target: last_message
+- name: mentions-timeout
+  type: regex
+  pattern: timeout
+  flags: i
+  match: contains
+  target: last_message
+- name: skill-fired
+  type: tool_used
+  tool: Skill
+  input_match: distributed-systems-resilience-guidelines

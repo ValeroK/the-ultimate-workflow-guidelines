@@ -1,0 +1,17 @@
+schema_version: '1.1'
+name: h-mod-utils
+tags:
+- trigger
+runs: 3
+execution:
+  prompt: Everyone in our repo imports from one giant utils package, and a change there breaks random features. How do we fix the structure?
+  max_turns: 3
+  timeout_seconds: 120
+  allowed_tools:
+  - Skill
+graders:
+- name: skill-fired
+  type: tool_used
+  tool: Skill
+  input_match: modularity-and-evolution-guidelines
+  arm: both

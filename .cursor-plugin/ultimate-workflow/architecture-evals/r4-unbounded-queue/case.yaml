@@ -1,0 +1,43 @@
+schema_version: '1.1'
+name: r4-unbounded-queue
+tags:
+- hard
+- distributed
+runs: 3
+execution:
+  prompt: |-
+    Memory on our API pods climbs during dependency outages until they get OOM-killed. Why?
+
+    ```java
+    ExecutorService pool = Executors.newFixedThreadPool(50);   // default queue
+    public Future<Report> generate(Request req) {
+        return pool.submit(() -> reportService.fetch(req));    // HTTP call, no timeout configured
+    }
+    ```
+  max_turns: 4
+  timeout_seconds: 180
+  allowed_tools:
+  - Skill
+graders:
+- name: backpressure
+  type: regex
+  pattern: backpressure|load shed|shed|reject|bulkhead|429|503|fail fast
+  flags: i
+  match: contains
+  target: last_message
+- name: skill-fired
+  type: tool_used
+  tool: Skill
+  input_match: distributed-systems-resilience-guidelines
+- name: timeout
+  type: regex
+  pattern: timeout
+  flags: i
+  match: contains
+  target: last_message
+- name: unbounded-queue
+  type: regex
+  pattern: unbounded|no bound|bounded queue|queue grow|LinkedBlockingQueue
+  flags: i
+  match: contains
+  target: last_message

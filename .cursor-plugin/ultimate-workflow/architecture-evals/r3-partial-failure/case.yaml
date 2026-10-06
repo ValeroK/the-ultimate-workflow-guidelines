@@ -1,0 +1,45 @@
+schema_version: '1.1'
+name: r3-partial-failure
+tags:
+- hard
+- distributed
+runs: 3
+execution:
+  prompt: |-
+    Is there any problem with this checkout flow? It works in testing.
+
+    ```java
+    public Order checkout(Cart cart) {
+        inventoryClient.reserve(cart.items());                              // HTTP call to inventory service
+        PaymentResult r = paymentClient.charge(cart.total(), cart.card());  // HTTP call to payment service
+        if (!r.ok()) { throw new PaymentFailed(); }
+        return orderRepo.save(new Order(cart, r.id()));                     // local database
+    }
+    ```
+  max_turns: 4
+  timeout_seconds: 180
+  allowed_tools:
+  - Skill
+graders:
+- name: charged-no-order
+  type: regex
+  pattern: save fail|after the charge|charged but|orphan|reconcil|money.*(taken|charged)
+  flags: i
+  match: contains
+  target: last_message
+- name: compensation
+  type: regex
+  pattern: compensat|release the reserv|undo|saga|roll back|rollback
+  flags: i
+  match: contains
+  target: last_message
+- name: skill-fired
+  type: tool_used
+  tool: Skill
+  input_match: distributed-systems-resilience-guidelines
+- name: unknown-outcome
+  type: regex
+  pattern: timeout|unknown|ambiguous|may have succeeded|idempoten
+  flags: i
+  match: contains
+  target: last_message

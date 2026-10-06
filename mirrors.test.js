@@ -351,6 +351,19 @@ test('the site names every phase, and the count matches the scripts', () => {
   assert.equal(scripts.length, PHASES.length, 'a phase was added or removed without updating the site');
 });
 
+test('the site names every skill the plugin ships', () => {
+  // The page once described a "two-skill plugin" after five phases shipped. A skill
+  // added without a mention here would drift the same way.
+  const t = read(SITE);
+  const skills = fs
+    .readdirSync(pjoin('skills'), { withFileTypes: true })
+    .filter((d) => d.isDirectory())
+    .map((d) => d.name);
+  for (const name of skills) {
+    assert.ok(t.includes(name), `the site never mentions the ${name} skill`);
+  }
+});
+
 test('the site does not advertise an install command for the old plugin name', () => {
   // The plugin name namespaces everything it ships, so a stale one is not a
   // cosmetic error -- the command fails.
@@ -443,6 +456,11 @@ const REQUIRED_PLUGIN_FILES = [
   '.cursor-plugin/plugin.json',
   'skills/the-ultimate-workflow-guidelines/SKILL.md',
   'skills/project-bootstrap-guidelines/SKILL.md',
+  'skills/system-architect-engineering-guidelines/SKILL.md',
+  'skills/greenfield-architecture-guidelines/SKILL.md',
+  'skills/modularity-and-evolution-guidelines/SKILL.md',
+  'skills/distributed-systems-resilience-guidelines/SKILL.md',
+  'skills/operability-guidelines/SKILL.md',
   'rules/the-ultimate-workflow-guidelines.mdc',
   'agents/uw-explorer.md',
   'agents/uw-implementer.md',
@@ -513,6 +531,28 @@ test('simulated release ZIP from the plugin root includes the Cursor payload', (
   }
   assert.ok(!members.some((m) => /(^|\/)PLAN-.+\.md$/.test(m)), 'release ZIP must not contain PLAN-*.md');
   assert.ok(!members.includes('AGENTS.md'), 'AGENTS.md is repo dogfood, not the plugin always-on');
+});
+
+test('the release ZIP excludes every eval suite directory in the plugin', () => {
+  // The suite sits under the plugin because the eval runner requires it, but an
+  // installed user cannot run it. A new tracked *evals directory without an
+  // exclusion would ship to everyone silently. Derived from git, so untracked
+  // local run output never trips it.
+  const wf = read('.github/workflows/release-skills.yml');
+  const prefix = PLUGIN.replace(/\\/g, '/') + '/';
+  const dirs = new Set(
+    execFileSync('git', ['ls-files', '-z', PLUGIN], { cwd: root })
+      .toString('utf8')
+      .split('\0')
+      .filter(Boolean)
+      .map((p) => p.replace(/\\/g, '/'))
+      .filter((p) => p.startsWith(prefix))
+      .map((p) => p.slice(prefix.length).split('/')[0])
+      .filter((top) => /evals$/.test(top))
+  );
+  for (const d of dirs) {
+    assert.ok(wf.includes(`-x '${d}/*'`), `release-skills.yml does not exclude ${d}/ from the plugin ZIP`);
+  }
 });
 
 // --- shipped links -----------------------------------------------------------

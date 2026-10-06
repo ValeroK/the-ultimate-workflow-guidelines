@@ -1,0 +1,36 @@
+schema_version: '1.1'
+name: operability-golive
+tags:
+- quality
+- operability
+- trigger
+runs: 2
+execution:
+  prompt: We are about to ship a new checkout service to production next week. What do we need in place before go-live?
+  max_turns: 6
+  timeout_seconds: 240
+  allowed_tools:
+  - Skill
+graders:
+- name: reliability-target
+  type: regex
+  pattern: SLO|error budget|objective|indicator
+  flags: i
+  match: contains
+  target: last_message
+- name: rollback
+  type: regex
+  pattern: rollback|roll back|revert
+  flags: i
+  match: contains
+  target: last_message
+- name: runbook
+  type: regex
+  pattern: runbook
+  flags: i
+  match: contains
+  target: last_message
+- name: skill-fired
+  type: tool_used
+  tool: Skill
+  input_match: operability-guidelines

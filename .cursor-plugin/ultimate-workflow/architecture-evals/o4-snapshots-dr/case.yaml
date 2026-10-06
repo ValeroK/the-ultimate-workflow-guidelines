@@ -1,0 +1,35 @@
+schema_version: '1.1'
+name: o4-snapshots-dr
+tags:
+- hard
+- operability
+runs: 3
+execution:
+  prompt: We take nightly database snapshots, so I would like to mark disaster recovery as done on the readiness checklist. OK?
+  max_turns: 4
+  timeout_seconds: 180
+  allowed_tools:
+  - Skill
+graders:
+- name: isolation
+  type: regex
+  pattern: same (region|account|cluster)|off.?site|cross.region|separate account|retention|encrypt
+  flags: i
+  match: contains
+  target: last_message
+- name: restore-tested
+  type: regex
+  pattern: restor(e|ed|ing)? (test|drill|verif)|test.*restore|never been restored|untested|verify.*restore|restore.*(test|verif)
+  flags: i
+  match: contains
+  target: last_message
+- name: skill-fired
+  type: tool_used
+  tool: Skill
+  input_match: operability-guidelines
+- name: targets
+  type: regex
+  pattern: RPO|RTO|recovery (point|time)|acceptable (data )?loss
+  flags: i
+  match: contains
+  target: last_message

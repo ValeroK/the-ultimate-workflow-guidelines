@@ -1,0 +1,17 @@
+schema_version: '1.1'
+name: h-gf-chat
+tags:
+- trigger
+runs: 3
+execution:
+  prompt: What technology choices and overall structure would you pick for a brand new real-time chat product?
+  max_turns: 3
+  timeout_seconds: 120
+  allowed_tools:
+  - Skill
+graders:
+- name: skill-fired
+  type: tool_used
+  tool: Skill
+  input_match: greenfield-architecture-guidelines
+  arm: both

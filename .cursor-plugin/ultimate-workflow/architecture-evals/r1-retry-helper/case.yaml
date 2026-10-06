@@ -1,0 +1,65 @@
+schema_version: '1.1'
+name: r1-retry-helper
+tags:
+- hard
+- distributed
+runs: 3
+execution:
+  prompt: |-
+    Can you review this retry helper before I merge? It wraps our payment calls.
+
+    ```typescript
+    async function retry<T>(fn: () => Promise<T>, attempts = 5, delayMs = 1000): Promise<T> {
+      for (let i = 0; i < attempts; i++) {
+        try { return await fn(); } catch (e) { await sleep(delayMs); }
+      }
+      throw new Error('failed');
+    }
+
+    // HttpClient.post already wraps its own call in retry(...)
+    class PaymentClient {
+      charge(orderId: string, cents: number) {
+        return retry(() => this.http.post('/v1/charges', { orderId, cents }));
+      }
+    }
+    // OrderService.checkout() also wraps paymentClient.charge(...) in retry(..., 3)
+    ```
+  max_turns: 4
+  timeout_seconds: 180
+  allowed_tools:
+  - Skill
+graders:
+- name: error-class
+  type: regex
+  pattern: 4xx|permanent|non-retry|transient|classif|status code|only retry
+  flags: i
+  match: contains
+  target: last_message
+- name: idempotency
+  type: regex
+  pattern: idempoten|dedup|de-dup
+  flags: i
+  match: contains
+  target: last_message
+- name: jitter
+  type: regex
+  pattern: jitter
+  flags: i
+  match: contains
+  target: last_message
+- name: layers
+  type: regex
+  pattern: amplif|multipl|nested|both layers|every layer|twice|single layer|one layer|stacked
+  flags: i
+  match: contains
+  target: last_message
+- name: skill-fired
+  type: tool_used
+  tool: Skill
+  input_match: distributed-systems-resilience-guidelines
+- name: timeout
+  type: regex
+  pattern: timeout
+  flags: i
+  match: contains
+  target: last_message

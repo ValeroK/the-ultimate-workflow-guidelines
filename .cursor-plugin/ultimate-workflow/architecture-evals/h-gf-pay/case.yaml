@@ -1,0 +1,17 @@
+schema_version: '1.1'
+name: h-gf-pay
+tags:
+- trigger
+runs: 3
+execution:
+  prompt: We are prototyping a payments platform from zero. Where do I start architecturally?
+  max_turns: 3
+  timeout_seconds: 120
+  allowed_tools:
+  - Skill
+graders:
+- name: skill-fired
+  type: tool_used
+  tool: Skill
+  input_match: greenfield-architecture-guidelines
+  arm: both

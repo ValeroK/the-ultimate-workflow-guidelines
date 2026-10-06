@@ -22,7 +22,7 @@ node evals/results/architecture-skills/summarize.js <result.json>
 | `2026-10-06-trigger-heldout-after.json` | Same prompts, rewritten descriptions: 45/45 (100%). |
 | `2026-10-06-trigger-tuning-before.json` | Fire rate on the 13 tuning prompts, first-draft descriptions: 21/36 (58%). |
 | `2026-10-06-trigger-tuning-after.json` | Same prompts, rewritten descriptions: 33/36 (92%). |
-| `2026-10-06-quality-hard-probes.json` | 11 hard probes (planted flaw, regex graders), resilience, modularity and operability only. Mean delta -0.03; per skill -0.02, -0.04, -0.04. Pre-registered rule says fold all three. See `architecture-hard-evals/README.md` in the plugin for the rule. |
+| `2026-10-06-quality-hard-probes.json` | 11 hard probes (planted flaw, regex graders), resilience, modularity and operability only. Mean delta -0.03; per skill -0.02, -0.04, -0.04. Pre-registered rule says fold all three. See `hard-probes.md` next to the suite in the plugin (`architecture-evals/`) for the rule and its outcome. |
 
 ## Read before comparing
 

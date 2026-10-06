@@ -82,15 +82,22 @@ There's a separate mode for that: it interviews you, writes a PRD, designs the s
 |---|---|
 | `the-ultimate-workflow-guidelines` | Day-to-day work in an existing codebase |
 | `project-bootstrap-guidelines` | Greenfield only, run once |
+
+## Design guidance
+
+Five more skills cover the design questions that come up inside the loop. They load by description when a question matches, and the workflow's plan step and the bootstrap's system-design phase point at them. They add a checklist, not new rules about process.
+
+| Skill | When |
+|---|---|
 | `system-architect-engineering-guidelines` | A design question in an existing codebase: add a layer, cache, abstraction or dependency; review a design for over-engineering |
 | `greenfield-architecture-guidelines` | Deciding the architecture of a new system: quality attributes, modular-monolith start, walking skeleton |
 | `modularity-and-evolution-guidelines` | Module and service boundaries, coupling, migrations, API and schema changes |
 | `distributed-systems-resilience-guidelines` | Anything crossing a network: timeouts, retries, idempotency, partial failure |
 | `operability-guidelines` | Releases, rollback, monitoring, alerting, reliability targets, go-live |
 
-The five architecture skills load by description when a question matches; they add a checklist, not new rules about process. Measured on this repo's own probes they fire reliably but add little over the base model on well-known topics; the clearest gains are premise pushback and quality-attribute questions on new designs. Method, results and caveats: `evals/results/architecture-skills/README.md`.
+The honest part: measured on this repo's own probes they fire reliably but add little over the base model on well-known topics. The clearest gains are premise pushback and quality-attribute questions on new designs. Their architecture claims were written from recall and are only partly cross-checked. Method, results and caveats: [`evals/results/architecture-skills/README.md`](evals/results/architecture-skills/README.md) and [`research/architecture-claims-check.md`](research/architecture-claims-check.md).
 
-Under both sit four principles: **think before coding**, **simplicity first**, **surgical changes** (every changed line traces back to something you asked for), and **goal-driven execution** (define "done" in terms you can check, then loop until it's true).
+Under all of them sit four principles: **think before coding**, **simplicity first**, **surgical changes** (every changed line traces back to something you asked for), and **goal-driven execution** (define "done" in terms you can check, then loop until it's true).
 
 ## Memory that compounds
 
@@ -151,10 +158,10 @@ The shippable plugin lives under `.cursor-plugin/ultimate-workflow/` so Cursor's
 **Just one project, no plugin** — drop the whole workflow into a single repo as one file:
 
 ```bash
-curl -o CLAUDE.md https://raw.githubusercontent.com/ValeroK/the-ultimate-workflow-guidelines/main/skills/the-ultimate-workflow-guidelines/SKILL.md
+curl -o CLAUDE.md https://raw.githubusercontent.com/ValeroK/the-ultimate-workflow-guidelines/main/.cursor-plugin/ultimate-workflow/skills/the-ultimate-workflow-guidelines/SKILL.md
 ```
 
-You get the workflow as prose. No templates, no bootstrap mode, no commands. Cursor users can drop individual `.mdc` files from `rules/` into `.cursor/rules/` instead.
+You get the workflow as prose. No templates, no bootstrap mode, no commands. Cursor users can drop individual `.mdc` files from `.cursor-plugin/ultimate-workflow/rules/` into `.cursor/rules/` instead.
 
 ## What you get on which host
 
@@ -180,7 +187,8 @@ CLAUDE.md                         one line: @AGENTS.md
 .cursor-plugin/marketplace.json   Cursor marketplace catalog
 .cursor-plugin/ultimate-workflow/ shippable plugin (Claude + Cursor payload)
   skills/   rules/   agents/   commands/   workflows/   hooks/   memory/
-evals/                            checks that the instructions still get followed
+evals/                            checks that the instructions still get followed, and recorded results for the architecture skills
+research/                         background notes and claim checks (not shipped in the plugin ZIP)
 ```
 
 The plugin sits under `.cursor-plugin/` because Cursor marketplace sparse-checkout only materializes that tree (and `.claude-plugin/`). See `.cursor-plugin/ultimate-workflow/memory/cursor-install.md`.

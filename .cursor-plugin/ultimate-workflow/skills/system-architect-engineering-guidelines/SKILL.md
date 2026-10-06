@@ -21,6 +21,7 @@ Where a repo's existing conventions, linters, or type checker disagree with anyt
 ## Read before you write
 
 - Map the neighbourhood: sibling directories, shared modules, the existing pattern for this kind of thing.
+- Find the **real** structure from the import and call graph and data-access paths, not the diagram. Docs describe intent; code is the architecture. Conform to it unless changing it is the task.
 - Read the whole target file and its direct dependencies (imports, types, callers, side effects). No blind edits.
 - Run the existing tests for the area first so you know the baseline is green. A red baseline is information, not an obstacle to hide.
 
@@ -39,6 +40,13 @@ Where a repo's existing conventions, linters, or type checker disagree with anyt
 | Performance | What is the measured or stated load? | Optimising without a measurement; or an unbounded query/loop on user-sized data |
 
 Deeper smell-to-remedy mappings (when a pattern is justified, and when it is not): [`references/design-smells-and-patterns.md`](references/design-smells-and-patterns.md).
+
+## Sibling skills (load by cue, not by default)
+
+- Blank-slate system or service design: `greenfield-architecture-guidelines`.
+- Module and service boundaries, coupling, migrations, schema or API evolution: `modularity-and-evolution-guidelines`.
+- Anything crossing a network or process boundary (timeouts, retries, idempotency, consistency): `distributed-systems-resilience-guidelines`.
+- Deploy, rollback, monitoring, alerting, reliability targets: `operability-guidelines`.
 
 ## Decision weight
 

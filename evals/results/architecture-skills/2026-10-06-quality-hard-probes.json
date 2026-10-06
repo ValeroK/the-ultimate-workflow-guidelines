@@ -1,0 +1,3823 @@
+{
+  "schemaVersion": 1,
+  "claudeVersion": "2.1.291",
+  "startedAt": "2026-10-06T12:55:31.303Z",
+  "durationSeconds": 204,
+  "costUsd": 2.8798132,
+  "partial": false,
+  "suite": {
+    "root": "/home/user/the-ultimate-workflow-guidelines/.cursor-plugin/ultimate-workflow",
+    "ablation": "with-without",
+    "threshold": 1,
+    "concurrency": 4,
+    "plugins": [
+      {
+        "name": "ultimate-workflow",
+        "version": "3.0.2",
+        "path": "/home/user/the-ultimate-workflow-guidelines/.cursor-plugin/ultimate-workflow"
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "m2-api-field",
+      "dir": "architecture-hard-evals/m2-api-field",
+      "source": "prose",
+      "promptMarkdown": "We're changing the status field in our public REST API from a string (\"active\") to an integer enum (1) because it is cleaner. Three internal services and two mobile app versions in the wild read it. Plan: bump the version in the docs and deploy on Tuesday. Anything missing?",
+      "runsPerCase": 3,
+      "timeoutSeconds": 180,
+      "maxTurns": 4,
+      "graders": [
+        {
+          "name": "consumers",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": "last_message",
+            "pattern": "consumer|old (app|client|version)|mobile.*(old|version)|usage|telemetry",
+            "flags": "i",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "deprecation",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": "last_message",
+            "pattern": "deprecat|sunset|remove the old|migrate|contract",
+            "flags": "i",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "expand",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": "last_message",
+            "pattern": "expand|parallel|both|dual|alongside|new field|additive|backward",
+            "flags": "i",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "skill-fired",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill",
+            "input_match": "modularity-and-evolution-guidelines"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 3,
+            "costUsd": 0.0551652,
+            "judgeCostUsd": 0,
+            "durationSeconds": 15,
+            "startedAt": "2026-10-06T12:55:31.436Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-OqRHXC/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "consumers",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched consumer|old (app|client|version)|mobile.*(old|version)|usage|telemetry",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "deprecation",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched deprecat|sunset|remove the old|migrate|contract",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "expand",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched expand|parallel|both|dual|alongside|new field|additive|backward",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill-fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 3,
+            "costUsd": 0.0531132,
+            "judgeCostUsd": 0,
+            "durationSeconds": 14,
+            "startedAt": "2026-10-06T12:55:31.437Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-aJaSNC/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "consumers",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched consumer|old (app|client|version)|mobile.*(old|version)|usage|telemetry",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "deprecation",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched deprecat|sunset|remove the old|migrate|contract",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "expand",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched expand|parallel|both|dual|alongside|new field|additive|backward",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill-fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 3,
+            "costUsd": 0.0527272,
+            "judgeCostUsd": 0,
+            "durationSeconds": 12,
+            "startedAt": "2026-10-06T12:55:31.437Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-kIkNBl/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "consumers",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched consumer|old (app|client|version)|mobile.*(old|version)|usage|telemetry",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "deprecation",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched deprecat|sunset|remove the old|migrate|contract",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "expand",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched expand|parallel|both|dual|alongside|new field|additive|backward",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill-fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              }
+            ]
+          }
+        ],
+        "without": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 1,
+            "costUsd": 0.0333626,
+            "judgeCostUsd": 0,
+            "durationSeconds": 12,
+            "startedAt": "2026-10-06T12:55:31.437Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-rvvkJd/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "consumers",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched consumer|old (app|client|version)|mobile.*(old|version)|usage|telemetry",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "deprecation",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched deprecat|sunset|remove the old|migrate|contract",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "expand",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched expand|parallel|both|dual|alongside|new field|additive|backward",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 1,
+            "costUsd": 0.0325626,
+            "judgeCostUsd": 0,
+            "durationSeconds": 9,
+            "startedAt": "2026-10-06T12:55:43.274Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-kAHR4i/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "consumers",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched consumer|old (app|client|version)|mobile.*(old|version)|usage|telemetry",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "deprecation",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched deprecat|sunset|remove the old|migrate|contract",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "expand",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched expand|parallel|both|dual|alongside|new field|additive|backward",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 1,
+            "costUsd": 0.033782599999999996,
+            "judgeCostUsd": 0,
+            "durationSeconds": 11,
+            "startedAt": "2026-10-06T12:55:43.483Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-tIdhzi/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "consumers",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched consumer|old (app|client|version)|mobile.*(old|version)|usage|telemetry",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "deprecation",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched deprecat|sunset|remove the old|migrate|contract",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "expand",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched expand|parallel|both|dual|alongside|new field|additive|backward",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1,
+        "scoreWithout": 1,
+        "passRateWithout": 1,
+        "delta": 0
+      }
+    },
+    {
+      "name": "m3-common-library",
+      "dir": "architecture-hard-evals/m3-common-library",
+      "source": "prose",
+      "promptMarkdown": "We run 12 microservices. To cut duplication I want a single company-common library with all our DTOs, utility functions and the database entity classes, and every service imports it, versioned and released together. Good idea?",
+      "runsPerCase": 3,
+      "timeoutSeconds": 180,
+      "maxTurns": 4,
+      "graders": [
+        {
+          "name": "alternative",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": "last_message",
+            "pattern": "duplicat|contract|narrow|per.service|consumer.driven|generated|schema",
+            "flags": "i",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "coupling",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": "last_message",
+            "pattern": "coupl|lockstep|lock-step|distributed monolith|release together|redeploy",
+            "flags": "i",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "data-ownership",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": "last_message",
+            "pattern": "own(er|ership)|entit|shared (schema|data)|each service",
+            "flags": "i",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "skill-fired",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill",
+            "input_match": "modularity-and-evolution-guidelines"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 3,
+            "costUsd": 0.051461,
+            "judgeCostUsd": 0,
+            "durationSeconds": 11,
+            "startedAt": "2026-10-06T12:55:45.417Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-Y8JrsS/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "alternative",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched duplicat|contract|narrow|per.service|consumer.driven|generated|schema",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "coupling",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched coupl|lockstep|lock-step|distributed monolith|release together|redeploy",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "data-ownership",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched own(er|ership)|entit|shared (schema|data)|each service",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill-fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 3,
+            "costUsd": 0.05299380000000001,
+            "judgeCostUsd": 0,
+            "durationSeconds": 16,
+            "startedAt": "2026-10-06T12:55:46.534Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-dmAngm/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "alternative",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched duplicat|contract|narrow|per.service|consumer.driven|generated|schema",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "coupling",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched coupl|lockstep|lock-step|distributed monolith|release together|redeploy",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "data-ownership",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched own(er|ership)|entit|shared (schema|data)|each service",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill-fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 3,
+            "costUsd": 0.052539800000000005,
+            "judgeCostUsd": 0,
+            "durationSeconds": 12,
+            "startedAt": "2026-10-06T12:55:52.585Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-G83iH4/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "alternative",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched duplicat|contract|narrow|per.service|consumer.driven|generated|schema",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "coupling",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched coupl|lockstep|lock-step|distributed monolith|release together|redeploy",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "data-ownership",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched own(er|ership)|entit|shared (schema|data)|each service",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill-fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              }
+            ]
+          }
+        ],
+        "without": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 1,
+            "costUsd": 0.0319846,
+            "judgeCostUsd": 0,
+            "durationSeconds": 10,
+            "startedAt": "2026-10-06T12:55:54.461Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-COGoNd/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "alternative",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched duplicat|contract|narrow|per.service|consumer.driven|generated|schema",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "coupling",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched coupl|lockstep|lock-step|distributed monolith|release together|redeploy",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "data-ownership",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched own(er|ership)|entit|shared (schema|data)|each service",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 1,
+            "costUsd": 0.0334946,
+            "judgeCostUsd": 0,
+            "durationSeconds": 14,
+            "startedAt": "2026-10-06T12:55:56.733Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-VMimSy/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "alternative",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched duplicat|contract|narrow|per.service|consumer.driven|generated|schema",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "coupling",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched coupl|lockstep|lock-step|distributed monolith|release together|redeploy",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "data-ownership",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched own(er|ership)|entit|shared (schema|data)|each service",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 1,
+            "costUsd": 0.0351466,
+            "judgeCostUsd": 0,
+            "durationSeconds": 15,
+            "startedAt": "2026-10-06T12:56:02.759Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-H6c4xl/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "alternative",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched duplicat|contract|narrow|per.service|consumer.driven|generated|schema",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "coupling",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched coupl|lockstep|lock-step|distributed monolith|release together|redeploy",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "data-ownership",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched own(er|ership)|entit|shared (schema|data)|each service",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1,
+        "scoreWithout": 1,
+        "passRateWithout": 1,
+        "delta": 0
+      }
+    },
+    {
+      "name": "m4-shared-database",
+      "dir": "architecture-hard-evals/m4-shared-database",
+      "source": "prose",
+      "promptMarkdown": "Two of our services read and write the same accounts table in one Postgres database. The nightly report query on it is slow. What index should I add?",
+      "runsPerCase": 3,
+      "timeoutSeconds": 180,
+      "maxTurns": 4,
+      "graders": [
+        {
+          "name": "answers-question",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": "last_message",
+            "pattern": "index",
+            "flags": "i",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "flags-structure",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": "last_message",
+            "pattern": "shared (database|table|schema)|both services|same table|ownership|owner|couple|integration database|database per service|single owner",
+            "flags": "i",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "skill-fired",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill",
+            "input_match": "modularity-and-evolution-guidelines"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 2,
+            "costUsd": 0.04467600000000001,
+            "judgeCostUsd": 0,
+            "durationSeconds": 12,
+            "startedAt": "2026-10-06T12:56:04.815Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-1aNpAj/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "answers-question",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched index",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "flags-structure",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched shared (database|table|schema)|both services|same table|ownership|owner|couple|integration database|database per service|single owner",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill-fired",
+                "passed": false,
+                "weight": 1,
+                "explanation": "Skill called 0x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              }
+            ]
+          },
+          {
+            "score": 0.5,
+            "passed": false,
+            "turns": 2,
+            "costUsd": 0.04520400000000001,
+            "judgeCostUsd": 0,
+            "durationSeconds": 10,
+            "startedAt": "2026-10-06T12:56:04.839Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-gnG1PV/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "answers-question",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched index",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "flags-structure",
+                "passed": false,
+                "weight": 1,
+                "explanation": "pattern not found in last_message",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill-fired",
+                "passed": false,
+                "weight": 1,
+                "explanation": "Skill called 0x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 1,
+            "costUsd": 0.041494600000000006,
+            "judgeCostUsd": 0,
+            "durationSeconds": 10,
+            "startedAt": "2026-10-06T12:56:10.714Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-j0y2OH/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "answers-question",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched index",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "flags-structure",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched shared (database|table|schema)|both services|same table|ownership|owner|couple|integration database|database per service|single owner",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill-fired",
+                "passed": false,
+                "weight": 1,
+                "explanation": "Skill called 0x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              }
+            ]
+          }
+        ],
+        "without": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 2,
+            "costUsd": 0.0341276,
+            "judgeCostUsd": 0,
+            "durationSeconds": 8,
+            "startedAt": "2026-10-06T12:56:15.216Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-hctBUg/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "answers-question",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched index",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "flags-structure",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched shared (database|table|schema)|both services|same table|ownership|owner|couple|integration database|database per service|single owner",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 2,
+            "costUsd": 0.0361462,
+            "judgeCostUsd": 0,
+            "durationSeconds": 15,
+            "startedAt": "2026-10-06T12:56:17.269Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-cAMh2M/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "answers-question",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched index",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "flags-structure",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched shared (database|table|schema)|both services|same table|ownership|owner|couple|integration database|database per service|single owner",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 2,
+            "costUsd": 0.0356236,
+            "judgeCostUsd": 0,
+            "durationSeconds": 9,
+            "startedAt": "2026-10-06T12:56:17.814Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-6giOPo/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "answers-question",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched index",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "flags-structure",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched shared (database|table|schema)|both services|same table|ownership|owner|couple|integration database|database per service|single owner",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 0.8333333333333334,
+        "passRate": 0.6666666666666666,
+        "scoreWithout": 1,
+        "passRateWithout": 1,
+        "delta": -0.16666666666666663
+      }
+    },
+    {
+      "name": "m5-big-bang-rewrite",
+      "dir": "architecture-hard-evals/m5-big-bang-rewrite",
+      "source": "prose",
+      "promptMarkdown": "Plan: we will rewrite our 400k-line legacy billing system in a new stack over six months, in a separate repo, then cut everything over on one weekend. Thoughts?",
+      "runsPerCase": 3,
+      "timeoutSeconds": 180,
+      "maxTurns": 4,
+      "graders": [
+        {
+          "name": "big-bang-risk",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": "last_message",
+            "pattern": "big.bang|cutover|rollback|second.system|feature parity",
+            "flags": "i",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "incremental",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": "last_message",
+            "pattern": "strangler|incremental|gradual|slice|piece by piece|progressive|route",
+            "flags": "i",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "parallel-run",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": "last_message",
+            "pattern": "parallel|shadow|dual.run|side.by.side|compare",
+            "flags": "i",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "skill-fired",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill",
+            "input_match": "modularity-and-evolution-guidelines"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 3,
+            "costUsd": 0.055812600000000004,
+            "judgeCostUsd": 0,
+            "durationSeconds": 15,
+            "startedAt": "2026-10-06T12:56:21.115Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-ups4qM/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "big-bang-risk",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched big.bang|cutover|rollback|second.system|feature parity",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "incremental",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched strangler|incremental|gradual|slice|piece by piece|progressive|route",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "parallel-run",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched parallel|shadow|dual.run|side.by.side|compare",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill-fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 3,
+            "costUsd": 0.0564872,
+            "judgeCostUsd": 0,
+            "durationSeconds": 17,
+            "startedAt": "2026-10-06T12:56:23.100Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-oJzsIR/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "big-bang-risk",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched big.bang|cutover|rollback|second.system|feature parity",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "incremental",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched strangler|incremental|gradual|slice|piece by piece|progressive|route",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "parallel-run",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched parallel|shadow|dual.run|side.by.side|compare",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill-fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 3,
+            "costUsd": 0.05707319999999999,
+            "judgeCostUsd": 0,
+            "durationSeconds": 15,
+            "startedAt": "2026-10-06T12:56:26.801Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-CtB5NT/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "big-bang-risk",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched big.bang|cutover|rollback|second.system|feature parity",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "incremental",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched strangler|incremental|gradual|slice|piece by piece|progressive|route",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "parallel-run",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched parallel|shadow|dual.run|side.by.side|compare",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill-fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              }
+            ]
+          }
+        ],
+        "without": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 1,
+            "costUsd": 0.03411260000000001,
+            "judgeCostUsd": 0,
+            "durationSeconds": 14,
+            "startedAt": "2026-10-06T12:56:32.747Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-hVvB5f/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "big-bang-risk",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched big.bang|cutover|rollback|second.system|feature parity",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "incremental",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched strangler|incremental|gradual|slice|piece by piece|progressive|route",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "parallel-run",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched parallel|shadow|dual.run|side.by.side|compare",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 1,
+            "costUsd": 0.035122600000000004,
+            "judgeCostUsd": 0,
+            "durationSeconds": 14,
+            "startedAt": "2026-10-06T12:56:35.921Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-LkxUK7/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "big-bang-risk",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched big.bang|cutover|rollback|second.system|feature parity",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "incremental",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched strangler|incremental|gradual|slice|piece by piece|progressive|route",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "parallel-run",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched parallel|shadow|dual.run|side.by.side|compare",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 1,
+            "costUsd": 0.0356846,
+            "judgeCostUsd": 0,
+            "durationSeconds": 13,
+            "startedAt": "2026-10-06T12:56:39.680Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-Ttzo9L/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "big-bang-risk",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched big.bang|cutover|rollback|second.system|feature parity",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "incremental",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched strangler|incremental|gradual|slice|piece by piece|progressive|route",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "parallel-run",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched parallel|shadow|dual.run|side.by.side|compare",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1,
+        "scoreWithout": 1,
+        "passRateWithout": 1,
+        "delta": 0
+      }
+    },
+    {
+      "name": "o1-friday-migration",
+      "dir": "architecture-hard-evals/o1-friday-migration",
+      "source": "prose",
+      "promptMarkdown": "Release plan for Friday 5pm: run ALTER TABLE users DROP COLUMN legacy_id as a migration, then deploy v2 to all pods at once. If anything breaks we redeploy v1. Sign off?",
+      "runsPerCase": 3,
+      "timeoutSeconds": 180,
+      "maxTurns": 4,
+      "graders": [
+        {
+          "name": "expand-contract",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": "last_message",
+            "pattern": "expand|contract|backward.compat|two.step|separate release|later release|deprecat",
+            "flags": "i",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "irreversible",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": "last_message",
+            "pattern": "irreversib|cannot (be )?roll|can.t (be )?roll|data loss|old version|v1.*(column|legacy_id)",
+            "flags": "i",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "progressive",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": "last_message",
+            "pattern": "canary|gradual|progressive|rolling|percent|small slice|feature flag",
+            "flags": "i",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "skill-fired",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill",
+            "input_match": "operability-guidelines"
+          }
+        },
+        {
+          "name": "timing",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": "last_message",
+            "pattern": "friday|weekend|on.call|off.hours",
+            "flags": "i",
+            "match": "contains"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 5,
+            "costUsd": 0.058816799999999995,
+            "judgeCostUsd": 0,
+            "durationSeconds": 11,
+            "startedAt": "2026-10-06T12:56:41.825Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-4fm0mV/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "expand-contract",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched expand|contract|backward.compat|two.step|separate release|later release|deprecat",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "irreversible",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched irreversib|cannot (be )?roll|can.t (be )?roll|data loss|old version|v1.*(column|legacy_id)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "progressive",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched canary|gradual|progressive|rolling|percent|small slice|feature flag",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill-fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              },
+              {
+                "name": "timing",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched friday|weekend|on.call|off.hours",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 5,
+            "costUsd": 0.0594214,
+            "judgeCostUsd": 0,
+            "durationSeconds": 13,
+            "startedAt": "2026-10-06T12:56:46.558Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-Ts9Rel/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "expand-contract",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched expand|contract|backward.compat|two.step|separate release|later release|deprecat",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "irreversible",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched irreversib|cannot (be )?roll|can.t (be )?roll|data loss|old version|v1.*(column|legacy_id)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "progressive",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched canary|gradual|progressive|rolling|percent|small slice|feature flag",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill-fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              },
+              {
+                "name": "timing",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched friday|weekend|on.call|off.hours",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 5,
+            "costUsd": 0.0588248,
+            "judgeCostUsd": 0,
+            "durationSeconds": 12,
+            "startedAt": "2026-10-06T12:56:49.684Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-bJJsHN/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "expand-contract",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched expand|contract|backward.compat|two.step|separate release|later release|deprecat",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "irreversible",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched irreversib|cannot (be )?roll|can.t (be )?roll|data loss|old version|v1.*(column|legacy_id)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "progressive",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched canary|gradual|progressive|rolling|percent|small slice|feature flag",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill-fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              },
+              {
+                "name": "timing",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched friday|weekend|on.call|off.hours",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ],
+        "without": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 1,
+            "costUsd": 0.0337426,
+            "judgeCostUsd": 0,
+            "durationSeconds": 10,
+            "startedAt": "2026-10-06T12:56:52.650Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-gknOLB/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "expand-contract",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched expand|contract|backward.compat|two.step|separate release|later release|deprecat",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "irreversible",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched irreversib|cannot (be )?roll|can.t (be )?roll|data loss|old version|v1.*(column|legacy_id)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "progressive",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched canary|gradual|progressive|rolling|percent|small slice|feature flag",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "timing",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched friday|weekend|on.call|off.hours",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 1,
+            "costUsd": 0.031974600000000006,
+            "judgeCostUsd": 0,
+            "durationSeconds": 9,
+            "startedAt": "2026-10-06T12:56:52.704Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-wMDCW3/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "expand-contract",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched expand|contract|backward.compat|two.step|separate release|later release|deprecat",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "irreversible",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched irreversib|cannot (be )?roll|can.t (be )?roll|data loss|old version|v1.*(column|legacy_id)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "progressive",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched canary|gradual|progressive|rolling|percent|small slice|feature flag",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "timing",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched friday|weekend|on.call|off.hours",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 1,
+            "costUsd": 0.0321146,
+            "judgeCostUsd": 0,
+            "durationSeconds": 11,
+            "startedAt": "2026-10-06T12:56:59.619Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-AFGjNN/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "expand-contract",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched expand|contract|backward.compat|two.step|separate release|later release|deprecat",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "irreversible",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched irreversib|cannot (be )?roll|can.t (be )?roll|data loss|old version|v1.*(column|legacy_id)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "progressive",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched canary|gradual|progressive|rolling|percent|small slice|feature flag",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "timing",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched friday|weekend|on.call|off.hours",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1,
+        "scoreWithout": 1,
+        "passRateWithout": 1,
+        "delta": 0
+      }
+    },
+    {
+      "name": "o3-logging-handler",
+      "dir": "architecture-hard-evals/o3-logging-handler",
+      "source": "prose",
+      "promptMarkdown": "Please add structured logging and a request counter to this handler.\n\n```python\ndef handle_payment(request):\n    user = auth(request)\n    result = gateway.charge(request.json)\n    REQUESTS.labels(user_id=user.id, path=request.path).inc()\n    return result\n```",
+      "runsPerCase": 3,
+      "timeoutSeconds": 180,
+      "maxTurns": 4,
+      "graders": [
+        {
+          "name": "cardinality",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": "last_message",
+            "pattern": "cardinal|unbounded|explod",
+            "flags": "i",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "correlation",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": "last_message",
+            "pattern": "correlation|request id|trace id|request_id",
+            "flags": "i",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "outcome-metric",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": "last_message",
+            "pattern": "latency|error|status|histogram|success",
+            "flags": "i",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "pii",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": "last_message",
+            "pattern": "PII|card|secret|sensitive|redact|mask|never log",
+            "flags": "i",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "skill-fired",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill",
+            "input_match": "operability-guidelines"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 0.75,
+            "passed": false,
+            "turns": 1,
+            "costUsd": 0.0421086,
+            "judgeCostUsd": 0,
+            "durationSeconds": 9,
+            "startedAt": "2026-10-06T12:57:01.304Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-eFSyls/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "cardinality",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched cardinal|unbounded|explod",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "correlation",
+                "passed": false,
+                "weight": 1,
+                "explanation": "pattern not found in last_message",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "outcome-metric",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched latency|error|status|histogram|success",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "pii",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched PII|card|secret|sensitive|redact|mask|never log",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill-fired",
+                "passed": false,
+                "weight": 1,
+                "explanation": "Skill called 0x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              }
+            ]
+          },
+          {
+            "score": 0.75,
+            "passed": false,
+            "turns": 1,
+            "costUsd": 0.0409286,
+            "judgeCostUsd": 0,
+            "durationSeconds": 8,
+            "startedAt": "2026-10-06T12:57:01.847Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-HgANjC/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "cardinality",
+                "passed": false,
+                "weight": 1,
+                "explanation": "pattern not found in last_message",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "correlation",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched correlation|request id|trace id|request_id",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "outcome-metric",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched latency|error|status|histogram|success",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "pii",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched PII|card|secret|sensitive|redact|mask|never log",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill-fired",
+                "passed": false,
+                "weight": 1,
+                "explanation": "Skill called 0x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              }
+            ]
+          },
+          {
+            "score": 0.75,
+            "passed": false,
+            "turns": 1,
+            "costUsd": 0.0407006,
+            "judgeCostUsd": 0,
+            "durationSeconds": 10,
+            "startedAt": "2026-10-06T12:57:02.601Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-9yDlA1/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "cardinality",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched cardinal|unbounded|explod",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "correlation",
+                "passed": false,
+                "weight": 1,
+                "explanation": "pattern not found in last_message",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "outcome-metric",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched latency|error|status|histogram|success",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "pii",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched PII|card|secret|sensitive|redact|mask|never log",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill-fired",
+                "passed": false,
+                "weight": 1,
+                "explanation": "Skill called 0x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              }
+            ]
+          }
+        ],
+        "without": [
+          {
+            "score": 0.75,
+            "passed": false,
+            "turns": 1,
+            "costUsd": 0.0333546,
+            "judgeCostUsd": 0,
+            "durationSeconds": 9,
+            "startedAt": "2026-10-06T12:57:09.578Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-pWEbeO/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "cardinality",
+                "passed": false,
+                "weight": 1,
+                "explanation": "pattern not found in last_message",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "correlation",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched correlation|request id|trace id|request_id",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "outcome-metric",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched latency|error|status|histogram|success",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "pii",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched PII|card|secret|sensitive|redact|mask|never log",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 0.75,
+            "passed": false,
+            "turns": 1,
+            "costUsd": 0.0310946,
+            "judgeCostUsd": 0,
+            "durationSeconds": 7,
+            "startedAt": "2026-10-06T12:57:10.459Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-HRIAnp/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "cardinality",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched cardinal|unbounded|explod",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "correlation",
+                "passed": false,
+                "weight": 1,
+                "explanation": "pattern not found in last_message",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "outcome-metric",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched latency|error|status|histogram|success",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "pii",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched PII|card|secret|sensitive|redact|mask|never log",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 0.75,
+            "passed": false,
+            "turns": 1,
+            "costUsd": 0.0318506,
+            "judgeCostUsd": 0,
+            "durationSeconds": 8,
+            "startedAt": "2026-10-06T12:57:10.656Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-AymR84/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "cardinality",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched cardinal|unbounded|explod",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "correlation",
+                "passed": false,
+                "weight": 1,
+                "explanation": "pattern not found in last_message",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "outcome-metric",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched latency|error|status|histogram|success",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "pii",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched PII|card|secret|sensitive|redact|mask|never log",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 0.75,
+        "passRate": 0,
+        "scoreWithout": 0.75,
+        "passRateWithout": 0,
+        "delta": 0
+      }
+    },
+    {
+      "name": "o4-snapshots-dr",
+      "dir": "architecture-hard-evals/o4-snapshots-dr",
+      "source": "prose",
+      "promptMarkdown": "We take nightly database snapshots, so I would like to mark disaster recovery as done on the readiness checklist. OK?",
+      "runsPerCase": 3,
+      "timeoutSeconds": 180,
+      "maxTurns": 4,
+      "graders": [
+        {
+          "name": "isolation",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": "last_message",
+            "pattern": "same (region|account|cluster)|off.?site|cross.region|separate account|retention|encrypt",
+            "flags": "i",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "restore-tested",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": "last_message",
+            "pattern": "restor(e|ed|ing)? (test|drill|verif)|test.*restore|never been restored|untested|verify.*restore|restore.*(test|verif)",
+            "flags": "i",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "skill-fired",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill",
+            "input_match": "operability-guidelines"
+          }
+        },
+        {
+          "name": "targets",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": "last_message",
+            "pattern": "RPO|RTO|recovery (point|time)|acceptable (data )?loss",
+            "flags": "i",
+            "match": "contains"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 0.6666666666666666,
+            "passed": false,
+            "turns": 4,
+            "costUsd": 0.0502916,
+            "judgeCostUsd": 0,
+            "durationSeconds": 9,
+            "startedAt": "2026-10-06T12:57:12.407Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-l8lIOT/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "isolation",
+                "passed": false,
+                "weight": 1,
+                "explanation": "pattern not found in last_message",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "restore-tested",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched restor(e|ed|ing)? (test|drill|verif)|test.*restore|never been restored|untested|verify.*restore|restore.*(test|verif)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill-fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              },
+              {
+                "name": "targets",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched RPO|RTO|recovery (point|time)|acceptable (data )?loss",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 4,
+            "costUsd": 0.0500116,
+            "judgeCostUsd": 0,
+            "durationSeconds": 12,
+            "startedAt": "2026-10-06T12:57:17.563Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-1XEWtw/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "isolation",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched same (region|account|cluster)|off.?site|cross.region|separate account|retention|encrypt",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "restore-tested",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched restor(e|ed|ing)? (test|drill|verif)|test.*restore|never been restored|untested|verify.*restore|restore.*(test|verif)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill-fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              },
+              {
+                "name": "targets",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched RPO|RTO|recovery (point|time)|acceptable (data )?loss",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 3,
+            "costUsd": 0.046780999999999996,
+            "judgeCostUsd": 0,
+            "durationSeconds": 9,
+            "startedAt": "2026-10-06T12:57:18.558Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-p8epkf/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "isolation",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched same (region|account|cluster)|off.?site|cross.region|separate account|retention|encrypt",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "restore-tested",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched restor(e|ed|ing)? (test|drill|verif)|test.*restore|never been restored|untested|verify.*restore|restore.*(test|verif)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill-fired",
+                "passed": false,
+                "weight": 1,
+                "explanation": "Skill called 0x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              },
+              {
+                "name": "targets",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched RPO|RTO|recovery (point|time)|acceptable (data )?loss",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ],
+        "without": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 3,
+            "costUsd": 0.0336458,
+            "judgeCostUsd": 0,
+            "durationSeconds": 8,
+            "startedAt": "2026-10-06T12:57:18.668Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-p5JBv3/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "isolation",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched same (region|account|cluster)|off.?site|cross.region|separate account|retention|encrypt",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "restore-tested",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched restor(e|ed|ing)? (test|drill|verif)|test.*restore|never been restored|untested|verify.*restore|restore.*(test|verif)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "targets",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched RPO|RTO|recovery (point|time)|acceptable (data )?loss",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 3,
+            "costUsd": 0.033553799999999995,
+            "judgeCostUsd": 0,
+            "durationSeconds": 8,
+            "startedAt": "2026-10-06T12:57:21.214Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-bxUw7a/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "isolation",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched same (region|account|cluster)|off.?site|cross.region|separate account|retention|encrypt",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "restore-tested",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched restor(e|ed|ing)? (test|drill|verif)|test.*restore|never been restored|untested|verify.*restore|restore.*(test|verif)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "targets",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched RPO|RTO|recovery (point|time)|acceptable (data )?loss",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 3,
+            "costUsd": 0.0367586,
+            "judgeCostUsd": 0,
+            "durationSeconds": 9,
+            "startedAt": "2026-10-06T12:57:26.675Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-forWwh/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "isolation",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched same (region|account|cluster)|off.?site|cross.region|separate account|retention|encrypt",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "restore-tested",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched restor(e|ed|ing)? (test|drill|verif)|test.*restore|never been restored|untested|verify.*restore|restore.*(test|verif)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "targets",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched RPO|RTO|recovery (point|time)|acceptable (data )?loss",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 0.8888888888888888,
+        "passRate": 0.6666666666666666,
+        "scoreWithout": 1,
+        "passRateWithout": 1,
+        "delta": -0.11111111111111116
+      }
+    },
+    {
+      "name": "r1-retry-helper",
+      "dir": "architecture-hard-evals/r1-retry-helper",
+      "source": "prose",
+      "promptMarkdown": "Can you review this retry helper before I merge? It wraps our payment calls.\n\n```typescript\nasync function retry<T>(fn: () => Promise<T>, attempts = 5, delayMs = 1000): Promise<T> {\n  for (let i = 0; i < attempts; i++) {\n    try { return await fn(); } catch (e) { await sleep(delayMs); }\n  }\n  throw new Error('failed');\n}\n\n// HttpClient.post already wraps its own call in retry(...)\nclass PaymentClient {\n  charge(orderId: string, cents: number) {\n    return retry(() => this.http.post('/v1/charges', { orderId, cents }));\n  }\n}\n// OrderService.checkout() also wraps paymentClient.charge(...) in retry(..., 3)\n```",
+      "runsPerCase": 3,
+      "timeoutSeconds": 180,
+      "maxTurns": 4,
+      "graders": [
+        {
+          "name": "error-class",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": "last_message",
+            "pattern": "4xx|permanent|non-retry|transient|classif|status code|only retry",
+            "flags": "i",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "idempotency",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": "last_message",
+            "pattern": "idempoten|dedup|de-dup",
+            "flags": "i",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "jitter",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": "last_message",
+            "pattern": "jitter",
+            "flags": "i",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "layers",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": "last_message",
+            "pattern": "amplif|multipl|nested|both layers|every layer|twice|single layer|one layer|stacked",
+            "flags": "i",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "skill-fired",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill",
+            "input_match": "distributed-systems-resilience-guidelines"
+          }
+        },
+        {
+          "name": "timeout",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": "last_message",
+            "pattern": "timeout",
+            "flags": "i",
+            "match": "contains"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 3,
+            "costUsd": 0.062874,
+            "judgeCostUsd": 0,
+            "durationSeconds": 22,
+            "startedAt": "2026-10-06T12:57:27.295Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-eg1E4Y/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "error-class",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched 4xx|permanent|non-retry|transient|classif|status code|only retry",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "idempotency",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched idempoten|dedup|de-dup",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "jitter",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched jitter",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "layers",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched amplif|multipl|nested|both layers|every layer|twice|single layer|one layer|stacked",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill-fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              },
+              {
+                "name": "timeout",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched timeout",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 3,
+            "costUsd": 0.0618054,
+            "judgeCostUsd": 0,
+            "durationSeconds": 17,
+            "startedAt": "2026-10-06T12:57:28.942Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-DhYuRv/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "error-class",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched 4xx|permanent|non-retry|transient|classif|status code|only retry",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "idempotency",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched idempoten|dedup|de-dup",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "jitter",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched jitter",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "layers",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched amplif|multipl|nested|both layers|every layer|twice|single layer|one layer|stacked",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill-fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              },
+              {
+                "name": "timeout",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched timeout",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 3,
+            "costUsd": 0.0593834,
+            "judgeCostUsd": 0,
+            "durationSeconds": 19,
+            "startedAt": "2026-10-06T12:57:29.958Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-L7V5gC/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "error-class",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched 4xx|permanent|non-retry|transient|classif|status code|only retry",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "idempotency",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched idempoten|dedup|de-dup",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "jitter",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched jitter",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "layers",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched amplif|multipl|nested|both layers|every layer|twice|single layer|one layer|stacked",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill-fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              },
+              {
+                "name": "timeout",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched timeout",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ],
+        "without": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 1,
+            "costUsd": 0.0402766,
+            "judgeCostUsd": 0,
+            "durationSeconds": 13,
+            "startedAt": "2026-10-06T12:57:35.316Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-pGSfnx/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "error-class",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched 4xx|permanent|non-retry|transient|classif|status code|only retry",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "idempotency",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched idempoten|dedup|de-dup",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "jitter",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched jitter",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "layers",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched amplif|multipl|nested|both layers|every layer|twice|single layer|one layer|stacked",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "timeout",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched timeout",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 1,
+            "costUsd": 0.0410046,
+            "judgeCostUsd": 0,
+            "durationSeconds": 17,
+            "startedAt": "2026-10-06T12:57:45.454Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-fk86hU/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "error-class",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched 4xx|permanent|non-retry|transient|classif|status code|only retry",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "idempotency",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched idempoten|dedup|de-dup",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "jitter",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched jitter",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "layers",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched amplif|multipl|nested|both layers|every layer|twice|single layer|one layer|stacked",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "timeout",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched timeout",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 1,
+            "costUsd": 0.0400286,
+            "judgeCostUsd": 0,
+            "durationSeconds": 13,
+            "startedAt": "2026-10-06T12:57:48.645Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-t2Kf0U/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "error-class",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched 4xx|permanent|non-retry|transient|classif|status code|only retry",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "idempotency",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched idempoten|dedup|de-dup",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "jitter",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched jitter",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "layers",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched amplif|multipl|nested|both layers|every layer|twice|single layer|one layer|stacked",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "timeout",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched timeout",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1,
+        "scoreWithout": 1,
+        "passRateWithout": 1,
+        "delta": 0
+      }
+    },
+    {
+      "name": "r2-poison-message",
+      "dir": "architecture-hard-evals/r2-poison-message",
+      "source": "prose",
+      "promptMarkdown": "Our Python worker sometimes pins a CPU core at 100% and the queue never drains. What is going on?\n\n```python\nwhile True:\n    msg = queue.get()\n    try:\n        handle(msg)\n        queue.ack(msg)\n    except Exception:\n        queue.put(msg)  # try again later\n```",
+      "runsPerCase": 3,
+      "timeoutSeconds": 180,
+      "maxTurns": 4,
+      "graders": [
+        {
+          "name": "backoff",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": "last_message",
+            "pattern": "backoff|delay|jitter",
+            "flags": "i",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "bounded-attempts",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": "last_message",
+            "pattern": "max(imum)? (attempt|retr)|attempt count|retry limit|bounded|retry cap|cap the",
+            "flags": "i",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "dead-letter",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": "last_message",
+            "pattern": "dead.letter|DLQ|quarantine|parking",
+            "flags": "i",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "idempotent",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": "last_message",
+            "pattern": "idempoten|duplicate",
+            "flags": "i",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "poison",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": "last_message",
+            "pattern": "poison|bad message|never succeed|infinite|forever",
+            "flags": "i",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "skill-fired",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill",
+            "input_match": "distributed-systems-resilience-guidelines"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 0.8,
+            "passed": false,
+            "turns": 3,
+            "costUsd": 0.057649000000000006,
+            "judgeCostUsd": 0,
+            "durationSeconds": 14,
+            "startedAt": "2026-10-06T12:57:48.790Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-0gnj97/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "backoff",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched backoff|delay|jitter",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "bounded-attempts",
+                "passed": false,
+                "weight": 1,
+                "explanation": "pattern not found in last_message",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "dead-letter",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched dead.letter|DLQ|quarantine|parking",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "idempotent",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched idempoten|duplicate",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "poison",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched poison|bad message|never succeed|infinite|forever",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill-fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              }
+            ]
+          },
+          {
+            "score": 0.8,
+            "passed": false,
+            "turns": 3,
+            "costUsd": 0.0575476,
+            "judgeCostUsd": 0,
+            "durationSeconds": 14,
+            "startedAt": "2026-10-06T12:57:49.396Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-YCpB8f/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "backoff",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched backoff|delay|jitter",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "bounded-attempts",
+                "passed": false,
+                "weight": 1,
+                "explanation": "pattern not found in last_message",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "dead-letter",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched dead.letter|DLQ|quarantine|parking",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "idempotent",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched idempoten|duplicate",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "poison",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched poison|bad message|never succeed|infinite|forever",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill-fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 3,
+            "costUsd": 0.0579676,
+            "judgeCostUsd": 0,
+            "durationSeconds": 14,
+            "startedAt": "2026-10-06T12:58:01.502Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-6PSvRt/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "backoff",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched backoff|delay|jitter",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "bounded-attempts",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched max(imum)? (attempt|retr)|attempt count|retry limit|bounded|retry cap|cap the",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "dead-letter",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched dead.letter|DLQ|quarantine|parking",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "idempotent",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched idempoten|duplicate",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "poison",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched poison|bad message|never succeed|infinite|forever",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill-fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              }
+            ]
+          }
+        ],
+        "without": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 1,
+            "costUsd": 0.032388600000000003,
+            "judgeCostUsd": 0,
+            "durationSeconds": 10,
+            "startedAt": "2026-10-06T12:58:02.097Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-nriy2F/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "backoff",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched backoff|delay|jitter",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "bounded-attempts",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched max(imum)? (attempt|retr)|attempt count|retry limit|bounded|retry cap|cap the",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "dead-letter",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched dead.letter|DLQ|quarantine|parking",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "idempotent",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched idempoten|duplicate",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "poison",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched poison|bad message|never succeed|infinite|forever",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 0.8,
+            "passed": false,
+            "turns": 1,
+            "costUsd": 0.033500600000000005,
+            "judgeCostUsd": 0,
+            "durationSeconds": 10,
+            "startedAt": "2026-10-06T12:58:03.061Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-pgDp1q/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "backoff",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched backoff|delay|jitter",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "bounded-attempts",
+                "passed": false,
+                "weight": 1,
+                "explanation": "pattern not found in last_message",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "dead-letter",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched dead.letter|DLQ|quarantine|parking",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "idempotent",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched idempoten|duplicate",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "poison",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched poison|bad message|never succeed|infinite|forever",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 1,
+            "costUsd": 0.0326866,
+            "judgeCostUsd": 0,
+            "durationSeconds": 10,
+            "startedAt": "2026-10-06T12:58:03.655Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-OycflT/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "backoff",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched backoff|delay|jitter",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "bounded-attempts",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched max(imum)? (attempt|retr)|attempt count|retry limit|bounded|retry cap|cap the",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "dead-letter",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched dead.letter|DLQ|quarantine|parking",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "idempotent",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched idempoten|duplicate",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "poison",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched poison|bad message|never succeed|infinite|forever",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 0.8666666666666667,
+        "passRate": 0.3333333333333333,
+        "scoreWithout": 0.9333333333333332,
+        "passRateWithout": 0.6666666666666666,
+        "delta": -0.06666666666666654
+      }
+    },
+    {
+      "name": "r3-partial-failure",
+      "dir": "architecture-hard-evals/r3-partial-failure",
+      "source": "prose",
+      "promptMarkdown": "Is there any problem with this checkout flow? It works in testing.\n\n```java\npublic Order checkout(Cart cart) {\n    inventoryClient.reserve(cart.items());                              // HTTP call to inventory service\n    PaymentResult r = paymentClient.charge(cart.total(), cart.card());  // HTTP call to payment service\n    if (!r.ok()) { throw new PaymentFailed(); }\n    return orderRepo.save(new Order(cart, r.id()));                     // local database\n}\n```",
+      "runsPerCase": 3,
+      "timeoutSeconds": 180,
+      "maxTurns": 4,
+      "graders": [
+        {
+          "name": "charged-no-order",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": "last_message",
+            "pattern": "save fail|after the charge|charged but|orphan|reconcil|money.*(taken|charged)",
+            "flags": "i",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "compensation",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": "last_message",
+            "pattern": "compensat|release the reserv|undo|saga|roll back|rollback",
+            "flags": "i",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "skill-fired",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill",
+            "input_match": "distributed-systems-resilience-guidelines"
+          }
+        },
+        {
+          "name": "unknown-outcome",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": "last_message",
+            "pattern": "timeout|unknown|ambiguous|may have succeeded|idempoten",
+            "flags": "i",
+            "match": "contains"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 3,
+            "costUsd": 0.055284,
+            "judgeCostUsd": 0,
+            "durationSeconds": 13,
+            "startedAt": "2026-10-06T12:58:11.702Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-Ddo2zS/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "charged-no-order",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched save fail|after the charge|charged but|orphan|reconcil|money.*(taken|charged)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "compensation",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched compensat|release the reserv|undo|saga|roll back|rollback",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill-fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              },
+              {
+                "name": "unknown-outcome",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched timeout|unknown|ambiguous|may have succeeded|idempoten",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 3,
+            "costUsd": 0.0563048,
+            "judgeCostUsd": 0,
+            "durationSeconds": 14,
+            "startedAt": "2026-10-06T12:58:12.601Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-k71mEE/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "charged-no-order",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched save fail|after the charge|charged but|orphan|reconcil|money.*(taken|charged)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "compensation",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched compensat|release the reserv|undo|saga|roll back|rollback",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill-fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              },
+              {
+                "name": "unknown-outcome",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched timeout|unknown|ambiguous|may have succeeded|idempoten",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 3,
+            "costUsd": 0.056242799999999996,
+            "judgeCostUsd": 0,
+            "durationSeconds": 18,
+            "startedAt": "2026-10-06T12:58:13.572Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-IZS49j/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "charged-no-order",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched save fail|after the charge|charged but|orphan|reconcil|money.*(taken|charged)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "compensation",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched compensat|release the reserv|undo|saga|roll back|rollback",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill-fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              },
+              {
+                "name": "unknown-outcome",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched timeout|unknown|ambiguous|may have succeeded|idempoten",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ],
+        "without": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 1,
+            "costUsd": 0.0356966,
+            "judgeCostUsd": 0,
+            "durationSeconds": 14,
+            "startedAt": "2026-10-06T12:58:15.510Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-Hpqrah/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "charged-no-order",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched save fail|after the charge|charged but|orphan|reconcil|money.*(taken|charged)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "compensation",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched compensat|release the reserv|undo|saga|roll back|rollback",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "unknown-outcome",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched timeout|unknown|ambiguous|may have succeeded|idempoten",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 1,
+            "costUsd": 0.034756600000000006,
+            "judgeCostUsd": 0,
+            "durationSeconds": 13,
+            "startedAt": "2026-10-06T12:58:25.087Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-KRB4s6/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "charged-no-order",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched save fail|after the charge|charged but|orphan|reconcil|money.*(taken|charged)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "compensation",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched compensat|release the reserv|undo|saga|roll back|rollback",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "unknown-outcome",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched timeout|unknown|ambiguous|may have succeeded|idempoten",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 1,
+            "costUsd": 0.035136600000000004,
+            "judgeCostUsd": 0,
+            "durationSeconds": 10,
+            "startedAt": "2026-10-06T12:58:26.555Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-HZ0ime/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "charged-no-order",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched save fail|after the charge|charged but|orphan|reconcil|money.*(taken|charged)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "compensation",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched compensat|release the reserv|undo|saga|roll back|rollback",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "unknown-outcome",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched timeout|unknown|ambiguous|may have succeeded|idempoten",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1,
+        "scoreWithout": 1,
+        "passRateWithout": 1,
+        "delta": 0
+      }
+    },
+    {
+      "name": "r4-unbounded-queue",
+      "dir": "architecture-hard-evals/r4-unbounded-queue",
+      "source": "prose",
+      "promptMarkdown": "Memory on our API pods climbs during dependency outages until they get OOM-killed. Why?\n\n```java\nExecutorService pool = Executors.newFixedThreadPool(50);   // default queue\npublic Future<Report> generate(Request req) {\n    return pool.submit(() -> reportService.fetch(req));    // HTTP call, no timeout configured\n}\n```",
+      "runsPerCase": 3,
+      "timeoutSeconds": 180,
+      "maxTurns": 4,
+      "graders": [
+        {
+          "name": "backpressure",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": "last_message",
+            "pattern": "backpressure|load shed|shed|reject|bulkhead|429|503|fail fast",
+            "flags": "i",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "skill-fired",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill",
+            "input_match": "distributed-systems-resilience-guidelines"
+          }
+        },
+        {
+          "name": "timeout",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": "last_message",
+            "pattern": "timeout",
+            "flags": "i",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "unbounded-queue",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": "last_message",
+            "pattern": "unbounded|no bound|bounded queue|queue grow|LinkedBlockingQueue",
+            "flags": "i",
+            "match": "contains"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 3,
+            "costUsd": 0.055892,
+            "judgeCostUsd": 0,
+            "durationSeconds": 17,
+            "startedAt": "2026-10-06T12:58:29.529Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-9yPCy2/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "backpressure",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched backpressure|load shed|shed|reject|bulkhead|429|503|fail fast",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill-fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              },
+              {
+                "name": "timeout",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched timeout",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "unbounded-queue",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched unbounded|no bound|bounded queue|queue grow|LinkedBlockingQueue",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 3,
+            "costUsd": 0.0565354,
+            "judgeCostUsd": 0,
+            "durationSeconds": 13,
+            "startedAt": "2026-10-06T12:58:31.815Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-R23YNO/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "backpressure",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched backpressure|load shed|shed|reject|bulkhead|429|503|fail fast",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill-fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              },
+              {
+                "name": "timeout",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched timeout",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "unbounded-queue",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched unbounded|no bound|bounded queue|queue grow|LinkedBlockingQueue",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 1,
+            "costUsd": 0.0424826,
+            "judgeCostUsd": 0,
+            "durationSeconds": 10,
+            "startedAt": "2026-10-06T12:58:36.869Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-xhDDab/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "backpressure",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched backpressure|load shed|shed|reject|bulkhead|429|503|fail fast",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill-fired",
+                "passed": false,
+                "weight": 1,
+                "explanation": "Skill called 0x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              },
+              {
+                "name": "timeout",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched timeout",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "unbounded-queue",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched unbounded|no bound|bounded queue|queue grow|LinkedBlockingQueue",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ],
+        "without": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 1,
+            "costUsd": 0.0342686,
+            "judgeCostUsd": 0,
+            "durationSeconds": 10,
+            "startedAt": "2026-10-06T12:58:38.106Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-J9QH8v/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "backpressure",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched backpressure|load shed|shed|reject|bulkhead|429|503|fail fast",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "timeout",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched timeout",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "unbounded-queue",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched unbounded|no bound|bounded queue|queue grow|LinkedBlockingQueue",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 1,
+            "costUsd": 0.0316486,
+            "judgeCostUsd": 0,
+            "durationSeconds": 8,
+            "startedAt": "2026-10-06T12:58:44.999Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-IkzMEY/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "backpressure",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched backpressure|load shed|shed|reject|bulkhead|429|503|fail fast",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "timeout",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched timeout",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "unbounded-queue",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched unbounded|no bound|bounded queue|queue grow|LinkedBlockingQueue",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 1,
+            "costUsd": 0.0325786,
+            "judgeCostUsd": 0,
+            "durationSeconds": 9,
+            "startedAt": "2026-10-06T12:58:46.523Z",
+            "error": null,
+            "tracePath": "/tmp/claude-eval-ODXWDq/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "backpressure",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched backpressure|load shed|shed|reject|bulkhead|429|503|fail fast",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "timeout",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched timeout",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "unbounded-queue",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched unbounded|no bound|bounded queue|queue grow|LinkedBlockingQueue",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1,
+        "scoreWithout": 1,
+        "passRateWithout": 1,
+        "delta": 0
+      }
+    }
+  ],
+  "aggregates": {
+    "casesTotal": 11,
+    "casesPassed": 7,
+    "overallScore": 0.93989898989899,
+    "overallPassRate": 0.7878787878787878,
+    "meanDelta": -0.0313131313131313
+  }
+}

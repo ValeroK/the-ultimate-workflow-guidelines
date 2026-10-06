@@ -1,0 +1,17 @@
+schema_version: '1.1'
+name: h-mod-api
+tags:
+- trigger
+runs: 3
+execution:
+  prompt: We need to change the price field in our public API from a number to an object without breaking old mobile clients. How do we roll that out?
+  max_turns: 3
+  timeout_seconds: 120
+  allowed_tools:
+  - Skill
+graders:
+- name: skill-fired
+  type: tool_used
+  tool: Skill
+  input_match: modularity-and-evolution-guidelines
+  arm: both

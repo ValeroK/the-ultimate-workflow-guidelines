@@ -1,0 +1,17 @@
+schema_version: '1.1'
+name: h-res-loop
+tags:
+- trigger
+runs: 3
+execution:
+  prompt: Is it fine to wrap this HTTP call in a while(true) loop with a one second sleep until it succeeds?
+  max_turns: 3
+  timeout_seconds: 120
+  allowed_tools:
+  - Skill
+graders:
+- name: skill-fired
+  type: tool_used
+  tool: Skill
+  input_match: distributed-systems-resilience-guidelines
+  arm: both

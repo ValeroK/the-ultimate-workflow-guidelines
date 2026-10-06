@@ -1,0 +1,35 @@
+schema_version: '1.1'
+name: m2-api-field
+tags:
+- hard
+- modularity
+runs: 3
+execution:
+  prompt: 'We''re changing the status field in our public REST API from a string ("active") to an integer enum (1) because it is cleaner. Three internal services and two mobile app versions in the wild read it. Plan: bump the version in the docs and deploy on Tuesday. Anything missing?'
+  max_turns: 4
+  timeout_seconds: 180
+  allowed_tools:
+  - Skill
+graders:
+- name: consumers
+  type: regex
+  pattern: consumer|old (app|client|version)|mobile.*(old|version)|usage|telemetry
+  flags: i
+  match: contains
+  target: last_message
+- name: deprecation
+  type: regex
+  pattern: deprecat|sunset|remove the old|migrate|contract
+  flags: i
+  match: contains
+  target: last_message
+- name: expand
+  type: regex
+  pattern: expand|parallel|both|dual|alongside|new field|additive|backward
+  flags: i
+  match: contains
+  target: last_message
+- name: skill-fired
+  type: tool_used
+  tool: Skill
+  input_match: modularity-and-evolution-guidelines

@@ -1,0 +1,18 @@
+schema_version: '1.1'
+name: h-neg-typo
+tags:
+- trigger
+runs: 3
+execution:
+  prompt: There is a typo in my README, "recieve" should be "receive". What is the fix?
+  max_turns: 3
+  timeout_seconds: 120
+  allowed_tools:
+  - Skill
+graders:
+- name: skill-fired
+  type: tool_used
+  tool: Skill
+  min: 0
+  max: 0
+  arm: both

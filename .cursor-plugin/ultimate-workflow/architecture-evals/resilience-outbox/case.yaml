@@ -1,0 +1,30 @@
+schema_version: '1.1'
+name: resilience-outbox
+tags:
+- quality
+- resilience
+- hard
+runs: 2
+execution:
+  prompt: In one request handler I save an order to my database and then publish an OrderCreated event to a message broker. Sometimes the event is never published after the order is saved. How should I fix this?
+  max_turns: 6
+  timeout_seconds: 240
+  allowed_tools:
+  - Skill
+graders:
+- name: consumers-idempotent
+  type: regex
+  pattern: idempoten|at-least-once|duplicate
+  flags: i
+  match: contains
+  target: last_message
+- name: names-outbox
+  type: regex
+  pattern: outbox|change data capture|CDC
+  flags: i
+  match: contains
+  target: last_message
+- name: skill-fired
+  type: tool_used
+  tool: Skill
+  input_match: distributed-systems-resilience-guidelines

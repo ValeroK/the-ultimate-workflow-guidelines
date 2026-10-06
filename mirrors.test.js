@@ -520,6 +520,28 @@ test('simulated release ZIP from the plugin root includes the Cursor payload', (
   assert.ok(!members.includes('AGENTS.md'), 'AGENTS.md is repo dogfood, not the plugin always-on');
 });
 
+test('the release ZIP excludes every eval suite directory in the plugin', () => {
+  // The suite sits under the plugin because the eval runner requires it, but an
+  // installed user cannot run it. A new tracked *evals directory without an
+  // exclusion would ship to everyone silently. Derived from git, so untracked
+  // local run output never trips it.
+  const wf = read('.github/workflows/release-skills.yml');
+  const prefix = PLUGIN.replace(/\\/g, '/') + '/';
+  const dirs = new Set(
+    execFileSync('git', ['ls-files', '-z', PLUGIN], { cwd: root })
+      .toString('utf8')
+      .split('\0')
+      .filter(Boolean)
+      .map((p) => p.replace(/\\/g, '/'))
+      .filter((p) => p.startsWith(prefix))
+      .map((p) => p.slice(prefix.length).split('/')[0])
+      .filter((top) => /evals$/.test(top))
+  );
+  for (const d of dirs) {
+    assert.ok(wf.includes(`-x '${d}/*'`), `release-skills.yml does not exclude ${d}/ from the plugin ZIP`);
+  }
+});
+
 // --- shipped links -----------------------------------------------------------
 //
 // The v3.0.1 restructure moved the payload to .cursor-plugin/ultimate-workflow/

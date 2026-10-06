@@ -1,0 +1,50 @@
+schema_version: '1.1'
+name: o3-logging-handler
+tags:
+- hard
+- operability
+runs: 3
+execution:
+  prompt: |-
+    Please add structured logging and a request counter to this handler.
+
+    ```python
+    def handle_payment(request):
+        user = auth(request)
+        result = gateway.charge(request.json)
+        REQUESTS.labels(user_id=user.id, path=request.path).inc()
+        return result
+    ```
+  max_turns: 4
+  timeout_seconds: 180
+  allowed_tools:
+  - Skill
+graders:
+- name: cardinality
+  type: regex
+  pattern: cardinal|unbounded|explod
+  flags: i
+  match: contains
+  target: last_message
+- name: correlation
+  type: regex
+  pattern: correlation|request id|trace id|request_id
+  flags: i
+  match: contains
+  target: last_message
+- name: outcome-metric
+  type: regex
+  pattern: latency|error|status|histogram|success
+  flags: i
+  match: contains
+  target: last_message
+- name: pii
+  type: regex
+  pattern: PII|card|secret|sensitive|redact|mask|never log
+  flags: i
+  match: contains
+  target: last_message
+- name: skill-fired
+  type: tool_used
+  tool: Skill
+  input_match: operability-guidelines

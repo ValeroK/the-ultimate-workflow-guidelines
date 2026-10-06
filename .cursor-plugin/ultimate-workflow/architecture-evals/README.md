@@ -1,18 +1,18 @@
 # Architecture skill evals
 
-Three `claude plugin eval` suites for the five architecture skills
-(`system-architect-engineering`, `greenfield-architecture`, `modularity-and-evolution`,
-`distributed-systems-resilience`, `operability`). They live in sibling directories because
-`--eval-dir` takes one directory per run.
+One `claude plugin eval` suite for the five architecture skills (`system-architect-engineering`,
+`greenfield-architecture`, `modularity-and-evolution`, `distributed-systems-resilience`,
+`operability`). 42 cases, one `case.yaml` each (prompt under `execution`, graders inline), selected by tag:
 
-| Directory | Question it answers | Grader |
-|---|---|---|
-| `architecture-evals/` (this one) | Does loading the skill change the answer? | regex plus an LLM judge, with/without ablation |
-| `../trigger-evals/` | Does the right skill load? Tuning set. | `tool_used: Skill` only |
-| `../heldout-trigger-evals/` | Same, on prompts never used to tune descriptions. | `tool_used: Skill` only |
+| Tag | Cases | Question | Grader | Arms |
+|---|---|---|---|---|
+| `quality` | 13 | Does loading the skill change the answer? | regex plus an LLM judge | with and without the plugin |
+| `trigger` | 18 | Does the right skill load? Held-out prompts, never used to tune descriptions. | `tool_used: Skill` only | one arm (`--ablation none`) |
+| `hard` | 11 | Does it catch a planted flaw the user did not mention? | regex, one per flaw | with and without the plugin |
 
-Measure firing first. A skill that did not load cannot explain an answer, so a score delta
-means nothing until the skill fired.
+The hard probes carry a pre-registered keep-or-fold rule and its outcome: see `hard-probes.md`.
+Measure firing first: a skill that did not load cannot explain an answer, so a score delta means
+nothing until it fired.
 
 ## Run
 
@@ -20,16 +20,20 @@ From `.cursor-plugin/ultimate-workflow/`. Each run is real model usage; keep a c
 
 ```
 # answer quality, with and without the plugin (about 4 USD)
-claude plugin eval . --eval-dir architecture-evals --trust-plugin --runs 3 -j 4 \
+claude plugin eval . --eval-dir architecture-evals --tag quality --trust-plugin --runs 3 -j 4 \
   --judge-model claude-sonnet-5-5 --max-cost-usd 12 --no-publish --json out.json
 
-# fire rate only (about 2 to 3 USD each)
-claude plugin eval . --eval-dir heldout-trigger-evals --trust-plugin --ablation none \
+# fire rate only, single arm (about 2 to 3 USD)
+claude plugin eval . --eval-dir architecture-evals --tag trigger --trust-plugin --ablation none \
   -j 6 --max-cost-usd 4 --no-publish --json out.json
+
+# hard probes (about 3 USD)
+claude plugin eval . --eval-dir architecture-evals --tag hard --trust-plugin --runs 3 -j 4 \
+  --max-cost-usd 10 --no-publish --json out.json
 ```
 
 Results land in `<eval-dir>/results/`, which is gitignored. In `out.json`, `cases[].arms.with`
-holds the runs; a trigger case passes when its single `skill-fired` grader passed.
+holds the runs; a `trigger` case passes when its single `skill-fired` grader passed.
 
 ## Recorded results (2026-10-06)
 
@@ -68,3 +72,8 @@ negatives.
 
 The saved result files and that script live in the source repository under evals/results/architecture-skills,
 outside the plugin payload on purpose, so they do not ship in the release ZIP and are not present in an installed plugin.
+
+Layout note, 2026-10-06: the suite was first built as four directories of `prompt.md` plus one file
+per grader (173 files) and then merged into this one. Prompts and grader fields were carried over
+unchanged (checked case by case), so the saved results keep the same case names and stay comparable.
+The directory is excluded from the release ZIP; a test fails if a new `*evals` directory is not.

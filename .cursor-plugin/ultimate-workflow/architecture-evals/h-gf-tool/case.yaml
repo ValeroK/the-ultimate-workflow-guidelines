@@ -1,0 +1,17 @@
+schema_version: '1.1'
+name: h-gf-tool
+tags:
+- trigger
+runs: 3
+execution:
+  prompt: I am kicking off a new internal tool for scheduling shifts with two developers. How should I lay out the project and pick a stack?
+  max_turns: 3
+  timeout_seconds: 120
+  allowed_tools:
+  - Skill
+graders:
+- name: skill-fired
+  type: tool_used
+  tool: Skill
+  input_match: greenfield-architecture-guidelines
+  arm: both

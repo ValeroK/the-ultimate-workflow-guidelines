@@ -1,0 +1,24 @@
+schema_version: '1.1'
+name: resilience-amplification
+tags:
+- quality
+- resilience
+- hard
+runs: 2
+execution:
+  prompt: Service A calls service B, which calls service C. Each of the three layers retries failed calls 3 times. C is currently slow and timing out. Is this retry setup fine?
+  max_turns: 6
+  timeout_seconds: 240
+  allowed_tools:
+  - Skill
+graders:
+- name: names-amplification
+  type: regex
+  pattern: amplif|multipl|27|retry storm|single layer|one layer|only one|only at one
+  flags: i
+  match: contains
+  target: last_message
+- name: skill-fired
+  type: tool_used
+  tool: Skill
+  input_match: distributed-systems-resilience-guidelines

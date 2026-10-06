@@ -1,0 +1,26 @@
+schema_version: '1.1'
+name: modularity-extract
+tags:
+- quality
+- modularity
+- trigger
+runs: 2
+execution:
+  prompt: Our billing and orders modules import each other, and both write directly to the same customers table. We want to extract billing into its own service. Describe the approach.
+  max_turns: 6
+  timeout_seconds: 240
+  allowed_tools:
+  - Skill
+graders:
+- name: names-structural-problems
+  type: llm
+  criteria: PASS if the answer identifies the circular dependency and the shared-table ownership problem as things to resolve (single owner of the data, break the cycle) rather than treating extraction as a mechanical move. FAIL if it ignores either problem.
+  focus: last_message
+- name: questions-or-stages-extraction
+  type: llm
+  criteria: PASS if the answer either asks whether a service split is justified or proposes an incremental, reversible approach (fix boundaries inside the monolith first, or a strangler-style staged cutover) rather than a big-bang rewrite. FAIL if it plans a big-bang extraction with no staging.
+  focus: last_message
+- name: skill-fired
+  type: tool_used
+  tool: Skill
+  input_match: modularity-and-evolution-guidelines

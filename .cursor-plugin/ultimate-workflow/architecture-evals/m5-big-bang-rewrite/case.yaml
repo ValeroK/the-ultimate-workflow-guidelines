@@ -1,0 +1,35 @@
+schema_version: '1.1'
+name: m5-big-bang-rewrite
+tags:
+- hard
+- modularity
+runs: 3
+execution:
+  prompt: 'Plan: we will rewrite our 400k-line legacy billing system in a new stack over six months, in a separate repo, then cut everything over on one weekend. Thoughts?'
+  max_turns: 4
+  timeout_seconds: 180
+  allowed_tools:
+  - Skill
+graders:
+- name: big-bang-risk
+  type: regex
+  pattern: big.bang|cutover|rollback|second.system|feature parity
+  flags: i
+  match: contains
+  target: last_message
+- name: incremental
+  type: regex
+  pattern: strangler|incremental|gradual|slice|piece by piece|progressive|route
+  flags: i
+  match: contains
+  target: last_message
+- name: parallel-run
+  type: regex
+  pattern: parallel|shadow|dual.run|side.by.side|compare
+  flags: i
+  match: contains
+  target: last_message
+- name: skill-fired
+  type: tool_used
+  tool: Skill
+  input_match: modularity-and-evolution-guidelines

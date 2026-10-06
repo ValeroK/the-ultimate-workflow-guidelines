@@ -2,8 +2,11 @@
 
 Recorded `claude plugin eval --json` output for the five architecture skills, kept at the repo
 root so it is **not** inside the plugin payload and never ships in a release ZIP. The suites
-that produced it live in the plugin (`architecture-evals/`, `trigger-evals/`,
-`heldout-trigger-evals/`); how to run them is in `architecture-evals/README.md` there.
+that produced it live in the plugin as one suite, `architecture-evals/` (tags `quality`, `trigger`, `hard`);
+how to run them is in `architecture-evals/README.md` there. The result files below were recorded when the
+suite was still split into separate directories; case names are unchanged, so they remain comparable.
+The `trigger-tuning` files come from a tuning suite that was dropped because its prompts duplicate the
+quality suite.
 
 Compare a new run against these before claiming an improvement:
 

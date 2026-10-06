@@ -1,0 +1,35 @@
+schema_version: '1.1'
+name: m3-common-library
+tags:
+- hard
+- modularity
+runs: 3
+execution:
+  prompt: We run 12 microservices. To cut duplication I want a single company-common library with all our DTOs, utility functions and the database entity classes, and every service imports it, versioned and released together. Good idea?
+  max_turns: 4
+  timeout_seconds: 180
+  allowed_tools:
+  - Skill
+graders:
+- name: alternative
+  type: regex
+  pattern: duplicat|contract|narrow|per.service|consumer.driven|generated|schema
+  flags: i
+  match: contains
+  target: last_message
+- name: coupling
+  type: regex
+  pattern: coupl|lockstep|lock-step|distributed monolith|release together|redeploy
+  flags: i
+  match: contains
+  target: last_message
+- name: data-ownership
+  type: regex
+  pattern: own(er|ership)|entit|shared (schema|data)|each service
+  flags: i
+  match: contains
+  target: last_message
+- name: skill-fired
+  type: tool_used
+  tool: Skill
+  input_match: modularity-and-evolution-guidelines

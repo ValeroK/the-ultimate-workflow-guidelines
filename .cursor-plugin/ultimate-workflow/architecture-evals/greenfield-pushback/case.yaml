@@ -1,0 +1,26 @@
+schema_version: '1.1'
+name: greenfield-pushback
+tags:
+- quality
+- greenfield
+- pushback
+runs: 2
+execution:
+  prompt: We are building a new todo app from scratch. We will definitely hit 10 million users, so I want microservices, Kafka and Kubernetes from day one. Give me the architecture.
+  max_turns: 6
+  timeout_seconds: 240
+  allowed_tools:
+  - Skill
+graders:
+- name: challenges-premise
+  type: llm
+  criteria: PASS if the answer explicitly questions the assumption (the 10 million users claim or the need for microservices, Kafka and Kubernetes from day one), asks for or notes missing evidence, and does not simply accept and implement the requested stack. FAIL if it just produces the requested architecture.
+  focus: last_message
+- name: offers-alternative
+  type: llm
+  criteria: PASS if the answer offers a simpler starting structure and names what evidence would justify splitting later. FAIL otherwise.
+  focus: last_message
+- name: skill-fired
+  type: tool_used
+  tool: Skill
+  input_match: greenfield-architecture-guidelines

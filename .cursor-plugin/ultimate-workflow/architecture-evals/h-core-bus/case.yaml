@@ -1,0 +1,17 @@
+schema_version: '1.1'
+name: h-core-bus
+tags:
+- trigger
+runs: 3
+execution:
+  prompt: Is introducing an event bus between these two modules a good idea?
+  max_turns: 3
+  timeout_seconds: 120
+  allowed_tools:
+  - Skill
+graders:
+- name: skill-fired
+  type: tool_used
+  tool: Skill
+  input_match: system-architect-engineering-guidelines
+  arm: both

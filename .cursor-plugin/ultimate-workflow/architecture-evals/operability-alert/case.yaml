@@ -1,0 +1,22 @@
+schema_version: '1.1'
+name: operability-alert
+tags:
+- quality
+- operability
+- hard
+runs: 2
+execution:
+  prompt: I plan to page the on-call engineer whenever CPU goes above 80 percent on any node of our API service. Good alerting setup?
+  max_turns: 6
+  timeout_seconds: 240
+  allowed_tools:
+  - Skill
+graders:
+- name: skill-fired
+  type: tool_used
+  tool: Skill
+  input_match: operability-guidelines
+- name: symptom-based
+  type: llm
+  criteria: PASS if the answer pushes back on paging for CPU on any node and recommends paging on user-affecting symptoms (error rate, latency, success rate, or error-budget burn), keeping CPU as a dashboard or diagnostic signal. FAIL if it endorses the CPU paging plan.
+  focus: last_message

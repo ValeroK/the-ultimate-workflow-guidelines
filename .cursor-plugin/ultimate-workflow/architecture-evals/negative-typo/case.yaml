@@ -1,0 +1,25 @@
+schema_version: '1.1'
+name: negative-typo
+tags:
+- quality
+- control
+runs: 2
+execution:
+  prompt: 'There is a typo in my README: "recieve" should be "receive". What is the one-line fix? Answer briefly.'
+  max_turns: 6
+  timeout_seconds: 240
+  allowed_tools:
+  - Skill
+graders:
+- name: no-design-review
+  type: regex
+  pattern: architecture|trade-off|tradeoff|quality attribute|checklist|SLO
+  flags: i
+  match: not_contains
+  target: last_message
+- name: no-skill-fired
+  type: tool_used
+  tool: Skill
+  min: 0
+  max: 0
+  arm: with-only

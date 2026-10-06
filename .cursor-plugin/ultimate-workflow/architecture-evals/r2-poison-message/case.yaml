@@ -1,0 +1,58 @@
+schema_version: '1.1'
+name: r2-poison-message
+tags:
+- hard
+- distributed
+runs: 3
+execution:
+  prompt: |-
+    Our Python worker sometimes pins a CPU core at 100% and the queue never drains. What is going on?
+
+    ```python
+    while True:
+        msg = queue.get()
+        try:
+            handle(msg)
+            queue.ack(msg)
+        except Exception:
+            queue.put(msg)  # try again later
+    ```
+  max_turns: 4
+  timeout_seconds: 180
+  allowed_tools:
+  - Skill
+graders:
+- name: backoff
+  type: regex
+  pattern: backoff|delay|jitter
+  flags: i
+  match: contains
+  target: last_message
+- name: bounded-attempts
+  type: regex
+  pattern: max(imum)? (attempt|retr)|attempt count|retry limit|bounded|retry cap|cap the
+  flags: i
+  match: contains
+  target: last_message
+- name: dead-letter
+  type: regex
+  pattern: dead.letter|DLQ|quarantine|parking
+  flags: i
+  match: contains
+  target: last_message
+- name: idempotent
+  type: regex
+  pattern: idempoten|duplicate
+  flags: i
+  match: contains
+  target: last_message
+- name: poison
+  type: regex
+  pattern: poison|bad message|never succeed|infinite|forever
+  flags: i
+  match: contains
+  target: last_message
+- name: skill-fired
+  type: tool_used
+  tool: Skill
+  input_match: distributed-systems-resilience-guidelines

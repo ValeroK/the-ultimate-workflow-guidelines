@@ -38,7 +38,7 @@ Before filling in features, build the **thinnest end-to-end slice** that exercis
 
 ## 4. Decide late, but record the doors
 
-- **Last responsible moment:** defer each decision until delaying further would cost more than deciding, and no later. Do not decide a datastore's sharding strategy before there is data.
+- **Last responsible moment:** defer each decision until the moment at which not deciding would eliminate an important alternative, and no later. Do not decide a datastore's sharding strategy before there is data.
 - **One-way doors** (persisted schema, public API shape, auth model, primary datastore, cloud or vendor lock, wire format) get a short decision record with options, the choice, and the trigger that would reopen it. Use the ADR template in `system-architect-engineering-guidelines` if installed, else a short options / choice / consequences / revisit-trigger note.
 - **Two-way doors** (internal naming, a helper library, a module layout that tests pin): decide and move on.
 

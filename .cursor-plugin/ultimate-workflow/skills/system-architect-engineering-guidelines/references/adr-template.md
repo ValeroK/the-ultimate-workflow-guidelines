@@ -1,5 +1,7 @@
 # ADR-NNN: <decision, as a short statement>
 
+<!-- Core sections follow the lightweight ADR form (title, status, context, decision, consequences); "Options considered" borrows from MADR. Trim whatever the repo's own convention omits. -->
+
 - **Status:** proposed | accepted | superseded by ADR-NNN
 - **Date:** YYYY-MM-DD
 - **Decision weight:** one-way door | costly to reverse

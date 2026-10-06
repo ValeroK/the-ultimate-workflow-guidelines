@@ -21,8 +21,8 @@ For every boundary-crossing call or message you add, answer the four questions i
 
 - Retry only **idempotent** operations or ones protected by an idempotency key.
 - Use **capped exponential backoff with random jitter**, so many clients do not retry in lockstep.
-- Bound them: a maximum attempt count and a **retry budget** (a ceiling on the fraction of traffic that may be retries).
-- Retry at **one layer** of the call stack, not every layer; stacked retries multiply load (retry amplification) and turn a brownout into an outage.
+- Bound them: a maximum attempt count and a **retry budget** (a ceiling on the fraction of traffic that may be retries, for example a local token bucket).
+- Retry at **one layer** of the call stack by default, not every layer; stacked retries multiply load (with three attempts at each of five layers a leaf failure can see 3^5 = 243 times the load) and turn a brownout into an outage. This is documented practice for low-cost operations, not a law; pick the one layer that has the context to retry safely.
 - Never retry a permanent error, and never retry unbounded.
 
 ## Protect yourself and your dependencies

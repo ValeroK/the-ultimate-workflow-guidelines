@@ -7,8 +7,12 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Existing tag to build from (e.g. v2.2.0). Leave blank when triggered by tag push.'
+        description: 'Tag to release (e.g. v2.6.0). Built from the tag if it exists; otherwise created at "target".'
         required: false
+      target:
+        description: 'Branch or SHA to create the tag from when it does not exist yet.'
+        required: false
+        default: 'main'
 
 permissions:
   contents: write
@@ -19,14 +23,41 @@ jobs:
     steps:
       - name: Resolve ref
         id: ref
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IN_TAG: ${{ inputs.tag }}
+          IN_TARGET: ${{ inputs.target }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ inputs.tag }}" ]; then
-            echo "ref=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
-            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          set -e
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "$IN_TAG" ]; then
+            TAG="$IN_TAG"
+            if gh api "repos/${{ github.repository }}/git/ref/tags/$TAG" >/dev/null 2>&1; then
+              # Tag already exists: build from it, let gh infer the target.
+              REF="$TAG"
+              TARGET=""
+            else
+              # Tag does not exist yet: build from the target branch/SHA and
+              # have `gh release create --target` mint the tag there.
+              REF="${IN_TARGET:-main}"
+              TARGET="${IN_TARGET:-main}"
+            fi
           else
-            echo "ref=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
-            echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+            TAG="${{ github.ref_name }}"
+            REF="${{ github.ref_name }}"
+            TARGET=""
           fi
+
+          # Guard: the release name doubles as the tag name, so a stray
+          # dispatch must never publish a release called "main".
+          case "$TAG" in
+            v[0-9]*) ;;
+            *) echo "::error::Refusing to release '$TAG' - tag must look like v<version>"; exit 1 ;;
+          esac
+
+          echo "ref=$REF" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "target=$TARGET" >> "$GITHUB_OUTPUT"
+          echo "Releasing $TAG from ${TARGET:-$REF}"
 
       - uses: actions/checkout@v4
         with:
@@ -70,8 +101,14 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${{ steps.ref.outputs.tag }}"
+          TARGET="${{ steps.ref.outputs.target }}"
           if ! gh release view "$TAG" >/dev/null 2>&1; then
-            gh release create "$TAG" --title "$TAG" --generate-notes
+            if [ -n "$TARGET" ]; then
+              # Creates the tag at $TARGET as a side effect.
+              gh release create "$TAG" --title "$TAG" --generate-notes --target "$TARGET"
+            else
+              gh release create "$TAG" --title "$TAG" --generate-notes
+            fi
           fi
           gh release upload "$TAG" \
             dist/the-ultimate-workflow-guidelines-plugin.zip \

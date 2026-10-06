@@ -82,6 +82,13 @@ There's a separate mode for that: it interviews you, writes a PRD, designs the s
 |---|---|
 | `the-ultimate-workflow-guidelines` | Day-to-day work in an existing codebase |
 | `project-bootstrap-guidelines` | Greenfield only, run once |
+| `system-architect-engineering-guidelines` | A design question in an existing codebase: add a layer, cache, abstraction or dependency; review a design for over-engineering |
+| `greenfield-architecture-guidelines` | Deciding the architecture of a new system: quality attributes, modular-monolith start, walking skeleton |
+| `modularity-and-evolution-guidelines` | Module and service boundaries, coupling, migrations, API and schema changes |
+| `distributed-systems-resilience-guidelines` | Anything crossing a network: timeouts, retries, idempotency, partial failure |
+| `operability-guidelines` | Releases, rollback, monitoring, alerting, reliability targets, go-live |
+
+The five architecture skills load by description when a question matches; they add a checklist, not new rules about process. Measured on this repo's own probes they fire reliably but add little over the base model on well-known topics; the clearest gains are premise pushback and quality-attribute questions on new designs. Method, results and caveats: `evals/results/architecture-skills/README.md`.
 
 Under both sit four principles: **think before coding**, **simplicity first**, **surgical changes** (every changed line traces back to something you asked for), and **goal-driven execution** (define "done" in terms you can check, then loop until it's true).
 

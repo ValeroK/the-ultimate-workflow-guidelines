@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Five architecture skills**: `system-architect-engineering-guidelines`, `greenfield-architecture-guidelines`, `modularity-and-evolution-guidelines`, `distributed-systems-resilience-guidelines` and `operability-guidelines`. Language-agnostic design guidance loaded by description, with an ADR template, a smell-to-pattern reference and quality-attribute scenarios.
+- **Eval suites** for them under `architecture-evals/`, `trigger-evals/`, `heldout-trigger-evals/` and `architecture-hard-evals/`, with recorded results at `evals/results/architecture-skills/`. Fire rate on held-out prompts rose from 53% to 100% after rewriting the descriptions; answer quality over a no-skill baseline is small (+0.09 on the quality suite, -0.03 on the hard probes). A pre-registered rule said to fold three of the skills; the maintainer kept them and the decision is recorded.
+
+### Known gaps
+
+- The architecture claims in the skills were written from recall and cross-read against a Gemini fact-check that rests partly on secondary sources; see `research/architecture-claims-check.md`. No Cursor `.mdc` twin exists for the new skills.
+
 ## [3.0.2] - 2026-08-30
 
 ### Fixed

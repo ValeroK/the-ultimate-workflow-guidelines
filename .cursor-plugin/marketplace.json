@@ -4,13 +4,13 @@
     "name": "ValeroK"
   },
   "metadata": {
-    "description": "Plan-first, test-first workflow for AI coding assistants. Five phase commands, two skills, and opt-in lifecycle gates."
+    "description": "Plan-first, test-first workflow for AI coding assistants. Five phase commands, seven skills, and opt-in lifecycle gates."
   },
   "plugins": [
     {
       "name": "ultimate-workflow",
       "source": ".cursor-plugin/ultimate-workflow",
-      "description": "Plan-first, test-first workflow for AI coding assistants. Five phase commands (plan, tests, build, review, harvest) that each run in a fresh context with scoped tools, two skills for feature work and greenfield bootstrap, and opt-in lifecycle gates.",
+      "description": "Plan-first, test-first workflow for AI coding assistants. Five phase commands (plan, tests, build, review, harvest) that each run in a fresh context with scoped tools, seven skills (feature workflow, greenfield bootstrap, and five architecture skills for design review, greenfield design, modularity, resilience and operability), and opt-in lifecycle gates.",
       "version": "3.0.2",
       "author": {
         "name": "ValeroK"

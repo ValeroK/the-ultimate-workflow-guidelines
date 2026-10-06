@@ -20,3 +20,19 @@ reason and re-run as a new suite rather than amending this one.
 Run, from the plugin root:
 
     claude plugin eval . --eval-dir architecture-hard-evals --trust-plugin --runs 3 -j 4 --max-cost-usd 10 --no-publish --json out.json
+
+## Outcome (2026-10-06)
+
+The run (11 cases, 3 runs per arm) gave a mean delta of -0.03; per skill: resilience -0.02,
+modularity -0.04, operability -0.04. By the rule above all three were to be folded.
+
+**Decision: the maintainer kept all five skills as separate skills.** Rationale given: the model can
+call a skill when it needs it, and the always-on cost of a description is small. This overrides the
+pre-registered rule; it is a judgement call, not a result the data supports. What the data does say:
+the skills fire (resilience 11/12, modularity 9/12, operability 5/9 of runs) but on these probes the
+baseline model already named the planted flaw (7 of 11 cases scored 1.0 in both arms), so no lift was
+measured. The measured gains are elsewhere: greenfield premise pushback and quality-attribute
+questions, and the operability go-live checklist.
+
+Revisit if a probe set is found where the baseline fails, or if per-skill description cost becomes a
+problem. Results are saved at the repo root under evals/results/architecture-skills.

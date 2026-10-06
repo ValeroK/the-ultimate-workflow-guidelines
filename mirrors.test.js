@@ -351,6 +351,19 @@ test('the site names every phase, and the count matches the scripts', () => {
   assert.equal(scripts.length, PHASES.length, 'a phase was added or removed without updating the site');
 });
 
+test('the site names every skill the plugin ships', () => {
+  // The page once described a "two-skill plugin" after five phases shipped. A skill
+  // added without a mention here would drift the same way.
+  const t = read(SITE);
+  const skills = fs
+    .readdirSync(pjoin('skills'), { withFileTypes: true })
+    .filter((d) => d.isDirectory())
+    .map((d) => d.name);
+  for (const name of skills) {
+    assert.ok(t.includes(name), `the site never mentions the ${name} skill`);
+  }
+});
+
 test('the site does not advertise an install command for the old plugin name', () => {
   // The plugin name namespaces everything it ships, so a stale one is not a
   // cosmetic error -- the command fails.

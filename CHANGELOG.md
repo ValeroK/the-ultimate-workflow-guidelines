@@ -11,7 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 - **Five architecture skills**: `system-architect-engineering-guidelines`, `greenfield-architecture-guidelines`, `modularity-and-evolution-guidelines`, `distributed-systems-resilience-guidelines` and `operability-guidelines`. Language-agnostic design guidance loaded by description, with an ADR template, a smell-to-pattern reference and quality-attribute scenarios.
-- **Cross-references:** the workflow skill's plan step and the bootstrap skill's Phase 2 now point to the matching architecture skills, so they are reachable from the process skills and not only by description match.
+- **Cross-references:** the workflow skill's plan step and the bootstrap skill's Phase 2 now point to the matching architecture skills, so they are reachable from the process skills and not only by description match. The README and the walkthrough page list them, and a test fails if the page misses a skill.
 - **Eval suites** for them as one 42-case suite under `architecture-evals/` (tags `quality`, `trigger`, `hard`; excluded from the release ZIP, which stays at about 160 KB), with recorded results at `evals/results/architecture-skills/`. Fire rate on held-out prompts rose from 53% to 100% after rewriting the descriptions; answer quality over a no-skill baseline is small (+0.09 on the quality suite, -0.03 on the hard probes). A pre-registered rule said to fold three of the skills; the maintainer kept them and the decision is recorded.
 
 ### Known gaps

@@ -185,8 +185,57 @@
   </div>
 </div>
 
+<h2>Design guidance</h2>
+
+<p>Five more skills cover the design questions that come up inside the loop. They load by description when a question matches, and the workflow's plan step and the bootstrap's system-design phase point at them. They add a checklist, not new rules about process.</p>
+
+<div class="card-grid card-grid-2">
+  <div class="card">
+    <h3>system-architect-engineering-guidelines</h3>
+    <p><strong>A design question in an existing codebase.</strong> Add a layer, cache, abstraction or dependency; review a design for over-engineering.</p>
+    <ul>
+      <li>A design lens: requirements, boundaries, contracts, failure, security, operability.</li>
+      <li>A one-way-door check, and an ADR template for the decisions that are hard to undo.</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>greenfield-architecture-guidelines</h3>
+    <p><strong>Deciding the architecture of a new system.</strong> Used inside the bootstrap's system-design phase.</p>
+    <ul>
+      <li>Quality-attribute scenarios with a number, before any structure.</li>
+      <li>A modular-monolith start and a walking skeleton, with splits only for a stated reason.</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>modularity-and-evolution-guidelines</h3>
+    <p><strong>Boundaries, coupling and change over time.</strong> Splitting a module or service, migrations, API and schema changes.</p>
+    <ul>
+      <li>One owner per piece of data, dependencies that point one way, no cycles.</li>
+      <li>Expand then contract, and strangler-style replacement, instead of a big-bang switch.</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>distributed-systems-resilience-guidelines</h3>
+    <p><strong>Anything that crosses a network.</strong> Timeouts, retries, idempotency, partial failure.</p>
+    <ul>
+      <li>A four-question failure checklist for every call or message you add.</li>
+      <li>Retry with backoff and a budget, outbox and saga for writes across stores.</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>operability-guidelines</h3>
+    <p><strong>Running it in production.</strong> Releases, rollback, monitoring, alerting, reliability targets, go-live.</p>
+    <ul>
+      <li>A reliability target stated as a number, and alerts on symptoms rather than causes.</li>
+      <li>A rollback path for every change, including data.</li>
+    </ul>
+  </div>
+</div>
+
+<p>The honest part: measured on this repo's own probes they fire reliably but add little over the base model on well-known topics. The clearest gains are premise pushback and quality-attribute questions on new designs. Their architecture claims were written from recall and are only partly cross-checked. Method and results: <a href="https://github.com/ValeroK/the-ultimate-workflow-guidelines/blob/main/evals/results/architecture-skills/README.md">eval results</a> and <a href="https://github.com/ValeroK/the-ultimate-workflow-guidelines/blob/main/research/architecture-claims-check.md">claims check</a>.</p>
+
 <h2>The behavioral layer</h2>
-<p>Both skills apply four principles before any procedural step:</p>
+<p>The skills share four principles, applied before any procedural step:</p>
 
 <div class="principle">
   <div class="glyph">🧠</div>

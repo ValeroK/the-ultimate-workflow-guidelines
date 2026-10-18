@@ -2,7 +2,8 @@
 
 The security checklist in `references/` is adapted from
 `anthropics/claude-code-security-review` (commit 0c6a49f1fa56a1d472575da86a94dbc1edb78eda),
-licensed under the MIT License. The upstream license text follows.
+licensed under the MIT License. Changes from the original are listed in
+`references/CHANGES.md`. The upstream license text follows.
 
 MIT License
 

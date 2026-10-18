@@ -14,6 +14,7 @@ Domain experts (currently `security`) review as extra lenses. The workflow scrip
    `git diff --name-status <range> | node "${CLAUDE_PLUGIN_ROOT}/experts/route.js" --plan <plan file>`
 3. Read the JSON it prints. `experts` is the list to run: the plan's experts plus any the diff adds. If `added` is not empty, tell the user which experts the diff added beyond the plan, and why those paths matched.
 4. If the script exits with code 2 (unreadable plan, unknown expert name), stop and show its stderr. Do not run the review without the experts the plan asked for.
+5. If `experts` is not empty, save the diff for them, because experts have no shell: `mkdir -p .ultimate-workflow && git diff <range> > .ultimate-workflow/review.diff`. Their references live in `${CLAUDE_PLUGIN_ROOT}/experts`.
 
 Do not choose experts yourself. The routing table is the script's job.
 
@@ -22,7 +23,7 @@ Do not choose experts yourself. The routing table is the script's job.
 Call the **Workflow** tool with:
 
 - `scriptPath`: `${CLAUDE_PLUGIN_ROOT}/workflows/review.js`
-- `args`: a JSON object, not a string: `{ "range": "<range>", "experts": <the list from step 3>, ... }`, plus `rigor` and `lenses` if the user gave them (`$ARGUMENTS`)
+- `args`: a JSON object, not a string: `{ "range": "<range>", "experts": <the list from step 3>, "diffFile": ".ultimate-workflow/review.diff", "expertsDir": "${CLAUDE_PLUGIN_ROOT}/experts" }`, plus `rigor` and `lenses` if the user gave them (`$ARGUMENTS`). Leave `diffFile` and `expertsDir` out when there are no experts.
 
 Optional extra lenses beyond the four defaults.
 

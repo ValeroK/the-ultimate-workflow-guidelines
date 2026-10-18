@@ -21,6 +21,7 @@ const finding = (over = {}) => ({
 });
 
 const lensCalls = (calls) => calls.filter((c) => c.phase === 'Lenses');
+const EXP = { diffFile: '.ultimate-workflow/review.diff', expertsDir: '/plugin/experts' };
 const DEPS = { tier1: [{ name: 'lodash', version: '4.17.15', advisory: 'GHSA-p6mc-m468-83gw' }] };
 
 test('baseline: with no experts, exactly the core lenses run, all as uw-reviewer', async () => {
@@ -44,7 +45,7 @@ test('empty and absent experts spawn no expert and leak no expert material into 
 
 test('experts: ["security"] adds one security lens run by the expert agent, after the core lenses', async () => {
   const run = loadWorkflow(REVIEW);
-  const { calls } = await run({ experts: ['security'], range: 'main..HEAD', deps: DEPS }, clean);
+  const { calls } = await run({ ...EXP, experts: ['security'], range: 'main..HEAD', deps: DEPS }, clean);
   const lenses = lensCalls(calls);
   assert.deepStrictEqual(lenses.map((c) => c.label), [...CORE, 'security']);
   const sec = lenses.find((c) => c.label === 'security');
@@ -59,13 +60,13 @@ test('experts: ["security"] adds one security lens run by the expert agent, afte
 
 test('a comma-separated string is accepted the same way as an array', async () => {
   const run = loadWorkflow(REVIEW);
-  const { calls } = await run({ experts: 'security' }, clean);
+  const { calls } = await run({ ...EXP, experts: 'security' }, clean);
   assert.deepStrictEqual(lensCalls(calls).map((c) => c.label), [...CORE, 'security']);
 });
 
 test('duplicates collapse to one run', async () => {
   const run = loadWorkflow(REVIEW);
-  const { calls } = await run({ experts: ['security', 'security'] }, clean);
+  const { calls } = await run({ ...EXP, experts: ['security', 'security'] }, clean);
   assert.strictEqual(lensCalls(calls).filter((c) => c.label === 'security').length, 1);
 });
 
@@ -76,18 +77,18 @@ test('the set of experts comes from the registry, not a hardcoded name, and orde
     return out;
   };
   const run = loadWorkflow(REVIEW, { transform: withDevops });
-  const a = await run({ experts: ['devops', 'security'] }, clean);
+  const a = await run({ ...EXP, experts: ['devops', 'security'] }, clean);
   assert.deepStrictEqual(lensCalls(a.calls).slice(CORE.length).map((c) => [c.label, c.agentType]), [
     ['devops', 'uw-expert-devops'],
     ['security', 'uw-expert-security'],
   ]);
-  const b = await run({ experts: ['security'] }, clean);
+  const b = await run({ ...EXP, experts: ['security'] }, clean);
   assert.deepStrictEqual(lensCalls(b.calls).slice(CORE.length).map((c) => c.label), ['security']);
 });
 
 test('one known and one unknown expert is an error naming the unknown one, and nothing runs', async () => {
   const run = loadWorkflow(REVIEW);
-  const { result, calls } = await run({ experts: ['security', 'frobnicator'] }, clean);
+  const { result, calls } = await run({ ...EXP, experts: ['security', 'frobnicator'] }, clean);
   assert.strictEqual(result.ok, false);
   assert.match(result.error, /frobnicator/);
   assert.ok(!/security,/.test(result.error), 'only the unknown name is blamed');
@@ -104,7 +105,7 @@ test('expert findings flow through the same verify and merge path as other lense
     }
     return { verdicts: [{ index: 0, verdict: 'confirmed', reason: 'reachable from the CLI' }] };
   };
-  const { result, calls } = await run({ experts: ['security'] }, respond);
+  const { result, calls } = await run({ ...EXP, experts: ['security'] }, respond);
   const verify = calls.filter((c) => c.phase === 'Verify');
   assert.strictEqual(verify.length, 1);
   assert.ok(verify[0].prompt.includes('user input reaches a shell command'), 'skeptic is shown the expert finding');
@@ -118,8 +119,35 @@ test('an expert that fails is reported as not run, never as a clean review', asy
     if (call.label === 'security') throw new Error('agent type uw-expert-security not found');
     return clean(call);
   };
-  const { result } = await run({ experts: ['security'] }, respond);
+  const { result } = await run({ ...EXP, experts: ['security'] }, respond);
   assert.deepStrictEqual(result.failedLenses, ['security']);
   assert.match(result.summary, /security did not run/);
   assert.doesNotMatch(result.summary, /Every lens ran/);
+});
+
+test('an expert prompt points at the diff file and references, and never tells it to run a shell command', async () => {
+  const run = loadWorkflow(REVIEW);
+  const { calls } = await run({ ...EXP, experts: ['security'], range: 'main..HEAD' }, clean);
+  const sec = lensCalls(calls).find((c) => c.label === 'security');
+  assert.ok(sec.prompt.includes('.ultimate-workflow/review.diff'), 'tells the expert where the diff is');
+  assert.ok(sec.prompt.includes('/plugin/experts/security/references/'), 'tells the expert where its references are');
+  assert.ok(!/git diff/.test(sec.prompt), 'the expert has no shell, so it must not be told to run git');
+  for (const c of lensCalls(calls).filter((c) => c.label !== 'security')) {
+    assert.ok(c.prompt.includes('git diff main..HEAD'), `${c.label} still reads the diff with git`);
+    assert.ok(!c.prompt.includes('/plugin/experts'), `${c.label} must not see the expert directory`);
+  }
+});
+
+test('experts without a diff file or a references directory stop the run before anything is spawned', async () => {
+  for (const args of [
+    { experts: ['security'], expertsDir: '/plugin/experts' },
+    { experts: ['security'], diffFile: 'r.diff' },
+    { experts: ['security'] },
+  ]) {
+    const run = loadWorkflow(REVIEW);
+    const { result, calls } = await run(args, clean);
+    assert.strictEqual(result.ok, false, JSON.stringify(args));
+    assert.match(result.error, /diffFile|expertsDir/);
+    assert.strictEqual(calls.length, 0, 'an expert that cannot see the diff must not run blind');
+  }
 });

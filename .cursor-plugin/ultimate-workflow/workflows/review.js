@@ -50,6 +50,17 @@ if (unknownExperts.length > 0) {
 }
 const experts = [...new Set(requestedExperts)]
 
+// An expert has no shell, so it cannot run `git diff` itself. The review command
+// saves the diff to a file and passes its path, plus the directory holding the
+// expert's references. Without both the expert would review blind, so stop.
+const missingForExperts = experts.length > 0 ? ['diffFile', 'expertsDir'].filter((k) => !(args && args[k])) : []
+if (missingForExperts.length > 0) {
+  return {
+    ok: false,
+    error: `Experts need ${missingForExperts.join(' and ')} in args; the review command provides them. Nothing was reviewed.`,
+  }
+}
+
 const lenses = [...CORE, ...extraLenses.filter((l) => !CORE.includes(l) && !experts.includes(l)), ...experts]
 
 const FINDINGS = {
@@ -109,7 +120,11 @@ const lensResults = await parallel(
     agent(
       `Review the diff for ${range} through the ${lens} lens ONLY. Another reviewer has each of the other lenses; stay inside yours.
 
-Start by reading the diff: \`git diff ${range}\`. Read the surrounding code, not just the changed lines -- a hunk is rarely comprehensible on its own.
+${
+  EXPERTS[lens]
+    ? `The diff for ${range} is saved at ${args.diffFile}. Read it there; you have no shell. Your references are in ${args.expertsDir}/${lens}/references/.`
+    : 'Start by reading the diff: `git diff ' + range + '`.'
+} Read the surrounding code, not just the changed lines -- a hunk is rarely comprehensible on its own.
 
 ${
   lens === 'surgical-scope'

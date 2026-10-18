@@ -31,7 +31,26 @@ const extraLenses = ((args && args.lenses) || '')
   .filter(Boolean)
 
 const CORE = ['correctness', 'simplicity', 'surgical-scope', 'test-coverage']
-const lenses = [...CORE, ...extraLenses.filter((l) => !CORE.includes(l))]
+
+// Domain experts run as extra lenses under their own agent type. This script has
+// no filesystem or shell, so the list can only arrive as an argument: the review
+// command computes it from the plan file with experts/<domain>/route.js. An
+// unknown name stops the run, because dropping it would be a silent skip.
+const EXPERTS = { security: 'uw-expert-security' }
+const requestedExperts = (Array.isArray(args && args.experts) ? args.experts : String((args && args.experts) || '').split(','))
+  .map((e) => String(e).trim())
+  .filter(Boolean)
+const unknownExperts = requestedExperts.filter((e) => !Object.prototype.hasOwnProperty.call(EXPERTS, e))
+if (unknownExperts.length > 0) {
+  return {
+    ok: false,
+    error: `Unknown expert(s): ${unknownExperts.join(', ')}. Nothing was reviewed.`,
+    knownExperts: Object.keys(EXPERTS),
+  }
+}
+const experts = [...new Set(requestedExperts)]
+
+const lenses = [...CORE, ...extraLenses.filter((l) => !CORE.includes(l) && !experts.includes(l)), ...experts]
 
 const FINDINGS = {
   type: 'object',
@@ -103,12 +122,23 @@ ${
     : ''
 }
 
+${
+  EXPERTS[lens]
+    ? `You are the ${lens} domain expert. Follow your agent definition and its index for what to read.
+
+Dependency audit (JSON, produced by a script before this run; do not fetch anything yourself): ${
+        args && args.deps ? JSON.stringify(args.deps) : 'not provided'
+      }
+Treat a dependency item as a finding only when this diff introduces it or makes it reachable; otherwise mention it as pre-existing in lensVerdict.`
+    : ''
+}
+
 Every finding needs a file, a line, one sentence on the defect, and a concrete failure scenario. If you cannot describe the path from cause to symptom, it is a suspicion and does not belong in the list.
 
 Set lensVerdict whether or not you find anything.
 
 ${NO_QUOTA}`,
-      { agentType: 'uw-reviewer', label: lens, phase: 'Lenses', schema: FINDINGS }
+      { agentType: EXPERTS[lens] || 'uw-reviewer', label: lens, phase: 'Lenses', schema: FINDINGS }
     )
   )
 )

@@ -14,4 +14,4 @@ Tiers:
 2. Tier 2: end of life, unmaintained or yanked. Report it when the diff adds it. Otherwise mention it once in the verdict.
 3. Tier 3: merely behind the latest release. Never a finding. One summary line in the verdict.
 
-Entries marked `introducedBy: "preexisting"` are not findings of this change. Give the number of pre-existing tier 1 items in your verdict so the reader knows they exist.
+Entries marked `introducedBy: "preexisting"` are not findings of this change. Give the number of pre-existing tier 1 items in your verdict so the reader knows they exist. Where the value is `"unknown"`, the script could not tell what the diff changed: report the entry as a tier 1 item of unknown origin and say so.

@@ -117,7 +117,7 @@ function parseNpmLock(text) {
       skipped.push({ ecosystem: 'npm', name, version: '', reason: 'no version in lockfile' });
       continue;
     }
-    packages.push({ ecosystem: 'npm', name, version: val.version, source: npmSource(val.resolved) });
+    packages.push({ ecosystem: 'npm', name, version: val.version, source: npmSource(val.resolved), dev: Boolean(val.dev) });
   }
   return { packages, skipped };
 }
@@ -364,6 +364,7 @@ async function audit({ files, fetch = httpsFetch, changedPaths, deadlineMs = 120
   for (const e of entries) {
     const s = out.status.get(e) || { reason: 'not queried' };
     const id = { ecosystem: e.ecosystem, name: e.name, version: e.version, lockfile: e.lockfile, introducedBy: e.introducedBy };
+    if (e.dev !== undefined) id.dev = e.dev;
     if (s.reason) {
       result.notChecked.push({ ...id, reason: s.reason });
       continue;

@@ -397,3 +397,23 @@ test('CLI: a missing file or no arguments is exit code 2 with the reason on stde
     assert.ok(r.stderr.length > 0);
   }
 });
+
+test('npm entries carry whether they are dev-only, so a build-tool advisory can be told from a shipped one', async () => {
+  const reg = registry({
+    npmBulk: { tool: [GHSA('GHSA-tool')], lib: [GHSA('GHSA-lib')] },
+    npmLatest: { tool: { version: '9.0.0' }, lib: { version: '9.0.0' } },
+  });
+  const lock = npmLock({ 'node_modules/tool': { version: '1.0.0', dev: true }, 'node_modules/lib': { version: '1.0.0' } });
+  const r = await run([{ path: 'package-lock.json', text: lock }], reg);
+  const by = Object.fromEntries(r.tier1.map((t) => [t.name, t.dev]));
+  assert.deepStrictEqual(by, { tool: true, lib: false });
+});
+
+test('PyPI entries do not claim a dev flag the lockfile does not give them', async () => {
+  const reg = registry({
+    pypiVersion: { 'p@1.0': pyDoc({ vulnerabilities: [{ id: 'PYSEC-1', aliases: [], summary: 's', fixed_in: [], withdrawn: null }] }) },
+    pypiLatest: { p: { info: { version: '1.0', classifiers: [] } } },
+  });
+  const r = await run(ONE_PY(), reg);
+  assert.ok(!('dev' in r.tier1[0]));
+});

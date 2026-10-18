@@ -12,6 +12,7 @@
 //   git diff --name-status main..HEAD | node route.js                  routes, prints JSON
 //   git diff --name-status main..HEAD | node route.js --write-plan P   records into plan P
 //   node route.js --read-plan P                                         prints the plan's experts
+//   git diff --name-status main..HEAD | node route.js --plan P         plan experts plus what the diff adds
 //
 // The plan file is always named explicitly. Nothing here picks "the newest PLAN-*.md".
 // Exit code 2 means the input was unusable, with the reason on stderr.
@@ -205,7 +206,10 @@ function main(argv) {
     const a = argv[i]
     if (a === '--name-status') continue
     else if (a === '--force') force = true
-    else if (a === '--write-plan' || a === '--read-plan') {
+    else if (a === '--plan') {
+      planFile = argv[++i] || ''
+      if (!planFile) fail('--plan needs a plan file path')
+    } else if (a === '--write-plan' || a === '--read-plan') {
       mode = a === '--write-plan' ? 'write' : 'read'
       planFile = argv[++i] || ''
       if (!planFile) fail(`${a} needs a plan file path`)
@@ -229,7 +233,17 @@ function main(argv) {
 
   const routed = routeExperts(parseNameStatus(fs.readFileSync(0, 'utf8')))
   if (mode === 'route') {
-    process.stdout.write(JSON.stringify({ experts: routed }) + '\n')
+    if (!planFile) {
+      process.stdout.write(JSON.stringify({ experts: routed }) + '\n')
+      return
+    }
+    // The plan's experts were chosen before any diff existed; the diff is the better
+    // signal. Take the union so the diff can add an expert but never remove one.
+    const plan = readExperts(readPlan())
+    if (plan.error) fail(plan.error)
+    const experts = Object.keys(RULES).filter((e) => plan.experts.includes(e) || routed.includes(e))
+    const added = experts.filter((e) => !plan.experts.includes(e))
+    process.stdout.write(JSON.stringify({ file: planFile, experts, planned: plan.experts, added }) + '\n')
     return
   }
 

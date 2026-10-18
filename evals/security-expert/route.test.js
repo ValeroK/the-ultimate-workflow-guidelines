@@ -235,3 +235,49 @@ test('route.js and review.js agree on which experts exist', () => {
   const inReview = [...literal[1].matchAll(/(\w+)\s*:/g)].map((m) => m[1]).sort();
   assert.deepStrictEqual(Object.keys(route.RULES).sort(), inReview);
 });
+
+test('CLI: --plan unions the plan with the diff, never drops a planned expert, and reports what the diff added', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'uw-route-'));
+  const mk = (name, extra) => {
+    const f = path.join(dir, name);
+    fs.writeFileSync(f, PLAN(extra));
+    return f;
+  };
+  const out = (r) => {
+    assert.strictEqual(r.status, 0, r.stderr);
+    return JSON.parse(r.stdout);
+  };
+
+  const planned = out(cli(['--plan', mk('a.md', 'experts: [security]\n')], 'M\tREADME.md\n'));
+  assert.deepStrictEqual(planned.experts, SECURITY, 'planned expert kept although the diff alone would not route it');
+  assert.deepStrictEqual(planned.added, []);
+
+  const none = out(cli(['--plan', mk('b.md', 'experts: []\n')], 'M\tuv.lock\n'));
+  assert.deepStrictEqual(none.experts, SECURITY, 'the diff adds an expert the plan said none for');
+  assert.deepStrictEqual(none.planned, []);
+  assert.deepStrictEqual(none.added, SECURITY, 'and says so');
+
+  const absent = out(cli(['--plan', mk('c.md', '')], 'M\tuv.lock\n'));
+  assert.deepStrictEqual(absent.experts, SECURITY);
+  assert.deepStrictEqual(absent.added, SECURITY);
+
+  const neither = out(cli(['--plan', mk('d.md', 'experts: []\n')], 'M\tREADME.md\n'));
+  assert.deepStrictEqual(neither.experts, []);
+});
+
+test('CLI: --plan with a missing or invalid plan is exit code 2, not a silent diff-only answer', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'uw-route-'));
+  const bad = path.join(dir, 'bad.md');
+  fs.writeFileSync(bad, PLAN('experts: [frobnicator]\n'));
+  const cases = [
+    [bad, /frobnicator/],
+    [path.join(dir, 'missing.md'), /missing\.md/],
+  ];
+  for (const [f, why] of cases) {
+    const r = cli(['--plan', f], 'M\tuv.lock\n');
+    assert.strictEqual(r.status, 2, f);
+    assert.match(r.stderr, why, 'fails for the plan problem, not for an unknown flag');
+    assert.doesNotMatch(r.stderr, /unknown argument/);
+    assert.strictEqual(r.stdout, '');
+  }
+});

@@ -5,10 +5,24 @@ argument-hint: "[--lenses security,performance]"
 
 # Phase: review
 
-Run this phase by calling the **Workflow** tool with:
+## Before the workflow: choose the domain experts
+
+Domain experts (currently `security`) review as extra lenses. The workflow script has no shell, so work out which ones apply here, in code:
+
+1. Find the plan file. Use the one the user named. Otherwise, if exactly one `PLAN-*.md` exists at the repository root, use it. If several exist and none was named, ask which; never pick by modification time. If none exists, skip `--plan` below.
+2. Run, with the review range (default `main..HEAD`):
+   `git diff --name-status <range> | node "${CLAUDE_PLUGIN_ROOT}/experts/route.js" --plan <plan file>`
+3. Read the JSON it prints. `experts` is the list to run: the plan's experts plus any the diff adds. If `added` is not empty, tell the user which experts the diff added beyond the plan, and why those paths matched.
+4. If the script exits with code 2 (unreadable plan, unknown expert name), stop and show its stderr. Do not run the review without the experts the plan asked for.
+
+Do not choose experts yourself. The routing table is the script's job.
+
+## Run the phase
+
+Call the **Workflow** tool with:
 
 - `scriptPath`: `${CLAUDE_PLUGIN_ROOT}/workflows/review.js`
-- `args`: `$ARGUMENTS`
+- `args`: a JSON object, not a string: `{ "range": "<range>", "experts": <the list from step 3>, ... }`, plus `rigor` and `lenses` if the user gave them (`$ARGUMENTS`)
 
 Optional extra lenses beyond the four defaults.
 

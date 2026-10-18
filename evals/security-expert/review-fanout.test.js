@@ -151,3 +151,22 @@ test('experts without a diff file or a references directory stop the run before 
     assert.strictEqual(calls.length, 0, 'an expert that cannot see the diff must not run blind');
   }
 });
+
+test('the pre-existing optional security LENS still works: a plain reviewer reading the diff with git, never the expert path', async () => {
+  const run = loadWorkflow(REVIEW);
+  const { calls, result } = await run({ lenses: 'security', range: 'main..HEAD' }, clean);
+  assert.strictEqual(result.ok, true);
+  const sec = lensCalls(calls).find((c) => c.label === 'security');
+  assert.ok(sec, 'the security lens ran');
+  assert.strictEqual(sec.agentType, 'uw-reviewer');
+  assert.ok(sec.prompt.includes('git diff main..HEAD'));
+  assert.ok(!/undefined|references|domain expert/.test(sec.prompt), 'no expert text and no unset values in a plain lens prompt');
+});
+
+test('asking for the lens and the expert of the same name runs only the expert', async () => {
+  const run = loadWorkflow(REVIEW);
+  const { calls } = await run({ ...EXP, lenses: 'security', experts: ['security'] }, clean);
+  const secs = lensCalls(calls).filter((c) => c.label === 'security');
+  assert.strictEqual(secs.length, 1);
+  assert.strictEqual(secs[0].agentType, 'uw-expert-security');
+});

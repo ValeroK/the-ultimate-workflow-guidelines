@@ -121,7 +121,7 @@ const lensResults = await parallel(
       `Review the diff for ${range} through the ${lens} lens ONLY. Another reviewer has each of the other lenses; stay inside yours.
 
 ${
-  EXPERTS[lens]
+  experts.includes(lens)
     ? `The diff for ${range} is saved at ${args.diffFile}. Read it there; you have no shell. Your references are in ${args.expertsDir}/${lens}/references/.`
     : 'Start by reading the diff: `git diff ' + range + '`.'
 } Read the surrounding code, not just the changed lines -- a hunk is rarely comprehensible on its own.
@@ -138,7 +138,7 @@ ${
 }
 
 ${
-  EXPERTS[lens]
+  experts.includes(lens)
     ? `You are the ${lens} domain expert. Follow your agent definition and its index for what to read.
 
 Dependency audit (JSON, produced by a script before this run; do not fetch anything yourself): ${
@@ -153,7 +153,7 @@ Every finding needs a file, a line, one sentence on the defect, and a concrete f
 Set lensVerdict whether or not you find anything.
 
 ${NO_QUOTA}`,
-      { agentType: EXPERTS[lens] || 'uw-reviewer', label: lens, phase: 'Lenses', schema: FINDINGS }
+      { agentType: experts.includes(lens) ? EXPERTS[lens] : 'uw-reviewer', label: lens, phase: 'Lenses', schema: FINDINGS }
     )
   )
 )

@@ -108,9 +108,11 @@ test('the scorecard has twelve numbered checks, each with who does it, and the f
   assert.ok(rows[0][3].includes(verify), 'check 1 is not the repository\'s own verify command');
 });
 
-test('the guide marks its own bars as proposals, and does not claim the replay tool is committed', () => {
+test('the guide marks its own bars as proposals, and names the replay tool that now ships', () => {
   assert.match(VETTING, /The "passes when" column is a proposal/);
-  assert.match(VETTING, /is not committed/);
+  assert.ok(VETTING.includes('`evals/experts/manual/replay.js`'));
+  assert.ok(fs.existsSync(path.join(ROOT, 'evals', 'experts', 'manual', 'replay.js')));
+  assert.doesNotMatch(VETTING, /is not committed/);
 });
 
 test('every path the vetting guide mentions exists or is a labelled placeholder', () => {
@@ -136,4 +138,36 @@ test('the guide\'s worked example agrees with what ships: the security expert ha
   assert.ok(refs.includes('CHANGES.md'));
   assert.strictEqual(refs.filter((f) => f !== 'CHANGES.md').length, 5, 'the guide says five reference files and a changes record');
   assert.match(VETTING, /Five reference files and a changes record/);
+});
+
+// ---- the public site mirrors the README's experts section --------------------------------
+
+const SITE = read('docs/index.html');
+
+test('the site explains domain experts, with the same flow and the same honest limits as the README', () => {
+  assert.match(SITE, /<h2>Domain experts<\/h2>/);
+  const section = SITE.slice(SITE.indexOf('<h2>Domain experts</h2>'), SITE.indexOf('<h2>Starting a brand new project?</h2>'));
+  for (const needle of ['/plan', '/tests', '/build', 'commit', '/ultimate-workflow:experts', 'refused until', 'can only ADD', 'YOU confirm the plan', 'YOU confirm the tests', 'YOU dismiss', 'makes the evidence stale', 'treats the expert input as requirements', 'Code decides', 'A model decides', 'The honest limits', 'Promising, not proven', '12 of 12', '5 of 6']) {
+    assert.ok(section.includes(needle), `the site never says: ${needle}`);
+  }
+});
+
+test('the site links to the expert docs, and they exist next to it', () => {
+  for (const f of ['adding-an-expert.md', 'what-a-good-expert-looks-like.md']) {
+    assert.ok(SITE.includes(`href="${f}"`), `the site never links to ${f}`);
+    assert.ok(fs.existsSync(path.join(ROOT, 'docs', f)), `${f} is not next to the site`);
+  }
+});
+
+test('the site host table carries the same two expert rows as the README', () => {
+  assert.match(SITE, /Domain experts at plan, tests and review<\/td><td>Yes<\/td><td>You invoke the phases<\/td><td>As prose/);
+  assert.match(SITE, /Commit refused until the experts have reviewed<\/td><td>Yes, with the gates on<\/td><td>No<\/td><td>No/);
+});
+
+test('the site\'s flow diagram has the same lines as the README\'s', () => {
+  const lines = (text) => text.split('\n').map((l) => l.replace(/&[a-z]+;/g, '').trim()).filter((l) => /YOU|refused until|can only ADD|stale|requirements|a model is asked/.test(l));
+  const fromReadme = lines(README.slice(README.indexOf('## Domain experts'), README.indexOf('What you see:')));
+  const fromSite = lines(SITE.slice(SITE.indexOf('<h2>Domain experts</h2>'), SITE.indexOf('</pre>', SITE.indexOf('<h2>Domain experts</h2>'))));
+  assert.ok(fromReadme.length >= 6);
+  assert.deepStrictEqual(fromSite, fromReadme);
 });

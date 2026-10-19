@@ -23,6 +23,9 @@ const { loadWorkflow } = require('../lib/run-workflow.js');
 
 const ARMS = ['generic', 'lens', 'upstream', 'expert'];
 
+// The same discovery the plugin uses, so the exercise cannot drift from production.
+const listExperts = (pluginDir) => require(path.join(pluginDir, 'experts', 'experts.js')).list(pluginDir).experts;
+
 const head = (c) => `You are taking part in a code review exercise. Follow these instructions exactly.
 
 Repository: ${c.worktree} (the change under review is already applied in this checkout).
@@ -71,7 +74,7 @@ async function buildPrompt(c) {
     middle =
       'Review this change for any defects: bugs, security problems, or anything else that is wrong. Report only real problems, each with a concrete failure scenario. If the change is sound, report nothing.';
   } else if (c.arm === 'lens') {
-    const call = await captureReviewPrompt(c.pluginDir, { lenses: 'security', range, skipRouting: true }, 'security');
+    const call = await captureReviewPrompt(c.pluginDir, { lenses: 'security', range, noExperts: true }, 'security');
     const reading = `Start by reading the diff: \`git diff ${range}\`.`;
     if (!call.prompt.includes(reading)) throw new Error('review.js no longer says how the lens reads the diff; update build-prompts.js');
     middle = `Your role definition:\n\n${body(path.join(c.pluginDir, 'agents', 'uw-reviewer.md'))}\n\n${note}\n\n${call.prompt.replace(
@@ -83,7 +86,8 @@ async function buildPrompt(c) {
   } else {
     const call = await captureReviewPrompt(
       c.pluginDir,
-      { routing: { experts: ['security'] }, diffFile: c.diffFile, expertsDir: path.join(c.pluginDir, 'experts'), range },
+      // The recheck is off: this exercise measures the expert's instructions, not selection.
+      { available: listExperts(c.pluginDir), experts: ['security'], recheck: false, diffFile: c.diffFile, expertsDir: path.join(c.pluginDir, 'experts'), range },
       'security'
     );
     // The shipped expert may run read-only commands and use the web. Every arm in this

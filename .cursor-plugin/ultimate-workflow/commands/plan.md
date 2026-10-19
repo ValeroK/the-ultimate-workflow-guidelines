@@ -1,16 +1,24 @@
 ---
-description: Explore the codebase in parallel, then draft a plan anchored in what already exists. Writes nothing.
+description: Explore the codebase in parallel, draft a plan anchored in what already exists, and collect input from the domain experts that apply. Writes nothing.
 argument-hint: "<what you want built>"
 ---
 
 # Phase: plan
 
-Run this phase by calling the **Workflow** tool with:
+## Before the workflow: find out which experts exist
+
+The workflow script cannot read the filesystem, so the list of domain experts is found here, in code. Run:
+
+`node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" list`
+
+It prints a JSON array, one entry per `agents/uw-expert-*.md`. Keep it exactly as printed; it is passed to the workflow as `available`. An empty array is fine and means no expert is installed. If the script prints a problem on stderr, show it to the user: an expert whose file is malformed is left out of the list.
+
+## Run the phase
+
+Call the **Workflow** tool with:
 
 - `scriptPath`: `${CLAUDE_PLUGIN_ROOT}/workflows/plan.js`
-- `args`: `$ARGUMENTS`
-
-The feature to plan, verbatim from the user.
+- `args`: a JSON object, not a string: `{ "feature": "<the feature to plan, verbatim from the user>", "available": <the list, unchanged>, "expertsDir": "${CLAUDE_PLUGIN_ROOT}/experts" }`, plus `areas` if the user named some.
 
 Call it once. Do not re-implement the phase inline, and do not run it a second
 time because the first result was not what you expected -- these phases cost
@@ -20,9 +28,13 @@ six figures of tokens each, and a rerun is a decision for the user to make.
 
 Present the returned plan and **stop**. Do not write it to disk and do not start work until the user confirms. Two things depend on that stop: the confirmation is the product, and `plan_confirmed` is not yours to set.
 
-Once the user has confirmed and the plan file is on disk, record which domain experts the plan will need, in code and not by judgement. List the paths the plan expects to change, one per line, and run:
-`node "${CLAUDE_PLUGIN_ROOT}/experts/route.js" --write-plan <plan file>` with that list on standard input.
-It writes an `experts:` line into the plan's frontmatter, or an explicit empty list when none apply, and never overwrites a value a person already wrote (it reports `differs` instead). The review phase re-checks against the real diff.
+Show the user what the experts did, from `expertLane`: which experts were selected and why (`reasons`), whose input is in the plan (`ran`), and any consult that failed (`failed`). The input itself is in the plan under "Expert input" and is part of what the user is confirming. If `expertLane.skipped` is set, say so plainly: no expert was consulted, and why.
+
+Once the user has confirmed and the plan file is on disk, record what happened, in code and not from memory. Build a JSON object with `"ok": true` and the `expertLane` exactly as the workflow returned it (do not edit it), and run:
+
+`node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" record --stage plan --plan <plan file>`
+
+with that object on standard input. It writes the `experts:` line into the plan's frontmatter, only ever adding to what is there, and leaves an evidence file for each expert that gave input. If `expertLane.skipped` was set there is nothing to record: tell the user, and do not invent an `experts:` line; source edits stay blocked by the experts gate until the user decides. If the user says no expert applies, record that with `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" select --plan <plan file> --add ""`.
 
 ## If the Workflow tool is unavailable
 

@@ -12,6 +12,8 @@ Run this phase by calling the **Workflow** tool with:
 
 The confirmed plan to implement. If empty, use the most recently modified `PLAN-*.md`.
 
+Domain experts do not write code. If the plan has an "Expert input" section, the workflow tells the implementer that its constraints are requirements. The experts check the result at review, against what they required.
+
 Call it once. Do not re-implement the phase inline, and do not run it a second
 time because the first result was not what you expected -- these phases cost
 six figures of tokens each, and a rerun is a decision for the user to make.

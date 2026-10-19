@@ -106,3 +106,11 @@ test('every command is quoted, so a path with a space still runs', () => {
     }
   }
 });
+
+test('the pre-tool matcher includes Bash, or the commit gate (G6) can never see a commit', () => {
+  // G6 denies `git commit` until the domain experts have reviewed the changes. It runs on
+  // PreToolUse for shell commands; if Bash falls out of the matcher the gate is registered,
+  // correct, and blind.
+  const matchers = config.hooks.PreToolUse.map((g) => g.matcher || '').join('|').split('|');
+  assert.ok(matchers.includes('Bash'), 'PreToolUse does not match Bash, so G6 never sees a commit');
+});

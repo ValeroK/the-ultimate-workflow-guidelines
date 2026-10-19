@@ -9,7 +9,7 @@ const { lintChecklist } = require('./lib/checklist-lint.js');
 
 const REFS = path.join(__dirname, '..', '..', '.cursor-plugin', 'ultimate-workflow', 'experts', 'security', 'references');
 const read = (f) => fs.readFileSync(path.join(REFS, f), 'utf8');
-const CORE = read('diff-review.md');
+const CORE = read('review.md');
 
 // A lint over prose proves the file has no KNOWN defects, nothing more. What it
 // can do honestly is reject the specific ways a checklist goes wrong, and prove it
@@ -77,7 +77,7 @@ test('the conditional references exist and carry their own rules', () => {
 });
 
 test('every reference is a plain markdown file with no inline shell lines and no emojis', () => {
-  for (const f of ['diff-review.md', 'dependencies.md', 'agent-surface.md']) {
+  for (const f of ['review.md', 'dependencies.md', 'agent-surface.md']) {
     const text = read(f);
     assert.ok(!/^!/m.test(text) && !text.includes('!`'), `${f} has inline shell injection`);
     assert.ok(!/\p{Extended_Pictographic}/u.test(text), `${f} contains an emoji`);

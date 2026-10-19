@@ -7,7 +7,7 @@ Upstream: `anthropics/claude-code-security-review`, `.claude/commands/security-r
 - Scope discipline: only issues the change introduces, only high-confidence ones.
 - The three-pass method: learn the project's patterns, compare the change, trace data flow.
 - The vulnerability categories, compressed.
-- Most of the exclusion list and precedents, re-read one by one and reworded (see "Do not report" in `diff-review.md`).
+- Most of the exclusion list and precedents, re-read one by one and reworded (see "Do not report" in `review.md`).
 
 ## Fixed
 

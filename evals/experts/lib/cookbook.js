@@ -1,9 +1,9 @@
 'use strict';
 
 // Applies docs/adding-an-expert.md to a copy of the plugin the way a contributor
-// would: instantiate its labelled templates, then make the two registry edits it
-// describes. If a template rots or an instruction stops working, scaffolding stops
-// producing an expert that passes the contract, and the cookbook test fails.
+// would: instantiate its labelled templates. There are no registry edits to make, so
+// this writes files and nothing else. If a template rots, scaffolding stops producing
+// an expert that passes the contract, and the cookbook test fails.
 
 const fs = require('node:fs');
 const path = require('node:path');
@@ -23,15 +23,17 @@ function fillIn(template, { name, domain }) {
     .replace(/\{\{domain\}\}/g, domain);
 }
 
-function insertAfter(file, marker, addition) {
-  const src = fs.readFileSync(file, 'utf8');
-  if (!src.includes(marker)) throw new Error(`cannot follow the cookbook: "${marker}" not found in ${path.basename(file)}`);
-  fs.writeFileSync(file, src.replace(marker, () => marker + addition));
-}
+const TEMPLATES = ['agent', 'plan-reference', 'tests-reference', 'review-reference', 'examples'];
 
-function scaffoldExpert({ payload, examples, cookbook, name, domain, fill }) {
+/**
+ * @param stages which stages the new expert joins; the agent template is written with
+ *               them, and one reference file is written per stage.
+ * @param fill   when set, simulate a contributor replacing each guidance note with
+ *               content and the example placeholders with real situations.
+ */
+function scaffoldExpert({ payload, examples, cookbook, name, domain, stages = ['plan', 'tests', 'review'], fill }) {
   const t = extractTemplates(cookbook);
-  for (const label of ['agent', 'checklist', 'examples', 'route-rule', 'review-entry']) {
+  for (const label of TEMPLATES) {
     if (!t[label]) throw new Error(`cannot follow the cookbook: no template:${label} block`);
   }
   const vars = { name, domain };
@@ -39,19 +41,29 @@ function scaffoldExpert({ payload, examples, cookbook, name, domain, fill }) {
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, content.endsWith('\n') ? content : `${content}\n`);
   };
-
-  write(path.join(payload, 'agents', `uw-expert-${name}.md`), fillIn(t.agent, vars));
-  // With `fill`, simulate a contributor replacing each guidance note with real content.
   const filled = (s) => (fill ? s.replace(/FILL-IN:[^\n]*/g, 'A concrete item for this domain.') : s);
-  write(path.join(payload, 'experts', name, 'references', 'checklist.md'), filled(fillIn(t.checklist, vars)));
 
-  let routeRule = fillIn(t['route-rule'], vars);
-  if (fill) routeRule = routeRule.replace(/REPLACE-ME/g, fill.rule);
-  insertAfter(path.join(payload, 'experts', 'route.js'), 'const RULES = {\n', `${routeRule}\n`);
-  insertAfter(path.join(payload, 'workflows', 'review.js'), 'const EXPERTS = {', ` ${fillIn(t['review-entry'], vars)}`);
+  // The template names a reference for every stage; keep only the stages this expert joins.
+  const agentText = filled(fillIn(t.agent, vars))
+    .replace(/^stages: .*$/m, `stages: [${stages.join(', ')}]`)
+    .split('\n')
+    .filter((line) => {
+      const m = /^- At the \*\*(plan|tests|review)\*\* stage/.exec(line);
+      return !m || stages.includes(m[1]);
+    })
+    .join('\n');
+  write(path.join(payload, 'agents', `uw-expert-${name}.md`), agentText);
+  for (const stage of stages) {
+    write(path.join(payload, 'experts', name, 'references', `${stage}.md`), filled(fillIn(t[`${stage}-reference`], vars)));
+  }
 
   const exFile = path.join(examples, `${name}.json`);
-  write(exFile, fill ? JSON.stringify({ routes: fill.routes, ignores: fill.ignores }, null, 2) : fillIn(t.examples, vars));
+  write(
+    exFile,
+    fill
+      ? JSON.stringify({ applies: fill.applies, does_not_apply: fill.does_not_apply }, null, 2)
+      : fillIn(t.examples, vars)
+  );
 }
 
-module.exports = { extractTemplates, scaffoldExpert };
+module.exports = { extractTemplates, scaffoldExpert, TEMPLATES };

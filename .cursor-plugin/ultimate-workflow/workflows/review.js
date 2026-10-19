@@ -4,6 +4,7 @@ export const meta = {
   whenToUse:
     'After implementation, before opening a PR. Runs orthogonal lenses in parallel, then tries to refute what they found. Writes nothing.',
   phases: [
+    { title: 'Recheck', detail: 'ask again which domain experts apply to the real diff; can only add' },
     { title: 'Lenses', detail: 'independent reviewers, one concern each' },
     { title: 'Verify', detail: 'adversarial pass -- refute what cannot be substantiated' },
   ],
@@ -32,69 +33,115 @@ const extraLenses = ((args && args.lenses) || '')
 
 const CORE = ['correctness', 'simplicity', 'surgical-scope', 'test-coverage']
 
-// Domain experts run as extra lenses under their own agent type. This script has
-// no filesystem or shell, so which experts apply can only arrive as an argument, and
-// it must arrive as the router's own output: the review command runs
-// experts/route.js on the diff and passes what it printed as args.routing. A review
-// with no routing stops, because a skipped router would look exactly like "no expert
-// was needed". Opting out is explicit (args.skipRouting) and is recorded in the
-// result. An unknown expert name stops the run, because dropping it would be a
-// silent skip.
-const EXPERTS = { security: 'uw-expert-security' }
-const ROUTING_HELP =
-  'Run experts/route.js on the diff (git diff --name-status <range> | node route.js --plan <plan file>) and pass what it prints as args.routing, or pass args.skipRouting: true to review without domain experts.'
+// --- expert lane helpers (identical in plan.js, tests.js and review.js; a test holds them equal) ---
+// The expert list is discovered by experts/experts.js from the agents folder and passed in
+// as args.available, because a workflow script cannot read the folder itself.
 const asList = (v) => (Array.isArray(v) ? v : String(v || '').split(',')).map((e) => String(e).trim()).filter(Boolean)
-const explicitGiven = Boolean(args) && args.experts !== undefined && args.experts !== null
-const explicitExperts = asList(args && args.experts)
-const skipRouting = Boolean(args && args.skipRouting)
-const routing = args && args.routing
-let requestedExperts = []
-if (skipRouting) {
-  if (routing || explicitExperts.length > 0) {
-    return { ok: false, error: `skipRouting contradicts ${routing ? 'routing' : 'experts'}: pass one or the other. Nothing was reviewed.` }
-  }
-} else {
-  if (!routing) {
-    return { ok: false, error: `Routing is missing, so it is unknown whether a domain expert applies. ${ROUTING_HELP} Nothing was reviewed.` }
-  }
-  const wellFormed =
-    typeof routing === 'object' && !Array.isArray(routing) && Array.isArray(routing.experts) && routing.experts.every((e) => typeof e === 'string')
-  if (!wellFormed) {
-    return { ok: false, error: `args.routing is not the router's output (an object with an experts array of names). ${ROUTING_HELP} Nothing was reviewed.` }
-  }
-  requestedExperts = routing.experts.map((e) => e.trim()).filter(Boolean)
-  const sameSet = [...new Set(explicitExperts)].sort().join() === [...new Set(requestedExperts)].sort().join()
-  if (explicitGiven && !sameSet) {
+const wellFormedAvailable = (a) =>
+  Array.isArray(a) && a.every((e) => e && typeof e.name === 'string' && typeof e.agent === 'string' && Array.isArray(e.stages))
+const describeExperts = (a) => a.map((e) => `- ${e.name}: ${e.description}`).join('\n')
+const SELECTION = {
+  type: 'object',
+  required: ['experts'],
+  properties: {
+    experts: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['name', 'why'],
+        properties: { name: { type: 'string' }, why: { type: 'string', description: 'One sentence tying this expert to something in the material' } },
+      },
+    },
+  },
+}
+// A model answer is merged into the current set by code: it can add a name from the list and
+// nothing else. A name that is not on the list is returned, never applied, and nothing is removed.
+const addOnly = (current, answered, available) => {
+  const known = available.map((e) => e.name)
+  const names = [...new Set((answered || []).map((x) => String((x && x.name) || '').trim()).filter(Boolean))]
+  const merged = [...new Set([...current, ...names.filter((n) => known.includes(n))])]
+  return { experts: merged, added: merged.filter((n) => !current.includes(n)), rejected: names.filter((n) => !known.includes(n)) }
+}
+const takingPart = (available, selected, stage) =>
+  selected.map((n) => available.find((e) => e.name === n)).filter((e) => e && e.stages.includes(stage))
+// --- end expert lane helpers ---
+
+// Domain experts run as extra lenses under their own agent type. Which experts exist is
+// whatever experts/experts.js found in the agents folder (args.available); which of them
+// were chosen at planning time is args.experts (read from the plan). Before the lenses run,
+// the same question is asked again of the real diff and the answer is merged in by code:
+// the diff can add an expert and can never remove one.
+//
+// A review that was not told what is available stops, because a skipped list would look
+// exactly like "no expert was needed". Opting out is explicit (args.noExperts) and recorded.
+const noExperts = Boolean(args && args.noExperts)
+const expertsOnly = Boolean(args && args.expertsOnly)
+const available = (args && args.available) || []
+const planned = asList(args && args.experts)
+
+if (!noExperts) {
+  if (!args || args.available === undefined || args.available === null) {
     return {
       ok: false,
-      error: `args.experts (${explicitExperts.join(', ') || 'none'}) differs from routing.experts (${requestedExperts.join(', ') || 'none'}). Pass the router's output unchanged. Nothing was reviewed.`,
+      error: 'args.available is missing, so it is unknown which domain experts exist. Run "node experts/experts.js list" and pass its JSON as args.available (an empty list is fine), or pass args.noExperts: true to review without them. Nothing was reviewed.',
     }
   }
-}
-const unknownExperts = requestedExperts.filter((e) => !Object.prototype.hasOwnProperty.call(EXPERTS, e))
-if (unknownExperts.length > 0) {
-  return {
-    ok: false,
-    error: `Unknown expert(s): ${unknownExperts.join(', ')}. Nothing was reviewed.`,
-    knownExperts: Object.keys(EXPERTS),
+  if (!wellFormedAvailable(available)) {
+    return { ok: false, error: 'args.available is not the output of experts/experts.js list. Nothing was reviewed.' }
+  }
+  const unknownPlanned = planned.filter((n) => !available.some((e) => e.name === n))
+  if (unknownPlanned.length > 0) {
+    return { ok: false, error: `The plan names expert(s) that are not installed: ${unknownPlanned.join(', ')}. Nothing was reviewed.`, available: available.map((e) => e.name) }
+  }
+  const missing = available.length > 0 ? ['diffFile', 'expertsDir'].filter((k) => !args[k]) : []
+  if (missing.length > 0) {
+    return { ok: false, error: `Experts need ${missing.join(' and ')} in args (experts/experts.js prepare produces the diff file). Nothing was reviewed.` }
   }
 }
-const experts = [...new Set(requestedExperts)]
-const routingNote = skipRouting ? { routingSkipped: true } : { routing }
-const routingSuffix = skipRouting ? ' Domain experts were not considered (routing skipped).' : ''
-
-// An expert has no shell, so it cannot run `git diff` itself. The review command
-// saves the diff to a file and passes its path, plus the directory holding the
-// expert's references. Without both the expert would review blind, so stop.
-const missingForExperts = experts.length > 0 ? ['diffFile', 'expertsDir'].filter((k) => !(args && args[k])) : []
-if (missingForExperts.length > 0) {
-  return {
-    ok: false,
-    error: `Experts need ${missingForExperts.join(' and ')} in args; the review command provides them. Nothing was reviewed.`,
-  }
+if (noExperts && (planned.length > 0 || expertsOnly)) {
+  return { ok: false, error: 'noExperts contradicts experts/expertsOnly: pass one or the other. Nothing was reviewed.' }
 }
 
-const lenses = [...CORE, ...extraLenses.filter((l) => !CORE.includes(l) && !experts.includes(l)), ...experts]
+const RECHECK_ANSWER = SELECTION
+let experts = [...planned]
+let added = []
+let recheck = false
+let recheckFailed = false
+const notInstalled = []
+if (!noExperts && available.length > 0 && args.recheck !== false) {
+  phase('Recheck')
+  const answer = await agent(
+    `Decide which domain experts should review this change. The diff is saved at ${args.diffFile}; read it, and read the surrounding code where a hunk is not clear on its own.
+
+Available experts (the only names you may answer with):
+${describeExperts(available)}
+
+Already selected: ${planned.length ? planned.join(', ') : 'none'}.
+
+Name every available expert that applies to this change and is not already selected, each with one sentence tying it to something in the diff. You cannot remove an expert that is already selected; do not mention those. When you are unsure whether one applies, include it: an unnecessary review costs a few minutes, a missed one costs a defect nobody looked for. If none apply, return an empty list.`,
+    { agentType: 'uw-explorer', label: 'recheck', phase: 'Recheck', schema: RECHECK_ANSWER }
+  )
+  if (!answer) {
+    recheckFailed = true
+    log('recheck failed; continuing with the planned experts only, and the commit gate will not be satisfied')
+  } else {
+    const merged = addOnly(planned, answer.experts, available)
+    experts = merged.experts
+    added = merged.added
+    notInstalled.push(...merged.rejected)
+    recheck = true
+    log(`recheck: ${added.length ? 'added ' + added.join(', ') : 'nothing to add'}${merged.rejected.length ? '; ignored unknown ' + merged.rejected.join(', ') : ''}`)
+  }
+}
+const reviewing = takingPart(available, experts, 'review')
+const reviewingNames = reviewing.map((e) => e.name)
+const agentFor = Object.fromEntries(reviewing.map((e) => [e.name, e.agent]))
+
+const lenses = [
+  ...(expertsOnly ? [] : CORE),
+  ...(expertsOnly ? [] : extraLenses.filter((l) => !CORE.includes(l) && !reviewingNames.includes(l))),
+  ...reviewingNames,
+]
 
 const FINDINGS = {
   type: 'object',
@@ -154,8 +201,12 @@ const lensResults = await parallel(
       `Review the diff for ${range} through the ${lens} lens ONLY. Another reviewer has each of the other lenses; stay inside yours.
 
 ${
-  experts.includes(lens)
-    ? `The diff for ${range} is saved at ${args.diffFile}. Read it there. Your references are in ${args.expertsDir}/${lens}/references/.`
+  reviewingNames.includes(lens)
+    ? `The diff for ${range} is saved at ${args.diffFile}. Read it there. Stage: review. Your references are in ${args.expertsDir}/${lens}/references/; read ${args.expertsDir}/${lens}/references/review.md first.${
+        args.plan
+          ? ` The plan is at ${args.plan}: find the "Expert input" section, read what you required from this change at planning time, and report any requirement the diff does not honour.`
+          : ''
+      }`
     : 'Start by reading the diff: `git diff ' + range + '`.'
 } Read the surrounding code, not just the changed lines -- a hunk is rarely comprehensible on its own.
 
@@ -171,7 +222,7 @@ ${
 }
 
 ${
-  experts.includes(lens)
+  reviewingNames.includes(lens)
     ? `You are the ${lens} domain expert. Follow your agent definition and its index for what to read.
 
 Dependency audit (JSON, produced by a script before this run; do not fetch anything yourself): ${
@@ -186,12 +237,39 @@ Every finding needs a file, a line, one sentence on the defect, and a concrete f
 Set lensVerdict whether or not you find anything.
 
 ${NO_QUOTA}`,
-      { agentType: experts.includes(lens) ? EXPERTS[lens] : 'uw-reviewer', label: lens, phase: 'Lenses', schema: FINDINGS }
+      { agentType: reviewingNames.includes(lens) ? agentFor[lens] : 'uw-reviewer', label: lens, phase: 'Lenses', schema: FINDINGS }
     )
   )
 )
 
 const failedLenses = lenses.filter((_, i) => !lensResults[i])
+const lane = () => ({
+  stage: 'review',
+  available: available.map((e) => e.name),
+  planned,
+  selected: experts,
+  added,
+  ran: reviewingNames.filter((n) => !failedLenses.includes(n)),
+  failed: reviewingNames.filter((n) => failedLenses.includes(n)),
+  recheck,
+  ...(recheckFailed ? { recheckFailed: true } : {}),
+  ...(notInstalled.length ? { ignoredUnknown: notInstalled } : {}),
+  ...(noExperts ? { skipped: 'noExperts was passed, so domain experts were not considered' } : {}),
+})
+if (lenses.length === 0) {
+  return {
+    ok: true,
+    range,
+    rigor,
+    experts,
+    expertLane: lane(),
+    findings: [],
+    refuted: [],
+    lensVerdicts: [],
+    failedLenses,
+    summary: noExperts ? 'Nothing ran: noExperts was passed and no lenses were asked for.' : 'No expert applies to this change, so nothing ran.',
+  }
+}
 if (failedLenses.length === lenses.length) {
   return {
     ok: false,
@@ -219,7 +297,7 @@ if (all.length === 0) {
     range,
     rigor,
     experts,
-    ...routingNote,
+    expertLane: lane(),
     findings: [],
     refuted: [],
     lensVerdicts: verdicts,
@@ -227,7 +305,7 @@ if (all.length === 0) {
     summary:
       (failedLenses.length > 0
         ? `No findings, but ${failedLenses.join(' and ')} did not run -- coverage was incomplete.`
-        : 'No findings. Every lens ran and reported the change sound through its concern.') + routingSuffix,
+        : 'No findings. Every lens ran and reported the change sound through its concern.'),
   }
 }
 
@@ -300,11 +378,11 @@ return {
   range,
   rigor,
   experts,
-  ...routingNote,
+  expertLane: lane(),
   lensVerdicts: verdicts,
   findings: confirmed,
   refuted,
   unverified,
   failedLenses,
-  summary: `${confirmed.length} confirmed, ${refuted.length} refuted by the adversarial pass, ${unverified.length} unverified. Refuted findings are listed so the verifier can be checked.${routingSuffix}`,
+  summary: `${confirmed.length} confirmed, ${refuted.length} refuted by the adversarial pass, ${unverified.length} unverified. Refuted findings are listed so the verifier can be checked.`,
 }

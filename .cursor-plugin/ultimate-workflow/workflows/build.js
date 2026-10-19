@@ -72,6 +72,11 @@ const DIAGNOSIS = {
   },
 }
 
+// Domain experts do not write code. What they required at planning time sits in the plan's
+// "Expert input" section, so the implementer is pointed at it and told it is binding.
+const EXPERT_NOTE =
+  'If the plan has an "Expert input" section, its constraints are requirements, not suggestions: meet each one, or stop and say which one you cannot meet and why. Do not drop one silently.'
+
 const locate = planFile
   ? `Read ${planFile}.`
   : 'Find the active PLAN-*.md in this repository -- the most recently modified one -- and read it.'
@@ -79,7 +84,7 @@ const locate = planFile
 phase('Tests')
 
 const tests = await agent(
-  `${locate}
+  `${locate} ${EXPERT_NOTE}
 
 Write the tests from its confirmed Tests section. Only the tests. Do not write the implementation yet.
 
@@ -122,7 +127,7 @@ while (round < ROUND_CAP) {
   round += 1
 
   const attempt = await agent(
-    `${locate}
+    `${locate} ${EXPERT_NOTE}
 
 Write the minimal implementation that makes the tests pass. Run \`${testCommand}\` and report whether it is green.
 ${

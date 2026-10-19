@@ -74,7 +74,7 @@ test('G1 allows documentation edits', () => {
 
 test('G2 denies a source edit while tests are unconfirmed', () => {
   const r = gates.preEditGate(
-    featureState({ plan_confirmed: true, tests_confirmed: false }),
+    featureState({ plan_confirmed: true, tests_confirmed: false, experts: '[]' }),
     { path: 'src/a.js' }
   );
   assert.equal(r.allow, false);
@@ -91,7 +91,7 @@ test('G2 allows editing test files while tests are unconfirmed -- that is the po
 
 test('both confirmed allows source edits', () => {
   const r = gates.preEditGate(
-    featureState({ plan_confirmed: true, tests_confirmed: true }),
+    featureState({ plan_confirmed: true, tests_confirmed: true, experts: '[]' }),
     { path: 'src/a.js' }
   );
   assert.equal(r.allow, true);
@@ -295,4 +295,107 @@ test('preEditGate allows an absolute path to a test file inside the project', ()
     cwd: CWD,
   });
   assert.equal(r.allow, true);
+});
+
+// --- G6: the domain-experts decision and the commit gate ------------------------
+
+test('G6 denies a source edit once the plan is confirmed but no experts decision is recorded, and says how to record one', () => {
+  const r = gates.preEditGate(featureState({ plan_confirmed: true, tests_confirmed: true }), { path: 'src/a.js' });
+  assert.equal(r.allow, false);
+  assert.match(r.reason, /Gate G6/);
+  assert.match(r.reason, /experts\.js select/);
+  assert.match(r.reason, /--add ""/);
+});
+
+test('G6 accepts any recorded decision, including "none apply"', () => {
+  for (const experts of ['[]', '[security]', '[security, devops]']) {
+    const r = gates.preEditGate(featureState({ plan_confirmed: true, tests_confirmed: true, experts }), { path: 'src/a.js' });
+    assert.equal(r.allow, true, experts);
+  }
+});
+
+test('G6 does not block test files or documentation, so the tests can be written before the decision is recorded', () => {
+  const st = featureState({ plan_confirmed: true, tests_confirmed: false });
+  assert.equal(gates.preEditGate(st, { path: 'hooks/lib/state.test.js' }).allow, true);
+  assert.equal(gates.preEditGate(st, { path: 'docs/notes.md' }).allow, true);
+});
+
+test('G1 is reported before G6: an unconfirmed plan is the first thing to fix', () => {
+  const r = gates.preEditGate(featureState({ plan_confirmed: false }), { path: 'src/a.js' });
+  assert.match(r.reason, /Gate G1/);
+});
+
+test('isCommitCommand sees a commit however git is invoked, and nothing else', () => {
+  const yes = [
+    'git commit -m "x"',
+    'git commit',
+    'git -C sub commit -m x',
+    'git -c user.name=a commit -m x',
+    'cd a && git commit -am x',
+    'git add -A && git commit -m x',
+    'GIT_AUTHOR_NAME=a git commit -m x',
+    '(git commit -m x)',
+    'git add .\ngit commit -m x',
+    "git commit -F - <<'EOF'\nmessage\nEOF",
+    'echo done; git commit --amend',
+  ];
+  const no = [
+    'git log --grep=commit',
+    'git commit-tree abc',
+    'git status',
+    'git add -A',
+    'git diff HEAD',
+    'echo "git commit"',
+    'ls commit',
+    'node --test',
+    'git show HEAD~1',
+    '',
+    null,
+    undefined,
+  ];
+  for (const c of yes) assert.equal(gates.isCommitCommand(c), true, c);
+  for (const c of no) assert.equal(gates.isCommitCommand(c), false, String(c));
+});
+
+const evidence = (over = {}) => ({
+  hash: 'h1',
+  recheck: { hash: 'h1', final: ['security'] },
+  records: { security: 'h1' },
+  planExperts: ['security'],
+  available: ['security'],
+  ...over,
+});
+
+test('commitGate allows when the re-check and every selected expert\'s review match the current changes', () => {
+  assert.equal(gates.commitGate(evidence()).allow, true);
+});
+
+test('commitGate allows when the evidence says there is nothing to review, or there is no evidence at all', () => {
+  assert.equal(gates.commitGate({ skip: 'nothing to commit' }).allow, true);
+  assert.equal(gates.commitGate(undefined).allow, true);
+  assert.equal(gates.commitGate(null).allow, true);
+});
+
+test('commitGate blocks each way the evidence can fall short, and the reason names the command to run', () => {
+  const cases = {
+    'no recheck at all': evidence({ recheck: null }),
+    'a recheck of other changes': evidence({ recheck: { hash: 'old', final: ['security'] } }),
+    'a review of other changes': evidence({ records: { security: 'old' } }),
+    'no review by a selected expert': evidence({ records: {} }),
+    'a plan expert dropped by the recheck': evidence({ recheck: { hash: 'h1', final: [] }, records: {} }),
+  };
+  for (const [name, ev] of Object.entries(cases)) {
+    const r = gates.commitGate(ev);
+    assert.equal(r.allow, false, name);
+    assert.match(r.reason, /Gate G6/, name);
+    assert.match(r.reason, /\/ultimate-workflow:experts/, name);
+  }
+});
+
+test('commitGate: an expert the re-check added needs its own review, and an unrelated stale record does not satisfy it', () => {
+  const ev = evidence({ planExperts: [], recheck: { hash: 'h1', final: ['security', 'devops'] }, records: { security: 'h1', devops: 'old' } });
+  const r = gates.commitGate(ev);
+  assert.equal(r.allow, false);
+  assert.match(r.reason, /devops/);
+  assert.ok(!/security/.test(r.reason.replace('/ultimate-workflow:experts', '')) || /devops/.test(r.reason));
 });

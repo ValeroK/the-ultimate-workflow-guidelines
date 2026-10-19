@@ -33,6 +33,23 @@ const CONCURRENCY = 8;
 
 // ---- versions -------------------------------------------------------------
 
+/** Paths from `git diff --name-status` output; both sides of a rename or copy. */
+function parseNameStatus(text) {
+  const out = [];
+  for (const line of String(text).split(/\r?\n/)) {
+    if (!line.trim()) continue;
+    if (!line.includes('\t')) {
+      out.push(line.trim());
+      continue;
+    }
+    const parts = line.split('\t');
+    const status = parts[0].trim();
+    if (/^[RC]\d*$/.test(status)) out.push(...parts.slice(1, 3));
+    else out.push(...parts.slice(1, 2));
+  }
+  return out.filter(Boolean);
+}
+
 function splitVersion(v) {
   const s = String(v).trim().replace(/^v/i, '').replace(/\+.*$/, '');
   const m = s.match(/^(\d+(?:\.\d+)*)(.*)$/);
@@ -438,7 +455,7 @@ async function main(argv) {
     return { path: norm(p), text, baseText };
   });
 
-  const changedPaths = fromStdin ? require('./route.js').parseNameStatus(fs.readFileSync(0, 'utf8')) : undefined;
+  const changedPaths = fromStdin ? parseNameStatus(fs.readFileSync(0, 'utf8')) : undefined;
   const result = await audit({ files, changedPaths });
   process.stdout.write(JSON.stringify(result) + '\n');
 }

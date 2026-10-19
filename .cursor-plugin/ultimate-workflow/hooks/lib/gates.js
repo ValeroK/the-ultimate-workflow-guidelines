@@ -120,6 +120,15 @@ function preEditGate(state, input) {
         `Gate G1: plan_confirmed is not true in ${state.file || 'the plan file'}. Write the plan and get it confirmed before editing source.`
       );
     }
+    // G6: which domain experts apply must be decided before source is written, so
+    // that their plan-stage input has had a chance to shape it. "None" is a decision
+    // (`experts: []`); only an absent line is a block, and the message says how to
+    // write one.
+    if (data.experts === undefined && !isTestPath(target)) {
+      return deny(
+        `Gate G6: no domain-experts decision is recorded in ${state.file || 'the plan file'}. Run the experts step of /ultimate-workflow:plan, or record that none apply with \`node experts/experts.js select --plan <plan file> --add ""\`.`
+      );
+    }
     if (data.tests_confirmed !== true && !isTestPath(target)) {
       return deny(
         `Gate G2: tests_confirmed is not true in ${state.file || 'the plan file'}. Write the tests first -- test files are not blocked by this gate.`
@@ -155,6 +164,56 @@ function stopGate(state) {
   return deny(
     `Gate G3: source changed since the last green verification. Run \`${cmd}\` and get it passing before ending the turn.`
   );
+}
+
+/**
+ * Whether a shell command runs `git commit`. Looks at each simple command, skips
+ * leading assignments and git's own options, and compares the subcommand exactly, so
+ * `git log --grep=commit` and `git commit-tree` do not match. A commit hidden inside
+ * `bash -c "..."` is not seen; the gates are a backstop and say so.
+ */
+function isCommitCommand(command) {
+  for (const seg of String(command || '').split(/&&|\|\||[;|\n]/)) {
+    const t = seg.replace(/^[\s(]+/, '').split(/\s+/);
+    let i = 0;
+    while (i < t.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(t[i])) i++;
+    if (t[i] !== 'git') continue;
+    i++;
+    while (i < t.length && t[i].startsWith('-')) {
+      i += ['-C', '-c', '--git-dir', '--work-tree', '--namespace'].includes(t[i]) ? 2 : 1;
+    }
+    if (t[i] === 'commit') return true;
+  }
+  return false;
+}
+
+/**
+ * G6 -- no commit until the domain experts have been re-checked and have reviewed
+ * these exact changes.
+ *
+ * `ev` is gathered by experts.js commitEvidence: the fingerprint of the uncommitted
+ * changes, the last re-check, and which experts have a review record at which
+ * fingerprint. A change after the review makes the fingerprints differ, so the gate
+ * fires again. The final set may not drop an expert the plan named: the re-check can
+ * only add, and this is where that is held to account rather than trusted.
+ */
+function commitGate(ev) {
+  if (!ev || ev.skip) return ALLOW;
+  const how = 'Run /ultimate-workflow:experts, which re-asks which domain experts apply (it can only add) and runs them, then commit again.';
+
+  if (!ev.recheck || ev.recheck.hash !== ev.hash) {
+    return deny(`Gate G6: the domain experts have not been re-checked against these changes. ${how}`);
+  }
+  const final = ev.recheck.final || [];
+  const dropped = (ev.planExperts || []).filter((n) => !final.includes(n));
+  if (dropped.length > 0) {
+    return deny(`Gate G6: the re-check dropped ${dropped.join(', ')}, which the plan named. Experts can be added, never removed. ${how}`);
+  }
+  const missing = final.filter((n) => (ev.records || {})[n] !== ev.hash);
+  if (missing.length > 0) {
+    return deny(`Gate G6: no review from ${missing.join(', ')} covers these changes. ${how}`);
+  }
+  return ALLOW;
 }
 
 /**
@@ -227,6 +286,8 @@ module.exports = {
   isTestPath,
   preEditGate,
   stopGate,
+  isCommitCommand,
+  commitGate,
   roundCap,
   phasePointer,
 };

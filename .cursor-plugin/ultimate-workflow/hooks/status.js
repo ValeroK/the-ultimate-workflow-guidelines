@@ -18,6 +18,8 @@
 const stateLib = require('./lib/state.js');
 const gates = require('./lib/gates.js');
 const heartbeat = require('./lib/heartbeat.js');
+const fs = require('node:fs');
+const expertsLib = require('../experts/experts.js');
 
 const out = [];
 const say = (s = '') => out.push(s);
@@ -28,6 +30,26 @@ const say = (s = '') => out.push(s);
 // not recording it. Keys are filtered to those actually present, so this widens
 // nothing on a clean plan.
 const SHOWN = ['plan_confirmed', 'tests_confirmed', 'prd_confirmed', 'design_confirmed', 'dirty', 'last_verify', 'verify_rounds', 'escalated', 'test_command', 'gate_violation'];
+
+/**
+ * Where the domain experts stand: what the plan decided, and whether a commit would pass the
+ * commit gate right now. Asks the real gate rather than restating it. Never throws.
+ */
+function expertsReport(cwd, state) {
+  if (state.stage !== 'feature' || !state.file) return null;
+  try {
+    const parsed = expertsLib.readExperts(fs.readFileSync(state.file, 'utf8'));
+    const verdict = gates.commitGate(expertsLib.commitEvidence(cwd, state.file));
+    return {
+      decided: parsed.present,
+      selected: parsed.experts,
+      available: expertsLib.list().experts.map((e) => e.name),
+      commit: verdict.allow ? { allowed: true, reason: null } : { allowed: false, reason: verdict.reason },
+    };
+  } catch (err) {
+    return { decided: false, selected: [], available: [], commit: { allowed: true, reason: null }, error: err && err.message ? err.message : 'unknown error' };
+  }
+}
 
 /**
  * The whole report as data. Shape pinned by PLAN-status-json.md; renaming a key
@@ -58,6 +80,7 @@ function report(cwd, env) {
       file: state.file,
       state: shown,
       blocking: { blocked: reason !== null, reason },
+      experts: expertsReport(cwd, state),
       g3Active: state.stage !== 'none' && Boolean(state.data.test_command || state.data.build_command),
     };
   } catch (err) {
@@ -67,6 +90,7 @@ function report(cwd, env) {
       file: null,
       state: {},
       blocking: { blocked: false, reason: null },
+      experts: null,
       g3Active: false,
       error: err && err.message ? err.message : 'unknown error',
     };
@@ -118,6 +142,15 @@ function reportState(r) {
   say('');
   say('Blocking now:');
   say(`         ${r.blocking.reason || 'Nothing blocking. Source edits and turn completion are both allowed.'}`);
+
+  const e = r.experts;
+  if (e) {
+    say('');
+    say('Experts:');
+    say(`         ${e.decided ? `decided: [${e.selected.join(', ')}]` : 'NO DECISION recorded in the plan (source edits are blocked by G6)'}`);
+    say(`         available: ${e.available.join(', ') || 'none'}`);
+    say(`         commit: ${e.commit.allowed ? 'allowed now' : `BLOCKED -- ${e.commit.reason}`}`);
+  }
 
   // G3 cannot fire without a command to verify with, and the shipped plan
   // template leaves it empty. Silence there would read as "the gate is fine",

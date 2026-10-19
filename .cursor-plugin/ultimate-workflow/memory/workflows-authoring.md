@@ -20,6 +20,7 @@ Phases are separate invocations rather than one script because the runtime canno
 - **Refuted findings are returned, not dropped.** A verifier that silently filters cannot itself be audited, and a review that quietly discards has started lying by omission.
 - **The verifier defaults to refuted when uncertain.** A false finding costs more than a missed one, because it burns trust in every true finding beside it. This is the deliberate inverse of the "default to finding 3-5 issues" pattern seen in some public agent collections — an agent given a quota meets the quota, real or not.
 - **Barriers are justified only by cross-item need.** `/plan` and `/harvest` use one because synthesis and dedup genuinely need every reader's output at once. Elsewhere, pipeline.
+- **Domain experts take part through a lane, and the lane is the same code in plan, tests and review.** The scripts cannot read the agents folder, so the command runs `experts/experts.js list` and passes the result as `args.available`; a model answers "which of these apply" and `addOnly` merges the answer, so it can add a listed name and nothing else. The helper block is copied into each script between `// --- expert lane helpers` markers and a contract check holds the copies equal. What a lane produced is recorded from the return value (`expertLane`) by `experts.js record`, never from what the model said it did. Adding an expert is an agent file and its references; the recipe is the expert cookbook in the source repository (not shipped with the plugin).
 
 ## Common operations
 

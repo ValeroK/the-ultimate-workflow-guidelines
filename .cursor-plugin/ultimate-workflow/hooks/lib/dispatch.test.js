@@ -41,7 +41,7 @@ test('Cursor gets no deny, because a deny there is ignored and reported as succe
 });
 
 test('an allowed edit produces no violation record', () => {
-  const r = dispatch(ev({}), feature({ plan_confirmed: true, tests_confirmed: true }));
+  const r = dispatch(ev({}), feature({ plan_confirmed: true, tests_confirmed: true, experts: '[]' }));
   assert.equal(r.kind, 'allow');
   assert.equal(r.patch, undefined);
 });
@@ -261,7 +261,7 @@ test('a red verify leaves gate_violation alone', () => {
 test('a newly allowed pre-edit clears a violation that is no longer true', () => {
   const r = dispatch(
     ev({ vendor: 'cursor' }),
-    feature({ plan_confirmed: true, tests_confirmed: true, gate_violation: 'Gate G1: stale.' })
+    feature({ plan_confirmed: true, tests_confirmed: true, experts: '[]', gate_violation: 'Gate G1: stale.' })
   );
   assert.equal(r.kind, 'allow');
   assert.equal(r.patch.gate_violation, '');
@@ -453,4 +453,50 @@ test('gate.js echoes the real event name on a G4 escalation, end to end', () => 
     'PostToolUse',
     `the host discards output whose event name does not match; got ${eventName}`
   );
+});
+
+// --- G6: the commit gate ------------------------------------------------------------
+
+const commit = (o = {}) => ev({ tool: 'shell', path: null, command: 'git commit -m "x"', ...o });
+const staleEvidence = { hash: 'h1', recheck: null, records: {}, planExperts: ['security'], available: ['security'] };
+const goodEvidence = { hash: 'h1', recheck: { hash: 'h1', final: ['security'] }, records: { security: 'h1' }, planExperts: ['security'], available: ['security'] };
+const planned = feature({ plan_confirmed: true, tests_confirmed: true, experts: '[security]' });
+
+test('G6: a commit with no re-check is denied on a blocking vendor, with the reason', () => {
+  const r = dispatch(commit(), planned, { commitEvidence: staleEvidence });
+  assert.equal(r.kind, 'deny');
+  assert.match(r.reason, /Gate G6/);
+});
+
+test('G6: a commit with matching evidence is allowed', () => {
+  assert.equal(dispatch(commit(), planned, { commitEvidence: goodEvidence }).kind, 'allow');
+});
+
+test('G6: no evidence to judge by means allow, because a gate that cannot look must not block', () => {
+  assert.equal(dispatch(commit(), planned, {}).kind, 'allow');
+  assert.equal(dispatch(commit(), planned, { commitEvidence: undefined }).kind, 'allow');
+});
+
+test('G6: Cursor gets no deny it would ignore; the violation is noted instead', () => {
+  const r = dispatch(commit({ vendor: 'cursor' }), planned, { commitEvidence: staleEvidence });
+  assert.equal(r.kind, 'allow');
+  assert.match(r.note, /detect-only/);
+});
+
+test('G6 looks at commits only: other shell commands and the verify command are untouched', () => {
+  for (const command of ['git status', 'git log --grep=commit', 'ls', 'node --test']) {
+    assert.equal(dispatch(commit({ command }), planned, { commitEvidence: staleEvidence }).kind, 'allow', command);
+  }
+});
+
+test('G6 applies only while a feature is active', () => {
+  assert.equal(dispatch(commit(), { stage: 'none', file: null, data: {} }, { commitEvidence: staleEvidence }).kind, 'allow');
+});
+
+test('G6 on a commit does not disturb the write gates', () => {
+  const r = dispatch(ev({ tool: 'write' }), feature({ plan_confirmed: true, tests_confirmed: true, experts: '[]' }), { commitEvidence: staleEvidence });
+  assert.equal(r.kind, 'allow');
+  const denied = dispatch(ev({ tool: 'write' }), feature({ plan_confirmed: true, tests_confirmed: true }), {});
+  assert.equal(denied.kind, 'deny');
+  assert.match(denied.reason, /Gate G6/);
 });

@@ -1,16 +1,16 @@
 {
-  "routes": [
-    "uv.lock",
-    "package-lock.json",
-    "Dockerfile",
-    ".github/workflows/ci.yml",
-    "src/auth/login.js",
-    ".mcp.json"
+  "applies": [
+    "Adds a login route that checks a password and issues a session token",
+    "Builds a database query by concatenating a request parameter into the SQL string",
+    "Adds a Dockerfile step that downloads a script and pipes it to a shell",
+    "Bumps several dependencies and changes the lockfile",
+    "Lets a skill file grant an agent a new tool and edits the hook that runs after every command",
+    "Reads a file path from a request and serves the file it names"
   ],
-  "ignores": [
-    "README.md",
-    "author.js",
-    "docs/auth.md",
-    "src/components/Button.tsx"
+  "does_not_apply": [
+    "Renames a CSS class in a button component",
+    "Fixes a typo in the README",
+    "Adds a unit test for a date-formatting helper",
+    "Reorders the columns of a report table in the UI"
   ]
 }

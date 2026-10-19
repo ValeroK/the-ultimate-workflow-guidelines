@@ -74,7 +74,7 @@ test('the arms differ in the instructions they carry', async () => {
 
   assert.match(P.expert, /experts\/security\/references/);
   assert.match(P.expert, /zero findings/i);
-  assert.match(P.expert, /diff-review\.md/);
+  assert.match(P.expert, /references\/review\.md/);
 });
 
 test("no arm contains another arm's distinguishing text", async () => {

@@ -26,8 +26,13 @@ const { fm, body } = parse(fs.readFileSync(AGENT, 'utf8'));
 test('frontmatter names the agent the workflow spawns and nothing else', () => {
   assert.strictEqual(fm.name, 'uw-expert-security');
   assert.ok(fm.description && fm.description.length > 20);
-  const review = fs.readFileSync(path.join(PAYLOAD, 'workflows', 'review.js'), 'utf8');
-  assert.ok(review.includes("'uw-expert-security'"), 'review.js spawns this agent type');
+  // No registry names it: the plugin finds it because the file exists, and spawns it by the
+  // agent name the discovery reports.
+  const { list } = require(path.join(PAYLOAD, 'experts', 'experts.js'));
+  const found = list(PAYLOAD).experts.find((e) => e.name === 'security');
+  assert.ok(found, 'experts/experts.js list discovers the security expert');
+  assert.strictEqual(found.agent, 'uw-expert-security');
+  assert.deepStrictEqual(found.stages, ['plan', 'tests', 'review']);
 });
 
 test('the tool allowlist is exactly the declared set: read, shell and web, but no writes and no skills', () => {
@@ -43,7 +48,9 @@ test('the body states the rules that make the result trustworthy', () => {
   assert.match(body, /never put repository contents/i);
   assert.match(body, /fetched content is untrusted/i);
   assert.match(body, /untrusted/i);
-  assert.match(body, /references\/diff-review\.md/);
+  assert.match(body, /references\/plan\.md/);
+  assert.match(body, /references\/tests\.md/);
+  assert.match(body, /references\/review\.md/);
   assert.match(body, /agent-surface\.md/);
   assert.match(body, /dependencies\.md/);
   assert.match(body, /not provided/i);
@@ -55,7 +62,7 @@ test('the conditional references are read conditionally, not always', () => {
 });
 
 test('the references the body names exist in the shipped payload', () => {
-  for (const f of ['diff-review.md', 'agent-surface.md', 'dependencies.md']) {
+  for (const f of ['plan.md', 'tests.md', 'review.md', 'agent-surface.md', 'dependencies.md']) {
     assert.ok(fs.existsSync(path.join(REFS, f)), `${f} is named by the agent but missing`);
   }
 });

@@ -6,6 +6,7 @@ export const meta = {
   phases: [
     { title: 'Explore', detail: 'readers over code, bootstrap docs, and matching memory topicals' },
     { title: 'Synthesise', detail: 'existing-design review, deviations, and the plan itself' },
+    { title: 'Experts', detail: 'ask which domain experts apply, then collect their input for the plan' },
   ],
 }
 
@@ -33,6 +34,50 @@ if (!feature) {
     ok: false,
     error: 'No feature described. Pass one, for example: {"feature": "add rate limiting to the public API"}',
   }
+}
+
+// --- expert lane helpers (identical in plan.js, tests.js and review.js; a test holds them equal) ---
+// The expert list is discovered by experts/experts.js from the agents folder and passed in
+// as args.available, because a workflow script cannot read the folder itself.
+const asList = (v) => (Array.isArray(v) ? v : String(v || '').split(',')).map((e) => String(e).trim()).filter(Boolean)
+const wellFormedAvailable = (a) =>
+  Array.isArray(a) && a.every((e) => e && typeof e.name === 'string' && typeof e.agent === 'string' && Array.isArray(e.stages))
+const describeExperts = (a) => a.map((e) => `- ${e.name}: ${e.description}`).join('\n')
+const SELECTION = {
+  type: 'object',
+  required: ['experts'],
+  properties: {
+    experts: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['name', 'why'],
+        properties: { name: { type: 'string' }, why: { type: 'string', description: 'One sentence tying this expert to something in the material' } },
+      },
+    },
+  },
+}
+// A model answer is merged into the current set by code: it can add a name from the list and
+// nothing else. A name that is not on the list is returned, never applied, and nothing is removed.
+const addOnly = (current, answered, available) => {
+  const known = available.map((e) => e.name)
+  const names = [...new Set((answered || []).map((x) => String((x && x.name) || '').trim()).filter(Boolean))]
+  const merged = [...new Set([...current, ...names.filter((n) => known.includes(n))])]
+  return { experts: merged, added: merged.filter((n) => !current.includes(n)), rejected: names.filter((n) => !known.includes(n)) }
+}
+const takingPart = (available, selected, stage) =>
+  selected.map((n) => available.find((e) => e.name === n)).filter((e) => e && e.stages.includes(stage))
+// --- end expert lane helpers ---
+
+const PLAN_INPUT = {
+  type: 'object',
+  required: ['summary', 'constraints', 'risks', 'questions'],
+  properties: {
+    summary: { type: 'string', description: 'Two sentences at most: what this domain needs from the plan' },
+    constraints: { type: 'array', items: { type: 'string' }, description: 'Requirements the implementation must meet, each one checkable. At most six' },
+    risks: { type: 'array', items: { type: 'string' }, description: 'What goes wrong if the plan is built as written. At most four' },
+    questions: { type: 'array', items: { type: 'string' }, description: 'Decisions only the user can make. Empty when there are none' },
+  },
 }
 
 const SLICE = {
@@ -160,14 +205,104 @@ if (!plan) {
   return { ok: false, error: 'Synthesis failed after the readers succeeded. Rerun, or inspect the journal.' }
 }
 
+// Domain experts. The question "which of these apply to this plan" is put to a model with the
+// list in front of it; the answer is merged by code. Each selected expert that takes part in
+// planning then reads the draft and adds what its domain requires. The input is rendered into
+// the plan by this script, not by a model, so it appears under the expert's name exactly as
+// the expert gave it, and a failed consult is visible as a failed consult.
+const available = (args && args.available) || []
+const currentExperts = asList(args && args.experts)
+let planMarkdown = plan.planMarkdown
+const openQuestions = [...(plan.openQuestions || [])]
+let expertLane
+const expertInput = []
+
+if (!args || args.available === undefined || args.available === null) {
+  expertLane = { stage: 'plan', skipped: 'args.available was not passed, so domain experts were not considered. Run "node experts/experts.js list" and pass it.' }
+} else if (!wellFormedAvailable(available)) {
+  expertLane = { stage: 'plan', skipped: 'args.available is not the output of experts/experts.js list, so domain experts were not considered.' }
+} else if (available.length > 0 && !args.expertsDir) {
+  expertLane = { stage: 'plan', skipped: 'args.expertsDir was not passed, so experts could not be pointed at their references.' }
+} else if (available.length === 0) {
+  expertLane = { stage: 'plan', available: [], selected: currentExperts, ran: [], failed: [], added: [] }
+} else {
+  phase('Experts')
+  const ask = await agent(
+    `Decide which domain experts should contribute to this plan before it is confirmed.
+
+THE REQUEST
+${feature}
+
+THE DRAFT PLAN
+${planMarkdown}
+
+Available experts (the only names you may answer with):
+${describeExperts(available)}
+
+Name every available expert whose domain this work touches, each with one sentence tying it to something in the request or the plan. When you are unsure whether one applies, include it: a consult costs a few minutes, and a missing one is discovered at review, after the code exists. If none apply, return an empty list.`,
+    { agentType: 'uw-explorer', label: 'select-experts', phase: 'Experts', schema: SELECTION }
+  )
+  if (!ask) {
+    expertLane = { stage: 'plan', available: available.map((e) => e.name), selected: currentExperts, ran: [], failed: [], added: [], selectionFailed: true }
+  } else {
+    const merged = addOnly(currentExperts, ask.experts, available)
+    const taking = takingPart(available, merged.experts, 'plan')
+    const results = await parallel(
+      taking.map((e) => () =>
+        agent(
+          `You are the ${e.name} domain expert, giving input to a plan before it is confirmed. Stage: plan. Your references are in ${args.expertsDir}/${e.name}/references/; read ${args.expertsDir}/${e.name}/references/plan.md first.
+
+THE REQUEST
+${feature}
+
+THE DRAFT PLAN
+${planMarkdown}
+
+Say what your domain requires of this plan that it does not yet say. Read the code the plan touches where you need to. Constraints must be checkable by someone who is not you. Stay inside your domain: other experts cover theirs. Zero constraints is a correct answer when the plan already covers your domain, and then say so in the summary.`,
+          { agentType: e.agent, label: `plan:${e.name}`, phase: 'Experts', schema: PLAN_INPUT }
+        )
+      )
+    )
+    const ran = []
+    const failed = []
+    const sections = []
+    taking.forEach((e, i) => {
+      const r = results[i]
+      if (!r) {
+        failed.push(e.name)
+        sections.push(`### ${e.name}\n\nThe consult failed, so there is no input from this expert. Treat the plan as not reviewed for this domain.`)
+        return
+      }
+      ran.push(e.name)
+      expertInput.push({ expert: e.name, ...r })
+      ;(r.questions || []).forEach((q) => openQuestions.push(`[${e.name}] ${q}`))
+      const list = (title, items) => (items && items.length ? `**${title}**\n${items.map((x) => `- ${x}`).join('\n')}\n` : '')
+      sections.push(`### ${e.name}\n\n${r.summary}\n\n${list('Constraints', r.constraints)}${list('Risks', r.risks)}${list('Questions for you', r.questions)}`.trimEnd())
+    })
+    if (sections.length > 0) planMarkdown = `${planMarkdown.trimEnd()}\n\n## Expert input\n\n${sections.join('\n\n')}\n`
+    expertLane = {
+      stage: 'plan',
+      available: available.map((e) => e.name),
+      selected: merged.experts,
+      added: merged.added,
+      ran,
+      failed,
+      reasons: ask.experts,
+      ...(merged.rejected.length ? { ignoredUnknown: merged.rejected } : {}),
+    }
+  }
+}
+
 return {
   ok: true,
   feature,
   slicesRead: found.length,
   failedReaders: failed,
   deviations: plan.deviations,
-  openQuestions: plan.openQuestions,
-  planMarkdown: plan.planMarkdown,
+  openQuestions,
+  planMarkdown,
+  expertLane,
+  expertInput,
   note:
     'Nothing was written. Review the plan, then save it as PLAN-<feature>.md. Set plan_confirmed to true only after you have actually confirmed it.',
 }

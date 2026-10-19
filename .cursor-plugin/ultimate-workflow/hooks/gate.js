@@ -18,6 +18,8 @@ const adapters = require('./lib/adapters.js');
 const stateLib = require('./lib/state.js');
 const { dispatch } = require('./lib/dispatch.js');
 const heartbeat = require('./lib/heartbeat.js');
+const gatesLib = require('./lib/gates.js');
+const experts = require('../experts/experts.js');
 
 function readStdin() {
   return new Promise((resolve) => {
@@ -71,8 +73,20 @@ async function main() {
   const cwd = ev.cwd || process.cwd();
   const state = stateLib.readState(cwd);
 
+  // Reading the working tree is not free, so the commit evidence is gathered only
+  // for the one event that needs it. Any failure leaves it undefined, which allows.
+  let commitEvidence;
+  if (ev.event === 'preTool' && ev.tool === 'shell' && gatesLib.isCommitCommand(ev.command)) {
+    try {
+      commitEvidence = experts.commitEvidence(cwd, state.file && state.stage === 'feature' ? state.file : '');
+    } catch {
+      commitEvidence = undefined;
+    }
+  }
+
   const result = dispatch(ev, state, {
     workflowsAvailable: workflowsAvailable(cwd, process.env),
+    commitEvidence,
   });
 
   if (result.patch && state.file) {

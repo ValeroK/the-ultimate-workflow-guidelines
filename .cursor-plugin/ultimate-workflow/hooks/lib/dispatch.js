@@ -37,13 +37,24 @@ function isVerifyCommand(command, state) {
 /**
  * @param {object} ev    normalised event from adapters.normalize
  * @param {object} state resolved state from state.readState
- * @param {object} opts  { workflowsAvailable, failed }
+ * @param {object} opts  { workflowsAvailable, failed, commitEvidence }
  * @returns {{kind: string, reason?: string, text?: string, patch?: object, note?: string}}
  */
 function dispatch(ev, state, opts = {}) {
   const allow = { kind: 'allow' };
   if (!ev || !ev.event) return allow;
   if (state.stage === 'none') return allow;
+
+  // --- G6: no commit before the domain experts have reviewed these changes --
+  if (ev.event === 'preTool' && ev.tool === 'shell' && gates.isCommitCommand(ev.command)) {
+    // The evidence is gathered by the entry point, only for a commit, because it
+    // reads the working tree. Without it there is nothing to judge, so allow.
+    if (!opts.commitEvidence) return allow;
+    const verdict = gates.commitGate(opts.commitEvidence);
+    if (verdict.allow) return allow;
+    if (!canBlockWrite(ev.vendor)) return { kind: 'allow', note: 'detect-only on this vendor', reason: verdict.reason };
+    return { kind: 'deny', reason: verdict.reason };
+  }
 
   // --- G1, G2, B-G1, B-G2: pre-edit ---------------------------------------
   if (ev.event === 'preTool' && WRITE_TOOLS.has(ev.tool)) {

@@ -5,6 +5,7 @@ export const meta = {
     'After the plan is confirmed, before any implementation. Returns a Tests section for review; writes nothing.',
   phases: [
     { title: 'Draft', detail: 'a first test plan from the confirmed plan' },
+    { title: 'Experts', detail: 'selected domain experts add the cases their domain needs' },
     { title: 'Attack', detail: 'critics from four angles find what it would let pass' },
     { title: 'Merge', detail: 'fold the surviving criticism back in' },
   ],
@@ -30,6 +31,56 @@ const extraAngles = ((args && args.angles) || '')
 
 const CORE_ANGLES = ['coverage', 'edge-cases', 'oracle-quality', 'runnability']
 const angles = [...CORE_ANGLES, ...extraAngles.filter((a) => !CORE_ANGLES.includes(a))]
+
+// --- expert lane helpers (identical in plan.js, tests.js and review.js; a test holds them equal) ---
+// The expert list is discovered by experts/experts.js from the agents folder and passed in
+// as args.available, because a workflow script cannot read the folder itself.
+const asList = (v) => (Array.isArray(v) ? v : String(v || '').split(',')).map((e) => String(e).trim()).filter(Boolean)
+const wellFormedAvailable = (a) =>
+  Array.isArray(a) && a.every((e) => e && typeof e.name === 'string' && typeof e.agent === 'string' && Array.isArray(e.stages))
+const describeExperts = (a) => a.map((e) => `- ${e.name}: ${e.description}`).join('\n')
+const SELECTION = {
+  type: 'object',
+  required: ['experts'],
+  properties: {
+    experts: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['name', 'why'],
+        properties: { name: { type: 'string' }, why: { type: 'string', description: 'One sentence tying this expert to something in the material' } },
+      },
+    },
+  },
+}
+// A model answer is merged into the current set by code: it can add a name from the list and
+// nothing else. A name that is not on the list is returned, never applied, and nothing is removed.
+const addOnly = (current, answered, available) => {
+  const known = available.map((e) => e.name)
+  const names = [...new Set((answered || []).map((x) => String((x && x.name) || '').trim()).filter(Boolean))]
+  const merged = [...new Set([...current, ...names.filter((n) => known.includes(n))])]
+  return { experts: merged, added: merged.filter((n) => !current.includes(n)), rejected: names.filter((n) => !known.includes(n)) }
+}
+const takingPart = (available, selected, stage) =>
+  selected.map((n) => available.find((e) => e.name === n)).filter((e) => e && e.stages.includes(stage))
+// --- end expert lane helpers ---
+
+const TESTS_INPUT = {
+  type: 'object',
+  required: ['summary', 'cases'],
+  properties: {
+    summary: { type: 'string', description: 'One or two sentences: what this domain needs the tests to prove' },
+    cases: {
+      type: 'array',
+      description: 'At most eight. Each is a test someone could write from this description alone',
+      items: {
+        type: 'object',
+        required: ['name', 'asserts', 'why'],
+        properties: { name: { type: 'string' }, asserts: { type: 'string', description: 'The input and the exact outcome the test must check' }, why: { type: 'string', description: 'The failure in this domain it would catch' } },
+      },
+    },
+  },
+}
 
 const DRAFT = {
   type: 'object',
@@ -116,6 +167,56 @@ if (!draft) {
 
 log(`Draft written (${draft.expectedTestNames ? draft.expectedTestNames.length : 0} named tests); attacking from ${angles.length} angles`)
 
+// Domain experts that take part in testing add the cases their domain needs. They are the
+// experts the plan selected (args.experts); no question is asked here, because selection
+// already happened. Their cases are appended by this script under their names, after the
+// critics have attacked the draft, so a critic never sees them and cannot be anchored by them.
+const availableExperts = (args && args.available) || []
+const selectedExperts = asList(args && args.experts)
+let expertLane
+let expertCases = ''
+if (!args || args.available === undefined || args.available === null) {
+  expertLane = { stage: 'tests', skipped: 'args.available was not passed, so domain experts were not considered. Run "node experts/experts.js list" and pass it.' }
+} else if (!wellFormedAvailable(availableExperts)) {
+  expertLane = { stage: 'tests', skipped: 'args.available is not the output of experts/experts.js list, so domain experts were not considered.' }
+} else if (availableExperts.length > 0 && selectedExperts.length > 0 && !args.expertsDir) {
+  expertLane = { stage: 'tests', skipped: 'args.expertsDir was not passed, so experts could not be pointed at their references.' }
+} else {
+  const taking = takingPart(availableExperts, selectedExperts, 'tests')
+  if (taking.length > 0) phase('Experts')
+  const results = await parallel(
+    taking.map((e) => () =>
+      agent(
+        `You are the ${e.name} domain expert, adding the test cases your domain needs. Stage: tests. Your references are in ${args.expertsDir}/${e.name}/references/; read ${args.expertsDir}/${e.name}/references/tests.md first.
+
+${planFile ? `The plan is at ${planFile}; read it, including its "Expert input" section where you stated what you required.` : 'Read the active PLAN-*.md, including its "Expert input" section where you stated what you required.'}
+
+THE DRAFT TESTS
+${draft.testsMarkdown}
+
+Add only cases that the draft does not already cover and that your domain says must exist. Do not restate the draft. Zero cases is a correct answer.`,
+        { agentType: e.agent, label: `tests:${e.name}`, phase: 'Experts', schema: TESTS_INPUT }
+      )
+    )
+  )
+  const ran = []
+  const failed = []
+  const sections = []
+  taking.forEach((e, i) => {
+    const r = results[i]
+    if (!r) {
+      failed.push(e.name)
+      sections.push(`#### ${e.name}\n\nThe consult failed, so no cases from this expert. Treat the tests as not reviewed for this domain.`)
+      return
+    }
+    ran.push(e.name)
+    const rows = (r.cases || []).map((c) => `- **${c.name}**: ${c.asserts} (catches: ${c.why})`)
+    sections.push(`#### ${e.name}\n\n${r.summary}${rows.length ? '\n\n' + rows.join('\n') : ''}`)
+  })
+  if (sections.length > 0) expertCases = `\n\n### Expert test cases\n\n${sections.join('\n\n')}\n`
+  expertLane = { stage: 'tests', available: availableExperts.map((e) => e.name), selected: selectedExperts, ran, failed, added: [] }
+}
+
 phase('Attack')
 
 const critiques = await parallel(
@@ -161,7 +262,8 @@ if (failedAngles.length === angles.length) {
 if (gaps.length === 0) {
   return {
     ok: true,
-    testsMarkdown: draft.testsMarkdown,
+    testsMarkdown: draft.testsMarkdown + expertCases,
+    expertLane,
     testCommand: draft.testCommand,
     expectedTestNames: draft.expectedTestNames || [],
     angleVerdicts: verdicts,
@@ -207,7 +309,8 @@ if (!merged) {
 
 return {
   ok: true,
-  testsMarkdown: merged.testsMarkdown,
+  testsMarkdown: merged.testsMarkdown + expertCases,
+  expertLane,
   testCommand: merged.testCommand,
   expectedTestNames: merged.expectedTestNames,
   changesMade: merged.changesMade,

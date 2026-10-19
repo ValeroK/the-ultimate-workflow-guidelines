@@ -33,13 +33,44 @@ const extraLenses = ((args && args.lenses) || '')
 const CORE = ['correctness', 'simplicity', 'surgical-scope', 'test-coverage']
 
 // Domain experts run as extra lenses under their own agent type. This script has
-// no filesystem or shell, so the list can only arrive as an argument: the review
-// command computes it from the plan file with experts/<domain>/route.js. An
-// unknown name stops the run, because dropping it would be a silent skip.
+// no filesystem or shell, so which experts apply can only arrive as an argument, and
+// it must arrive as the router's own output: the review command runs
+// experts/route.js on the diff and passes what it printed as args.routing. A review
+// with no routing stops, because a skipped router would look exactly like "no expert
+// was needed". Opting out is explicit (args.skipRouting) and is recorded in the
+// result. An unknown expert name stops the run, because dropping it would be a
+// silent skip.
 const EXPERTS = { security: 'uw-expert-security' }
-const requestedExperts = (Array.isArray(args && args.experts) ? args.experts : String((args && args.experts) || '').split(','))
-  .map((e) => String(e).trim())
-  .filter(Boolean)
+const ROUTING_HELP =
+  'Run experts/route.js on the diff (git diff --name-status <range> | node route.js --plan <plan file>) and pass what it prints as args.routing, or pass args.skipRouting: true to review without domain experts.'
+const asList = (v) => (Array.isArray(v) ? v : String(v || '').split(',')).map((e) => String(e).trim()).filter(Boolean)
+const explicitGiven = Boolean(args) && args.experts !== undefined && args.experts !== null
+const explicitExperts = asList(args && args.experts)
+const skipRouting = Boolean(args && args.skipRouting)
+const routing = args && args.routing
+let requestedExperts = []
+if (skipRouting) {
+  if (routing || explicitExperts.length > 0) {
+    return { ok: false, error: `skipRouting contradicts ${routing ? 'routing' : 'experts'}: pass one or the other. Nothing was reviewed.` }
+  }
+} else {
+  if (!routing) {
+    return { ok: false, error: `Routing is missing, so it is unknown whether a domain expert applies. ${ROUTING_HELP} Nothing was reviewed.` }
+  }
+  const wellFormed =
+    typeof routing === 'object' && !Array.isArray(routing) && Array.isArray(routing.experts) && routing.experts.every((e) => typeof e === 'string')
+  if (!wellFormed) {
+    return { ok: false, error: `args.routing is not the router's output (an object with an experts array of names). ${ROUTING_HELP} Nothing was reviewed.` }
+  }
+  requestedExperts = routing.experts.map((e) => e.trim()).filter(Boolean)
+  const sameSet = [...new Set(explicitExperts)].sort().join() === [...new Set(requestedExperts)].sort().join()
+  if (explicitGiven && !sameSet) {
+    return {
+      ok: false,
+      error: `args.experts (${explicitExperts.join(', ') || 'none'}) differs from routing.experts (${requestedExperts.join(', ') || 'none'}). Pass the router's output unchanged. Nothing was reviewed.`,
+    }
+  }
+}
 const unknownExperts = requestedExperts.filter((e) => !Object.prototype.hasOwnProperty.call(EXPERTS, e))
 if (unknownExperts.length > 0) {
   return {
@@ -49,6 +80,8 @@ if (unknownExperts.length > 0) {
   }
 }
 const experts = [...new Set(requestedExperts)]
+const routingNote = skipRouting ? { routingSkipped: true } : { routing }
+const routingSuffix = skipRouting ? ' Domain experts were not considered (routing skipped).' : ''
 
 // An expert has no shell, so it cannot run `git diff` itself. The review command
 // saves the diff to a file and passes its path, plus the directory holding the
@@ -185,14 +218,16 @@ if (all.length === 0) {
     ok: true,
     range,
     rigor,
+    experts,
+    ...routingNote,
     findings: [],
     refuted: [],
     lensVerdicts: verdicts,
     failedLenses,
     summary:
-      failedLenses.length > 0
+      (failedLenses.length > 0
         ? `No findings, but ${failedLenses.join(' and ')} did not run -- coverage was incomplete.`
-        : 'No findings. Every lens ran and reported the change sound through its concern.',
+        : 'No findings. Every lens ran and reported the change sound through its concern.') + routingSuffix,
   }
 }
 
@@ -264,10 +299,12 @@ return {
   ok: true,
   range,
   rigor,
+  experts,
+  ...routingNote,
   lensVerdicts: verdicts,
   findings: confirmed,
   refuted,
   unverified,
   failedLenses,
-  summary: `${confirmed.length} confirmed, ${refuted.length} refuted by the adversarial pass, ${unverified.length} unverified. Refuted findings are listed so the verifier can be checked.`,
+  summary: `${confirmed.length} confirmed, ${refuted.length} refuted by the adversarial pass, ${unverified.length} unverified. Refuted findings are listed so the verifier can be checked.${routingSuffix}`,
 }

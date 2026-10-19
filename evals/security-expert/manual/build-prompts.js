@@ -71,7 +71,7 @@ async function buildPrompt(c) {
     middle =
       'Review this change for any defects: bugs, security problems, or anything else that is wrong. Report only real problems, each with a concrete failure scenario. If the change is sound, report nothing.';
   } else if (c.arm === 'lens') {
-    const call = await captureReviewPrompt(c.pluginDir, { lenses: 'security', range }, 'security');
+    const call = await captureReviewPrompt(c.pluginDir, { lenses: 'security', range, skipRouting: true }, 'security');
     const reading = `Start by reading the diff: \`git diff ${range}\`.`;
     if (!call.prompt.includes(reading)) throw new Error('review.js no longer says how the lens reads the diff; update build-prompts.js');
     middle = `Your role definition:\n\n${body(path.join(c.pluginDir, 'agents', 'uw-reviewer.md'))}\n\n${note}\n\n${call.prompt.replace(
@@ -83,7 +83,7 @@ async function buildPrompt(c) {
   } else {
     const call = await captureReviewPrompt(
       c.pluginDir,
-      { experts: ['security'], diffFile: c.diffFile, expertsDir: path.join(c.pluginDir, 'experts'), range },
+      { routing: { experts: ['security'] }, diffFile: c.diffFile, expertsDir: path.join(c.pluginDir, 'experts'), range },
       'security'
     );
     middle = `Your role definition:\n\n${body(path.join(c.pluginDir, 'agents', 'uw-expert-security.md'))}\n\n${note}\n\n${call.prompt}`;

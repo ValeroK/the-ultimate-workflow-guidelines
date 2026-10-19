@@ -22,7 +22,16 @@ function bullets(body) {
   return body.split(/\r?\n/).filter((l) => /^\s*(?:[-*]|\d+\.)\s+\S/.test(l));
 }
 
-function lintChecklist(text) {
+// Rules that hold for any expert's core checklist are unconditional. What an expert
+// must NOT exclude, and what its Scope must allow, depend on the domain, so they
+// come from a profile. The security profile is the default.
+const SECURITY_PROFILE = {
+  exclusionTerms: /prompt|markdown|outdated|third-party|dependenc|\.github|workflow|agent|skill|hook|\bmcp\b/i,
+  scopeMustMention: ['callers'],
+};
+const GENERIC_PROFILE = { exclusionTerms: null, scopeMustMention: [] };
+
+function lintChecklist(text, profile = SECURITY_PROFILE) {
   const problems = [];
   const s = sections(text);
 
@@ -45,7 +54,7 @@ function lintChecklist(text) {
   if (outsideConfidence.length > 0) problems.push('the 1-10 scale is mentioned outside the Confidence section');
 
   const result = s.Result || '';
-  if (!/No security findings/.test(result)) problems.push('the Result section must define the "No security findings" output');
+  if (!/No [\w-]+ findings/.test(result)) problems.push('the Result section must define a "No <domain> findings" output');
   if (!/Examined:/.test(result)) problems.push('the Result section must require an "Examined:" statement, so a clean result differs from "did not look"');
 
   const demanding = [
@@ -58,9 +67,10 @@ function lintChecklist(text) {
     if (re.test(text)) problems.push(`a sentence ${why}: an empty result must stay a valid answer`);
   }
 
-  const reversed = /prompt|markdown|outdated|third-party|dependenc|\.github|workflow|agent|skill|hook|\bmcp\b/i;
-  for (const line of bullets(s['Do not report'] || '')) {
-    if (reversed.test(line)) problems.push(`the exclusion list covers something that is in scope here: "${line.trim().slice(0, 80)}"`);
+  if (profile.exclusionTerms) {
+    for (const line of bullets(s['Do not report'] || '')) {
+      if (profile.exclusionTerms.test(line)) problems.push(`the exclusion list covers something that is in scope here: "${line.trim().slice(0, 80)}"`);
+    }
   }
 
   if (/^!/m.test(text) || text.includes('!`')) problems.push('inline shell injection (! lines) is not allowed');
@@ -83,7 +93,9 @@ function lintChecklist(text) {
     if (!method.includes(w)) problems.push(`the finding shape must mention "${w}"`);
   }
 
-  if (!/callers/i.test(s.Scope || '')) problems.push('the Scope section must allow reading callers of changed code');
+  for (const word of profile.scopeMustMention) {
+    if (!new RegExp(word, 'i').test(s.Scope || '')) problems.push(`the Scope section must mention ${word}`);
+  }
   const untrusted = s['Untrusted input'] || '';
   if (!/data/i.test(untrusted) || !/instruction/i.test(untrusted)) {
     problems.push('the Untrusted input section must say diff content is data, not instruction');
@@ -92,4 +104,4 @@ function lintChecklist(text) {
   return problems;
 }
 
-module.exports = { lintChecklist, sections };
+module.exports = { lintChecklist, sections, SECURITY_PROFILE, GENERIC_PROFILE };

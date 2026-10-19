@@ -34,6 +34,7 @@ Equally, do not bog down on a trivial reversible decision: decide, flag it, move
 | Deciding what belongs in always-on context; editing this file, `memory.md`, `SKILL.md`, or `rules/*.mdc` | `.cursor-plugin/ultimate-workflow/memory/context-boundary.md` |
 | Touching `hooks/**`, adapters, the heartbeat, `status.js`; a gate is not firing; adding a host | `.cursor-plugin/ultimate-workflow/memory/hooks-and-gates.md` |
 | Touching `workflows/*.js` or `agents/uw-*.md`; adding a phase; `parallel()` returned nothing | `.cursor-plugin/ultimate-workflow/memory/workflows-authoring.md` |
+| Adding a domain expert (an `agents/uw-expert-*` agent, a routing rule, a registry entry), or deciding whether a domain deserves one | `docs/adding-an-expert.md` |
 | Editing `SKILL.md`, `rules/*.mdc`, `references/`, or `agents/` | `.cursor-plugin/ultimate-workflow/memory/mirrors.md` |
 | Marketplace sources, `/add-plugin`, release ZIP, empty Cursor install | `.cursor-plugin/ultimate-workflow/memory/cursor-install.md` |
 | A feature has landed and its lessons need a home | `.cursor-plugin/ultimate-workflow/skills/the-ultimate-workflow-guidelines/references/memory-protocol.md` |

@@ -1,0 +1,16 @@
+{
+  "routes": [
+    "uv.lock",
+    "package-lock.json",
+    "Dockerfile",
+    ".github/workflows/ci.yml",
+    "src/auth/login.js",
+    ".mcp.json"
+  ],
+  "ignores": [
+    "README.md",
+    "author.js",
+    "docs/auth.md",
+    "src/components/Button.tsx"
+  ]
+}

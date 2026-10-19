@@ -38,7 +38,12 @@ An expert is **not a persona**. "You are a senior security engineer" adds almost
             it against what it required at planning time
             evidence is recorded against a fingerprint of the changes; any later change
             makes it stale
+            a high-confidence finding stays OPEN until it is resolved: fixed (the next
+            review no longer reports it) or dismissed by the user, with their reason.
+            The commit gate refuses while one is open.
 ```
+
+**Raised, then resolved.** A finding is high-confidence when the expert rates it so, and it counts as open when the skeptic confirmed it or never ruled on it. The agent must tell the user about each open finding and wait for a decision. It cannot dismiss one itself: the gate's message says so, and the dismissal (`experts.js resolve --id ... --reason ...`) keeps the reason it was given. That the agent obeys is a rule in the command, not something the gate can check; the gate can only check that a dismissal exists. Findings below high confidence are reported and do not block.
 
 Everything that decides is code: what experts exist (the agents folder is scanned), that the answer only adds, that unknown names are dropped, that an expert ran (an evidence file exists), that the evidence matches the current changes. Everything that judges is a model.
 

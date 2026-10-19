@@ -282,7 +282,47 @@ test('asking for the lens and the expert of the same name runs only the expert',
 
 test('the result carries everything `experts.js record` needs, and nothing the model wrote', async () => {
   const { result } = await loadWorkflow(REVIEW)(base({ experts: ['security'] }), rechecking());
-  assert.deepStrictEqual(Object.keys(result.expertLane).sort(), ['added', 'available', 'failed', 'planned', 'ran', 'recheck', 'selected', 'stage'].sort());
+  assert.deepStrictEqual(Object.keys(result.expertLane).sort(), ['added', 'available', 'failed', 'findings', 'planned', 'ran', 'recheck', 'selected', 'stage'].sort());
   assert.strictEqual(result.expertLane.stage, 'review');
   assert.deepStrictEqual(result.experts, result.expertLane.selected);
+});
+
+// ---- what the lane carries for the commit gate: the expert's open findings ----------------
+
+const verdictFor = (map) => (call) => {
+  if (call.label === 'recheck') return answer();
+  if (call.phase === 'Lenses') {
+    if (call.label === 'security') return { lensVerdict: 'two issues', findings: [finding({ what: 'admin bypass' }), finding({ what: 'order logged', line: 21, confidence: 'medium' })] };
+    if (call.label === 'correctness') return { lensVerdict: 'one', findings: [finding({ what: 'off by one', file: 'src/other.js' })] };
+    return clean(call);
+  }
+  // the skeptic: the verdicts are given by finding text, in the order the findings were numbered
+  const numbered = JSON.parse(call.prompt.slice(call.prompt.indexOf('[\n'), call.prompt.lastIndexOf(']') + 1));
+  return { verdicts: numbered.filter((f) => map[f.what]).map((f) => ({ index: f.index, verdict: map[f.what], reason: 'because' })) };
+};
+
+test('the lane carries the expert\'s confirmed findings, with their confidence and status, and none from the core lenses', async () => {
+  const { result } = await loadWorkflow(REVIEW)(base({ experts: ['security'] }), verdictFor({ 'admin bypass': 'confirmed', 'order logged': 'confirmed', 'off by one': 'confirmed' }));
+  assert.deepStrictEqual(result.expertLane.findings.map((f) => [f.expert, f.what, f.confidence, f.status]), [
+    ['security', 'admin bypass', 'high', 'confirmed'],
+    ['security', 'order logged', 'medium', 'confirmed'],
+  ]);
+  assert.ok(result.findings.some((f) => f.lens === 'correctness'), 'the core finding is still reported, just not carried as the expert\'s');
+});
+
+test('a finding the skeptic refuted is not carried: it is not open', async () => {
+  const { result } = await loadWorkflow(REVIEW)(base({ experts: ['security'] }), verdictFor({ 'admin bypass': 'refuted', 'order logged': 'confirmed' }));
+  assert.deepStrictEqual(result.expertLane.findings.map((f) => f.what), ['order logged']);
+  assert.strictEqual(result.refuted.length, 1);
+});
+
+test('a finding the skeptic never ruled on is carried as unverified, so it cannot slip through silently', async () => {
+  const { result } = await loadWorkflow(REVIEW)(base({ experts: ['security'] }), verdictFor({ 'order logged': 'confirmed' }));
+  const admin = result.expertLane.findings.find((f) => f.what === 'admin bypass');
+  assert.strictEqual(admin.status, 'unverified');
+});
+
+test('a review with no findings carries an empty list, which is a recordable "nothing open"', async () => {
+  const { result } = await loadWorkflow(REVIEW)(base({ experts: ['security'] }), rechecking());
+  assert.deepStrictEqual(result.expertLane.findings, []);
 });

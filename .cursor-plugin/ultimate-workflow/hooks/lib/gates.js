@@ -213,6 +213,17 @@ function commitGate(ev) {
   if (missing.length > 0) {
     return deny(`Gate G6: no review from ${missing.join(', ')} covers these changes. ${how}`);
   }
+
+  // A high-confidence finding is raised and resolved before the commit, not reported and left.
+  // The agent that wrote the code cannot dismiss one: the message says so, and who can.
+  const open = ev.open || [];
+  if (open.length > 0) {
+    const shown = open.slice(0, 5).map((f) => `  - [${f.id}] ${f.expert}: ${f.file}${f.line ? `:${f.line}` : ''} ${f.what}`);
+    const more = open.length > shown.length ? `\n  ...and ${open.length - shown.length} more (node experts/experts.js findings lists them all)` : '';
+    return deny(
+      `Gate G6: ${open.length} high-confidence finding${open.length === 1 ? ' is' : 's are'} still open:\n${shown.join('\n')}${more}\nTell the user what each one is. Fix it and run /ultimate-workflow:experts again, or, only if the user says to, dismiss it with: node experts/experts.js resolve --id <id> --reason "<the user's words>". Do not dismiss one on your own authority.`
+    );
+  }
   return ALLOW;
 }
 

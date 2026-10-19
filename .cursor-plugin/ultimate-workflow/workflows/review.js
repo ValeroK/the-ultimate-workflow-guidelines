@@ -243,7 +243,14 @@ ${NO_QUOTA}`,
 )
 
 const failedLenses = lenses.filter((_, i) => !lensResults[i])
-const lane = () => ({
+// What an expert found is carried in the lane, because the lane is what gets recorded as
+// evidence and what the commit gate reads. Only findings from an expert's own lens, and only
+// those the skeptic confirmed or never ruled on: a refuted finding is not an open finding.
+const expertFindings = (list, status) =>
+  list
+    .filter((f) => reviewingNames.includes(f.lens))
+    .map((f) => ({ expert: f.lens, file: f.file, line: f.line, what: f.what, confidence: f.confidence, status }))
+const lane = (found = []) => ({
   stage: 'review',
   available: available.map((e) => e.name),
   planned,
@@ -252,6 +259,7 @@ const lane = () => ({
   ran: reviewingNames.filter((n) => !failedLenses.includes(n)),
   failed: reviewingNames.filter((n) => failedLenses.includes(n)),
   recheck,
+  findings: found,
   ...(recheckFailed ? { recheckFailed: true } : {}),
   ...(notInstalled.length ? { ignoredUnknown: notInstalled } : {}),
   ...(noExperts ? { skipped: 'noExperts was passed, so domain experts were not considered' } : {}),
@@ -378,7 +386,7 @@ return {
   range,
   rigor,
   experts,
-  expertLane: lane(),
+  expertLane: lane([...expertFindings(confirmed, 'confirmed'), ...expertFindings(unverified, 'unverified')]),
   lensVerdicts: verdicts,
   findings: confirmed,
   refuted,

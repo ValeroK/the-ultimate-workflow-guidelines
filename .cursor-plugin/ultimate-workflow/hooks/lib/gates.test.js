@@ -399,3 +399,32 @@ test('commitGate: an expert the re-check added needs its own review, and an unre
   assert.match(r.reason, /devops/);
   assert.ok(!/security/.test(r.reason.replace('/ultimate-workflow:experts', '')) || /devops/.test(r.reason));
 });
+
+// --- G6: open high-confidence findings ------------------------------------------------
+
+const openFinding = (over = {}) => ({ id: 'abc123def0', expert: 'security', file: 'src/routes/orders.js', line: 23, what: 'admin bypass', ...over });
+
+test('commitGate blocks while a high-confidence finding is open, and tells the agent what to do and what not to', () => {
+  const r = gates.commitGate(evidence({ open: [openFinding()] }));
+  assert.equal(r.allow, false);
+  assert.match(r.reason, /1 high-confidence finding is still open/);
+  assert.match(r.reason, /\[abc123def0\] security: src\/routes\/orders\.js:23 admin bypass/);
+  assert.match(r.reason, /Tell the user/);
+  assert.match(r.reason, /resolve --id <id> --reason/);
+  assert.match(r.reason, /only if the user says to/);
+  assert.match(r.reason, /Do not dismiss one on your own authority/);
+});
+
+test('commitGate allows when no finding is open, and shows at most five when many are', () => {
+  assert.equal(gates.commitGate(evidence({ open: [] })).allow, true);
+  const many = Array.from({ length: 8 }, (_, i) => openFinding({ id: `id${i}`, what: `problem ${i}` }));
+  const r = gates.commitGate(evidence({ open: many }));
+  assert.match(r.reason, /8 high-confidence findings are still open/);
+  assert.equal((r.reason.match(/^  - \[/gm) || []).length, 5);
+  assert.match(r.reason, /and 3 more/);
+});
+
+test('the missing-review and stale-evidence reasons come before the findings, because they say the findings cannot be trusted yet', () => {
+  const r = gates.commitGate(evidence({ recheck: null, open: [openFinding()] }));
+  assert.match(r.reason, /have not been re-checked/);
+});

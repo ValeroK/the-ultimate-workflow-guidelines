@@ -22,6 +22,8 @@
 //   node experts.js prepare [--range working|A..B]          save the diff, fingerprint the tree
 //   node experts.js record  --stage S [--plan P] < result   record a workflow result as evidence
 //   node experts.js check   [--plan P]                      would the commit gate allow a commit now
+//   node experts.js findings                                high-confidence findings still open, and which are dismissed
+//   node experts.js resolve --id ID --reason "..."          dismiss one, on the user's word and in their words
 //   node experts.js fingerprint                             hash of the uncommitted changes
 //
 // Exit code 2 means the input was unusable, with the reason on stderr. `check` exits 1
@@ -211,6 +213,51 @@ function writeJson(file, data) {
   fs.writeFileSync(file, `${JSON.stringify(data, null, 2)}\n`);
 }
 
+// ---- findings that must be resolved before a commit ----
+//
+// A high-confidence finding from an expert, confirmed by the skeptic (or never ruled on), keeps
+// the commit blocked until it is resolved. Resolved means one of two things: the code was fixed
+// and the next review no longer reports it, or the user dismissed it and said why. The first
+// needs nothing here: a fix changes the fingerprint, the review runs again, and a new record
+// replaces the old one. The second is a waiver, which only a person should write.
+
+const blocking = (f) => f.confidence === 'high';
+
+// Not the line: a finding must keep its identity when unrelated edits move it. Not the whole
+// sentence either, only enough of it that a re-worded repeat of the same defect often matches.
+function findingId(f) {
+  const what = String(f.what || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().slice(0, 120);
+  return sha(`${f.expert}|${f.file}|${what}`).slice(0, 10);
+}
+
+const waiversFile = (cwd) => path.join(cwd, EVIDENCE, 'waivers.json');
+const readWaivers = (cwd) => readJson(waiversFile(cwd)) || {};
+
+/** Every finding in the review records, with whether it is dismissed and whether it is current. */
+function allFindings(cwd, hash, names) {
+  const waivers = readWaivers(cwd);
+  const out = [];
+  for (const name of names) {
+    const r = readJson(evidenceFile(cwd, 'review', name));
+    if (!r || !Array.isArray(r.findings)) continue;
+    for (const f of r.findings) out.push({ ...f, waived: Boolean(waivers[f.id]), current: r.hash === hash });
+  }
+  return out;
+}
+
+/** Dismiss one finding. The reason is the user's, kept as given, and shows up wherever findings do. */
+function resolve(cwd, id, reason, pluginRoot = PLUGIN_ROOT) {
+  if (!id) throw new Error('resolve needs --id <finding id> (experts.js findings lists them)');
+  if (!reason || String(reason).trim().length < 5) throw new Error('resolve needs --reason with the user\'s words: a dismissal nobody can read the reason for is not a resolution');
+  const names = list(pluginRoot).experts.map((e) => e.name);
+  const known = allFindings(cwd, null, names).find((f) => f.id === id);
+  if (!known) throw new Error(`no recorded finding has id ${id} (experts.js findings lists them)`);
+  const waivers = readWaivers(cwd);
+  waivers[id] = { reason: String(reason).trim(), at: new Date().toISOString(), expert: known.expert, file: known.file, what: known.what };
+  writeJson(waiversFile(cwd), waivers);
+  return { id, expert: known.expert, file: known.file, what: known.what, reason: waivers[id].reason };
+}
+
 /**
  * Save the diff the experts will read, and fingerprint the tree it describes.
  * `range` is "working" (uncommitted changes) or any git range such as main..HEAD. The
@@ -255,13 +302,27 @@ function record(cwd, stage, result, { planFile = '', pluginRoot = PLUGIN_ROOT } 
   if (planFile) plan = selectIntoPlan(planFile, lane.selected || [], available);
 
   const at = new Date().toISOString();
+  // Findings are kept only for experts that ran: an expert that failed has no review, so it has
+  // no findings and no record, and the gate asks for the review again.
+  const found = (lane.findings || [])
+    .filter((f) => (lane.ran || []).includes(f.expert))
+    .map((f) => ({ ...f, id: findingId(f) }));
   for (const name of lane.ran || []) {
-    writeJson(evidenceFile(cwd, stage, name), { stage, name, at, hash, failedElsewhere: (lane.failed || []).length > 0 });
+    const mine = found.filter((f) => f.expert === name);
+    writeJson(evidenceFile(cwd, stage, name), {
+      stage,
+      name,
+      at,
+      hash,
+      failedElsewhere: (lane.failed || []).length > 0,
+      ...(stage === 'review' ? { findings: mine } : {}),
+    });
   }
   if (stage === 'review' && lane.recheck === true) {
     writeJson(evidenceFile(cwd, 'review', '_recheck'), { hash, final: lane.selected || [], added: lane.added || [], at });
   }
-  return { stage, recorded: lane.ran || [], failed: lane.failed || [], hash, plan };
+  const open = found.filter((f) => blocking(f) && !readWaivers(cwd)[f.id]);
+  return { stage, recorded: lane.ran || [], failed: lane.failed || [], hash, plan, findings: found.length, open };
 }
 
 /** What the commit gate needs to decide, gathered once. Fails open to a skip. */
@@ -284,7 +345,9 @@ function commitEvidence(cwd, planFile, pluginRoot = PLUGIN_ROOT) {
       const parsed = readExperts(fs.readFileSync(planFile, 'utf8'));
       if (!parsed.error) planExperts = parsed.experts;
     }
-    return { hash: sha(changes.diff), recheck: recheck ? { hash: recheck.hash, final: recheck.final || [] } : null, records, planExperts, available };
+    const hash = sha(changes.diff);
+    const open = allFindings(cwd, hash, available).filter((f) => f.current && blocking(f) && !f.waived);
+    return { hash, recheck: recheck ? { hash: recheck.hash, final: recheck.final || [] } : null, records, planExperts, available, open };
   } catch {
     return { skip: 'the working tree could not be inspected' };
   }
@@ -298,7 +361,7 @@ function fail(message) {
 }
 
 function parseArgs(argv) {
-  const o = { cmd: argv[0], plan: '', add: null, stage: '', range: 'working', pluginRoot: PLUGIN_ROOT, cwd: process.cwd() };
+  const o = { cmd: argv[0], plan: '', add: null, stage: '', id: '', reason: '', range: 'working', pluginRoot: PLUGIN_ROOT, cwd: process.cwd() };
   for (let i = 1; i < argv.length; i++) {
     const a = argv[i];
     const need = () => {
@@ -309,6 +372,8 @@ function parseArgs(argv) {
     if (a === '--plan') o.plan = need();
     else if (a === '--add') o.add = need().split(',').map((s) => s.trim()).filter(Boolean);
     else if (a === '--stage') o.stage = need();
+    else if (a === '--id') o.id = need();
+    else if (a === '--reason') o.reason = need();
     else if (a === '--range') o.range = need();
     else if (a === '--plugin-root') o.pluginRoot = need();
     else if (a === '--cwd') o.cwd = need();
@@ -352,16 +417,22 @@ function main(argv) {
       }
       return out(record(o.cwd, o.stage, result, { planFile: o.plan, pluginRoot: o.pluginRoot }));
     }
+    if (o.cmd === 'findings') {
+      const names = list(o.pluginRoot).experts.map((e) => e.name);
+      return out({ findings: allFindings(o.cwd, fingerprint(o.cwd), names).filter((f) => blocking(f)) });
+    }
+    if (o.cmd === 'resolve') return out(resolve(o.cwd, o.id, o.reason, o.pluginRoot));
     if (o.cmd === 'check') {
-      const verdict = gates.commitGate(commitEvidence(o.cwd, o.plan, o.pluginRoot));
-      out(verdict.allow ? { ok: true } : { ok: false, reason: verdict.reason });
+      const evidence = commitEvidence(o.cwd, o.plan, o.pluginRoot);
+      const verdict = gates.commitGate(evidence);
+      out(verdict.allow ? { ok: true } : { ok: false, reason: verdict.reason, open: evidence.open || [] });
       if (!verdict.allow) process.exit(1);
       return undefined;
     }
   } catch (err) {
     fail(err.message);
   }
-  return fail(`unknown command: ${o.cmd || '(none)'} (expected list, read, select, prepare, record, check, fingerprint)`);
+  return fail(`unknown command: ${o.cmd || '(none)'} (expected list, read, select, prepare, record, check, findings, resolve, fingerprint)`);
 }
 
 module.exports = {
@@ -377,6 +448,9 @@ module.exports = {
   prepare,
   record,
   commitEvidence,
+  findingId,
+  resolve,
+  allFindings,
 };
 
 if (require.main === module) main(process.argv.slice(2));

@@ -39,15 +39,17 @@ function expertsReport(cwd, state) {
   if (state.stage !== 'feature' || !state.file) return null;
   try {
     const parsed = expertsLib.readExperts(fs.readFileSync(state.file, 'utf8'));
-    const verdict = gates.commitGate(expertsLib.commitEvidence(cwd, state.file));
+    const evidence = expertsLib.commitEvidence(cwd, state.file);
+    const verdict = gates.commitGate(evidence);
     return {
       decided: parsed.present,
       selected: parsed.experts,
       available: expertsLib.list().experts.map((e) => e.name),
+      openFindings: (evidence.open || []).length,
       commit: verdict.allow ? { allowed: true, reason: null } : { allowed: false, reason: verdict.reason },
     };
   } catch (err) {
-    return { decided: false, selected: [], available: [], commit: { allowed: true, reason: null }, error: err && err.message ? err.message : 'unknown error' };
+    return { decided: false, selected: [], available: [], openFindings: 0, commit: { allowed: true, reason: null }, error: err && err.message ? err.message : 'unknown error' };
   }
 }
 
@@ -149,6 +151,7 @@ function reportState(r) {
     say('Experts:');
     say(`         ${e.decided ? `decided: [${e.selected.join(', ')}]` : 'NO DECISION recorded in the plan (source edits are blocked by G6)'}`);
     say(`         available: ${e.available.join(', ') || 'none'}`);
+    if (e.openFindings > 0) say(`         open high-confidence findings: ${e.openFindings} (node experts/experts.js findings)`);
     say(`         commit: ${e.commit.allowed ? 'allowed now' : `BLOCKED -- ${e.commit.reason}`}`);
   }
 

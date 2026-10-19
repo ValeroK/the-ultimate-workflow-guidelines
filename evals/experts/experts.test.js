@@ -530,3 +530,133 @@ test('a review record from older changes does not satisfy the gate even when the
   assert.strictEqual(v.allow, false);
   assert.match(v.reason, /security/);
 });
+
+// ---- findings that must be resolved before a commit -------------------------------------
+
+const found = (over = {}) => ({ expert: 'security', file: 'src/a.js', line: 3, what: 'The admin check lets support read any order', confidence: 'high', status: 'confirmed', ...over });
+const withFindings = (...fs_) => reviewResult({ findings: fs_ });
+
+function reviewed(findings) {
+  const { dir, plan } = ready();
+  ex.prepare(dir, 'working', PLUGIN);
+  const out = ex.record(dir, 'review', withFindings(...findings), { pluginRoot: PLUGIN, planFile: plan });
+  return { dir, plan, out };
+}
+
+test('an open high-confidence finding blocks the commit, and the reason lists it with its id, file and line', () => {
+  const { dir, plan, out } = reviewed([found()]);
+  assert.strictEqual(out.open.length, 1);
+  const v = verdict(dir, plan);
+  assert.strictEqual(v.allow, false);
+  assert.match(v.reason, /1 high-confidence finding is still open/);
+  assert.ok(v.reason.includes(`[${out.open[0].id}]`));
+  assert.ok(v.reason.includes('src/a.js:3'));
+  assert.match(v.reason, /Do not dismiss one on your own authority/);
+});
+
+test('findings below high confidence are raised in the review but do not block', () => {
+  const { dir, plan } = reviewed([found({ confidence: 'medium' }), found({ confidence: 'low', what: 'another thing' })]);
+  assert.strictEqual(verdict(dir, plan).allow, true);
+});
+
+test('a finding nobody ruled on blocks exactly as a confirmed one does', () => {
+  const { dir, plan } = reviewed([found({ status: 'unverified' })]);
+  assert.strictEqual(verdict(dir, plan).allow, false);
+});
+
+test('fixing the code resolves a finding: the next review no longer reports it, and the commit is allowed', () => {
+  const { dir, plan } = reviewed([found()]);
+  assert.strictEqual(verdict(dir, plan).allow, false);
+  write(path.join(dir, 'src', 'a.js'), 'module.exports = 3; // fixed\n');
+  assert.strictEqual(verdict(dir, plan).allow, false, 'the old review is stale, so the gate asks for a new one');
+  ex.prepare(dir, 'working', PLUGIN);
+  ex.record(dir, 'review', withFindings(), { pluginRoot: PLUGIN, planFile: plan });
+  assert.strictEqual(verdict(dir, plan).allow, true);
+});
+
+test('a finding that is still there after an unrelated edit stays open', () => {
+  const { dir, plan } = reviewed([found()]);
+  write(path.join(dir, 'src', 'b.js'), 'x\n');
+  ex.prepare(dir, 'working', PLUGIN);
+  ex.record(dir, 'review', withFindings(found({ line: 40 })), { pluginRoot: PLUGIN, planFile: plan });
+  const v = verdict(dir, plan);
+  assert.strictEqual(v.allow, false);
+  assert.match(v.reason, /src\/a\.js:40/);
+});
+
+test('the id does not depend on the line, so a moved finding is the same finding', () => {
+  assert.strictEqual(ex.findingId(found({ line: 3 })), ex.findingId(found({ line: 300 })));
+  assert.notStrictEqual(ex.findingId(found()), ex.findingId(found({ file: 'src/b.js' })));
+  assert.notStrictEqual(ex.findingId(found()), ex.findingId(found({ expert: 'devops' })));
+  assert.notStrictEqual(ex.findingId(found()), ex.findingId(found({ what: 'Something else entirely' })));
+  assert.strictEqual(ex.findingId(found({ what: 'The admin check lets support read ANY order!' })), ex.findingId(found({ what: 'the admin check lets support read any order' })), 'case and punctuation do not matter');
+});
+
+test('dismissing a finding needs the user\'s reason, and then the commit is allowed', () => {
+  const { dir, plan, out } = reviewed([found()]);
+  const id = out.open[0].id;
+  assert.throws(() => ex.resolve(dir, id, '', PLUGIN), /reason/);
+  assert.throws(() => ex.resolve(dir, id, 'ok', PLUGIN), /reason/);
+  assert.throws(() => ex.resolve(dir, 'nosuchid', 'because the user said so', PLUGIN), /no recorded finding/);
+  assert.strictEqual(verdict(dir, plan).allow, false, 'nothing changed yet');
+
+  const done = ex.resolve(dir, id, 'Support staff are meant to see every order (the user, 19 Oct)', PLUGIN);
+  assert.strictEqual(done.reason, 'Support staff are meant to see every order (the user, 19 Oct)');
+  assert.strictEqual(verdict(dir, plan).allow, true);
+});
+
+test('a dismissal holds when the same finding is reported again by a later review of the same code', () => {
+  const { dir, plan, out } = reviewed([found()]);
+  ex.resolve(dir, out.open[0].id, 'accepted by the user for the demo', PLUGIN);
+  write(path.join(dir, 'src', 'b.js'), 'x\n');
+  ex.prepare(dir, 'working', PLUGIN);
+  const again = ex.record(dir, 'review', withFindings(found({ line: 9 })), { pluginRoot: PLUGIN, planFile: plan });
+  assert.strictEqual(again.open.length, 0, 'the record reports it as dismissed');
+  assert.strictEqual(verdict(dir, plan).allow, true);
+});
+
+test('a dismissal covers that finding only', () => {
+  const { dir, plan, out } = reviewed([found(), found({ what: 'The order is written to the log', line: 21 })]);
+  assert.strictEqual(out.open.length, 2);
+  ex.resolve(dir, out.open[0].id, 'accepted by the user', PLUGIN);
+  const v = verdict(dir, plan);
+  assert.strictEqual(v.allow, false);
+  assert.match(v.reason, /1 high-confidence finding is still open/);
+  assert.match(v.reason, /written to the log/);
+});
+
+test('a failed expert leaves no findings and no record, so the gate asks for the review, not for nothing', () => {
+  const { dir, plan } = ready();
+  ex.prepare(dir, 'working', PLUGIN);
+  ex.record(dir, 'review', reviewResult({ ran: [], failed: ['security'], findings: [found()] }), { pluginRoot: PLUGIN, planFile: plan });
+  assert.ok(!fs.existsSync(path.join(dir, '.ultimate-workflow', 'experts', 'review', 'security.json')));
+  assert.match(verdict(dir, plan).reason, /security/);
+});
+
+test('findings from an expert that did not run in this review are not recorded against it', () => {
+  const { dir, plan } = ready();
+  ex.prepare(dir, 'working', PLUGIN);
+  const out = ex.record(dir, 'review', reviewResult({ findings: [found({ expert: 'devops' })] }), { pluginRoot: PLUGIN, planFile: plan }).findings;
+  assert.strictEqual(out, 0);
+});
+
+test('cli findings lists what is open and what is dismissed, and resolve dismisses by id', () => {
+  const { dir, plan } = ready();
+  cli(dir, ['prepare']);
+  const rec = JSON.parse(cli(dir, ['record', '--stage', 'review', '--plan', plan], JSON.stringify(withFindings(found()))).stdout);
+  const id = rec.open[0].id;
+
+  const listed = JSON.parse(cli(dir, ['findings']).stdout).findings;
+  assert.deepStrictEqual(listed.map((f) => [f.id, f.waived, f.current]), [[id, false, true]]);
+
+  const blocked = cli(dir, ['check', '--plan', plan]);
+  assert.strictEqual(blocked.status, 1);
+  assert.strictEqual(JSON.parse(blocked.stdout).open[0].id, id);
+
+  const noReason = cli(dir, ['resolve', '--id', id]);
+  assert.strictEqual(noReason.status, 2);
+  const ok = cli(dir, ['resolve', '--id', id, '--reason', 'the user accepted the risk']);
+  assert.strictEqual(ok.status, 0, ok.stderr);
+  assert.strictEqual(JSON.parse(cli(dir, ['findings']).stdout).findings[0].waived, true);
+  assert.strictEqual(cli(dir, ['check', '--plan', plan]).status, 0);
+});

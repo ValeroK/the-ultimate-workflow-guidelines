@@ -257,3 +257,81 @@ test('every gate invocation leaves a heartbeat, and status.js reports the expert
   assert.deepStrictEqual(j.experts.available, ['security']);
   assert.strictEqual(j.experts.commit.allowed, false);
 });
+
+// ---- high-confidence findings are raised and resolved -----------------------------------
+
+const HIGH = { expert: 'security', file: 'src/a.js', line: 3, what: 'The admin check lets support read any order', confidence: 'high', status: 'confirmed' };
+
+async function reviewWith(payload, dir, plan, findings) {
+  const prep = JSON.parse(experts(payload, dir, ['prepare']).stdout);
+  const run = loadWorkflow(path.join(payload, 'workflows', 'review.js'));
+  const { result } = await run(
+    { available: prep.available, experts: ['security'], diffFile: prep.diffFile, expertsDir: path.join(payload, 'experts'), plan, expertsOnly: true },
+    (call) => {
+      if (call.label === 'recheck') return { experts: [] };
+      if (call.phase === 'Lenses') return { lensVerdict: 'checked', findings: findings.map((f) => ({ file: f.file, line: f.line, what: f.what, howItFails: 'a support account reads any order', confidence: f.confidence })) };
+      return { verdicts: findings.map((_, index) => ({ index, verdict: 'confirmed', reason: 'reachable' })) };
+    }
+  );
+  const rec = experts(payload, dir, ['record', '--stage', 'review', '--plan', plan], JSON.stringify({ ok: result.ok, expertLane: result.expertLane }));
+  return { result, rec };
+}
+
+test('an open high finding blocks the commit through the real gate, a fix resolves it, and the gate says why until then', async () => {
+  const { payload } = pluginCopy();
+  const { dir, plan } = project('plan_confirmed: true\ntests_confirmed: true\nexperts: [security]');
+  write(path.join(dir, 'src', 'a.js'), 'module.exports = 2; // admin bypass\n');
+
+  const first = await reviewWith(payload, dir, plan, [HIGH]);
+  assert.strictEqual(first.rec.status, 0, first.rec.stderr);
+  assert.strictEqual(JSON.parse(first.rec.stdout).open.length, 1);
+
+  const r = gate(payload, dir, bash('git commit -am feat'));
+  assert.strictEqual(decision(r), 'deny');
+  assert.match(reasonOf(r), /1 high-confidence finding is still open/);
+  assert.match(reasonOf(r), /src\/a\.js:3/);
+  assert.match(reasonOf(r), /Do not dismiss one on your own authority/);
+  assert.strictEqual(JSON.parse(experts(payload, dir, ['check', '--plan', plan]).stdout).ok, false);
+
+  // The fix. The old review no longer describes the code, so a new one is needed, and it is clean.
+  write(path.join(dir, 'src', 'a.js'), 'module.exports = 2;\n');
+  assert.strictEqual(decision(gate(payload, dir, bash('git commit -am fix'))), 'deny', 'a changed tree needs a new review');
+  const second = await reviewWith(payload, dir, plan, []);
+  assert.strictEqual(second.rec.status, 0, second.rec.stderr);
+  assert.strictEqual(decision(gate(payload, dir, bash('git commit -am fix'))), 'allow');
+});
+
+test('a finding the user dismisses stops blocking, with their reason kept', async () => {
+  const { payload } = pluginCopy();
+  const { dir, plan } = project('plan_confirmed: true\ntests_confirmed: true\nexperts: [security]');
+  write(path.join(dir, 'src', 'a.js'), 'module.exports = 2; // admin bypass\n');
+  const first = await reviewWith(payload, dir, plan, [HIGH]);
+  const id = JSON.parse(first.rec.stdout).open[0].id;
+
+  assert.strictEqual(decision(gate(payload, dir, bash('git commit -am feat'))), 'deny');
+  const done = experts(payload, dir, ['resolve', '--id', id, '--reason', 'Support must see every order (the user)']);
+  assert.strictEqual(done.status, 0, done.stderr);
+  assert.strictEqual(decision(gate(payload, dir, bash('git commit -am feat'))), 'allow');
+
+  const waivers = JSON.parse(fs.readFileSync(path.join(dir, '.ultimate-workflow', 'experts', 'waivers.json'), 'utf8'));
+  assert.strictEqual(waivers[id].reason, 'Support must see every order (the user)');
+  const s = spawnSync(process.execPath, [path.join(payload, 'hooks', 'status.js'), '--json'], { cwd: dir, encoding: 'utf8', env: { ...process.env, ULTIMATE_WORKFLOW_GATES: 'on' } });
+  assert.strictEqual(JSON.parse(s.stdout).experts.openFindings, 0);
+});
+
+test('a medium finding is reported but does not block the commit', async () => {
+  const { payload } = pluginCopy();
+  const { dir, plan } = project('plan_confirmed: true\ntests_confirmed: true\nexperts: [security]');
+  write(path.join(dir, 'src', 'a.js'), 'module.exports = 2;\n');
+  await reviewWith(payload, dir, plan, [{ ...HIGH, confidence: 'medium' }]);
+  assert.strictEqual(decision(gate(payload, dir, bash('git commit -am feat'))), 'allow');
+});
+
+test('status shows how many high findings are open', async () => {
+  const { payload } = pluginCopy();
+  const { dir, plan } = project('plan_confirmed: true\ntests_confirmed: true\nexperts: [security]');
+  write(path.join(dir, 'src', 'a.js'), 'module.exports = 2;\n');
+  await reviewWith(payload, dir, plan, [HIGH]);
+  const s = spawnSync(process.execPath, [path.join(payload, 'hooks', 'status.js')], { cwd: dir, encoding: 'utf8', env: { ...process.env, ULTIMATE_WORKFLOW_GATES: 'on' } });
+  assert.match(s.stdout, /open high-confidence findings: 1/);
+});

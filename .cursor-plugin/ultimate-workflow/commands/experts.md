@@ -13,6 +13,8 @@ Read `${CLAUDE_PLUGIN_ROOT}/commands/review.md` and follow it exactly, with thes
 - pass `"expertsOnly": true`, so the four core lenses do not run;
 - the plan file is the one in `$ARGUMENTS`, or the single `PLAN-*.md` at the root, or none.
 
-When the evidence is recorded, confirm it with `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" check [--plan <plan file>]`. It prints `{"ok":true}` and exits 0 when the commit gate would allow a commit now, and prints the reason and exits 1 when it would not. Report that result. If it is blocked, the reason names what is missing; do not commit, and do not edit evidence files by hand.
+If `record` printed open findings, do not run `check` yet and do not commit: follow "High-confidence findings are raised and resolved" in the review command. Raise each finding to the user and wait for their decision. You may not skip this because the commit was the goal.
+
+When the evidence is recorded and nothing is open, confirm it with `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" check [--plan <plan file>]`. It prints `{"ok":true}` and exits 0 when the commit gate would allow a commit now, and prints the reason and exits 1 when it would not. Report that result. If it is blocked, the reason names what is missing; do not commit, and do not edit evidence files by hand.
 
 Any change to the code after this runs makes the evidence stale: the gate will ask for this again, which is intended.

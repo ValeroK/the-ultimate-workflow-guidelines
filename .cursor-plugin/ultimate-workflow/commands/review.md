@@ -36,6 +36,15 @@ Record the evidence, in code. Build a JSON object with `"ok": true` and the `exp
 `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" record --stage review [--plan <plan file>]`
 with it on standard input. It writes one record per expert that ran, against the fingerprint from step 3, and adds any expert the recheck found to the plan's `experts:` line. If `expertLane.recheckFailed` is true, say so: the commit gate will not be satisfied until the recheck succeeds.
 
+## High-confidence findings are raised and resolved
+
+The commit gate refuses while an expert's high-confidence finding is open, so raise each one now. `record` prints them as `open`, each with an `id`; `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" findings` lists them again at any time. For every open finding, tell the user, in plain words, what it is, where it is, and how it fails, then **stop and ask**: fix it, or dismiss it.
+
+- **Fix it.** Change the code, then run the experts check again. The finding is resolved when the next review no longer reports it.
+- **Dismiss it.** Only when the user says to, in their words: `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" resolve --id <id> --reason "<the user's words>"`. The reason is kept and shown wherever findings are listed. Never dismiss a finding on your own authority, never write a reason the user did not give, and never edit the evidence files by hand.
+
+Findings below high confidence are reported with the others but do not block.
+
 ## When it returns
 
 Say which experts ran, which were added by the diff beyond the plan (`expertLane.added`) and why (the recheck's reasons are in the workflow log), and any that failed. Present confirmed, refuted, and unverified findings **separately**. List the refuted ones rather than dropping them: a verifier that silently filters cannot be audited.

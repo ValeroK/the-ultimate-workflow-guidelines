@@ -4,7 +4,7 @@ Read this when your prompt carries a dependency audit, or says that none was pro
 
 A script produced the audit before this run, by querying the package registries. Use it as given.
 
-- Do not fetch anything. Do not state a package's latest version or an advisory from memory: what you remember about versions is out of date.
+- Use the audit as given. Do not state a package's latest version or an advisory from memory: what you remember about versions is out of date. If you need to confirm one specific item, look it up on the web, say that you did, and put only the advisory id or the package name and version in the query.
 - If the prompt says no audit was provided, write "Dependency audit: not provided" in your verdict. Never write or imply that the dependencies are clean.
 - If an entry says a source was "not checked", repeat that, with the source name, in your verdict. A package that was not checked is not a safe package.
 

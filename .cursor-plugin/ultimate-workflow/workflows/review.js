@@ -155,7 +155,7 @@ const lensResults = await parallel(
 
 ${
   experts.includes(lens)
-    ? `The diff for ${range} is saved at ${args.diffFile}. Read it there; you have no shell. Your references are in ${args.expertsDir}/${lens}/references/.`
+    ? `The diff for ${range} is saved at ${args.diffFile}. Read it there. Your references are in ${args.expertsDir}/${lens}/references/.`
     : 'Start by reading the diff: `git diff ' + range + '`.'
 } Read the surrounding code, not just the changed lines -- a hunk is rarely comprehensible on its own.
 

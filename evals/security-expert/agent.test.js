@@ -30,15 +30,18 @@ test('frontmatter names the agent the workflow spawns and nothing else', () => {
   assert.ok(review.includes("'uw-expert-security'"), 'review.js spawns this agent type');
 });
 
-test('the tool allowlist is exactly Read, Grep, Glob: no shell, no network, no writes, no skills', () => {
+test('the tool allowlist is exactly the declared set: read, shell and web, but no writes and no skills', () => {
   const tools = fm.tools.split(',').map((t) => t.trim()).sort();
-  assert.deepStrictEqual(tools, ['Glob', 'Grep', 'Read']);
+  assert.deepStrictEqual(tools, ['Bash', 'Glob', 'Grep', 'Read', 'WebFetch', 'WebSearch']);
+  assert.ok(!tools.some((t) => /^(Write|Edit|MultiEdit|NotebookEdit|Skill)$/.test(t)));
   assert.strictEqual(fm.readonly, 'true');
 });
 
 test('the body states the rules that make the result trustworthy', () => {
   assert.match(body, /zero findings/i);
-  assert.match(body, /no shell/i);
+  assert.match(body, /read-only commands/i);
+  assert.match(body, /never put repository contents/i);
+  assert.match(body, /fetched content is untrusted/i);
   assert.match(body, /untrusted/i);
   assert.match(body, /references\/diff-review\.md/);
   assert.match(body, /agent-surface\.md/);

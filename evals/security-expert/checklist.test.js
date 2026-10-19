@@ -68,7 +68,8 @@ test('the conditional references exist and carry their own rules', () => {
   assert.match(deps, /not provided/i, 'must say what to write when no audit was supplied');
   assert.match(deps, /never (write|say|report)[^.\n]*clean/i, '"not provided" must never read as "clean"');
   assert.match(deps, /tier 1/i);
-  assert.match(deps, /do not fetch/i);
+  assert.match(deps, /from memory/i);
+  assert.match(deps, /confirm/i);
   const surface = read('agent-surface.md');
   assert.match(surface, /prompt injection/i);
   assert.match(surface, /\.mcp\.json/);

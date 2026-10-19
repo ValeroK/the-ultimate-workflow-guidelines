@@ -14,7 +14,7 @@ Domain experts (currently `security`) review as extra lenses. The workflow scrip
    `git diff --name-status <range> | node "${CLAUDE_PLUGIN_ROOT}/experts/route.js" --plan <plan file>`
 3. Keep the JSON it prints exactly as printed; it is passed to the workflow in step 7 as `routing`. Its `experts` is the list that will run: the plan's experts plus any the diff adds. If `added` is not empty, tell the user which experts the diff added beyond the plan, and why those paths matched.
 4. If the script exits with code 2 (unreadable plan, unknown expert name), stop and show its stderr. Do not run the review without the experts the plan asked for.
-5. If `experts` is not empty, save the diff for them, because experts have no shell: `mkdir -p .ultimate-workflow && git diff <range> > .ultimate-workflow/review.diff`. Their references live in `${CLAUDE_PLUGIN_ROOT}/experts`.
+5. If `experts` is not empty, save the diff for them, so that every expert reads the same one: `mkdir -p .ultimate-workflow && git diff <range> > .ultimate-workflow/review.diff`. Their references live in `${CLAUDE_PLUGIN_ROOT}/experts`.
 6. If `security` is in the list, run the dependency audit, which needs network access and which a model must not improvise. List the tracked lockfiles with `git ls-files -- '*package-lock.json' '*uv.lock'`, and add a `pyproject.toml` only where no `uv.lock` sits beside it. Then run
    `git diff --name-status <range> | node "${CLAUDE_PLUGIN_ROOT}/experts/deps-audit.js" --base-ref <left side of the range> --changed-from-stdin <those files>`
    and pass the JSON it prints as `deps`. If it fails or prints nothing, leave `deps` out and tell the user the audit did not run and why. Never report the dependencies as clean because the audit is missing.

@@ -45,8 +45,13 @@ const edit = (file, fn) => fs.writeFileSync(file, fn(fs.readFileSync(file, 'utf8
 
 const MUTANTS = {
   'agent file removed': (t) => fs.rmSync(path.join(t.payload, 'agents', 'uw-expert-security.md')),
-  'agent gains the shell': (t) => edit(path.join(t.payload, 'agents', 'uw-expert-security.md'), (s) => s.replace('tools: Read, Grep, Glob', 'tools: Read, Grep, Glob, Bash')),
-  'agent gains network search': (t) => edit(path.join(t.payload, 'agents', 'uw-expert-security.md'), (s) => s.replace('tools: Read, Grep, Glob', 'tools: Read, Grep, Glob, WebSearch')),
+  'agent gains a write tool': (t) => edit(path.join(t.payload, 'agents', 'uw-expert-security.md'), (s) => s.replace(/^tools: .*$/m, (line) => `${line}, Write`)),
+  'agent loses a declared tool': (t) => edit(path.join(t.payload, 'agents', 'uw-expert-security.md'), (s) => s.replace(', WebSearch', '')),
+  'agent drops the rule to run read-only commands only': (t) => edit(path.join(t.payload, 'agents', 'uw-expert-security.md'), (s) => s.replace(/read-only commands/gi, 'commands')),
+  'agent can reach the web but drops the rule against leaking repository contents': (t) =>
+    edit(path.join(t.payload, 'agents', 'uw-expert-security.md'), (s) => s.replace(/never put repository contents/gi, 'feel free to include context')),
+  'agent can reach the web but drops the rule that fetched content is untrusted': (t) =>
+    edit(path.join(t.payload, 'agents', 'uw-expert-security.md'), (s) => s.replace(/fetched content is untrusted/gi, 'fetched content is reliable')),
   'agent loses readonly': (t) => edit(path.join(t.payload, 'agents', 'uw-expert-security.md'), (s) => s.replace('readonly: true', 'readonly: false')),
   'agent name does not match the file': (t) => edit(path.join(t.payload, 'agents', 'uw-expert-security.md'), (s) => s.replace('name: uw-expert-security', 'name: uw-expert-secure')),
   'agent drops the zero-findings rule': (t) => edit(path.join(t.payload, 'agents', 'uw-expert-security.md'), (s) => s.replace(/zero findings/gi, 'a quiet result')),
@@ -96,19 +101,19 @@ for (const [name, mutate] of Object.entries(MUTANTS)) {
 
 test('a failure says which expert and what is wrong, in words a contributor can act on', () => {
   const t = copyTree();
-  MUTANTS['agent gains the shell'](t);
+  MUTANTS['agent gains a write tool'](t);
   const problems = run(t);
-  assert.ok(problems.some((p) => /security/.test(p) && /tools/i.test(p) && /Bash/.test(p)), problems.join(' | '));
+  assert.ok(problems.some((p) => /security/.test(p) && /tools/i.test(p) && /Write/.test(p)), problems.join(' | '));
 });
 
 test('widening an expert\'s tools is possible only by declaring it in the contract, which is a reviewed edit', () => {
   const t = copyTree();
-  MUTANTS['agent gains the shell'](t);
+  MUTANTS['agent gains a write tool'](t);
   const widened = checkExpert({
     payloadDir: t.payload,
     examplesDir: t.examples,
     name: 'security',
-    declaredTools: { security: ['Read', 'Grep', 'Glob', 'Bash'] },
+    declaredTools: { security: ['Bash', 'Glob', 'Grep', 'Read', 'WebFetch', 'WebSearch', 'Write'] },
   });
   assert.deepStrictEqual(widened.filter((p) => /tools/i.test(p)), []);
 });

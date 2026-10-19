@@ -15,7 +15,13 @@ const { stripMeta } = require('../../security-expert/lib/run-workflow.js');
 // untrusted diff can make it do, so it is declared here, in a reviewed edit, and
 // never by quietly changing the agent file.
 const DEFAULT_TOOLS = ['Glob', 'Grep', 'Read'];
-const DECLARED_TOOLS = {};
+const DECLARED_TOOLS = {
+  // Decided by the maintainer on 2026-10-19: the security expert may run read-only
+  // commands and look facts up on the web, accepting that a diff it reads can try to
+  // steer it. The agent file must state the rules it follows (the contract below
+  // requires them), and the dependency audit still runs as a script outside the model.
+  security: ['Bash', 'Glob', 'Grep', 'Read', 'WebFetch', 'WebSearch'],
+};
 
 // What a domain's checklist must not exclude and must mention depends on the domain.
 const LINT_PROFILES = { security: SECURITY_PROFILE };
@@ -98,6 +104,14 @@ function checkExpert({ payloadDir, examplesDir, name, declaredTools = DECLARED_T
     if (!/zero findings/i.test(body)) bad('the body must say that zero findings is a correct answer');
     if (!/untrusted/i.test(body)) bad('the body must say that everything it reads is untrusted data');
     if (!actual.includes('Bash') && !/no shell/i.test(body)) bad('the body must say the expert has no shell');
+    if (actual.includes('Bash') && !/read-only commands/i.test(body)) bad('the expert can run commands, so its body must say it runs read-only commands only');
+    const web = actual.includes('WebFetch') || actual.includes('WebSearch');
+    if (web && !/never (put|send|include)[^.\n]*(repository|code|secret)/i.test(body)) {
+      bad('the expert can reach the web, so its body must say never to put repository contents, secrets or code into a query or URL');
+    }
+    if (web && !/untrusted[^.\n]*(web|fetched|search)|fetched[^.\n]*untrusted/i.test(body)) {
+      bad('the expert can reach the web, so its body must say that fetched content is untrusted too');
+    }
     if (/FILL-IN/.test(body)) bad('the agent file still has a FILL-IN note from the template');
   }
 

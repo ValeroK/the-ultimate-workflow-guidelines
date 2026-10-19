@@ -86,7 +86,10 @@ async function buildPrompt(c) {
       { routing: { experts: ['security'] }, diffFile: c.diffFile, expertsDir: path.join(c.pluginDir, 'experts'), range },
       'security'
     );
-    middle = `Your role definition:\n\n${body(path.join(c.pluginDir, 'agents', 'uw-expert-security.md'))}\n\n${note}\n\n${call.prompt}`;
+    // The shipped expert may run read-only commands and use the web. Every arm in this
+    // exercise reads files only, so the comparison measures instructions, not tools.
+    const parity = 'Exercise constraint: in this exercise the shell and the web are not available to you, whatever your role definition says; use only your file-reading tools.';
+    middle = `Your role definition:\n\n${body(path.join(c.pluginDir, 'agents', 'uw-expert-security.md'))}\n\n${parity}\n\n${note}\n\n${call.prompt}`;
   }
   return `${head(c)}\n${middle}\n\n${tail(c)}\n`;
 }

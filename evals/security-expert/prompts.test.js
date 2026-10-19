@@ -37,9 +37,15 @@ test('every arm tells the reviewer where the repository, the diff and the result
   }
 });
 
-test('no arm is told to run git, so none gets a tool the others lack', async () => {
+test('no arm is told to run git diff to get the diff, so none gets a tool the others lack', async () => {
   const P = await built;
-  for (const arm of ARMS) assert.ok(!/git diff|git show|git log/.test(P[arm]), arm);
+  for (const arm of ARMS) assert.ok(!/git diff/.test(P[arm]), arm);
+});
+
+test('the expert arm is told that its shell and web are off for the exercise, so every arm has the same tools', async () => {
+  const P = await built;
+  assert.match(P.expert, /in this exercise the shell and the web are not available/i);
+  for (const arm of ['generic', 'lens', 'upstream']) assert.ok(!/in this exercise the shell and the web are not available/i.test(P[arm]), arm);
 });
 
 test('every arm gets the identical output contract, so scoring is not format-dependent', async () => {

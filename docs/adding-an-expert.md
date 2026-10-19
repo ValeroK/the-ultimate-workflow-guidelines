@@ -9,7 +9,7 @@ A domain expert is **not a persona**. "You are a senior security engineer" adds 
 
 1. **A vetted checklist**, loaded only when needed, that calibrates what to report and what to skip.
 2. **A fixed contract**: findings with an evidence path, a defined "no findings" result, and nothing reported below a confidence threshold.
-3. **Scoped tools**: read, grep and glob only. It reads untrusted diffs, so nothing it reads can make it run anything.
+3. **Declared tools**: read, grep and glob by default. It reads untrusted diffs, so anything beyond that (a shell, the web) is a decision recorded in `DECLARED_TOOLS` in `evals/experts/lib/contract.js`, where a reviewer sees it, and the contract then requires the matching safety rules in the agent file. The security expert has a shell and the web by that route, accepted by the maintainer on 2026-10-19 with the known risk that a diff it reads can try to steer it.
 4. **Routing in code**: a path table decides when it runs. The model never decides to consult it.
 
 It runs as one more lens in the existing parallel review, so its findings go through the same skeptic stage as everyone else's.

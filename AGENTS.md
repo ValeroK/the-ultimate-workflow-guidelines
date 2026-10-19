@@ -35,6 +35,7 @@ Equally, do not bog down on a trivial reversible decision: decide, flag it, move
 | Touching `hooks/**`, adapters, the heartbeat, `status.js`; a gate is not firing; adding a host | `.cursor-plugin/ultimate-workflow/memory/hooks-and-gates.md` |
 | Touching `workflows/*.js` or `agents/uw-*.md`; adding a phase; `parallel()` returned nothing | `.cursor-plugin/ultimate-workflow/memory/workflows-authoring.md` |
 | Adding a domain expert (an `agents/uw-expert-*` agent and one reference per stage), changing how experts are offered, consulted or gated, or deciding whether a domain deserves one | `docs/adding-an-expert.md` |
+| Judging or vetting an expert, ours or someone else's | `docs/what-a-good-expert-looks-like.md` |
 | Editing `SKILL.md`, `rules/*.mdc`, `references/`, or `agents/` | `.cursor-plugin/ultimate-workflow/memory/mirrors.md` |
 | Marketplace sources, `/add-plugin`, release ZIP, empty Cursor install | `.cursor-plugin/ultimate-workflow/memory/cursor-install.md` |
 | A feature has landed and its lessons need a home | `.cursor-plugin/ultimate-workflow/skills/the-ultimate-workflow-guidelines/references/memory-protocol.md` |

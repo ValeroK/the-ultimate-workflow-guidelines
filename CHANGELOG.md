@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Domain experts that take part from the plan onward.** An expert is `agents/uw-expert-<name>.md` plus one reference per stage it joins; the plugin finds it by scanning the agents folder, so adding one edits no registry, router, workflow or command. A model is asked which experts apply at plan time and again on the real diff before a commit; code merges the answer so it can only add. Selected experts add constraints to the plan, cases to the tests, and review the diff against both. The first expert is security (`plan.md`, `tests.md`, `review.md`, plus a dependency audit script).
+- **`/ultimate-workflow:experts`**, the quick check before a commit: re-ask, run the experts, record the evidence.
+- **Gate G6** (opt-in, with the other gates): no source edit before the plan records which experts apply (`experts: []` counts), and no `git commit` until the experts have re-checked and reviewed the current changes. Evidence is tied to a fingerprint of the uncommitted changes, so any later edit makes it stale. A high-confidence expert finding keeps the commit refused until it is fixed or the user dismisses it with their reason (`experts.js resolve`). `status.js` reports the experts state.
+- **docs/adding-an-expert.md** (the tested recipe, with the goal, the decision record of what was measured and what was only reasoned) and **docs/what-a-good-expert-looks-like.md** (how to judge and vet an expert).
+
+### Removed
+
+- The path-keyword router (`experts/route.js`) and the hardcoded expert registry in `workflows/review.js`. Selection is a model's judgement with the list in front of it; the path router selected the security expert for 7 of 12 seeded cases, and the model for 12 of 12 (one expert, one run each, diff only).
+
+### Known gaps
+
+- Selection by a model has been measured once, on one expert. The gate has not been exercised in a real Claude Code session: hook firing on `Bash`, and whether the model follows the command text, are untested there. Overlap between experts and the core reviewers, and between an architect expert and the explorer and critic agents, is undecided.
+
 ## [3.1.0] - 2026-10-06
 
 ### Added

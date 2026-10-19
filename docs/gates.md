@@ -6,7 +6,7 @@ They are **opt-in**. Set `ULTIMATE_WORKFLOW_GATES=on`. Anything else, including 
 
 ## What they do
 
-Five lifecycle hooks read a small YAML block at the top of `PRD.md` or `PLAN-<feature>.md`:
+Lifecycle hooks read a small YAML block at the top of `PRD.md` or `PLAN-<feature>.md`:
 
 | Gate | Rule |
 |---|---|
@@ -15,6 +15,7 @@ Five lifecycle hooks read a small YAML block at the top of `PRD.md` or `PLAN-<fe
 | G3 | No finishing a turn with unverified changes |
 | G4 | Three failed verification rounds escalates to you |
 | G5 | One line per prompt naming the current stage, so it survives a trimmed history |
+| G6 | No source edit until the plan records which domain experts apply (`experts: []` counts), and no `git commit` until the experts have re-checked and reviewed the current changes. A high-confidence expert finding blocks it until fixed or dismissed by the user |
 
 Even switched on they are **completely inert** in a repo with no `PRD.md` and no `PLAN-*.md`, so trivial work in an unmanaged project is never blocked. They fail open: an internal error blocks nothing.
 
@@ -60,7 +61,12 @@ Exit is always 0, blocking or not, so it stays usable under `set -e`.
   "file":     "/abs/path/PLAN-feature.md",   // null at stage none
   "state":    { "plan_confirmed": false },   // the plan's front matter, present keys only
   "blocking": { "blocked": true, "reason": "Gate G1: ..." },
-  "g3Active": true
+  "g3Active": true,
+  "experts":  {                              // null outside a feature
+    "decided": true, "selected": ["security"], "available": ["security"],
+    "openFindings": 0,                       // high-confidence findings still open
+    "commit": { "allowed": false, "reason": "Gate G6: ..." }
+  }
 }
 ```
 

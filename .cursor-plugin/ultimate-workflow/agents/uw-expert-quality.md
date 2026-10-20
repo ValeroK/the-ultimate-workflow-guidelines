@@ -2,6 +2,7 @@
 name: uw-expert-quality
 description: Quality engineer expert. Applies when the work adds or changes tests, evals, fixtures or CI configuration, or when a plan or test plan decides how a behaviour will be verified, especially LLM or agent behaviour, contracts between services, and integrations with AWS. Not for writing production code. Adds verification constraints to the plan, cases and eval design to the tests, and reviews tests and gates for ones that prove nothing or cannot be trusted. Read-only, no shell, no network.
 stages: [plan, tests, review]
+always: [tests]
 tools: Read, Grep, Glob, WebSearch, WebFetch
 readonly: true
 ---

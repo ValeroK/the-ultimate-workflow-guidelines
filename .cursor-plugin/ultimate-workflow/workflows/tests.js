@@ -182,7 +182,23 @@ if (!args || args.available === undefined || args.available === null) {
 } else if (availableExperts.length > 0 && selectedExperts.length > 0 && !args.expertsDir) {
   expertLane = { stage: 'tests', skipped: 'args.expertsDir was not passed, so experts could not be pointed at their references.' }
 } else {
-  const taking = takingPart(availableExperts, selectedExperts, 'tests')
+  // An expert whose agent file says `always: [tests]` joins here whether or not the plan selected
+  // it: every test plan is about tests. It is added to the selection, so the record says it ran.
+  const forced = availableExperts.filter((e) => Array.isArray(e.always) && e.always.includes('tests') && !selectedExperts.includes(e.name)).map((e) => e.name)
+  const selectedHere = [...selectedExperts, ...forced]
+  const taking = takingPart(availableExperts, selectedHere, 'tests')
+  // Skills were chosen in code from the plan (`experts.js skills --stage tests --plan`) and arrive
+  // as { <expert>: { skills: [{ name, text }], dropped } }; the text is pasted into the prompt.
+  const skillsFor = (name) => {
+    const entry = args.skills && typeof args.skills === 'object' ? args.skills[name] : null
+    return (entry && Array.isArray(entry.skills) ? entry.skills : []).filter((x) => x && typeof x.name === 'string' && typeof x.text === 'string' && x.text.trim() !== '')
+  }
+  const skillBlock = (name) => {
+    const mine = skillsFor(name)
+    return mine.length === 0
+      ? ''
+      : `\n\nSKILLS for this plan (${mine.map((x) => x.name).join(', ')}), chosen by the workflow from the plan. Read them before you add cases. Do not open other skill files.\n\n${mine.map((x) => x.text.trim()).join('\n\n')}`
+  }
   if (taking.length > 0) phase('Experts')
   const results = await parallel(
     taking.map((e) => () =>
@@ -194,7 +210,7 @@ ${planFile ? `The plan is at ${planFile}; read it, including its "Expert input" 
 THE DRAFT TESTS
 ${draft.testsMarkdown}
 
-Add only cases that the draft does not already cover and that your domain says must exist. Do not restate the draft. Zero cases is a correct answer.`,
+Add only cases that the draft does not already cover and that your domain says must exist. Do not restate the draft. Zero cases is a correct answer.${skillBlock(e.name)}`,
         { agentType: e.agent, label: `tests:${e.name}`, phase: 'Experts', schema: TESTS_INPUT }
       )
     )
@@ -214,7 +230,15 @@ Add only cases that the draft does not already cover and that your domain says m
     sections.push(`#### ${e.name}\n\n${r.summary}${rows.length ? '\n\n' + rows.join('\n') : ''}`)
   })
   if (sections.length > 0) expertCases = `\n\n### Expert test cases\n\n${sections.join('\n\n')}\n`
-  expertLane = { stage: 'tests', available: availableExperts.map((e) => e.name), selected: selectedExperts, ran, failed, added: [] }
+  expertLane = {
+    stage: 'tests',
+    available: availableExperts.map((e) => e.name),
+    selected: selectedHere,
+    ran,
+    failed,
+    added: forced,
+    skillsLoaded: Object.fromEntries(taking.map((e) => [e.name, skillsFor(e.name).map((x) => x.name)])),
+  }
 }
 
 phase('Attack')

@@ -13,7 +13,9 @@ const wf = (name) => loadWorkflow(path.join(PLUGIN, 'workflows', `${name}.js`));
 // The expert lanes of the plan and tests phases: who is asked, what the model may
 // decide, and what is written into the result by the script and not by a model.
 
-const AVAILABLE = list(PLUGIN).experts;
+// The lane tests below are about selection, so the shipped `always` marks are taken off here;
+// the always-join behaviour has its own tests at the end of this file.
+const AVAILABLE = list(PLUGIN).experts.map(({ always, ...e }) => e);
 const ui = { name: 'uiux', agent: 'uw-expert-uiux', description: 'UI/UX expert. Applies when screens or flows change.', stages: ['plan', 'tests', 'review'] };
 const reviewOnly = { name: 'lintish', agent: 'uw-expert-lintish', description: 'Style expert. Applies to formatting.', stages: ['review'] };
 const EXP = { expertsDir: '/plugin/experts' };
@@ -158,7 +160,7 @@ test('tests: the plan\'s experts add cases, appended under their names after the
   assert.ok(exp.prompt.includes('PLAN-x.md') && /Expert input/.test(exp.prompt), 'it is pointed at what it required at planning time');
   assert.ok(exp.prompt.includes('the route works'), 'it sees the draft');
   assert.match(result.testsMarkdown, /### Expert test cases\n\n#### security\n\nAbuse cases for the new route\.\n\n- \*\*other user is refused\*\*: GET \/orders\/2 as user 1 returns 403 \(catches: a missing ownership check\)/);
-  assert.deepStrictEqual(result.expertLane, { stage: 'tests', available: AVAILABLE.map((e) => e.name), selected: ['security'], ran: ['security'], failed: [], added: [] });
+  assert.deepStrictEqual(result.expertLane, { stage: 'tests', available: AVAILABLE.map((e) => e.name), selected: ['security'], ran: ['security'], failed: [], added: [], skillsLoaded: { security: [] } });
 });
 
 test('tests: no critic ever sees the experts\' cases, so they cannot anchor on them', async () => {
@@ -233,4 +235,23 @@ test('the lane helpers are the same text in plan, tests and review', () => {
   assert.ok(block('plan').length > 500);
   assert.strictEqual(block('tests'), block('plan'));
   assert.strictEqual(block('review'), block('plan'));
+});
+
+// ---- tests: an expert marked always joins whether or not it was selected ------------------
+
+test('tests: an expert marked always: [tests] joins without being selected, and the lane says so', async () => {
+  const withAlways = AVAILABLE.map((e) => (e.name === 'quality' ? { ...e, always: ['tests'] } : e));
+  const { result, calls } = await wf('tests')(testsArgs({ available: withAlways, experts: ['security'] }), testsResponder());
+  assert.ok(calls.some((c) => c.label === 'tests:quality'));
+  assert.deepStrictEqual(result.expertLane.selected, ['security', 'quality']);
+  assert.deepStrictEqual(result.expertLane.added, ['quality']);
+  const none = await wf('tests')(testsArgs({ available: withAlways, experts: [] }), testsResponder());
+  assert.deepStrictEqual(none.result.expertLane.ran, ['quality'], 'it joins even when the plan selected nobody');
+  const already = await wf('tests')(testsArgs({ available: withAlways, experts: ['quality'] }), testsResponder());
+  assert.deepStrictEqual(already.result.expertLane.added, [], 'already selected is not added twice');
+});
+
+test('tests: the shipped quality expert is the one marked always at the tests stage', () => {
+  const marked = list(PLUGIN).experts.filter((e) => e.always);
+  assert.deepStrictEqual(marked.map((e) => [e.name, e.always]), [['quality', ['tests']]]);
 });

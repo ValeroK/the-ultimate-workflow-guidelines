@@ -208,8 +208,9 @@ test('a brand-new expert is picked up by every part of the flow with no edit bey
   const testsOut = await testsRun({ plan: 'PLAN-x.md', available: list, experts: ['uiux'], expertsDir: path.join(payload, 'experts') }, (call) =>
     call.label === 'draft' ? { testsMarkdown: '## Tests', testCommand: 'x', expectedTestNames: [] } : { angleVerdict: 'fine', gaps: [] }
   );
-  assert.deepStrictEqual(testsOut.result.expertLane.ran, []);
-  assert.ok(!testsOut.calls.some((c) => c.label.startsWith('tests:')));
+  // (the quality expert joins every tests stage, so it is the only one that runs)
+  assert.deepStrictEqual(testsOut.result.expertLane.ran, ['quality']);
+  assert.ok(!testsOut.calls.some((c) => c.label === 'tests:uiux'));
 
   // the commit gate waits for it
   const { dir, plan } = project('plan_confirmed: true\ntests_confirmed: true\nexperts: [uiux]');

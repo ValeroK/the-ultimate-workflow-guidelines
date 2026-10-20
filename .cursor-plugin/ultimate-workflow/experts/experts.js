@@ -20,6 +20,7 @@
 //   node experts.js brief   [--plan P]                      the standing brief of every expert that declares the build stage,
 //                                                           with the skills each one selects for the plan
 //   node experts.js skills  --stage plan                    the skills each planning expert may be given, for the plan workflow to offer
+//   node experts.js skills  --stage tests --plan P          the skills chosen from the plan for each expert that joins the tests stage
 //   node experts.js read    --plan P                        the plan's experts
 //   node experts.js select  --plan P --add a,b              add experts to the plan (never removes)
 //   node experts.js prepare [--range working|A..B]          save the diff, fingerprint the tree
@@ -47,6 +48,10 @@ const STAGES = ['plan', 'tests', 'review'];
 const BUILD = 'build';
 const DECLARABLE = [...STAGES, BUILD];
 const BRIEF_BYTES = 4096;
+// A stage at which an expert joins whether or not it was selected, because that stage always does
+// its work. Only `tests` for now: every test plan is about tests, so the quality expert always
+// applies there. Selection decides every other stage.
+const ALWAYS_STAGES = ['tests'];
 const EVIDENCE = path.join('.ultimate-workflow', 'experts');
 const AGENT_FILE = /^uw-expert-([a-z][a-z0-9-]*)\.md$/;
 
@@ -84,10 +89,12 @@ function list(pluginRoot = PLUGIN_ROOT) {
     const name = AGENT_FILE.exec(f)[1];
     const fm = parseAgentFile(fs.readFileSync(path.join(dir, f), 'utf8'));
     const stages = fm.stages === undefined ? ['review'] : inlineList(fm.stages);
+    const always = fm.always === undefined ? [] : inlineList(fm.always);
     if (fm.name !== `uw-expert-${name}`) problems.push(`${f}: frontmatter name is "${fm.name || ''}", expected "uw-expert-${name}"`);
     else if (!fm.description) problems.push(`${f}: no description, so a model cannot tell when it applies`);
     else if (stages.length === 0 || stages.some((s) => !DECLARABLE.includes(s))) problems.push(`${f}: stages must be a list drawn from ${DECLARABLE.join(', ')}`);
-    else experts.push({ name, agent: fm.name, description: fm.description, stages });
+    else if (always.some((s) => !ALWAYS_STAGES.includes(s) || !stages.includes(s))) problems.push(`${f}: always may name only ${ALWAYS_STAGES.join(', ')}, and only a stage the expert declares`);
+    else experts.push({ name, agent: fm.name, description: fm.description, stages, ...(always.length > 0 ? { always } : {}) });
   }
   return { experts, problems };
 }
@@ -143,7 +150,7 @@ function briefs(pluginRoot = PLUGIN_ROOT, { planText = null } = {}) {
 // `added` is a case-sensitive regular expression over the diff's added lines (review) or the
 // plan's text (build). The order of the list is the order of priority when the cap is reached.
 
-const SKILL_STAGES = ['review', 'build'];
+const SKILL_STAGES = ['review', 'build', 'tests'];
 const SKILLS_BYTES = 32 * 1024;
 const SKILL_LINE = /^\s*-\s*`experts\/skills\/([a-z][a-z0-9-]*)\/skill\.md`\s*\((.*?)\):\s/;
 
@@ -279,6 +286,23 @@ function planSkills(pluginRoot = PLUGIN_ROOT) {
       }
     }
     if (offered.length > 0) out[e.name] = offered;
+  }
+  return { skills: out, problems };
+}
+
+/**
+ * The skills each expert that joins the tests stage gets for a plan, chosen in code from the
+ * plan's file names and text, as at build. Keyed by expert; experts with nothing selected are left out.
+ */
+function testsSkills(pluginRoot, planText) {
+  const change = { files: planPaths(planText), text: String(planText) };
+  const out = {};
+  const problems = [];
+  for (const e of list(pluginRoot).experts.filter((x) => x.stages.includes('tests'))) {
+    const sel = selectSkills(pluginRoot, e.name, 'tests', change);
+    problems.push(...sel.problems);
+    if (sel.dropped.length > 0) problems.push(`${e.name}: skills left out at the ${SKILLS_BYTES}-byte cap: ${sel.dropped.join(', ')}`);
+    if (sel.skills.length > 0 || sel.dropped.length > 0) out[e.name] = { skills: sel.skills, dropped: sel.dropped };
   }
   return { skills: out, problems };
 }
@@ -621,8 +645,9 @@ function main(argv) {
       return out(b.briefs);
     }
     if (o.cmd === 'skills') {
-      if (o.stage !== 'plan') fail('skills needs --stage plan (review and build choose their skills in prepare and brief)');
-      const k = planSkills(o.pluginRoot);
+      if (o.stage !== 'plan' && o.stage !== 'tests') fail('skills needs --stage plan or --stage tests --plan P (review and build choose their skills in prepare and brief)');
+      if (o.stage === 'tests' && !o.plan) fail('skills --stage tests needs --plan <plan file>: the skills are chosen from it');
+      const k = o.stage === 'plan' ? planSkills(o.pluginRoot) : testsSkills(o.pluginRoot, fs.readFileSync(o.plan, 'utf8'));
       if (k.problems.length > 0) process.stderr.write(`experts.js: ${k.problems.join('; ')}\n`);
       return out(k.skills);
     }
@@ -680,6 +705,8 @@ module.exports = {
   planPaths,
   selectSkills,
   planSkills,
+  testsSkills,
+  ALWAYS_STAGES,
   withoutSkillsSection,
   expertsFor,
   mergeAdd,

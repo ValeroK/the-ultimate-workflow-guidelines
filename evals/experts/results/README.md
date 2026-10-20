@@ -101,3 +101,24 @@ What it does not say:
 - The corpus was written to the narrow craft scope the expert covers (SOLID, simplicity, duplication, error handling, dependencies, speculative generality). The upstream skill also covers security, performance, review process and change sizing, none of which this split rewards. A fair reading is "better on this scope", not "better".
 - One split, 3 runs per case, one judge pass, and an expert whose categories were written against the same taxonomy as the corpus. The held-out split has not been run for this comparison.
 - The expert's two categories added on 2026-10-20 are still not exercised by any case. This run shows they did not cause regressions on the existing cases, nothing more.
+
+## developer: the same three arms on the held-out split
+
+JSON: `2026-10-20-developer-heldout-a2-addyosmani-vs-expert-v2.json`. Same arms, models and procedure as the dev-split comparison above: 6 seeded, 4 benign and 4 sibling cases, 3 runs each, one judge pass with every batch complete. The held-out split had been run once before, for expert v1; nothing in the expert was changed because of that run.
+
+| | A0 plain | A2 upstream skill | A3 expert |
+|---|---|---|---|
+| seeded cases found in a majority of runs | 4 of 6 | 4 of 6 | 6 of 6 |
+| seeded runs that found the defect | 12 of 18 | 12 of 18 | 18 of 18 |
+| false-positive runs on benign cases | 2 of 12 | 1 of 12 | 1 of 12 |
+| false-positive runs on sibling cases | 0 of 12 | 0 of 12 | 0 of 12 |
+| evidence complete (informational) | 0.87 | 0.91 | 0.95 |
+
+Here the upstream skill found exactly what the plain reviewer found. The difference is two cases that neither the plain reviewer nor the upstream skill found in any run, and that the expert found in every run:
+
+- `c42610081`: money travels as a bare number; a price in cents is stored as dollars (100 times too high) and the budget is a magic number with no unit. The expert's "wrong or hidden meaning" category names this.
+- `c72516a95`: one method validates, writes to SQL, lays out the HTML email and sends it. The expert's "two reasons to change" category names this; the upstream skill mentions separating orchestration from business logic, but its reviewers did not report it.
+
+Every arm's one benign false positive was on the same case (`c13deb587`): a speculative concern about callers not shown in the diff.
+
+Reading across both splits: the expert's advantage comes from naming specific defect classes that a general reviewer, with or without the upstream skill, walks past. The caveat stays the same: the corpus and the expert's categories come from the same craft definition, so this measures the expert on the defects it was built for. Neither split rewards the upstream skill's security, performance or process coverage.

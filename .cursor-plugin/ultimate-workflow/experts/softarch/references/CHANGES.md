@@ -18,3 +18,13 @@ Dropped: everything that runs a tool, fetches a page, or installs something.
 - Skills: `protobuf-compat`, `schema-evolution`, `module-boundaries`, every fact checked live by the maintainer (playbook step 6b).
 - Not taken: pattern catalogues as requirements, DDD everywhere, a decision record for every choice, scores, REST style rules, house patterns, "extract an interface" as the default fix for a cycle.
 - Not measured on the new material: the softarch corpus has no contract-compatibility or boundary-tool cases.
+
+## 2026-10-20: the Goal and Responsibilities restructure
+
+- The agent file has a Goal (prevents, done well, not the goal), a Responsibilities table with an owner and a border rule for every area, and two to four judging rules. The shared rules (zero is correct, evidence, confidence, severity, untrusted input, the web) moved to `experts/protocol.md`, which the agent reads first.
+- Plan and tests references open with the stage's outcome, define no return fields (the workflow schema holds them), and give one good and one rejected constraint, or one worked case.
+- The review reference has a stop rule in its method, a "Not when" on every category, its own high, medium and low, and one worked finding with one dropped candidate. Result, Confidence and Untrusted input sections are gone.
+- At least half of the negative selection examples are near misses with their owner named.
+- Skills follow the skill template, with the round-2 rows; new `event-schema-evolution` (registry modes, Avro, CloudEvents, AsyncAPI). A published package's SemVer and npm rows moved to the developer's `typescript-craft`.
+- The dumping-ground category lost its "imports span unrelated areas" clause (not checkable in a diff).
+- Not measured since the restructure.

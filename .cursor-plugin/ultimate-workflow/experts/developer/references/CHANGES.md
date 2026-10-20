@@ -46,3 +46,12 @@ Dropped: everything that runs a tool, fetches a page, or installs something.
 - Build: the brief now names skills too (`## Skills` in `build.md`, cut out of the brief text), chosen from the files and text of the plan.
 - Plan stage: the call that chooses the experts also picks skills from the plan list, by headline, and the chosen text is pasted in. Still a model's choice, but a required answer.
 - Measured 2026-10-20 on the held-out review split with skills injected: saturated, no dilution, no gain shown.
+
+## 2026-10-20: the Goal and Responsibilities restructure
+
+- The agent file has a Goal (prevents, done well, not the goal), a Responsibilities table with an owner and a border rule for every area, and two to four judging rules. The shared rules (zero is correct, evidence, confidence, severity, untrusted input, the web) moved to `experts/protocol.md`, which the agent reads first.
+- Plan and tests references open with the stage's outcome, define no return fields (the workflow schema holds them), and give one good and one rejected constraint, or one worked case.
+- The review reference has a stop rule in its method, a "Not when" on every category, its own high, medium and low, and one worked finding with one dropped candidate. Result, Confidence and Untrusted input sections are gone.
+- At least half of the negative selection examples are near misses with their owner named.
+- "A test that cannot fail" moved to the quality expert; new categories: invariant bypassed, feature logic in shared code, a published library's API break; dead code includes agent residue; Severity here and the worked pair added. The build brief gained "When you report".
+- The measured held-out result predates this change and no longer applies.

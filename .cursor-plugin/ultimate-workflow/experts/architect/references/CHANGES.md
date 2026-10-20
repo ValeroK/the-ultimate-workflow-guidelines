@@ -26,3 +26,13 @@ Compared 19 upstream architect, SRE, FinOps and migration agents and skills (ECC
 
 - Operability narrowed to a design that cannot be rolled back and a component with nothing to show it is healthy. How a change is built, deployed and undone in the pipeline, and what an infrastructure change replaces or destroys, moved to the DevOps engineer.
 - "Do not report" gains deploy mechanics (the pipeline, migration order in it, image tags, IaC replacement and state); data compatibility across versions stays here.
+
+## 2026-10-20: the Goal and Responsibilities restructure
+
+- The agent file has a Goal (prevents, done well, not the goal), a Responsibilities table with an owner and a border rule for every area, and two to four judging rules. The shared rules (zero is correct, evidence, confidence, severity, untrusted input, the web) moved to `experts/protocol.md`, which the agent reads first.
+- Plan and tests references open with the stage's outcome, define no return fields (the workflow schema holds them), and give one good and one rejected constraint, or one worked case.
+- The review reference has a stop rule in its method, a "Not when" on every category, its own high, medium and low, and one worked finding with one dropped candidate. Result, Confidence and Untrusted input sections are gone.
+- At least half of the negative selection examples are near misses with their owner named.
+- Review gained a severity rubric, shadow and parallel runs under replay, workflow definitions under running executions, and a consumer keying on a transport message id that a DLQ redrive changes (round 2, item 21).
+- Skills not yet converted: waiting for the rest of the round-2 reply (items 35 on).
+- Not measured since the restructure.

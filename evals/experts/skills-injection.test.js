@@ -517,8 +517,39 @@ test('softarch review: near misses select nothing', () => {
   assert.deepEqual(sa({ 'svc/handler.py': ['def handle(event):', '    return 1'] }), [], 'plain application code');
 });
 
-test('softarch review: all three skills at once fit under the cap', () => {
-  const sel = ex.selectSkills(PLUGIN, 'softarch', 'review', ex.parseDiff(diffOf({ 'a.proto': ['x'], 'openapi.yaml': ['x'], 'tsconfig.json': ['x'] })));
-  assert.deepEqual(names(sel), ['protobuf-compat', 'schema-evolution', 'module-boundaries']);
+test('softarch review: event schemas and the round-2 boundary keys select their skill', () => {
+  assert.deepEqual(sa({ 'schemas/order.avsc': ['{"type": "record", "name": "Order"}'] }), ['event-schema-evolution']);
+  assert.deepEqual(sa({ 'asyncapi.yaml': ['asyncapi: 3.0.0'] }), ['event-schema-evolution'], 'AsyncAPI moved from schema-evolution');
+  assert.deepEqual(sa({ 'infra/registry.tf': ['  compatibility = "BACKWARD_TRANSITIVE"'] }), ['event-schema-evolution']);
+  assert.deepEqual(sa({ 'pkg/x/hack.go': ['//go:linkname now runtime.nanotime'] }), ['module-boundaries']);
+  assert.deepEqual(sa({ 'archunit.properties': ['freeze.refreeze=true'] }), ['module-boundaries']);
+});
+
+test('softarch review: all four skills at once fit under the cap', () => {
+  const sel = ex.selectSkills(PLUGIN, 'softarch', 'review', ex.parseDiff(diffOf({ 'a.proto': ['x'], 'openapi.yaml': ['x'], 'e.avsc': ['x'], 'tsconfig.json': ['x'] })));
+  assert.deepEqual(names(sel), ['protobuf-compat', 'schema-evolution', 'event-schema-evolution', 'module-boundaries']);
+  assert.ok(sel.skills.reduce((n, s) => n + Buffer.byteLength(s.text), 0) <= ex.SKILLS_BYTES);
+});
+
+// ---- quality: tests, gates and evals ----
+
+const qa = (files) => names(ex.selectSkills(PLUGIN, 'quality', 'review', ex.parseDiff(diffOf(files))));
+
+test('quality review: test files select test-craft, runner configs and workflow test settings select test-gates', () => {
+  assert.deepEqual(qa({ 'src/orders.test.ts': ['expect(total).toBe(231.25);'] }), ['test-craft']);
+  assert.deepEqual(qa({ 'jest.config.js': ['  testMatch: ["**/*.spec.ts"],'] }), ['test-gates']);
+  assert.deepEqual(qa({ '.github/workflows/ci.yml': ['      - run: pytest | tee out.txt'] }), ['test-gates']);
+  assert.deepEqual(qa({ 'package.json': ['    "test": "jest --passWithNoTests"'] }), ['test-gates'], 'a zero-tests flag in a script');
+  assert.deepEqual(qa({ 'evals/judge.py': ['JUDGE_PROMPT = "Compare A and B"'] }), ['test-craft', 'eval-integrity']);
+});
+
+test('quality review: near misses select nothing', () => {
+  assert.deepEqual(qa({ 'src/handler.py': ['def handle(event):', '    return 1'] }), [], 'production code with no test words');
+  assert.deepEqual(qa({ 'README.md': ['Run the tests with npm test.'] }), [], 'prose about tests');
+});
+
+test('quality review: all three skills at once fit under the cap', () => {
+  const sel = ex.selectSkills(PLUGIN, 'quality', 'review', ex.parseDiff(diffOf({ 'a.test.js': ['x'], 'jest.config.js': ['x'], 'evals/j.py': ['judge'] })));
+  assert.deepEqual(names(sel), ['test-craft', 'test-gates', 'eval-integrity']);
   assert.ok(sel.skills.reduce((n, s) => n + Buffer.byteLength(s.text), 0) <= ex.SKILLS_BYTES);
 });

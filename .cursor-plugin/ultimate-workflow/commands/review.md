@@ -11,7 +11,7 @@ The review has a part that code does, before the workflow, and a part the workfl
 
 1. **The plan file.** The one the user named. Otherwise, if exactly one `PLAN-*.md` exists at the repository root, use it. If several exist and none was named, ask which; never pick by modification time. If none exists (a bug fix, a small change), there is no plan: skip the plan steps below, and the experts are chosen from the diff alone.
 2. **The range.** If the working tree has uncommitted changes (`git status --porcelain` prints anything), review those: range `working`. Otherwise review `main..HEAD`, or the range the user gave.
-3. **Prepare.** Run `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" prepare --range <range>`. It saves the diff to `.ultimate-workflow/review.diff`, fingerprints the working tree so the evidence says what was reviewed, and prints JSON: `hash`, `diffFile`, `files` and `available` (the experts that exist, discovered from the agents folder). Keep `available` exactly as printed. If it exits with code 2, stop and show its stderr.
+3. **Prepare.** Run `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" prepare --range <range>`. It saves the diff to `.ultimate-workflow/review.diff`, fingerprints the working tree so the evidence says what was reviewed, and prints JSON: `hash`, `diffFile`, `files`, `available` (the experts that exist, discovered from the agents folder) and `skills` (for each expert, the skill texts its review reference selects for this diff). Keep `available` and `skills` exactly as printed. If it prints `skillProblems`, show them to the user. If it exits with code 2, stop and show its stderr.
 4. **The plan's experts.** If there is a plan file, run `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" read --plan <plan file>` and use its `experts`. Otherwise use an empty list.
 5. **Dependency audit.** If `files` includes a `package-lock.json`, a `uv.lock` or a `pyproject.toml`, run the audit, which needs network access and which a model must not improvise. List the tracked lockfiles with `git ls-files -- '*package-lock.json' '*uv.lock'`, and add a `pyproject.toml` only where no `uv.lock` sits beside it. Then run
    `git diff --name-status <base of the range, or HEAD for working> | node "${CLAUDE_PLUGIN_ROOT}/experts/deps-audit.js" --base-ref <the same base> --changed-from-stdin <those files>`
@@ -22,7 +22,7 @@ The review has a part that code does, before the workflow, and a part the workfl
 Call the **Workflow** tool with:
 
 - `scriptPath`: `${CLAUDE_PLUGIN_ROOT}/workflows/review.js`
-- `args`: a JSON object, not a string: `{ "range": "<range>", "available": <from step 3, unchanged>, "experts": <from step 4>, "diffFile": ".ultimate-workflow/review.diff", "expertsDir": "${CLAUDE_PLUGIN_ROOT}/experts", "plan": "<plan file, if any>", "deps": <the audit JSON, if produced> }`, plus `rigor` and `lenses` if the user gave them (`$ARGUMENTS`), and `"expertsOnly": true` if the user passed `--experts-only` (this is what the commit check uses: only the experts run, not the four core lenses).
+- `args`: a JSON object, not a string: `{ "range": "<range>", "available": <from step 3, unchanged>, "experts": <from step 4>, "diffFile": ".ultimate-workflow/review.diff", "expertsDir": "${CLAUDE_PLUGIN_ROOT}/experts", "plan": "<plan file, if any>", "skills": <from step 3, unchanged>, "deps": <the audit JSON, if produced> }`, plus `rigor` and `lenses` if the user gave them (`$ARGUMENTS`), and `"expertsOnly": true` if the user passed `--experts-only` (this is what the commit check uses: only the experts run, not the four core lenses).
 
 The workflow asks the same question again of the real diff, "which of these experts apply?", and merges the answer by code: the diff can add an expert to the plan's set and can never remove one. You do not choose experts. Pass `"noExperts": true` only if you truly cannot run `experts.js` (no shell on this host), and tell the user that domain experts were not considered.
 
@@ -47,7 +47,7 @@ Findings below high confidence are reported with the others but do not block.
 
 ## When it returns
 
-Say which experts ran, which were added by the diff beyond the plan (`expertLane.added`) and why (the recheck's reasons are in the workflow log), and any that failed. Present confirmed, refuted, and unverified findings **separately**. List the refuted ones rather than dropping them: a verifier that silently filters cannot be audited.
+Say which experts ran, which skills each one was given (`expertLane.skillsLoaded`), which were added by the diff beyond the plan (`expertLane.added`) and why (the recheck's reasons are in the workflow log), and any that failed. Present confirmed, refuted, and unverified findings **separately**. List the refuted ones rather than dropping them: a verifier that silently filters cannot be audited.
 
 ## If the Workflow tool is unavailable
 

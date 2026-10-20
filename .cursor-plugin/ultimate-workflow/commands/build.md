@@ -5,20 +5,21 @@ argument-hint: "<plan file, or leave empty for the newest>"
 
 # Phase: build
 
-## Before the workflow: load the standing briefs
+## Before the workflow: the plan, then the standing briefs and their skills
 
-The workflow script cannot read the filesystem, so the briefs are found here, in code. Run:
+1. **The plan file.** The one the user named. Otherwise, if exactly one `PLAN-*.md` exists at the repository root, use it. If several exist and none was named, ask which; never pick by modification time.
+2. **The briefs.** The workflow script cannot read the filesystem, so the briefs, and the skills each one selects for this plan, are found here, in code. Run:
 
-`node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" brief`
+   `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" brief --plan <plan file>`
 
-It prints a JSON array of `{ "name", "text" }`, one per expert that declares the `build` stage. Keep it exactly as printed. An empty array is fine and means no expert has a brief. If the script prints a problem on stderr, show it to the user: a brief that is missing or too large is left out.
+   It prints a JSON array of `{ "name", "text", "skills" }`, one per expert that declares the `build` stage; `skills` holds the skill texts chosen from the files and text of the plan. Keep it exactly as printed. An empty array is fine and means no expert has a brief. Show the user anything the script prints on stderr: a brief that is missing or too large is left out, a skill that did not fit is named, and a plan that names no file gets only the skills every build gets.
 
 ## Run the phase
 
 Call the **Workflow** tool with:
 
 - `scriptPath`: `${CLAUDE_PLUGIN_ROOT}/workflows/build.js`
-- `args`: a JSON object, not a string: `{ "plan": "<the plan file; omit it to use the most recently modified PLAN-*.md>", "briefs": <the array, unchanged> }`, plus `command` if the user gave a verification command.
+- `args`: a JSON object, not a string: `{ "plan": "<the plan file from step 1>", "briefs": <the array, unchanged> }`, plus `command` if the user gave a verification command.
 
 Domain experts do not write code. If the plan has an "Expert input" section, the workflow tells the implementer that its constraints are requirements. A standing brief is different: it applies to every build, whether or not the expert was selected at plan time, and it says how to write, never what to build. The experts check the result at review, against what they required.
 
@@ -28,7 +29,7 @@ six figures of tokens each, and a rerun is a decision for the user to make.
 
 ## When it returns
 
-Report what landed and whether verification is green. Say which briefs were loaded (`briefsLoaded`), so it is visible when none were. If the run escalated, present the blocker with options and **stop** -- do not pick one. Never report green without having seen the verification output.
+Report what landed and whether verification is green. Say which briefs and skills were loaded (`briefsLoaded`, `skillsLoaded`), so it is visible when none were. If the run escalated, present the blocker with options and **stop** -- do not pick one. Never report green without having seen the verification output.
 
 ## If the Workflow tool is unavailable
 

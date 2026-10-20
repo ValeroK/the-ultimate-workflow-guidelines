@@ -38,3 +38,11 @@ Dropped: everything that runs a tool, fetches a page, or installs something.
 - Later the same day: the review reference also names `python-craft` and `typescript-craft`, loaded by file type.
 - Then `simplification`, `surgical-change` and `dependency-discipline` (review), and `dependency-discipline` (plan).
 - Then `go-craft`, `rust-craft`, `java-craft` and `react-craft` (review), loaded by file type. All eleven planned skills are now built; none is measured yet.
+
+## 2026-10-20: skills chosen in code
+
+- Neither smoke run opened a skill, so the review and build references now give each skill a selector, and the workflow pastes the chosen text into the prompt. The review method's first step is now "read the skills in your prompt", not "look at the file types and pick".
+- `surgical-change`, `simplification` and `engineering-principles` are `always`: no file name or added line shows when they apply, and a cue had already failed to load them.
+- Build: the brief now names skills too (`## Skills` in `build.md`, cut out of the brief text), chosen from the files and text of the plan.
+- Plan stage unchanged: still cue-based.
+- Not measured. The reserved held-out split of the general review corpus is the test, and it may show the larger prompt costs more than it adds.

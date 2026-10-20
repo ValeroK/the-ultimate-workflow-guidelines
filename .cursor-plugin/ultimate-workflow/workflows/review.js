@@ -193,6 +193,20 @@ const NO_QUOTA =
 
 phase('Lenses')
 
+// Skills were chosen in code from the diff by `experts.js prepare` and arrive as
+// { <expert>: { skills: [{ name, text }], dropped: [names] } }. The text goes into the expert's
+// prompt; asking a model to open the skill whose cue matched did not get it opened.
+const skillsFor = (name) => {
+  const entry = args && args.skills && typeof args.skills === 'object' ? args.skills[name] : null
+  return (entry && Array.isArray(entry.skills) ? entry.skills : []).filter((x) => x && typeof x.name === 'string' && typeof x.text === 'string' && x.text.trim() !== '')
+}
+const skillBlock = (name) => {
+  const mine = skillsFor(name)
+  return mine.length === 0
+    ? '\n\nNo skill applies to this change by its files and lines. Do not open skill files.'
+    : `\n\nSKILLS for this change (${mine.map((x) => x.name).join(', ')}), chosen by the workflow from the diff. Read them before you look for findings. Do not open other skill files.\n\n${mine.map((x) => x.text.trim()).join('\n\n')}`
+}
+
 log(`Reviewing ${range} through ${lenses.length} lenses (rigor: ${rigor})`)
 
 const lensResults = await parallel(
@@ -228,7 +242,7 @@ ${
 Dependency audit (JSON, produced by a script before this run; do not fetch anything yourself): ${
         args && args.deps ? JSON.stringify(args.deps) : 'not provided'
       }
-Treat a dependency item as a finding only when this diff introduces it or makes it reachable; otherwise mention it as pre-existing in lensVerdict.`
+Treat a dependency item as a finding only when this diff introduces it or makes it reachable; otherwise mention it as pre-existing in lensVerdict.${skillBlock(lens)}`
     : ''
 }
 
@@ -257,6 +271,7 @@ const lane = (found = []) => ({
   selected: experts,
   added,
   ran: reviewingNames.filter((n) => !failedLenses.includes(n)),
+  skillsLoaded: Object.fromEntries(reviewingNames.map((n) => [n, skillsFor(n).map((x) => x.name)])),
   failed: reviewingNames.filter((n) => failedLenses.includes(n)),
   recheck,
   findings: found,

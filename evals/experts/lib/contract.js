@@ -37,7 +37,7 @@ const DECLARED_TOOLS = {
 const LINT_PROFILES = { security: SECURITY_PROFILE };
 
 const BYTE_BUDGET = 60 * 1024;
-const { BRIEF_BYTES } = require(path.join(__dirname, '..', '..', '..', '.cursor-plugin', 'ultimate-workflow', 'experts', 'experts.js'));
+const { BRIEF_BYTES, SKILL_STAGES, skillList, withoutSkillsSection } = require(path.join(__dirname, '..', '..', '..', '.cursor-plugin', 'ultimate-workflow', 'experts', 'experts.js'));
 const MIN_EXAMPLES = 3;
 const STAGES = ['plan', 'tests', 'review'];
 const LANE_WORKFLOWS = ['plan.js', 'tests.js', 'review.js'];
@@ -154,9 +154,11 @@ function checkExpert({ payloadDir, examplesDir, name, declaredTools = DECLARED_T
       for (const p of lintChecklist(text, LINT_PROFILES[name] || GENERIC_PROFILE)) bad(`review reference: ${p}`);
     } else if (stage === 'build') {
       // Loaded into the implementer's prompt on every build, so it is capped, and it may only say how to write.
-      if (Buffer.byteLength(text) > BRIEF_BYTES) bad(`build.md is ${Buffer.byteLength(text)} bytes; it is loaded on every build and is capped at ${BRIEF_BYTES}`);
-      if (!/\bplan\b/i.test(text) || !/adds no work|did not ask|not ask for/i.test(text)) bad('build.md must say that it adds no work and that the plan decides the scope: a brief says how to write, never what to build');
-      if (/\bfetch\b|\bcurl\b|\bnpx?\b|https?:\/\//i.test(text)) bad('build.md must not tell the implementer to fetch, install or visit anything');
+      // Its "## Skills" section selects skills and is not passed on, so it is not counted.
+      const brief = withoutSkillsSection(text);
+      if (Buffer.byteLength(brief) > BRIEF_BYTES) bad(`build.md is ${Buffer.byteLength(brief)} bytes without its Skills section; it is loaded on every build and is capped at ${BRIEF_BYTES}`);
+      if (!/\bplan\b/i.test(brief) || !/adds no work|did not ask|not ask for/i.test(brief)) bad('build.md must say that it adds no work and that the plan decides the scope: a brief says how to write, never what to build');
+      if (/\bfetch\b|\bcurl\b|\bnpx?\b|https?:\/\//i.test(brief)) bad('build.md must not tell the implementer to fetch, install or visit anything');
     } else {
       if (!/\bzero\b|\bno (constraints|cases)\b/i.test(text)) bad(`${stage}.md must say that an empty answer is correct, or the expert will invent requirements`);
       if (!/\bdata\b/i.test(text) || !/instruction/i.test(text)) bad(`${stage}.md must say that what the expert reads is data, not instructions`);
@@ -256,6 +258,8 @@ function skillProblems(payloadDir, expertNames) {
           if (!/\bwhen\b/i.test(line)) out.push(`${where} names experts/skills/${m[1]}/skill.md without a cue on the same line ("load when ..."), so it is loaded always or never`);
         }
       }
+      // At the stages where the workflow injects skills, every listed skill needs a selector code can apply.
+      if (SKILL_STAGES.some((st) => where.endsWith(`/references/${st}.md`))) for (const p of skillList(fs.readFileSync(file, 'utf8')).problems) out.push(`${where}: ${p}`);
     }
   }
   for (const d of present) {

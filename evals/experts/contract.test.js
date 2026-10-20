@@ -163,9 +163,31 @@ test('shared skills: a named skill that does not exist is reported', () => {
 test('shared skills: a mention without a cue on its line is reported', () => {
   const t = copyTree();
   const ref = path.join(t.payload, 'experts', 'developer', 'references', 'review.md');
-  const text = fs.readFileSync(ref, 'utf8').replace('`experts/skills/failure-handling/skill.md`: load when the diff adds', '`experts/skills/failure-handling/skill.md`: for diffs that add');
+  const text = fs.readFileSync(ref, 'utf8').replace('): load when the diff adds or changes a catch', '): for diffs that add or change a catch');
   fs.writeFileSync(ref, text);
   assert.ok(all(t).some((p) => /without a cue on the same line/.test(p)));
+});
+
+test('shared skills: at an injecting stage, a skill line with no selector or a bad one is reported', () => {
+  const t = copyTree();
+  const ref = path.join(t.payload, 'experts', 'developer', 'references', 'review.md');
+  const text = fs.readFileSync(ref, 'utf8')
+    .replace('`experts/skills/go-craft/skill.md` (files: *.go, go.mod):', '`experts/skills/go-craft/skill.md`:')
+    .replace('`experts/skills/rust-craft/skill.md` (files: *.rs, Cargo.toml):', '`experts/skills/rust-craft/skill.md` (added: [unclosed):')
+    .replace('`experts/skills/java-craft/skill.md` (files: *.java, pom.xml, build.gradle, build.gradle.kts):', '`experts/skills/java-craft/skill.md` (sometimes):');
+  fs.writeFileSync(ref, text);
+  const problems = all(t);
+  assert.ok(problems.some((p) => /review\.md: a skill line has no "\(selector\):".*go-craft/.test(p)), problems.join('\n'));
+  assert.ok(problems.some((p) => /review\.md: rust-craft: "added: \[unclosed"/.test(p)), problems.join('\n'));
+  assert.ok(problems.some((p) => /review\.md: java-craft: "sometimes" is not a selector/.test(p)), problems.join('\n'));
+});
+
+test('shared skills: a build.md over the brief cap only because of its Skills section passes', () => {
+  const t = copyTree();
+  const ref = path.join(t.payload, 'experts', 'developer', 'references', 'build.md');
+  fs.appendFileSync(ref, `\n${'- `experts/skills/surgical-change/skill.md` (always): load when writing any change.\n'.repeat(60)}`);
+  assert.ok(fs.statSync(ref).size > 4096);
+  assert.deepEqual(all(t).filter((p) => /build\.md/.test(p)), []);
 });
 
 test('shared skills: a skill no expert names, one without a notice, an oversized one, one that fetches, and a SKILL.md are each reported', () => {

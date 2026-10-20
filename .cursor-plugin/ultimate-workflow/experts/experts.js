@@ -17,7 +17,8 @@
 // Standard library only, so the install stays one command with no dependencies.
 //
 //   node experts.js list                                    available experts, as JSON
-//   node experts.js brief                                   the standing brief of every expert that declares the build stage
+//   node experts.js brief   [--plan P]                      the standing brief of every expert that declares the build stage,
+//                                                           with the skills each one selects for the plan
 //   node experts.js read    --plan P                        the plan's experts
 //   node experts.js select  --plan P --add a,b              add experts to the plan (never removes)
 //   node experts.js prepare [--range working|A..B]          save the diff, fingerprint the tree
@@ -94,8 +95,12 @@ function list(pluginRoot = PLUGIN_ROOT) {
  * The standing brief of every expert that declares the build stage: the text of its build.md,
  * loaded on every build whether or not the expert was selected at plan time. A missing, empty or
  * oversized brief is reported and left out; a brief that costs tokens on every build is capped.
+ *
+ * With `planText`, each brief also carries the skills its build.md selects for the paths and text
+ * of that plan. A plan that names no file selects only the `always` skills, and `note` says so.
  */
-function briefs(pluginRoot = PLUGIN_ROOT) {
+function briefs(pluginRoot = PLUGIN_ROOT, { planText = null } = {}) {
+  const change = planText === null ? null : { files: planPaths(planText), text: String(planText) };
   const found = list(pluginRoot);
   const out = [];
   const problems = [...found.problems];
@@ -108,12 +113,146 @@ function briefs(pluginRoot = PLUGIN_ROOT) {
       problems.push(`${e.name}: declares the build stage but experts/${e.name}/references/build.md cannot be read`);
       continue;
     }
-    if (text.trim() === '') problems.push(`${e.name}: build.md is empty`);
-    else if (Buffer.byteLength(text) > BRIEF_BYTES) problems.push(`${e.name}: build.md is ${Buffer.byteLength(text)} bytes; a brief loaded on every build is capped at ${BRIEF_BYTES}`);
-    else out.push({ name: e.name, text: text.trim() });
+    text = withoutSkillsSection(text);
+    if (text === '') problems.push(`${e.name}: build.md is empty`);
+    else if (Buffer.byteLength(text) > BRIEF_BYTES) problems.push(`${e.name}: build.md is ${Buffer.byteLength(text)} bytes without its Skills section; a brief loaded on every build is capped at ${BRIEF_BYTES}`);
+    else if (change === null) out.push({ name: e.name, text });
+    else {
+      const sel = selectSkills(pluginRoot, e.name, BUILD, change);
+      problems.push(...sel.problems);
+      if (sel.dropped.length > 0) problems.push(`${e.name}: skills left out at the ${SKILLS_BYTES}-byte cap: ${sel.dropped.join(', ')}`);
+      out.push({ name: e.name, text, skills: sel.skills, dropped: sel.dropped });
+    }
   }
-  return { briefs: out, problems };
+  const note = change === null ? 'no plan given, so no skills were selected' : change.files.length === 0 ? 'the plan names no file, so only skills marked always were selected' : '';
+  return { briefs: out, problems, planPaths: change ? change.files : [], note };
 }
+
+// ---- skills, chosen in code ----
+//
+// A model told to "read the skill whose cue matches" did not read it, in two runs out of two. So
+// the choice is made here, where the files are, and the workflow pastes the text into the prompt.
+// A stage reference lists its skills one per line, each with a selector in parentheses:
+//
+//   - `experts/skills/go-craft/skill.md` (files: *.go, go.mod): load when ...
+//   - `experts/skills/failure-handling/skill.md` (added: catch|except): load when ...
+//   - `experts/skills/surgical-change/skill.md` (always): load when ...
+//
+// `files` globs match the base name of a changed path (review) or a path the plan names (build).
+// `added` is a case-sensitive regular expression over the diff's added lines (review) or the
+// plan's text (build). The order of the list is the order of priority when the cap is reached.
+
+const SKILL_STAGES = ['review', 'build'];
+const SKILLS_BYTES = 32 * 1024;
+const SKILL_LINE = /^\s*-\s*`experts\/skills\/([a-z][a-z0-9-]*)\/skill\.md`\s*\((.*?)\):\s/;
+
+function globToRegExp(glob) {
+  return new RegExp(`^${glob.split('*').map((s) => s.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('[^/]*')}$`);
+}
+
+/** One selector, or `{ error }`. */
+function parseSelector(text) {
+  const t = text.trim();
+  if (t === 'always') return { kind: 'always' };
+  const m = /^(files|added):\s*(.+)$/.exec(t);
+  if (!m) return { error: `"${t}" is not a selector (expected "always", "files: <globs>" or "added: <regex>")` };
+  if (m[1] === 'files') {
+    const globs = m[2].split(',').map((s) => s.trim()).filter(Boolean);
+    if (globs.length === 0 || globs.some((g) => g.includes('/'))) return { error: `"${t}": files takes base-name globs such as *.go, without a directory` };
+    return { kind: 'files', globs, res: globs.map(globToRegExp) };
+  }
+  try {
+    return { kind: 'added', re: new RegExp(m[2]) };
+  } catch (err) {
+    return { error: `"${t}": ${err.message}` };
+  }
+}
+
+/** The skills a reference lists, in order, with their selectors. Lines that name a skill without one are problems. */
+function skillList(text) {
+  const skills = [];
+  const problems = [];
+  for (const line of text.split(/\r?\n/)) {
+    if (!/experts\/skills\/[a-z][a-z0-9-]*\/skill\.md/.test(line)) continue;
+    const m = SKILL_LINE.exec(line);
+    if (!m) {
+      if (/^\s*-\s*`experts\/skills\//.test(line)) problems.push(`a skill line has no "(selector):" after its path: ${line.trim()}`);
+      continue;
+    }
+    const sel = parseSelector(m[2]);
+    if (sel.error) problems.push(`${m[1]}: ${sel.error}`);
+    else skills.push({ name: m[1], selector: sel });
+  }
+  return { skills, problems };
+}
+
+/** Changed paths and added lines, read from a unified diff. Works for any range, not only the working tree. */
+function parseDiff(diff) {
+  const files = new Set();
+  const added = [];
+  for (const line of String(diff).split(/\r?\n/)) {
+    const g = /^diff --git a\/(.+?) b\/(.+)$/.exec(line);
+    if (g) files.add(g[2]);
+    else if (line.startsWith('+++ b/')) files.add(line.slice(6));
+    else if (line.startsWith('+') && !line.startsWith('+++')) added.push(line.slice(1));
+  }
+  return { files: [...files], text: added.join('\n') };
+}
+
+/**
+ * Paths a plan names: anything in backticks that looks like a file, and bare words that hold a
+ * slash and end in an extension. Prose such as "Node.js" outside backticks is not a path.
+ */
+function planPaths(text) {
+  const out = new Set();
+  const looksLikeFile = (s) => /^[\w.\/-]*[\w-]\.[A-Za-z][A-Za-z0-9]{0,9}$/.test(s) || /^[\w.-]+$/.test(s) && /^(go\.mod|Cargo\.toml|pom\.xml|Gemfile|Dockerfile)$/.test(s);
+  for (const m of String(text).matchAll(/`([^`\s]+)`/g)) if (looksLikeFile(m[1])) out.add(m[1]);
+  for (const m of String(text).matchAll(/(?:^|\s)([\w.-]+(?:\/[\w.-]+)+\.[A-Za-z][A-Za-z0-9]{0,9})(?=$|[\s,.;:)])/gm)) out.add(m[1]);
+  return [...out];
+}
+
+function matches(selector, { files, text }) {
+  if (selector.kind === 'always') return true;
+  if (selector.kind === 'added') return selector.re.test(text);
+  return files.some((f) => selector.res.some((re) => re.test(path.posix.basename(f.replace(/\\/g, '/')))));
+}
+
+/**
+ * The skills one expert gets at one stage, for one change: those its stage reference lists whose
+ * selector matches, in list order, up to the cap. What did not fit is returned in `dropped`, by
+ * name, so the result says it rather than the prompt silently shrinking.
+ */
+function selectSkills(pluginRoot, expert, stage, change, cap = SKILLS_BYTES) {
+  const out = { skills: [], dropped: [], problems: [] };
+  let ref = '';
+  try {
+    ref = fs.readFileSync(path.join(pluginRoot, 'experts', expert, 'references', `${stage}.md`), 'utf8');
+  } catch {
+    return out;
+  }
+  const listed = skillList(ref);
+  out.problems.push(...listed.problems.map((p) => `${expert}/${stage}.md: ${p}`));
+  let used = 0;
+  for (const s of listed.skills.filter((x) => matches(x.selector, change))) {
+    let text = '';
+    try {
+      text = fs.readFileSync(path.join(pluginRoot, 'experts', 'skills', s.name, 'skill.md'), 'utf8').trim();
+    } catch {
+      out.problems.push(`${expert}/${stage}.md names ${s.name}, which cannot be read`);
+      continue;
+    }
+    const bytes = Buffer.byteLength(text);
+    if (used + bytes > cap) out.dropped.push(s.name);
+    else {
+      used += bytes;
+      out.skills.push({ name: s.name, text });
+    }
+  }
+  return out;
+}
+
+/** A reference's "## Skills" section, which selects skills and is not itself brief text. */
+const withoutSkillsSection = (text) => text.replace(/^## Skills[ \t]*\r?\n[\s\S]*?(?=^## |(?![\s\S]))/m, '').trim();
 
 /** The experts that take part at a stage, in the order they were selected. */
 function expertsFor(available, selected, stage) {
@@ -304,7 +443,18 @@ function prepare(cwd, range = 'working', pluginRoot = PLUGIN_ROOT) {
   fs.writeFileSync(path.join(cwd, diffFile), diff);
   const hash = sha(changes.diff);
   writeJson(path.join(cwd, EVIDENCE, 'prepared.json'), { hash, range, at: new Date().toISOString() });
-  return { hash, range, diffFile, files: changes.files, available: list(pluginRoot).experts };
+  const available = list(pluginRoot).experts;
+  // Skills for every expert that could review, not only the planned ones: the recheck inside the
+  // workflow can add an expert, and the workflow cannot read a file to fetch that expert's skills.
+  const change = parseDiff(diff);
+  const skills = {};
+  const skillProblems = [];
+  for (const e of available.filter((x) => x.stages.includes('review'))) {
+    const sel = selectSkills(pluginRoot, e.name, 'review', change);
+    skillProblems.push(...sel.problems);
+    if (sel.skills.length > 0 || sel.dropped.length > 0) skills[e.name] = { skills: sel.skills, dropped: sel.dropped };
+  }
+  return { hash, range, diffFile, files: changes.files, available, skills, ...(skillProblems.length > 0 ? { skillProblems } : {}) };
 }
 
 /**
@@ -347,7 +497,7 @@ function record(cwd, stage, result, { planFile = '', pluginRoot = PLUGIN_ROOT } 
       at,
       hash,
       failedElsewhere: (lane.failed || []).length > 0,
-      ...(stage === 'review' ? { findings: mine } : {}),
+      ...(stage === 'review' ? { findings: mine, skills: (lane.skillsLoaded && Array.isArray(lane.skillsLoaded[name]) ? lane.skillsLoaded[name] : []) } : {}),
     });
   }
   if (stage === 'review' && lane.recheck === true) {
@@ -429,8 +579,9 @@ function main(argv) {
       return out(l.experts);
     }
     if (o.cmd === 'brief') {
-      const b = briefs(o.pluginRoot);
+      const b = briefs(o.pluginRoot, { planText: o.plan ? fs.readFileSync(o.plan, 'utf8') : null });
       if (b.problems.length > 0) process.stderr.write(`experts.js: ${b.problems.join('; ')}\n`);
+      if (b.note) process.stderr.write(`experts.js: ${b.note}\n`);
       return out(b.briefs);
     }
     if (o.cmd === 'read') {
@@ -479,6 +630,14 @@ module.exports = {
   BRIEF_BYTES,
   list,
   briefs,
+  SKILL_STAGES,
+  SKILLS_BYTES,
+  parseSelector,
+  skillList,
+  parseDiff,
+  planPaths,
+  selectSkills,
+  withoutSkillsSection,
   expertsFor,
   mergeAdd,
   readExperts,

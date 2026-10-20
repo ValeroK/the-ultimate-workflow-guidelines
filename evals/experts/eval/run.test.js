@@ -277,3 +277,18 @@ test('scoreRun applies a per-expert threshold override: the same leak fails by d
   const otherExpert = run.scoreRun(dir, { ...thresholds, recallMarginCases: 0, overrides: { developer: { maxLeakRate: null } } }, 'ArmLens');
   assert.equal(leakCheck(otherExpert).ok, false, 'an override for another expert changes nothing');
 });
+
+test('an expert arm gets the skills the review command would select, per case, and other arms get none', () => {
+  const cases = [
+    { id: 'c1', summary: 's1', diff: 'diff --git a/x.go b/x.go\n--- a/x.go\n+++ b/x.go\n@@ -0,0 +1 @@\n+package x\n' },
+    { id: 'c2', summary: 's2', diff: 'diff --git a/y.py b/y.py\n--- a/y.py\n+++ b/y.py\n@@ -0,0 +1 @@\n+x = 1\n' },
+  ];
+  const ctx = { plugin: PLUGIN, domain: { name: 'developer', scope: 'x' } };
+  const task = run.reviewerTask({ arm: { label: 'E', kind: 'expert', expert: 'developer' }, run: 1, cases, diffDir: '/d', resultFile: '/r.json', ctx });
+  assert.match(task, /caseId c1[^\n]*\n[^\n]*\n[^\n]*\n\s+skills for this change: go-craft, surgical-change/);
+  assert.match(task, /caseId c2[^\n]*\n[^\n]*\n[^\n]*\n\s+skills for this change: python-craft, surgical-change/);
+  assert.equal((task.match(/=== skill: surgical-change ===/g) || []).length, 1, 'each text once');
+  assert.match(task, /except skill files/);
+  const plain = run.reviewerTask({ arm: { label: 'P', kind: 'plain' }, run: 1, cases, diffDir: '/d', resultFile: '/r.json', ctx });
+  assert.ok(!plain.includes('skills for this change') && !plain.includes('--- SKILLS ---'));
+});

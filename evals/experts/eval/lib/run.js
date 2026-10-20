@@ -105,16 +105,42 @@ function armInstructions(arm, ctx) {
   throw new Error(`run: unknown arm kind ${arm.kind}`);
 }
 
+/**
+ * The skills an expert arm is given, chosen per case by the same code the review command uses
+ * (`experts.js` selectSkills over the case's diff), so the eval measures what ships. Each text is
+ * pasted once; each case line names the ones that apply to it.
+ */
+function armSkills(arm, cases, ctx) {
+  const perCase = new Map();
+  const texts = new Map();
+  if (arm.kind !== 'expert') return { perCase, texts };
+  const ex = require(path.join(ctx.plugin, 'experts', 'experts.js'));
+  for (const c of cases) {
+    const sel = ex.selectSkills(ctx.plugin, arm.expert, 'review', ex.parseDiff(c.diff));
+    if (sel.problems.length > 0) throw new Error(`run: ${sel.problems.join('; ')}`);
+    perCase.set(c.id, sel.skills.map((s) => s.name));
+    for (const s of sel.skills) texts.set(s.name, s.text);
+  }
+  return { perCase, texts };
+}
+
 function reviewerTask({ arm, run, cases, diffDir, resultFile, ctx }) {
+  const skills = armSkills(arm, cases, ctx);
   const list = orderFor(arm.label, run, cases)
-    .map((c, i) => `${i + 1}. caseId ${c.id}\n   summary: ${c.summary}\n   diff file: ${path.join(diffDir, `${c.id}.diff`)}`)
+    .map((c, i) => `${i + 1}. caseId ${c.id}\n   summary: ${c.summary}\n   diff file: ${path.join(diffDir, `${c.id}.diff`)}${
+      skills.perCase.has(c.id) ? `\n   skills for this change: ${skills.perCase.get(c.id).join(', ') || 'none'}` : ''
+    }`)
     .join('\n');
+  const skillText =
+    skills.texts.size === 0
+      ? ''
+      : `\n--- SKILLS ---\nThe skills below were chosen in code from each change's diff. Apply to each change only the skills its entry names. Do not open other skill files.\n\n${[...skills.texts].map(([name, text]) => `=== skill: ${name} ===\n${text}`).join('\n\n')}\n`;
   return `You are taking part in a test of a code review. Follow these instructions exactly.
 
 ${armInstructions(arm, ctx)}
 
 ${UNTRUSTED}
-You may read the diff files listed below, the reference files named above if any, and any file those references tell you to read. You may not modify any file except the answer file. The diffs are self-contained; there is no repository to explore.
+You may read the diff files listed below, the reference files named above if any, and any file those references tell you to read${arm.kind === 'expert' ? ', except skill files: the skills that apply are given below' : ''}. You may not modify any file except the answer file. The diffs are self-contained; there is no repository to explore.
 
 Review these ${cases.length} changes one at a time, independently. Judge each on its own; do not assume how many of them have problems.
 
@@ -122,6 +148,7 @@ ${list}
 
 Write your answer as JSON matching the schema at the end of this file, to ${resultFile} using the Write tool, with one entry in "results" for every caseId above. Then reply with the single word: done
 
+${skillText}
 --- SCHEMA ---
 ${JSON.stringify(REVIEW_SCHEMA, null, 2)}
 `;

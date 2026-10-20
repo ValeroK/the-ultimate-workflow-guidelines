@@ -37,7 +37,7 @@ Rate each candidate from 1 to 10 for how sure you are that it is a real problem 
 
 ## Method
 
-First, look at the file types and the kinds of change in the diff, and read every skill in the "Skills" list below whose cue matches. A Python diff with error handling, for example, means `python-craft` and `failure-handling`. Skills are short; read them before you look for findings, not after.
+First, read the skills included in your prompt. The workflow chose them from this diff by the rules in the "Skills" list below and pasted their text in; read them before you look for findings, not after. Do not open other skill files: one the workflow did not include does not apply to this change.
 
 Then work in three passes.
 
@@ -75,19 +75,19 @@ Check what the change adds and skip the rest.
 
 ## Skills
 
-A skill named `experts/skills/<name>/skill.md` lives in this plugin's `experts/skills/` folder: from your references directory (`.../experts/developer/references/`) that is `../../skills/<name>/skill.md`. Load one only when its cue matches this change; many reviews need none.
+The workflow selects these in code, by the rule in parentheses, and puts their text in your prompt: `files` matches the names of the changed files, `added` matches the diff's added lines, `always` always applies. The order is the order of priority when the skills would not all fit. The words after the colon say what each skill is for.
 
-- `experts/skills/failure-handling/skill.md`: load when the diff adds or changes a catch or except block, an error return, a fallback or default on error, a retry, or work that must be undone on failure.
-- `experts/skills/python-craft/skill.md`: load when the diff touches `.py` files.
-- `experts/skills/typescript-craft/skill.md`: load when the diff touches `.ts`, `.tsx`, `.js`, `.mjs` or `.cjs` files.
-- `experts/skills/go-craft/skill.md`: load when the diff touches `.go` files.
-- `experts/skills/rust-craft/skill.md`: load when the diff touches `.rs` files.
-- `experts/skills/java-craft/skill.md`: load when the diff touches `.java` files.
-- `experts/skills/react-craft/skill.md`: load when the diff touches React components or hooks (`.tsx`, `.jsx`).
-- `experts/skills/simplification/skill.md`: load when the diff restructures existing code (extracts, inlines, moves, renames, rewrites) or says it simplifies something.
-- `experts/skills/surgical-change/skill.md`: load when the diff touches files the request or plan does not mention, mixes a refactor with a behaviour change, or looks large for its task.
-- `experts/skills/dependency-discipline/skill.md`: load when a package manifest or lockfile changes, or new imports of a third-party package appear.
-- `experts/skills/engineering-principles/skill.md`: load when a candidate finding rests on a design principle or pattern (single responsibility, open/closed, substitution, KISS, YAGNI, DRY, a named pattern), to check its exact meaning and its counter-case before you report the cost.
+- `experts/skills/failure-handling/skill.md` (added: \b(catch|except|rescue|recover|finally|retry|fallback|rollback)\b|\.catch\(|Err\(|unwrap_or|err != nil|throw |raise ): load when the diff adds or changes a catch or except block, an error return, a fallback or default on error, a retry, or work that must be undone on failure.
+- `experts/skills/python-craft/skill.md` (files: *.py, *.pyi): load when the diff touches Python files.
+- `experts/skills/typescript-craft/skill.md` (files: *.ts, *.tsx, *.mts, *.cts, *.js, *.jsx, *.mjs, *.cjs): load when the diff touches TypeScript or JavaScript files.
+- `experts/skills/react-craft/skill.md` (files: *.tsx, *.jsx): load when the diff touches React components or hooks.
+- `experts/skills/go-craft/skill.md` (files: *.go, go.mod): load when the diff touches Go files.
+- `experts/skills/rust-craft/skill.md` (files: *.rs, Cargo.toml): load when the diff touches Rust files.
+- `experts/skills/java-craft/skill.md` (files: *.java, pom.xml, build.gradle, build.gradle.kts): load when the diff touches Java files.
+- `experts/skills/dependency-discipline/skill.md` (files: package.json, package-lock.json, yarn.lock, pnpm-lock.yaml, requirements*.txt, pyproject.toml, uv.lock, poetry.lock, Pipfile, Pipfile.lock, go.mod, go.sum, Cargo.toml, Cargo.lock, pom.xml, build.gradle, build.gradle.kts, Gemfile, Gemfile.lock): load when a package manifest or lockfile changes.
+- `experts/skills/surgical-change/skill.md` (always): load when the diff touches files the request or plan does not mention, mixes a refactor with a behaviour change, or looks large for its task. Always included, because no file name shows it.
+- `experts/skills/simplification/skill.md` (always): load when the diff restructures existing code (extracts, inlines, moves, renames, rewrites) or says it simplifies something. Always included, for the same reason.
+- `experts/skills/engineering-principles/skill.md` (always): load when a candidate finding rests on a design principle or pattern (single responsibility, open/closed, substitution, KISS, YAGNI, DRY, a named pattern), to check its exact meaning and its counter-case before you report the cost. Always included, for the same reason.
 
 ## Do not report
 

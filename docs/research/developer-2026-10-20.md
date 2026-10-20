@@ -34,7 +34,7 @@ The maintainer's live check of round-2 prompt 1 (`docs/research/fact-check-round
 | 26 | Drop order: the type's `Drop`, then fields in declaration order | confirmed; `ManuallyDrop` controls the order explicitly | Rust reference |
 | 27 | SpotBugs `DC_DOUBLECHECK`, `RC_REF_COMPARISON`, `RE_POSSIBLE_UNINTENDED_PATTERN` | confirmed; double-checked locking on a `volatile` field is safe on Java 5+ | spotbugs docs |
 | 28 | Error Prone `InterruptedExceptionSwallowed`, on by default | confirmed, severity WARNING | errorprone.info |
-| 29 | Spring Boot `@Async` executor is bounded | **different**: Boot configures a `ThreadPoolTaskExecutor` with 8 core threads and an **unbounded** queue and max size (`Integer.MAX_VALUE`) unless `spring.task.execution.pool.*` is set; with virtual threads it is a `SimpleAsyncTaskExecutor`. Plain Spring falls back to `SimpleAsyncTaskExecutor`, one new thread per task | Spring Boot reference |
+| 29 | Spring Boot `@Async` executor is bounded | **different**: Boot configures a `ThreadPoolTaskExecutor` with 8 core threads and an **unbounded** queue and max size (`Integer.MAX_VALUE`) unless `spring.task.execution.pool.*` is set; with virtual threads it is a `SimpleAsyncTaskExecutor`. Plain Spring falls back to `SimpleAsyncTaskExecutor`, one new thread per task | Spring Boot reference (the quoted line says only "sensible defaults"; the core-thread and queue figures are from the checker's notes) |
 | 30 | Self-invocation bypasses `@Transactional`, `@Async`, `@Cacheable` | confirmed (now with a primary citation); AspectJ mode is the exception | Spring Framework reference |
 
 Extra facts from the same pages (31 to 40):

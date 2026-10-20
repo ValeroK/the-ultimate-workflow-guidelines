@@ -1,72 +1,94 @@
 ---
 name: go-craft
-description: Use when a change touches Go files.
+description: Use when a change touches Go files - the language's traps that look correct (errors, defer, goroutines, contexts, errgroup, slices and buffers, JSON), which of them go vet and golangci-lint already catch, and the exported API of a module others import.
+verified: 2026-10-20
+requires: the go version in go.mod (1.22 changes loop variables; 1.25 adds the waitgroup and hostport analyzers)
 ---
 
 # Go craft
 
-Use this when a change touches `.go` files. It holds only what is specific to Go. Checks true in every language stay in the expert's checklist, `engineering-principles` and `failure-handling`.
+## Goal
 
-## First, find out what the tooling already covers
+- **Lets the expert catch:** Go code that drops or mis-wraps an error, leaks a goroutine or a context, reads memory another caller will overwrite, or breaks importers of a published module, in the cases an enabled analyzer does not already flag.
+- **Applies to:** `*.go` files and `go.mod`.
+- **Not for:** `internal/` boundaries, `/vN` paths and `linkname` (`module-boundaries`); `InsecureSkipVerify`, shell execution, path traversal and `unsafe` (security); error-handling patterns true in every language (`failure-handling`); tests (quality).
 
-Read `go.mod` (the `go` version matters below), `.golangci.yml` or `.golangci.toml`, the `Makefile`, and the CI config. A problem an enabled check catches is not a review finding.
+Sources: **[R]** the maintainer's live check (pkg.go.dev, go.dev release notes and Effective Go, the Go module-compatibility blog post and apidiff; 2026-10-20); **[D]** the `go vet` documentation and golangci-lint's reference configuration in their repositories (read 2026-10-20); **[T]** an upstream community skill, not checked (see `NOTICE.md`); **[O]** our own reasoning. A [T] or [O] item is a prompt to check, not a finding on its own.
 
-| Problem | Check that catches it, when enabled |
+## First, establish the target
+
+- **The `go` version in `go.mod`:** below 1.22 a loop variable is shared across iterations; 1.25 adds the `waitgroup` and `hostport` vet analyzers and `WaitGroup.Go` [R].
+- **The analyzers that run:** `.golangci.yml` or `.golangci.toml`, the `Makefile` and the CI config. A problem an enabled analyzer catches is not a finding; ask whether CI runs `go test -race`.
+- **Whether the module is imported by others** (a public module path, release tags). Only then does "Exported API of a published module" apply.
+- If you cannot establish these, say which you assumed and lower your confidence by one step.
+
+## What an enabled analyzer already catches
+
+| Problem | Analyzer [D] |
 |---|---|
 | Unchecked error return | golangci-lint `errcheck` |
-| Mutex or other lock copied by value | `go vet` `copylocks` |
-| Context cancel function never called | `go vet` `lostcancel` |
-| Printf verbs that do not match the arguments | `go vet` `printf` |
-| Variable shadowing | golangci-lint `govet` with the `shadow` analyzer enabled (not part of plain `go vet`) |
-| Unused code, dead assignments | staticcheck, golangci-lint `unused`, `ineffassign` |
-| Data races | `go test -race` (a run-time check; ask whether CI runs it) |
+| `err == ErrX` on wrapped errors; `%v` instead of `%w` | golangci-lint `errorlint` |
+| Shadowed variable, `err` included | `govet` with the `shadow` analyzer (not plain `go vet`) |
+| Lock copied by value; cancel function never called; printf verbs | `go vet` `copylocks`, `lostcancel`, `printf` |
+| Loop variable captured, before go 1.22 | `go vet` `loopclosure` |
+| HTTP response used before checking the error; body not closed | `go vet` `httpresponse`; golangci-lint `bodyclose` |
+| `sql.Rows` not closed, `rows.Err()` unchecked | golangci-lint `sqlclosecheck`, `rowserrcheck` |
+| Non-inherited context; HTTP request without a context | golangci-lint `contextcheck`, `noctx` |
+| `wg.Add` misplaced (go 1.25) | `go vet` `waitgroup` [R] |
+| `fmt.Sprintf("%s:%d", host, port)` as an address (go 1.25) | `go vet` `hostport`, which suggests `net.JoinHostPort` (IPv6) [R] |
+| Unused code, dead assignments | staticcheck, `unused`, `ineffassign` |
 
-## Traps a linter often misses
+## Errors and defer
 
-### Errors
-- **Returning a typed nil as `error`.** `var err *MyError; return err` returns a non-nil interface; callers' `err != nil` is always true. Return a literal `nil`.
-- **Shadowed error.** `err := ...` inside an inner block hides the outer `err`, so the outer check sees the old value.
-- **`return err` with no context** on a path where the caller cannot tell what failed. Wrap with `fmt.Errorf("doing x: %w", err)`; `%v` breaks `errors.Is` and `errors.As`.
-- **`err == ErrX`** on errors that are wrapped anywhere; use `errors.Is` and `errors.As`.
-- **`defer f.Close()` on a file that was written.** The write may only fail at close; the error is dropped. Check it on write paths.
-- **`panic` for an expected failure** (a missing record, bad input). Panics are for programming errors.
+| Rule | What breaks it in a diff | When it does not apply |
+|---|---|---|
+| A typed nil returned as `error` is a non-nil interface, so `err != nil` is always true [T] | `var err *MyError; ...; return err` | |
+| `return err` with no context where the caller cannot tell what failed; wrap with `%w` [T] | A bare `return err` across a package boundary | A thin wrapper whose caller adds the context |
+| `defer f.Close()` on a written file drops the error the write may only report at close [T] | Deferred `Close` with the error ignored on a write path | Read-only files |
+| A deferred call's function value and arguments, the receiver included, are evaluated when `defer` runs, not at return [R] | `defer log(time.Since(start))`, or `defer f(err)` with `err` reassigned later | `defer func() { f(err) }()`, which reads at exit [R] |
+| `defer` inside a loop keeps every resource until the function returns [T] | `for ... { f, _ := os.Open(...); defer f.Close() }` | A loop body moved into its own function |
+| `panic` for an expected failure (a missing record, bad input) [T] | `panic` on a lookup miss or a validation error | Programming errors and impossible states |
 
-### Concurrency
-- **Goroutine leak.** A goroutine sending on an unbuffered channel that nobody reads after a timeout, or one with no way to stop. Give it a `context.Context` and select on `ctx.Done()`, or buffer the channel.
-- **`context.Background()` or `TODO()` inside a request path** cuts the request's deadline and cancellation off from everything below it. Pass the caller's context.
-- **Context stored in a struct** instead of passed as the first parameter.
-- **Concurrent map access** without a mutex or `sync.Map`: a data race that can crash the process.
-- **Unlock not deferred**, so an early return or panic leaves the mutex locked.
-- **`wg.Add` called inside the goroutine** instead of before starting it; `Wait` may return early.
-- **Closing a channel from the receiver**, or closing it twice: both panic.
-- **Loop variable captured by a goroutine or closure** in modules whose `go.mod` declares a version before 1.22, where the loop variable is shared across iterations.
+## Goroutines and contexts
 
-### Values
-- **Slices share their backing array.** `b := a[:2]; b = append(b, x)` may overwrite `a[2]`. Copy when the two must be independent.
-- **Integer overflow wraps silently**, including in size and money calculations. Check before multiplying counts by sizes.
-- **Writing to a nil map** panics.
-- **JSON decoding is lenient:** unknown fields are ignored, field names match case-insensitively, and duplicate keys take the last value. Use `DisallowUnknownFields` where a typo should fail.
-- **`time.Time` compared with `==`** compares location and monotonic clock too; use `Equal`.
-- **Map iteration order is random**; output or tests that depend on it are flaky.
+| Rule | What breaks it in a diff | When it does not apply |
+|---|---|---|
+| A goroutine that sends on an unbuffered channel nobody reads after a timeout, or has no exit, leaks [T] | A send with no `select` on `ctx.Done()` after the reader may have gone | A buffered channel sized to the senders |
+| `context.Background()` or `TODO()` inside a request path cuts off the caller's deadline and cancellation [T] | A new `context.Background()` in a handler's call chain | `main`, and detached background work that must outlive the request |
+| A context is passed as the first parameter, not stored in a struct [T] | A `ctx` field on a long-lived struct | |
+| Concurrent map access without a lock or `sync.Map` is a data race that can crash the process [T] | A map written from several goroutines | |
+| `Unlock` not deferred leaves the mutex locked on an early return or panic [T] | `mu.Lock()` with `mu.Unlock()` only at the end | A critical section with no return or call that can panic |
+| A channel is closed only by its sender, once; a receiver closing it, or a second close, panics [T] | `close(ch)` in the receiving goroutine | |
+| The context from `errgroup.WithContext` is cancelled at the first error or when `Wait` returns [R] | That context used for work after `g.Wait()` | Work inside the group's functions before `Wait` returns |
+| `errgroup` `SetLimit` must not change while goroutines in the group are active [R] | `g.SetLimit` after `g.Go` and before `Wait` | Right after creating the group, or after `Wait` |
 
-### Resources
-- **`http.Client{}` and `http.DefaultClient` have no timeout.** An external call without one can hang the request forever.
-- **HTTP response body not closed**, or closed before it is read to the end when connection reuse matters.
-- **`sql.Rows` not closed**, and `rows.Err()` not checked after the loop.
-- **`defer` inside a loop** keeps every resource open until the function returns.
+## Values
 
-### Interfaces
-- An interface defined next to its only implementation, before any consumer needs it, is speculative. Go's convention is to define the interface where it is used, accept interfaces and return concrete types.
+| Rule | What breaks it in a diff | When it does not apply |
+|---|---|---|
+| `bytes.Buffer.Bytes()` aliases the buffer and is valid only until the next modification, so a slice returned after a `Reset` or a `sync.Pool` `Put` is overwritten by the next user [R] | `defer pool.Put(buf)` or `buf.Reset()` with `return buf.Bytes()` | `bytes.Clone(buf.Bytes())` before the buffer is reused |
+| Slices share a backing array: appending to a sub-slice may overwrite the original [T] | `b := a[:2]; b = append(b, x)` while `a` is still used | A full slice expression `a[:2:2]`, or a copy |
+| Integer overflow wraps silently, including in size and money calculations [T] | A count multiplied by a size with no bound check | |
+| JSON decoding ignores unknown fields, matches names case-insensitively and keeps the last duplicate key [T] | Decoding a request body where a typo should fail, with no `DisallowUnknownFields` | Lenient decoding chosen on purpose |
+| `time.Time` compared with `==` also compares location and the monotonic reading; use `Equal` [T] | `t1 == t2` | |
+| Map iteration order is random [T] | Output or a key built by ranging over a map | Sorted keys |
+| `http.Client{}` and `http.DefaultClient` have no timeout [O] | An external call through a client with no `Timeout` or context deadline | |
+| An interface belongs where it is used; accept interfaces, return concrete types [T] | An interface declared beside its only implementation, before any consumer | |
 
-### Security-relevant traps (raise them, name the domain as security)
-- `InsecureSkipVerify: true` outside tests.
-- `os/exec` running a shell (`sh -c`) with interpolated input.
-- `filepath.Join` with user input and no check that the result stays under the intended root.
-- `unsafe` without a stated invariant.
+## Exported API of a published module
+
+| Rule | What breaks it in a diff | When it does not apply |
+|---|---|---|
+| A method added to an exported interface breaks implementations outside the module [R] | A new method on an exported interface | The interface already has an unexported method, so no one outside can implement it [R] |
+| A parameter added to an exported function breaks callers; even `func(int)` to `func(...int)` breaks a typed function variable. Add a new function, options or a variadic from the start [R] | A changed exported function signature | |
+| A new struct field breaks unkeyed literals, and a non-comparable field breaks comparability [R] | A field added to an exported struct users build, or a slice or map field added to a comparable one | |
+| Changing an exported constant's value is incompatible, and inserting into an `iota` block shifts the later values [R] | A constant's value changed, or a new name inserted in the middle of an `iota` block | |
+| A type that stops implementing an exported interface breaks the package's users [R] | A method removed or its signature changed on a type used as that interface | |
 
 ## Not a finding
 
-- Formatting (`gofmt`), import grouping, naming style where a linter enforces it.
+- Formatting, import grouping and naming where `gofmt` or a linter enforces them.
 - Table-driven tests versus separate tests, naked returns in short functions, value versus pointer receivers when the type is consistent.
 - `strings.Builder` or slice pre-allocation advice with no hot path.
-- Loop variable capture in a module on Go 1.22 or later.
+- Loop variable capture in a module on go 1.22 or later.
+- Writing to a nil map: it panics on the first run.

@@ -2,14 +2,12 @@
 
 This skill is written in our own words. No text is copied.
 
-Sources compared on 2026-10-20, ideas only:
+| Source | Version or commit, date checked | Licence | What it informed |
+|---|---|---|---|
+| Python tutorial "Errors and Exceptions" (`python/cpython` `Doc/tutorial/errors.rst`); Effective Go (`golang/website`); the Rust book, chapter 9 (`rust-lang/book`); Microsoft .NET "Best practices for exceptions" (`dotnet/docs`) | Read in their repositories, 2026-10-20 | Various | Every fact marked [D]: scoped cleanup forms, cause chaining per language, `throw;` versus `throw ex;` |
+| PEP 765; ESLint `no-unsafe-finally`; Error Prone `Finally`; the AWS SDKs and Tools reference, retry behaviour | Checked live by the maintainer, 2026-10-20 (developer fact-check, round 2) | Various | Every fact marked [R]: control flow leaving `finally`, SDK retries multiplying an application retry |
+| anthropics/claude-plugins-official, `pr-review-toolkit` `silent-failure-hunter` | Read 2026-10-20 | Apache-2.0 | Naming two unrelated errors a catch hides, what the caller sees, whether the fallback was asked for, the right level |
+| affaan-m/ECC, `silent-failure-hunter` and `error-handling` | Read 2026-10-20 | MIT | Lost cause, log and carry on, retrying only retriable errors |
+| wshobson/agents, `error-handling-patterns` and `python-error-handling` | Read 2026-10-20 | MIT | Logging and rethrowing at every level, partial failures in batches |
 
-| Source | Licence | What it informed |
-|---|---|---|
-| anthropics/claude-plugins-official, `pr-review-toolkit` `silent-failure-hunter` | Apache-2.0 | The questions for each handler: which unrelated errors a catch could hide, what the caller sees, whether the fallback was asked for, the right level to handle |
-| affaan-m/ECC, `silent-failure-hunter` and `error-handling` | MIT | Lost cause, log-and-forget, retries only for retriable errors, user and developer messages kept apart |
-| wshobson/agents, `error-handling-patterns` and `python-error-handling` | MIT | Logging and rethrowing at every level as a pitfall, chaining with `raise ... from e`, partial failures in batches, expected failures as values |
-| trailofbits/skills, `sharp-edges` | CC BY-SA 4.0 | A boolean or empty return for a security failure that callers forget to check (idea only; no text, so the share-alike terms do not apply) |
-| Language documentation (checked in the research pass): the Python tutorial on errors, Effective Go, Microsoft's .NET exception guidance, the Rust book | Various | Scoped cleanup forms, Go `defer` scope, `throw;` versus `throw ex;`, `unwrap` panics |
-
-The partial-batch and idempotent-retry rows come from defects in this plugin's own evaluation corpora.
+Left out, and why: the empty handler (every linter catches it); ignored error values, crashes where failure was expected, floating async work and Go `defer` in a loop (they live in the language skills); "expected failures as values" (advice, not a check); retry budgets and DLQs across services (the architect). The partial-batch row and "a timeout is an unknown outcome" come from defects in this plugin's own evaluation corpora.

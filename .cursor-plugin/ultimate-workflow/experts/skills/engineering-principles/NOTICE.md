@@ -13,9 +13,9 @@ Primary sources whose ideas it restates, checked in a research pass on 2026-10-2
 
 Skills compared, ideas only:
 
-| Source | Licence | What it informed |
-|---|---|---|
-| wshobson/agents, `python-design-patterns` | MIT | The "list every change that would force an edit" test for responsibility; the rule of three and its exception for copies that already diverge |
-| affaan-m/ECC, `coding-standards` | MIT | Confirmation of KISS, DRY and YAGNI as the common baseline; its absolute rules (for example "always use spread") were not taken |
-| multica-ai/andrej-karpathy-skills, `karpathy-guidelines` | MIT | Already reflected in this plugin's own principles |
-| tech-leads-club/agent-skills, `modular-design-principles` | MIT | Read and left for the software architect: it is about module boundaries |
+| Source | Version or commit, date checked | Licence | What it informed |
+|---|---|---|---|
+| wshobson/agents, `python-design-patterns` | Read 2026-10-20 | MIT | The "list every change that would force an edit" test for responsibility; the rule of three and its exception for copies that already diverge |
+| affaan-m/ECC, `coding-standards` | Read 2026-10-20 | MIT | Confirmation of KISS, DRY and YAGNI as the common baseline; its absolute rules (for example "always use spread") were not taken |
+| multica-ai/andrej-karpathy-skills, `karpathy-guidelines` | Read 2026-10-20 | MIT | Already reflected in this plugin's own principles |
+| tech-leads-club/agent-skills, `modular-design-principles` | Read 2026-10-20 | MIT | Read and left for the software architect: it is about module boundaries |

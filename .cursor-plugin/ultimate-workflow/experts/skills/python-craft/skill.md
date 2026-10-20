@@ -1,73 +1,93 @@
 ---
 name: python-craft
-description: Use when a change touches Python files.
+description: Use when a change touches Python files - the language's traps that look correct (async, cancellation, context managers, finally, shared state, values), which of them an enabled linter already catches, and the public API of a package others install.
+verified: 2026-10-20
+requires: Python 3.8+ (CancelledError), 3.14 for the finally warning; PyYAML 6+
 ---
 
 # Python craft
 
-Use this when a change touches Python files. It holds only what is specific to Python: the language's traps, the mistakes that look correct, and which of them a linter already catches. Checks true in every language stay in the expert's checklist, `engineering-principles` and `failure-handling`.
+## Goal
 
-## First, find out what the linter already covers
+- **Lets the expert catch:** Python code that silently drops an exception, a cancellation or a timeout, shares state it looks to own, or breaks importers of a published package, in the cases an enabled linter does not already flag.
+- **Applies to:** `*.py` and `*.pyi` files.
+- **Not for:** injection, deserialisation and shell traps (security; the S-codes below are only so the expert knows what a linter covers); error-handling patterns true in every language (`failure-handling`); third-party dependencies and lock files (`dependency-discipline`); tests (quality).
 
-Read `pyproject.toml`, `ruff.toml`, `setup.cfg`, `.flake8`, `mypy.ini` or `pyrightconfig.json`, and the CI and pre-commit config. A problem that an enabled rule catches is not a review finding; say once if the repository has no linter at all.
+Sources: **[R]** the maintainer's live check (docs.python.org, peps.python.org, requests and httpx documentation; 2026-10-20); **[D]** Ruff's rule registry in its repository (`codes.rs`, read 2026-10-20); **[T]** an upstream community skill, not checked (see `NOTICE.md`); **[O]** our own reasoning. A [T] or [O] item is a prompt to check, not a finding on its own.
 
-| Problem | Rule that catches it, when enabled |
+## First, establish the target
+
+- **The linter and type checker,** from `pyproject.toml` (`[tool.ruff]`, `[tool.mypy]`, `[tool.ty]`), `ruff.toml`, `setup.cfg`, `.flake8`, `mypy.ini`, `pyrightconfig.json`, and the CI and pre-commit config. A problem an enabled rule catches is not a finding; a change that disables the rule is. If the repository runs no linter, say so once.
+- **The Python version** (`requires-python`, CI matrix): 3.14 adds the `finally` warning and the `tarfile` filter default.
+- **Whether the package is published** (`[project]` with a name and version, a release workflow). Only then does "Public API of a published package" apply.
+- If you cannot establish these, say which you assumed and lower your confidence by one step.
+
+## What an enabled Ruff rule already catches
+
+| Problem | Rule [D] |
 |---|---|
-| Unused import or variable | Ruff `F401`, `F841` |
-| Mutable default argument | Ruff `B006` (and `B008` for a call in a default) |
-| Bare `except:` | Ruff `E722` |
-| `except Exception` that swallows | Ruff `BLE001` |
-| `raise` inside `except` without `from` | Ruff `B904` |
-| Closure that captures a loop variable | Ruff `B023` |
-| `is` compared with a literal | Ruff `F632` |
-| `asyncio.create_task` result not kept | Ruff `RUF006` |
-| `time.sleep` or blocking `open` inside `async def` | Ruff `ASYNC251`, `ASYNC230` |
-| `eval`, `pickle.loads`, `yaml.load`, `subprocess(shell=True)` | Ruff `S307`, `S301`, `S506`, `S602` |
-| Missing or wrong types | mypy or pyright, in strict mode where configured |
+| Unused import or variable | `F401`, `F841` |
+| Mutable default argument; a call in a default | `B006`, `B008` |
+| Mutable class attribute; dataclass mutable default | `RUF012`, `RUF008`, `RUF009` |
+| Bare `except:`; `except Exception`; `try`-`except`-`pass` | `E722`, `BLE001`, `S110` |
+| `raise` in `except` without `from` | `B904` |
+| `return`, `break` or `continue` in `finally` | `B012` |
+| Closure capturing a loop variable | `B023` |
+| `is` with a literal | `F632` |
+| `create_task` result not kept | `RUF006` |
+| Blocking HTTP, `open` or `time.sleep` in `async def` | `ASYNC210`, `ASYNC212`, `ASYNC230`, `ASYNC251` |
+| `requests` call without a timeout | `S113` |
+| `datetime.utcnow()`, `datetime.now()` without a zone | `DTZ003`, `DTZ005` |
+| `assert` outside tests (often disabled, because it flags tests) | `S101` |
+| Module named like a standard-library module | `A005` |
+| `Any` in a signature; blanket `type: ignore` | `ANN401`, `PGH003` |
+| `eval`, `pickle`, `yaml.load`, `shell=True` | `S307`, `S301`, `S506`, `S602` |
 
-## Traps a linter often misses
+## Exceptions and control flow
 
-### Shared state that looks private
-- **Mutable class attribute.** `class User: permissions = []` is one list shared by every instance. Initialise per instance in `__init__`, or use `field(default_factory=list)` in a dataclass or Pydantic model.
-- **Module-level mutable state.** A dict or list at module level is shared across requests in a server and across invocations in a warm Lambda container. Fine for a cache that is meant to be shared; a bug for anything per request or per user.
-- **Returning an internal list or dict** that the caller can mutate. Return a copy or an immutable type when the object guards an invariant.
+| Rule | What breaks it in a diff | When it does not apply |
+|---|---|---|
+| `asyncio.CancelledError` is a `BaseException` since 3.8, so `except Exception` does not catch it, and cleanup written there does not run on cancellation [R] | A rollback or release in `except Exception:` of an async function, with no `finally` | |
+| A bare `except:` or `except BaseException:` that does not re-raise swallows cancellation, so a cancelled task keeps running [R] | `except BaseException:` in async code with no `raise` | A top-level supervisor that records the cancellation and exits |
+| A context manager whose `__exit__` returns a true value suppresses the exception from the `with` body [R] | `def __exit__(...): ... return True` | A manager meant to ignore named errors, like `contextlib.suppress` |
+| In a `@contextmanager`, the body's exception is re-raised at `yield`, so cleanup after `yield` runs only inside `try`/`finally` [R] | Release code after `yield` with no enclosing `try`/`finally` | Work that must run only on success, such as a commit |
 
-### Async
-- **Blocking call in `async def`.** `requests`, a synchronous database driver, a synchronous boto3 client, `time.sleep`, a large file read or CPU-heavy work all stall every other request on the event loop. Use the async client, or `asyncio.to_thread`.
-- **Coroutine never awaited.** Calling an `async` function without `await` creates a coroutine and runs nothing. The work silently does not happen.
-- **Fire-and-forget task.** `asyncio.create_task(...)` without keeping a reference can be garbage-collected before it finishes, and its exception is never seen.
-- **`gather` errors.** `asyncio.gather(*tasks, return_exceptions=True)` turns failures into values; the code must then look at them. Without it, the first failure propagates and the other tasks keep running unobserved.
-- **Cancellation swallowed.** A bare `except:` or `except BaseException:` catches `CancelledError`, so a cancelled task keeps running. Re-raise it.
-- **Mixing sync and async in one call path.** Calling `asyncio.run` inside code that may already run in an event loop fails at run time.
+## Async
 
-### Values and comparisons
-- **Money as `float`.** Use `Decimal` or integer minor units; `0.1 + 0.2 != 0.3`.
-- **Naive datetimes.** `datetime.now()` and `datetime.utcnow()` carry no time zone; comparing them with aware datetimes raises, and mixing them silently shifts times. Use `datetime.now(timezone.utc)`.
-- **`dict.get(key, default)` where the key must exist.** A missing key becomes a silent default instead of an error.
-- **`assert` for run-time checks.** Asserts are removed under `python -O`; validation written as `assert` disappears in production.
-- **Truthiness tests on values where zero or empty is valid.** `if amount:` treats `0` as missing.
-- **Large integer ids through JSON** consumed by JavaScript lose precision above 2^53; send them as strings.
+| Rule | What breaks it in a diff | When it does not apply |
+|---|---|---|
+| A synchronous database driver, a synchronous boto3 client or CPU-heavy work inside `async def` stalls every other request on the loop [T] | A sync client called from `async def` | Wrapped in `asyncio.to_thread` or an executor |
+| A coroutine called without `await` runs nothing [T] | `async_fn()` as a bare statement | |
+| `gather(..., return_exceptions=True)` turns failures into values the code must inspect; without it the first failure propagates while the others keep running [T] | Results of `return_exceptions=True` used without checking for exceptions | |
+| `asyncio.run` inside code that may already run in a loop fails at run time [T] | `asyncio.run` in a library function or handler | A script's entry point |
 
-### Resources
-- Files, locks, sockets, database connections, HTTP clients and temporary files need `with` (or `async with`), or `contextlib.ExitStack` for a variable number of them. A manual `close()` on the happy path leaks on every exception.
-- A generator holding a resource is closed only when the generator is exhausted or closed.
+## Values, state and resources
 
-### Types
-- `Any` in a public signature switches off checking for every caller.
-- `typing.cast` and `# type: ignore` without an error code hide a real mismatch. Ask what the checker was complaining about.
-- A function returning `X | None` whose callers use the result without checking for `None`.
-- A dataclass or Pydantic model with `eq=True` and mutable fields used as a dict key or in a set.
+| Rule | What breaks it in a diff | When it does not apply |
+|---|---|---|
+| `requests` applies no timeout unless one is passed, and its docs say nearly all production code should [R] | `requests.get(...)` or a `Session` call with no `timeout=` | A wrapper that sets a default timeout in `request()` or `send()` |
+| `httpx` times out after 5 seconds of inactivity by default; `timeout=None` removes it [R] | `httpx.Client(timeout=None)` or `timeout=None` on a call | Streaming or server-sent events where long silence is expected |
+| Module-level mutable state is shared across requests in a server and across invocations in a warm Lambda container [O] | A module-level dict or list written per request or per user | A cache meant to be shared |
+| Money as `float`: use `Decimal` or integer minor units [O] | Prices or totals in `float` arithmetic | |
+| `dict.get(key, default)` where the key must exist turns a bug into a silent default [O] | `.get` with a default on a required field | |
+| `assert` for validation disappears under `python -O` [O] | Input checks written as `assert` | Tests, and internal invariants |
+| A truthiness test treats a valid zero or empty value as missing [O] | `if amount:` where 0 is valid | |
+| A generator holding a resource closes it only when exhausted or closed [T] | A generator that opens a file or connection and may be abandoned | |
+| A dataclass with `eq=True` and `frozen=False` (the defaults) is unhashable [R]; `unsafe_hash=True` or a hand-written `__hash__` on mutable fields makes hashes go stale [O] | `unsafe_hash=True`, or `__hash__` on a mutable dataclass used as a key | `frozen=True` |
+| An optional (`X \| None`) result used unchecked, in a repository without a type checker [T] | `result.attr` on a possibly-`None` return | mypy or pyright in strict mode already checks it |
 
-### Security-relevant traps (raise them, name the domain as security)
-- `eval`, `exec`, `compile` or dynamic import on input that a user can influence.
-- `pickle.loads`, `yaml.load` without `SafeLoader`, `marshal` on untrusted data.
-- `subprocess` with `shell=True` and any interpolated value; use a list of arguments.
-- `str.format` or `%` where the format string itself comes from a user.
+## Public API of a published package
+
+| Rule | What breaks it in a diff | When it does not apply |
+|---|---|---|
+| PEP 8: documented interfaces are public, undocumented ones internal; `__all__` declares the public API, and internal names take a leading underscore [R] | A documented or `__all__` name removed or changed incompatibly | Names that were never documented nor in `__all__` |
+| `from module import *` takes only `__all__`, or else names without a leading underscore [R] | A name dropped from `__all__`, or `__all__` added that omits names star-importers used | |
+| CPython's policy (PEP 387) warns with `DeprecationWarning` for at least two minor versions, and two years, before removal [R] | A removal with no earlier deprecation, where the project follows that policy | Projects that state another policy |
 
 ## Not a finding
 
-- PEP 8 layout, import order or quote style where a formatter is configured.
-- Comprehension versus loop, EAFP versus look-before-you-leap, `pathlib` versus `os.path`: preferences, unless the repository's convention says otherwise.
+- Comprehension versus loop, EAFP versus look-before-you-leap, `pathlib` versus `os.path`, unless the repository's convention says otherwise.
 - Missing docstrings, or missing type hints on private helpers in a repository that does not type them.
-- A broad `except` at the top of a worker or request handler that logs with the traceback (`logger.exception`) and returns a failure.
+- A broad `except` at the top of a worker or request handler that logs with the traceback and returns a failure.
 - `__slots__`, generators or `join` as performance advice with no measured or obvious cost.
+- Layout, import order or quotes where a formatter is configured.

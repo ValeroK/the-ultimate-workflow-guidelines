@@ -205,3 +205,66 @@ test('review: skills left out at the cap are reported by prepare and carried in 
   );
   assert.deepEqual(result.expertLane.skillsDropped.developer, p.skills.developer.dropped);
 });
+
+// ---- plan: a selection question, because no code can see the draft --------------
+
+test('skills --stage plan: each planning expert offers the skills its plan.md lists, with a headline and the text', () => {
+  const k = ex.planSkills(PLUGIN);
+  assert.deepEqual(k.problems, []);
+  assert.deepEqual(k.skills.developer.map((s) => s.name), ['engineering-principles', 'dependency-discipline', 'failure-handling']);
+  for (const s of k.skills.developer) {
+    assert.match(s.headline, /^load when the plan/);
+    assert.equal(s.text, fs.readFileSync(path.join(PLUGIN, 'experts', 'skills', s.name, 'skill.md'), 'utf8').trim());
+  }
+  assert.equal(k.skills.security, undefined, 'an expert with no skills offers none');
+});
+
+const PLAN_MD = '---\nplan_confirmed: false\n---\n# Plan\n\nAdd a retry around the payment call.\n';
+const OFFER = { developer: [{ name: 'failure-handling', headline: 'load when the plan adds retries', text: '# Failure\n\nMARKER-FAILURE' }, { name: 'dependency-discipline', headline: 'load when deps change', text: '# Deps\n\nMARKER-DEPS' }] };
+const planRun = (args, select) =>
+  loadWorkflow(path.join(PLUGIN, 'workflows', 'plan.js'))(
+    { feature: 'retry payments', available: ex.list(PLUGIN).experts, expertsDir: '/p/experts', ...args },
+    (call) => {
+      if (call.label === 'select-experts') return select(call);
+      if (call.label.startsWith('plan:')) return { summary: 's', constraints: [], risks: [], questions: [] };
+      if (call.label === 'synthesise') return { planMarkdown: PLAN_MD, openQuestions: [], deviations: [] };
+      return { slice: 's', patterns: [], reusable: [], constraints: [], notCovered: 'n' };
+    }
+  );
+
+test('plan: the selection call is offered the skills with headlines, and only the chosen text reaches the expert', async () => {
+  let asked = null;
+  const { result, calls } = await planRun({ skills: OFFER }, (call) => {
+    asked = call;
+    return { experts: [{ name: 'developer', why: 'new retry' }], skills: [{ expert: 'developer', name: 'failure-handling', why: 'adds a retry' }] };
+  });
+  assert.match(asked.prompt, /expert developer, skill failure-handling: load when the plan adds retries/);
+  assert.ok(asked.schema.required.includes('skills'));
+  const dev = calls.find((c) => c.label === 'plan:developer');
+  assert.match(dev.prompt, /SKILLS for this plan \(failure-handling\)[\s\S]*MARKER-FAILURE/);
+  assert.ok(!dev.prompt.includes('MARKER-DEPS'));
+  assert.deepEqual(result.expertLane.skillsLoaded.developer, ['failure-handling']);
+  assert.equal(result.expertLane.skillReasons.length, 1);
+});
+
+test('plan: a skill not on offer, or for an expert that does not take part, is reported and never pasted', async () => {
+  const { result, calls } = await planRun({ skills: OFFER }, () => ({
+    experts: [{ name: 'developer', why: 'x' }],
+    skills: [{ expert: 'developer', name: 'go-craft', why: 'x' }, { expert: 'security', name: 'failure-handling', why: 'x' }],
+  }));
+  assert.deepEqual(result.expertLane.ignoredSkills.sort(), ['developer/go-craft', 'security/failure-handling']);
+  const dev = calls.find((c) => c.label === 'plan:developer');
+  assert.match(dev.prompt, /No skill was chosen for this draft\. Do not open skill files\./);
+  assert.deepEqual(result.expertLane.skillsLoaded.developer, []);
+});
+
+test('plan: with no skills passed, the question and the schema are what they were', async () => {
+  let asked = null;
+  const { result } = await planRun({}, (call) => {
+    asked = call;
+    return { experts: [{ name: 'developer', why: 'x' }] };
+  });
+  assert.ok(!/skill/i.test(asked.prompt));
+  assert.deepEqual(asked.schema.required, ['experts']);
+  assert.equal(result.expertLane.skillReasons, undefined);
+});

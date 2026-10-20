@@ -19,6 +19,7 @@
 //   node experts.js list                                    available experts, as JSON
 //   node experts.js brief   [--plan P]                      the standing brief of every expert that declares the build stage,
 //                                                           with the skills each one selects for the plan
+//   node experts.js skills  --stage plan                    the skills each planning expert may be given, for the plan workflow to offer
 //   node experts.js read    --plan P                        the plan's experts
 //   node experts.js select  --plan P --add a,b              add experts to the plan (never removes)
 //   node experts.js prepare [--range working|A..B]          save the diff, fingerprint the tree
@@ -249,6 +250,37 @@ function selectSkills(pluginRoot, expert, stage, change, cap = SKILLS_BYTES) {
     }
   }
   return out;
+}
+
+/**
+ * The skills a model may choose from at the plan stage, where no code can see the draft: for each
+ * expert that plans, every skill its plan.md lists, with the line's purpose as a headline and the
+ * full text the workflow pastes in for the ones chosen. Code still decides what can be chosen.
+ */
+const PLAN_SKILL_LINE = /^\s*-\s*`experts\/skills\/([a-z][a-z0-9-]*)\/skill\.md`(?:\s*\([^)]*\))?:\s*(.+)$/;
+function planSkills(pluginRoot = PLUGIN_ROOT) {
+  const out = {};
+  const problems = [];
+  for (const e of list(pluginRoot).experts.filter((x) => x.stages.includes('plan'))) {
+    let ref = '';
+    try {
+      ref = fs.readFileSync(path.join(pluginRoot, 'experts', e.name, 'references', 'plan.md'), 'utf8');
+    } catch {
+      continue;
+    }
+    const offered = [];
+    for (const line of ref.split(/\r?\n/)) {
+      const m = PLAN_SKILL_LINE.exec(line);
+      if (!m || offered.some((x) => x.name === m[1])) continue;
+      try {
+        offered.push({ name: m[1], headline: m[2].trim(), text: fs.readFileSync(path.join(pluginRoot, 'experts', 'skills', m[1], 'skill.md'), 'utf8').trim() });
+      } catch {
+        problems.push(`${e.name}/plan.md names ${m[1]}, which cannot be read`);
+      }
+    }
+    if (offered.length > 0) out[e.name] = offered;
+  }
+  return { skills: out, problems };
 }
 
 /** A reference's "## Skills" section, which selects skills and is not itself brief text. */
@@ -588,6 +620,12 @@ function main(argv) {
       if (b.note) process.stderr.write(`experts.js: ${b.note}\n`);
       return out(b.briefs);
     }
+    if (o.cmd === 'skills') {
+      if (o.stage !== 'plan') fail('skills needs --stage plan (review and build choose their skills in prepare and brief)');
+      const k = planSkills(o.pluginRoot);
+      if (k.problems.length > 0) process.stderr.write(`experts.js: ${k.problems.join('; ')}\n`);
+      return out(k.skills);
+    }
     if (o.cmd === 'read') {
       const r = readExperts(fs.readFileSync(needPlan(), 'utf8'));
       if (r.error) fail(r.error);
@@ -624,7 +662,7 @@ function main(argv) {
   } catch (err) {
     fail(err.message);
   }
-  return fail(`unknown command: ${o.cmd || '(none)'} (expected list, brief, read, select, prepare, record, check, findings, resolve, fingerprint)`);
+  return fail(`unknown command: ${o.cmd || '(none)'} (expected list, brief, skills, read, select, prepare, record, check, findings, resolve, fingerprint)`);
 }
 
 module.exports = {
@@ -641,6 +679,7 @@ module.exports = {
   parseDiff,
   planPaths,
   selectSkills,
+  planSkills,
   withoutSkillsSection,
   expertsFor,
   mergeAdd,

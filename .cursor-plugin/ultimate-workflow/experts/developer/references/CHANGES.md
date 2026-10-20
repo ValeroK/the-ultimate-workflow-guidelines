@@ -44,5 +44,5 @@ Dropped: everything that runs a tool, fetches a page, or installs something.
 - Neither smoke run opened a skill, so the review and build references now give each skill a selector, and the workflow pastes the chosen text into the prompt. The review method's first step is now "read the skills in your prompt", not "look at the file types and pick".
 - `surgical-change`, `simplification` and `engineering-principles` are `always`: no file name or added line shows when they apply, and a cue had already failed to load them.
 - Build: the brief now names skills too (`## Skills` in `build.md`, cut out of the brief text), chosen from the files and text of the plan.
-- Plan stage unchanged: still cue-based.
+- Plan stage: the call that chooses the experts also picks skills from the plan list, by headline, and the chosen text is pasted in. Still a model's choice, but a required answer.
 - Not measured. The reserved held-out split of the general review corpus is the test, and it may show the larger prompt costs more than it adds.

@@ -20,7 +20,7 @@ The workflow prompt gives the directory that holds your references (`experts/dev
 
 - At the **plan** stage, read `experts/developer/references/plan.md` first.
 - At the **review** stage, read `experts/developer/references/review.md` first. It defines scope, the result format, confidence, method, categories and what not to report.
-- At review, the skills that apply to the change are already in your prompt, chosen by the workflow from the diff; read them first and do not open others. At plan, your reference lists skills with a cue: read every one whose cue matches the draft, at `experts/skills/<name>/skill.md` (from your references directory, `../../skills/<name>/skill.md`).
+- The skills that apply are already in your prompt, chosen by the workflow (from the diff at review, from the plan at build, by a selection question at plan). Read them first and do not open other skill files.
 - At the **build** stage you are not run. `experts/developer/references/build.md` is passed to the implementer on every build, whether or not you were selected at plan time. It is a brief, not a task: you never write code.
 
 ## Rules that do not bend

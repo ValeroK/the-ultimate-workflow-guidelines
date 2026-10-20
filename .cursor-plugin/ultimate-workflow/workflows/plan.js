@@ -69,6 +69,33 @@ const takingPart = (available, selected, stage) =>
   selected.map((n) => available.find((e) => e.name === n)).filter((e) => e && e.stages.includes(stage))
 // --- end expert lane helpers ---
 
+// Skills at the plan stage. No code can see the draft (it exists only in this script), so the
+// selection call is also asked which skills the draft needs, from a list experts.js built:
+// args.skills is { <expert>: [{ name, headline, text }] } from `experts.js skills --stage plan`.
+// The answer can only pick from that list; the chosen text is pasted into the expert's prompt.
+const offeredSkills = (() => {
+  const raw = args && args.skills && typeof args.skills === 'object' && !Array.isArray(args.skills) ? args.skills : {}
+  const out = {}
+  for (const [expert, list] of Object.entries(raw)) {
+    const ok = (Array.isArray(list) ? list : []).filter((x) => x && typeof x.name === 'string' && typeof x.headline === 'string' && typeof x.text === 'string' && x.text.trim() !== '')
+    if (ok.length > 0) out[expert] = ok
+  }
+  return out
+})()
+const SKILL_CHOICE = {
+  type: 'array',
+  items: {
+    type: 'object',
+    required: ['expert', 'name', 'why'],
+    properties: { expert: { type: 'string' }, name: { type: 'string' }, why: { type: 'string', description: 'One sentence tying this skill to something in the draft' } },
+  },
+}
+const describeSkills = (experts) =>
+  experts
+    .filter((n) => offeredSkills[n])
+    .map((n) => offeredSkills[n].map((x) => `- expert ${n}, skill ${x.name}: ${x.headline}`).join('\n'))
+    .join('\n')
+
 const PLAN_INPUT = {
   type: 'object',
   required: ['summary', 'constraints', 'risks', 'questions'],
@@ -227,6 +254,7 @@ if (!args || args.available === undefined || args.available === null) {
   expertLane = { stage: 'plan', available: [], selected: currentExperts, ran: [], failed: [], added: [] }
 } else {
   phase('Experts')
+  const skillsOnOffer = Object.keys(offeredSkills).length > 0
   const ask = await agent(
     `Decide which domain experts should contribute to this plan before it is confirmed.
 
@@ -239,14 +267,41 @@ ${planMarkdown}
 Available experts (the only names you may answer with):
 ${describeExperts(available)}
 
-Name every available expert whose domain this work touches, each with one sentence tying it to something in the request or the plan. When you are unsure whether one applies, include it: a consult costs a few minutes, and a missing one is discovered at review, after the code exists. If none apply, return an empty list.`,
-    { agentType: 'uw-explorer', label: 'select-experts', phase: 'Experts', schema: SELECTION }
+Name every available expert whose domain this work touches, each with one sentence tying it to something in the request or the plan. When you are unsure whether one applies, include it: a consult costs a few minutes, and a missing one is discovered at review, after the code exists. If none apply, return an empty list.${
+      skillsOnOffer
+        ? `
+
+Some experts can also be given skills: short references pasted into the expert's prompt. For every expert you name or that is already selected (${currentExperts.join(', ') || 'none yet'}), name each skill below that this draft needs, with one sentence tying it to the draft. When unsure, include it: a skill costs a few thousand tokens, a missing one leaves the expert without the check it holds. Name none if none apply.
+${describeSkills(available.map((e) => e.name))}`
+        : ''
+    }`,
+    {
+      agentType: 'uw-explorer',
+      label: 'select-experts',
+      phase: 'Experts',
+      schema: skillsOnOffer ? { ...SELECTION, required: [...SELECTION.required, 'skills'], properties: { ...SELECTION.properties, skills: SKILL_CHOICE } } : SELECTION,
+    }
   )
   if (!ask) {
     expertLane = { stage: 'plan', available: available.map((e) => e.name), selected: currentExperts, ran: [], failed: [], added: [], selectionFailed: true }
   } else {
     const merged = addOnly(currentExperts, ask.experts, available)
     const taking = takingPart(available, merged.experts, 'plan')
+    // Only a skill on offer for that expert is applied; anything else is reported, never pasted.
+    const chosenSkills = {}
+    const ignoredSkills = []
+    for (const c of Array.isArray(ask.skills) ? ask.skills : []) {
+      const expert = String((c && c.expert) || '').trim()
+      const name = String((c && c.name) || '').trim()
+      const offer = (offeredSkills[expert] || []).find((x) => x.name === name)
+      if (!offer || !taking.some((e) => e.name === expert)) ignoredSkills.push(`${expert}/${name}`)
+      else if (!(chosenSkills[expert] || []).some((x) => x.name === name)) (chosenSkills[expert] = chosenSkills[expert] || []).push(offer)
+    }
+    const skillBlock = (name) => {
+      const mine = chosenSkills[name] || []
+      if (mine.length > 0) return `\n\nSKILLS for this plan (${mine.map((x) => x.name).join(', ')}), chosen for this draft. Read them before you answer. Do not open other skill files.\n\n${mine.map((x) => x.text).join('\n\n')}`
+      return offeredSkills[name] ? '\n\nNo skill was chosen for this draft. Do not open skill files.' : ''
+    }
     const results = await parallel(
       taking.map((e) => () =>
         agent(
@@ -258,7 +313,7 @@ ${feature}
 THE DRAFT PLAN
 ${planMarkdown}
 
-Say what your domain requires of this plan that it does not yet say. Read the code the plan touches where you need to. Constraints must be checkable by someone who is not you. Stay inside your domain: other experts cover theirs. Zero constraints is a correct answer when the plan already covers your domain, and then say so in the summary.`,
+Say what your domain requires of this plan that it does not yet say. Read the code the plan touches where you need to. Constraints must be checkable by someone who is not you. Stay inside your domain: other experts cover theirs. Zero constraints is a correct answer when the plan already covers your domain, and then say so in the summary.${skillBlock(e.name)}`,
           { agentType: e.agent, label: `plan:${e.name}`, phase: 'Experts', schema: PLAN_INPUT }
         )
       )
@@ -288,6 +343,9 @@ Say what your domain requires of this plan that it does not yet say. Read the co
       ran,
       failed,
       reasons: ask.experts,
+      skillsLoaded: Object.fromEntries(taking.map((e) => [e.name, (chosenSkills[e.name] || []).map((x) => x.name)])),
+      ...(skillsOnOffer ? { skillReasons: (ask.skills || []).filter((c) => !ignoredSkills.includes(`${c.expert}/${c.name}`)) } : {}),
+      ...(ignoredSkills.length ? { ignoredSkills } : {}),
       ...(merged.rejected.length ? { ignoredUnknown: merged.rejected } : {}),
     }
   }

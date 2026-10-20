@@ -502,7 +502,7 @@ test('cli check exits 0 with ok when a commit would be allowed and 1 with the re
 test('cli with an unknown command or argument exits 2 and says what it expected', () => {
   const a = cli(process.cwd(), ['frobnicate']);
   assert.strictEqual(a.status, 2);
-  assert.match(a.stderr, /expected list, brief, read, select/);
+  assert.match(a.stderr, /expected list, brief, skills, read, select/);
   const b = cli(process.cwd(), ['list', '--nope']);
   assert.strictEqual(b.status, 2);
   assert.match(b.stderr, /unknown argument/);

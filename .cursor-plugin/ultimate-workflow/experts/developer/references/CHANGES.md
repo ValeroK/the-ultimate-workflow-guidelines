@@ -54,4 +54,4 @@ Dropped: everything that runs a tool, fetches a page, or installs something.
 - The review reference has a stop rule in its method, a "Not when" on every category, its own high, medium and low, and one worked finding with one dropped candidate. Result, Confidence and Untrusted input sections are gone.
 - At least half of the negative selection examples are near misses with their owner named.
 - "A test that cannot fail" moved to the quality expert; new categories: invariant bypassed, feature logic in shared code, a published library's API break; dead code includes agent residue; Severity here and the worked pair added. The build brief gained "When you report".
-- The measured held-out result predates this change and no longer applies.
+- Measured on the held-out split after the restructure: no clear change from v1 (6 of 6 cases by majority, 16 of 18 runs against 18 of 18, false positives 1 of 12 against 2 of 12). The worked finding first used a held-out case; it was replaced, and the held-out split is no longer clean for this expert.

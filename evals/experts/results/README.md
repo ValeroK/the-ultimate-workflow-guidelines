@@ -186,3 +186,21 @@ What would answer the open question: cases the plain reviewer misses (repository
 - Skills at the build, tests and plan stages. Only review, on the held-out split above, has been run with skills.
 - An expert-without-skills twin on any split.
 - Skills in the build brief generation eval: that harness (`eval/lib/gen.js`) does not inject skills, so its results above say nothing about them. The brief itself was inconclusive there.
+
+## 2026-10-20 developer expert v2 (after the Goal and Responsibilities restructure), held-out split
+
+File: `2026-10-20-developer-heldout-expert-v2-vs-baseline.json`. Same split, arms, reviewer model (Sonnet subagents) and judge (session default) as the v1 held-out run; a fresh `A0` was run beside it. The expert had the restructured agent file, review reference and protocol, and the eleven converted skills pasted in.
+
+| | A0 (this run) | A3 v2 | A3 v1 (earlier) |
+|---|---|---|---|
+| seeded cases found by majority | 4 of 6 | 6 of 6 | 6 of 6 |
+| seeded runs found | 12/18 | 16/18 | 18/18 |
+| seeded cases found in every run | 4 | 4 | 6 |
+| benign false-positive runs | 3/12 | 1/12 | 2/12 |
+| real but unplanted findings | 9 | 18 | 10 |
+| evidence complete | 0.89 | 0.94 | 0.93 |
+
+- The gate passes (recall margin of one case, false positives no worse, no failed runs).
+- **Read it as no clear change from v1, not a gain.** v2 dropped from 18/18 to 16/18 seeded runs: `c42610081` (token budget per tenant) and `c72516a95` (a service that validates, stores, formats and sends) were each found in 2 of 3 runs. Benign false positives fell from 2 to 1 of 12. The fresh A0 matches the earlier A0 on recall and differs by one false-positive run, which shows the run-to-run noise at this size.
+- **Contamination, found after the run.** v2's `review.md` used case `c72516a95` as its worked finding (the ledger had suggested it). That leaks a held-out case into the reference, biased in the expert's favour, and it was still found in only 2 of 3 runs. The worked pair was replaced the same day with an example far from every corpus case; the held-out split is no longer clean for the developer, so the next unbiased figure needs new cases.
+- Not measured: plan and tests stages; any other expert since the restructure.

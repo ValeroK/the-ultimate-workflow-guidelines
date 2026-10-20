@@ -1,0 +1,437 @@
+{
+  "expert": "quality",
+  "items": [
+    {
+      "caseId": "c1c317b52",
+      "finding": {
+        "summary": "The ingestion tests cannot fail for the behaviour this change adds: they only echo back the mocked repo result and a call count, so the slice truncation and row construction are untested.",
+        "file": "src/ingest/ingestDocument.test.ts",
+        "line": 17,
+        "evidence": "In 'stores the embeddings' (test file lines 16-19) beforeEach configures insertMany to resolve { inserted: 2 }, and the test asserts the result equals { inserted: 2 }, i.e. the value it just configured. chunker, embedder and repo are all mocked, and the fake vectors are 2-dimensional, so vectors[i].slice(0, EMBED_DIM) in ingestDocument.ts is a no-op that is never exercised. The second test only checks toHaveBeenCalledTimes(1). Deleting the slice, or mis-aligning rows and vectors, leaves both tests green. Fix: assert on insertMany.mock.calls[0][0] (docId, idx, content, embedding) and feed a vector longer than 1536.",
+        "confidence": "high"
+      },
+      "expected": "planted",
+      "expectedEvidence": "complete"
+    },
+    {
+      "caseId": "c1c317b52",
+      "finding": {
+        "summary": "Because the embedding repository is mocked, the tests never check which rows actually get inserted, so a wrong row shape would go unnoticed.",
+        "file": "src/ingest/ingestDocument.test.ts",
+        "line": 5,
+        "evidence": "The repo is replaced with a bare jest.fn and the tests do not inspect what it received.",
+        "confidence": "medium"
+      },
+      "expected": "planted",
+      "expectedEvidence": "partial"
+    },
+    {
+      "caseId": "c1c317b52",
+      "finding": {
+        "summary": "The jest.mock calls appear after the import statements, so the imports bind the real embedder, chunker and repo and the mocks are never applied; the tests would hit the real modules.",
+        "file": "src/ingest/ingestDocument.test.ts",
+        "line": 6,
+        "evidence": "Lines 1-3 import ingestDocument, embeddingRepo and embedBatch before the jest.mock(...) calls on lines 5-8, so module resolution has already happened with the real implementations.",
+        "confidence": "medium"
+      },
+      "expected": "false-positive",
+      "expectedEvidence": "partial"
+    },
+    {
+      "caseId": "c2900f47d",
+      "finding": {
+        "summary": "agent-eval is marked continue-on-error: true, so deploy's needs: [test, agent-eval] never blocks: a failing eval still lets deploy run and a regressed agent ships.",
+        "file": ".github/workflows/ci.yml",
+        "line": 21,
+        "evidence": "The agent-eval job (ci.yml line ~20) sets continue-on-error: true at job level. If 'npm run eval:triage -- --min-pass-rate 0.85' exits non-zero, GitHub records the job as successful anyway. The deploy job's needs: [test, agent-eval] (line ~38) therefore sees a passing dependency and runs ./scripts/deploy-ecs.sh production on main. The added dependency looks like a gate but is inert; remove continue-on-error.",
+        "confidence": "high"
+      },
+      "expected": "planted",
+      "expectedEvidence": "complete"
+    },
+    {
+      "caseId": "c2900f47d",
+      "finding": {
+        "summary": "continue-on-error on the agent-eval job makes the eval advisory rather than a real quality gate.",
+        "file": ".github/workflows/ci.yml",
+        "line": 21,
+        "evidence": "The job is declared with continue-on-error: true so its failure is tolerated; the eval result does not enforce anything.",
+        "confidence": "medium"
+      },
+      "expected": "planted",
+      "expectedEvidence": "partial"
+    },
+    {
+      "caseId": "c2900f47d",
+      "finding": {
+        "summary": "deploy now depends on agent-eval with no if: always() or success handling, so a flaky or failing eval will skip deploy on main and block hotfixes.",
+        "file": ".github/workflows/ci.yml",
+        "line": 38,
+        "evidence": "deploy has needs: [test, agent-eval]; by default a job is skipped when a needed job fails, so any eval failure or API outage stops production deploys.",
+        "confidence": "medium"
+      },
+      "expected": "false-positive",
+      "expectedEvidence": "partial"
+    },
+    {
+      "caseId": "c447779d4",
+      "finding": {
+        "summary": "The rewritten 'rejects' tests put their only assertion inside catch, but the handler no longer throws, so the catch never runs and both tests pass without asserting anything.",
+        "file": "src/handlers/ticketWebhook.test.ts",
+        "line": 19,
+        "evidence": "ticketWebhook.ts now returns { statusCode: 422 } for a missing ticketId and for unparseable bodies instead of throwing. In the test file, 'rejects a missing ticketId' and 'rejects malformed JSON' call await handler(...) inside try and assert only in catch, with no expect.assertions and no assertion after the call. The handler resolves, the catch is skipped, and the test is green. The old rejects.toThrow(ValidationError) was removed, and nothing checks statusCode 422 or that enqueueTicket was not called.",
+        "confidence": "high"
+      },
+      "expected": "planted",
+      "expectedEvidence": "complete"
+    },
+    {
+      "caseId": "c447779d4",
+      "finding": {
+        "summary": "Both new rejection tests assert only inside a catch block with no expect.assertions, so they can pass vacuously.",
+        "file": "src/handlers/ticketWebhook.test.ts",
+        "line": 27,
+        "evidence": "The try/catch pattern means a test passes if nothing is thrown.",
+        "confidence": "medium"
+      },
+      "expected": "planted",
+      "expectedEvidence": "partial"
+    },
+    {
+      "caseId": "c447779d4",
+      "finding": {
+        "summary": "422 is the wrong status for malformed JSON or a missing field in the webhook; it should be 400, so the handler contract is wrong.",
+        "file": "src/handlers/ticketWebhook.ts",
+        "line": 15,
+        "evidence": "The catch block returns statusCode 422 for a body that failed parseBody; syntactically invalid payloads are normally 400 Bad Request.",
+        "confidence": "medium"
+      },
+      "expected": "false-positive",
+      "expectedEvidence": "partial"
+    },
+    {
+      "caseId": "c50738b3a",
+      "finding": {
+        "summary": "The triage eval gate is not trustworthy: each case runs once at temperature 0.7 under a single aggregate gate, and the judge scores only final text so claimed-but-never-executed actions pass.",
+        "file": "evals/triage/run_eval.py",
+        "line": 15,
+        "evidence": "evaluate_case calls run_agent once with temperature=0.7 and main() gates on one pass rate (PASS_RATE_GATE 0.80), so run-to-run variance alone can flip the gate; there are no repeats or pass^k. judge_answer(question, rubric, answer=result.final_text) receives no tool_calls, which are only written to eval_report.json. An agent that says 'ticket closed and customer notified' without calling update_ticket or send_reply can score >= 4. The judge is also never checked against labelled cases.",
+        "confidence": "high"
+      },
+      "expected": "planted",
+      "expectedEvidence": "complete"
+    },
+    {
+      "caseId": "c50738b3a",
+      "finding": {
+        "summary": "The judge only sees the agent's final text and never the tool calls, so it cannot catch an agent that fabricates actions.",
+        "file": "evals/judge.py",
+        "line": 14,
+        "evidence": "judge_answer takes question, rubric and answer only.",
+        "confidence": "medium"
+      },
+      "expected": "planted",
+      "expectedEvidence": "partial"
+    },
+    {
+      "caseId": "c50738b3a",
+      "finding": {
+        "summary": "PASS_RATE_GATE of 0.80 is too lenient for a triage agent; the gate should be higher so regressions are caught.",
+        "file": "evals/triage/run_eval.py",
+        "line": 9,
+        "evidence": "PASS_RATE_GATE = 0.80 lets one case in five fail and still exit 0.",
+        "confidence": "low"
+      },
+      "expected": "false-positive",
+      "expectedEvidence": "none"
+    },
+    {
+      "caseId": "c7cab689b",
+      "finding": {
+        "summary": "The retrieval eval gate is noise: 25 unseeded random cases, run once at the runner's default temperature 1.0, against a 0.90 threshold means the draw and sampling variance decide pass or fail.",
+        "file": "evals/retrieval/run.py",
+        "line": 22,
+        "evidence": "main() now does random.sample(ALL_CASES, SAMPLE_SIZE) with no seed, so each run grades a different subset and failures cannot be reproduced. Each case runs once through run_agent, whose default temperature is 1.0 (see agent/runner.py context line). With 25 items one case moves the score by 0.04, so GATE 0.90 flips on a single miss. A lucky draw can hide a real regression on the cases not sampled.",
+        "confidence": "high"
+      },
+      "expected": "planted",
+      "expectedEvidence": "complete"
+    },
+    {
+      "caseId": "c7cab689b",
+      "finding": {
+        "summary": "Sampling only 25 of the cases means the gate no longer covers the whole retrieval suite.",
+        "file": "evals/retrieval/run.py",
+        "line": 22,
+        "evidence": "random.sample is applied to ALL_CASES before scoring.",
+        "confidence": "medium"
+      },
+      "expected": "planted",
+      "expectedEvidence": "partial"
+    },
+    {
+      "caseId": "c7cab689b",
+      "finding": {
+        "summary": "The diff changes the run_agent default temperature to 1.0 in agent/runner.py, making every eval more random.",
+        "file": "agent/runner.py",
+        "line": 20,
+        "evidence": "The runner.py hunk shows run_agent(..., temperature=1.0), which introduces higher sampling temperature for all callers.",
+        "confidence": "medium"
+      },
+      "expected": "false-positive",
+      "expectedEvidence": "partial"
+    },
+    {
+      "caseId": "ca8be060f",
+      "finding": {
+        "summary": "Consumer and contract disagree: the schema says ticketId but the consumer reads body.ticket_id, and its test hand-writes a ticket_id payload, so both suites pass while production messages reach triageTicket with undefined.",
+        "file": "src/consumer/processTicket.ts",
+        "line": 7,
+        "evidence": "contracts/ticket-created.schema.json requires ticketId (additionalProperties false) and publishTicket.test.ts validates the producer against it. processTicket.ts line 7 calls triageTicket(body.ticket_id, body.priority), and processTicket.test.ts builds { ticket_id: 't-1', priority: 'high' } by hand instead of validating against the schema. A real producer message has no ticket_id, so the consumer passes undefined. The contract is only enforced on one side.",
+        "confidence": "high"
+      },
+      "expected": "planted",
+      "expectedEvidence": "complete"
+    },
+    {
+      "caseId": "ca8be060f",
+      "finding": {
+        "summary": "The consumer test and the contract do not agree on the message shape.",
+        "file": "src/consumer/processTicket.test.ts",
+        "line": 6,
+        "evidence": "Field naming looks inconsistent between the two.",
+        "confidence": "low"
+      },
+      "expected": "planted",
+      "expectedEvidence": "none"
+    },
+    {
+      "caseId": "ca8be060f",
+      "finding": {
+        "summary": "processTicket.test.ts mocks triageTicket, so it only tests a mock and says nothing about whether the consumer works.",
+        "file": "src/consumer/processTicket.test.ts",
+        "line": 4,
+        "evidence": "jest.mock('../agent/triage') replaces the function, and the single assertion is on the mock's call arguments.",
+        "confidence": "medium"
+      },
+      "expected": "false-positive",
+      "expectedEvidence": "partial"
+    },
+    {
+      "caseId": "caabfbcd1",
+      "finding": {
+        "summary": "The new max_turns cap and tool-error handling have no test: both new tests are happy paths, so deleting the MaxTurnsExceeded raise or the except branch would not fail anything.",
+        "file": "tests/test_loop.py",
+        "line": 6,
+        "evidence": "loop.py adds raise MaxTurnsExceeded(max_turns) and an except Exception branch returning is_error tool_results. test_loop_calls_tool_then_finishes scripts one tool_use then end_turn, and test_loop_returns_final_answer scripts a plain end_turn. No test scripts a tool that raises, a FakeClient that keeps returning tool_use past max_turns, or an unknown tool name that raises KeyError inside the try. Those branches are entirely unexercised.",
+        "confidence": "high"
+      },
+      "expected": "planted",
+      "expectedEvidence": "complete"
+    },
+    {
+      "caseId": "caabfbcd1",
+      "finding": {
+        "summary": "There is no test that the loop raises MaxTurnsExceeded when the model keeps requesting tools.",
+        "file": "tests/test_loop.py",
+        "line": 20,
+        "evidence": "The new test file only covers the case where the loop finishes normally.",
+        "confidence": "medium"
+      },
+      "expected": "planted",
+      "expectedEvidence": "partial"
+    },
+    {
+      "caseId": "caabfbcd1",
+      "finding": {
+        "summary": "The tests drive the loop with a hand-written FakeClient instead of the real client, so they verify nothing real about the loop's behaviour.",
+        "file": "tests/test_loop.py",
+        "line": 7,
+        "evidence": "FakeClient scripts the responses, so the tool results come from the fake rather than a live model.",
+        "confidence": "medium"
+      },
+      "expected": "false-positive",
+      "expectedEvidence": "partial"
+    },
+    {
+      "caseId": "cfbb9b726",
+      "finding": {
+        "summary": "The poll loop was replaced by a fixed time.sleep(2), copied into a new test, and pytest.ini now adds --reruns 3 globally, so the race with the SQS consumer is hidden by retries rather than fixed.",
+        "file": "tests/integration/test_ticket_pipeline.py",
+        "line": 19,
+        "evidence": "test_ticket_is_processed used a 20x0.5s poll until status == processed; the diff swaps it for time.sleep(2) then a single get_item, and test_ticket_priority_recorded repeats the same sleep-then-read. On a shared localstack table a slow consumer yields a missing item, which fails intermittently. pytest.ini then sets addopts '--reruns 3 --reruns-delay 1' for the whole suite, so those failures are retried until green and any real flaky regression is masked everywhere. Fix: restore a bounded poll and remove the global reruns.",
+        "confidence": "high"
+      },
+      "expected": "planted",
+      "expectedEvidence": "complete"
+    },
+    {
+      "caseId": "cfbb9b726",
+      "finding": {
+        "summary": "Adding --reruns 3 to pytest addopts globally masks flaky failures across the whole suite.",
+        "file": "pytest.ini",
+        "line": 3,
+        "evidence": "addopts now contains --reruns 3 --reruns-delay 1, so failing tests are silently retried.",
+        "confidence": "medium"
+      },
+      "expected": "planted",
+      "expectedEvidence": "partial"
+    },
+    {
+      "caseId": "cfbb9b726",
+      "finding": {
+        "summary": "test_ticket_priority_recorded indexes item['priority'] on a get_item result that can be None, which will raise a TypeError instead of a clear failure.",
+        "file": "tests/integration/test_ticket_pipeline.py",
+        "line": 25,
+        "evidence": "item = table.get_item(...).get('Item') may be None, and the next line subscripts it; use item.get or an explicit assertion.",
+        "confidence": "medium"
+      },
+      "expected": "false-positive",
+      "expectedEvidence": "partial"
+    },
+    {
+      "caseId": "c3f31d713",
+      "finding": {
+        "summary": "test_get_expired_session_raises swallows the SessionExpired exception in a try/except, so the test can never fail if get() stops raising.",
+        "file": "tests/test_session_store.py",
+        "line": 37,
+        "evidence": "The except SessionExpired as exc block only assigns raised = exc, with no assertion inside it.",
+        "confidence": "medium"
+      },
+      "expected": "false-positive",
+      "expectedEvidence": "partial"
+    },
+    {
+      "caseId": "c7c7c43e3",
+      "finding": {
+        "summary": "Seeding every run from SEED makes the 5 repeats redundant, since fixed seeds yield identical runs and the consistency check adds no information.",
+        "file": "evals/triage/run_eval.py",
+        "line": 21,
+        "evidence": "SEED = 1234 is defined as a constant and passed to run_agent(..., seed=SEED + i) in the repeat loop.",
+        "confidence": "medium"
+      },
+      "expected": "false-positive",
+      "expectedEvidence": "partial"
+    },
+    {
+      "caseId": "c7cc98067",
+      "finding": {
+        "summary": "The 'stops refreshing after stop()' test asserts only that fetchToken was called once, so it passes even if stop() does nothing.",
+        "file": "src/auth/tokenRefresher.test.ts",
+        "line": 35,
+        "evidence": "After r.stop() the test advances 600_000 ms and checks toHaveBeenCalledTimes(1); the only call is the one from start().",
+        "confidence": "medium"
+      },
+      "expected": "false-positive",
+      "expectedEvidence": "partial"
+    },
+    {
+      "caseId": "c857f4dfa",
+      "finding": {
+        "summary": "If the pgvector service is missing in CI the integration tests are silently skipped, because PGVECTOR_URL is read at import time and the skip marker is applied.",
+        "file": "tests/integration/conftest.py",
+        "line": 12,
+        "evidence": "When PGVECTOR_URL is unset the hook adds pytest.mark.skip to every integration item, so a CI misconfiguration would show green with zero integration tests run.",
+        "confidence": "medium"
+      },
+      "expected": "false-positive",
+      "expectedEvidence": "partial"
+    },
+    {
+      "caseId": "c8e83fa5e",
+      "finding": {
+        "summary": "These tests assert on the mocked create call's arguments, so they test the mock rather than the code and would pass regardless of real behaviour.",
+        "file": "src/agent/buildRequest.test.ts",
+        "line": 21,
+        "evidence": "expect(req.model), req.system, req.tools and req.messages are all read from create.mock.calls[0][0].",
+        "confidence": "medium"
+      },
+      "expected": "false-positive",
+      "expectedEvidence": "partial"
+    },
+    {
+      "caseId": "cfda62019",
+      "finding": {
+        "summary": "Wrapping a step in a retry action in CI hides flaky failures; retrying npm ci will mask real problems and let unstable builds go green.",
+        "file": ".github/workflows/ci.yml",
+        "line": 18,
+        "evidence": "nick-fields/retry@v3 with max_attempts: 3 now wraps the install step.",
+        "confidence": "medium"
+      },
+      "expected": "false-positive",
+      "expectedEvidence": "partial"
+    },
+    {
+      "caseId": "c1eb50e06",
+      "finding": {
+        "summary": "fetch_url fetches any model-supplied URL with no allowlist or address checks, an SSRF that lets the agent reach internal services or the cloud metadata endpoint.",
+        "file": "src/agent/tools/fetchUrl.ts",
+        "line": 12,
+        "evidence": "fetchUrl({ url }) calls fetch(url, { redirect: 'follow' }) directly on the argument the model (influenced by customer text) supplies; there is no scheme or host allowlist, no private-range or 169.254.169.254 block, and redirects are followed. The first 20000 chars of the response are returned to the model, so internal responses leak.",
+        "confidence": "high"
+      },
+      "expected": "out-of-domain",
+      "expectedEvidence": "complete"
+    },
+    {
+      "caseId": "c1f1815d3",
+      "finding": {
+        "summary": "embed_all and store_all use a mutable default argument failures=[], so failures accumulate across calls and leak between unrelated batches.",
+        "file": "worker/util.py",
+        "line": 4,
+        "evidence": "def embed_all(texts, client, failures=[]) and def store_all(rows, conn, failures=[]) create the list once at definition time; each call that omits it appends to the same shared list, so report(failures) on a later batch counts earlier batches' failures. The retry loop is also duplicated in both functions, and the bare except Exception swallows the cause.",
+        "confidence": "high"
+      },
+      "expected": "out-of-domain",
+      "expectedEvidence": "complete"
+    },
+    {
+      "caseId": "c5b38ab06",
+      "finding": {
+        "summary": "The icon-only dismiss button has no accessible name, so screen reader users hear an unlabelled button.",
+        "file": "web/src/components/TicketRow.tsx",
+        "line": 11,
+        "evidence": "<button className=\"dismiss\"> contains only <XIcon /> with no aria-label or visible text. The clickable row body is a div with onClick and no role or keyboard handler, the avatar <img> has no alt, and the subject colour #b8b8b8 is low contrast.",
+        "confidence": "high"
+      },
+      "expected": "out-of-domain",
+      "expectedEvidence": "complete"
+    },
+    {
+      "caseId": "c635a5d6f",
+      "finding": {
+        "summary": "SQL injection: category is interpolated straight into the query string instead of being a bound parameter.",
+        "file": "src/search/vectorSearch.ts",
+        "line": 12,
+        "evidence": "The new sql template contains AND category = '${category}', while tenantId, embedding and limit stay parameterised. A category such as ' OR tenant_id <> $1 -- changes the query and can read other tenants' documents. Use a $4 placeholder.",
+        "confidence": "high"
+      },
+      "expected": "out-of-domain",
+      "expectedEvidence": "complete"
+    },
+    {
+      "caseId": "c9cd1b5bd",
+      "finding": {
+        "summary": "The enrich Lambda consumes from IngestQueue and republishes to the same queue, so every message re-triggers it in an unbounded loop; the 30s visibility timeout is also below the 120s function timeout.",
+        "file": "infra/lib/ingest-stack.ts",
+        "line": 29,
+        "evidence": "enrich.addEventSource(new SqsEventSource(ingestQueue)) plus ingestQueue.grantSendMessages(enrich) and INGEST_QUEUE_URL: ingestQueue.queueUrl mean enrich.ts sends each enriched document back to the queue it reads from, with no marker to stop re-enrichment. Separately, visibilityTimeout is 30 seconds against timeout 120 seconds, so in-flight messages become visible again and are processed twice.",
+        "confidence": "high"
+      },
+      "expected": "out-of-domain",
+      "expectedEvidence": "complete"
+    },
+    {
+      "caseId": "cdedc28b2",
+      "finding": {
+        "summary": "handleTicket does parsing, persistence, embedding, notification, reply formatting and retry bookkeeping behind four boolean flags, with a hidden module-level client singleton.",
+        "file": "src/services/ticketService.ts",
+        "line": 11,
+        "evidence": "The signature takes doEmbed, doNotify, legacyFormat and isRetry, and each flag switches an unrelated block (embed via pool.query, SQS send, reply string format, DynamoDB write). cachedClient is a module-level let initialised lazily from process.env, so the function cannot be tested or reused without that global state. Split into separate functions and inject the client.",
+        "confidence": "high"
+      },
+      "expected": "out-of-domain",
+      "expectedEvidence": "complete"
+    }
+  ]
+}

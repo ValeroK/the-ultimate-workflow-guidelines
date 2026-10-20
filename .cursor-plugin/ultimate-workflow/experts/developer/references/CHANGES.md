@@ -36,3 +36,4 @@ Dropped: everything that runs a tool, fetches a page, or installs something.
 - Not measured yet. The held-out split of the general review corpus is still reserved.
 
 - Later the same day: the review reference also names `python-craft` and `typescript-craft`, loaded by file type.
+- Then `simplification`, `surgical-change` and `dependency-discipline` (review), and `dependency-discipline` (plan).

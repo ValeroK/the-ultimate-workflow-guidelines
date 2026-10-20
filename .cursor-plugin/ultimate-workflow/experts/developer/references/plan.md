@@ -19,6 +19,7 @@ Read the draft, then search the code it will touch. Answer these only for the pa
 Skills are files in the `skills/` folder of the experts directory that holds your references. Load one only when its cue matches this plan.
 
 - `experts/skills/engineering-principles/skill.md`: load when the plan adds structure (a type hierarchy, an interface, a pattern, a shared helper), to check whether it has the need the structure exists for.
+- `experts/skills/dependency-discipline/skill.md`: load when the plan adds, removes or upgrades a dependency.
 - `experts/skills/failure-handling/skill.md`: load when the plan adds error paths, fallbacks, retries or multi-step writes.
 
 ## What to return

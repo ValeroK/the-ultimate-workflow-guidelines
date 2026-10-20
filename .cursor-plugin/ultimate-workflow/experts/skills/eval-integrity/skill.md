@@ -10,7 +10,7 @@ verified: 2026-10-20
 
 - **Lets the expert catch:** an eval whose number does not mean what it claims: a judge biased by answer order, an uncalibrated judge, pass@k computed from k runs, an agent "reliability" figure from a single run, an eval set the system was tuned on.
 - **Applies to:** eval scripts, scorer and judge prompts, eval datasets and their splits, metric code, and plan text that defines how an LLM or agent is judged.
-- **Not for:** the prompt or agent design itself (Generative AI engineer, planned); ordinary unit tests (`test-craft`); whether the CI job running the eval can fail (`test-gates`).
+- **Not for:** the prompt or agent design itself, and what to measure (the Generative AI engineer); ordinary unit tests (`test-craft`); whether the CI job running the eval can fail (`test-gates`).
 
 Sources: **[R]** the maintainer's live check of the papers (Zheng et al. 2023, arXiv 2306.05685; Wang et al. 2023, 2305.17926; Chen et al. 2021, 2107.03374; Yao et al. 2024, 2406.12045; 2026-10-20); **[O]** our own reasoning. An [O] item is a prompt to check, not a finding on its own.
 

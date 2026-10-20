@@ -3,7 +3,7 @@
 The plugin does two things:
 
 1. **The ADLC workflow.** Plan, tests, build, review and harvest, with confirmation points and gates. This exists.
-2. **The expert catalogue.** Experts that any phase can bring in. This document lists them. Six are built: `architect`, `softarch`, `developer`, `quality`, `security` and `devops`. All but `security` have shared skills (see "Skills by expert and stage"). Experts 6, 8 and 11 to 14 are not built.
+2. **The expert catalogue.** Experts that any phase can bring in. This document lists them. Seven are built: `architect`, `softarch`, `developer`, `quality`, `security`, `devops` and `genai` (no skills yet). All but `security` have shared skills (see "Skills by expert and stage"). Experts 6, 8 and 11 to 14 are not built.
 
 Skills are chosen in code at review, build and tests, and by a model question at plan; the chosen text is pasted into the expert's prompt. How it works: [Shared skills](adding-an-expert.md#shared-skills).
 
@@ -80,7 +80,7 @@ An agent was placed under an expert by its name and the survey's domain notes, n
   - agency-agents `appsec-engineer`, `security-architect`, `cloud-security-architect`, `secrets-credential-engineer`, `ai-generated-code-auditor`
 - **Survey candidates:** OWASP and ASVS (agamm, 85), RLS and tenant isolation (supabase, 82), insecure defaults (trailofbits, 78), appsec hardening (addyosmani, 74), authorisation (agency-agents, 74), threat model (tech-leads-club, 72), cloud security and secrets (cloudflare and agency-agents, 68 to 72), web security (tech-leads-club, 62).
 
-### 6. Generative AI engineer (new; merges the former 6, agent-system architect, and 7, AI/LLM engineer)
+### 6. Generative AI engineer (have: `genai`, plan and review; skills wait for the fact-check, see `docs/experts/genai.md`; merges the former 6, agent-system architect, and 7, AI/LLM engineer)
 - **Owns:** prompts and prompt engineering, model calls and their failure modes, agent orchestration and tool design (tool contracts, loop and budget limits, human approval), context and memory, retrieval and embeddings (RAG), guardrails, token cost, model fallback, evaluation of model output, MCP servers. On AWS: Amazon Bedrock (models, Guardrails, Knowledge Bases, Prompt Management, batch inference, prompt caching, cross-region inference) and Amazon Bedrock AgentCore (Runtime, Gateway and its other services).
 - **Stages:** plan, tests, review.
 - **Reference material ready:** the Well-Architected Generative AI Lens (November 19, 2025): its best-practice IDs (`GENOPS`, `GENSEC`, `GENREL`, `GENPERF`, `GENCOST`, `GENSUS`), titles and what a change can show, in `docs/research/aws-well-architected-2026-10-20.md`. Bedrock pricing facts there: batch inference at half the on-demand price (primary); prompt caching savings from a secondary source only. AgentCore still needs its own research pass.

@@ -1,0 +1,18 @@
+{
+  "applies": [
+    "Adds a new package for notifications and imports the order package's database models directly",
+    "Renames a field in the JSON body that the mobile app and two other services read",
+    "Makes the core domain module import the web framework to read the request object",
+    "Moves a table write from the billing module into a helper that the orders module also calls",
+    "Adds a required parameter to a function that other modules call",
+    "Creates a shared utils module and puts the new tenant-specific pricing rules in it"
+  ],
+  "does_not_apply": [
+    "Fixes a typo in the README",
+    "Adds an SQS queue and a consumer for refunds",
+    "Replaces a loop with a comprehension inside one function",
+    "Adds a test for the discount calculation",
+    "Changes a timeout value in a configuration file",
+    "Escapes user input before it is put in an HTML page"
+  ]
+}

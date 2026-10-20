@@ -1,0 +1,18 @@
+{
+  "applies": [
+    "Adds an evaluation harness that runs each agent case once and gates the release on the overall pass rate",
+    "Adds a test for the order service that mocks the repository and asserts it returns what the mock returns",
+    "Changes the CI workflow so the test job is allowed to fail and the deploy job still runs",
+    "Adds a contract test between the API and the mobile client for the order payload",
+    "Plans how a new tool-using agent feature will be verified before any code is written",
+    "Skips a flaky integration test and raises the timeout on another"
+  ],
+  "does_not_apply": [
+    "Fixes a typo in the README",
+    "Renames a CSS class in a button component",
+    "Adds a retry with backoff around the billing call in the order service",
+    "Moves a table write from one module to another",
+    "Changes the text of a validation error message",
+    "Bumps a patch version of a runtime dependency"
+  ]
+}

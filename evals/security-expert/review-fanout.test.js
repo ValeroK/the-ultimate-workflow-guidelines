@@ -29,7 +29,7 @@ const recheckCalls = (calls) => calls.filter((c) => c.label === 'recheck');
 // What `node experts/experts.js list` prints, taken from the real discovery.
 const AVAILABLE = list(PLUGIN).experts;
 const devops = { name: 'devops', agent: 'uw-expert-devops', description: 'DevOps expert. Applies when the pipeline or deployment changes.', stages: ['plan', 'review'] };
-const planOnly = { name: 'architect', agent: 'uw-expert-architect', description: 'Architect. Applies when module boundaries change.', stages: ['plan'] };
+const planOnly = { name: 'planonlyfixture', agent: 'uw-expert-planonlyfixture', description: 'A fixture expert that joins only the plan stage. Applies when module boundaries change.', stages: ['plan'] };
 
 const EXP = { diffFile: '.ultimate-workflow/review.diff', expertsDir: '/plugin/experts' };
 const base = (over = {}) => ({ available: AVAILABLE, experts: [], ...EXP, ...over });
@@ -204,9 +204,9 @@ test('experts are not hardcoded: a second expert from the list runs under the ag
 });
 
 test('an expert that does not take part at review is selected but does not review', async () => {
-  const { calls, result } = await loadWorkflow(REVIEW)(base({ available: [...AVAILABLE, planOnly], experts: ['architect'] }), clean);
+  const { calls, result } = await loadWorkflow(REVIEW)(base({ available: [...AVAILABLE, planOnly], experts: ['planonlyfixture'] }), clean);
   assert.deepStrictEqual(lensCalls(calls).map((c) => c.label), CORE);
-  assert.deepStrictEqual(result.expertLane.selected, ['architect']);
+  assert.deepStrictEqual(result.expertLane.selected, ['planonlyfixture']);
   assert.deepStrictEqual(result.expertLane.ran, []);
 });
 

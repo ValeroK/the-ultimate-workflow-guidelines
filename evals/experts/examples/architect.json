@@ -1,0 +1,18 @@
+{
+  "applies": [
+    "Adds an SQS queue and a Lambda consumer that charges a card for each message",
+    "Moves session state from a single container's memory into a shared store because the service will run three tasks",
+    "Adds a step in the order flow that calls the billing service synchronously from the request handler",
+    "Switches a nightly batch job from a container that runs all day to a scheduled function",
+    "Adds a vector search over documents shared by several customers in one index",
+    "Introduces a retry policy around calls from the API service to the inventory service"
+  ],
+  "does_not_apply": [
+    "Renames a private helper function inside one service",
+    "Fixes a typo in the README",
+    "Adds a unit test for a date-formatting helper",
+    "Reorders the columns of a report table in the UI",
+    "Splits a long function in one module into two smaller functions",
+    "Changes the text of a validation error message"
+  ]
+}

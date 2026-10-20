@@ -228,8 +228,9 @@ test('compare: a null leak limit makes lane discipline informational, a number s
 });
 
 test('thresholds: the developer override is recorded with its reason and the default limit is unchanged', () => {
-  assert.equal(thresholds.overrides.developer.maxLeakRate, null);
+  for (const e of ['developer', 'architect', 'softarch', 'quality']) assert.equal(thresholds.overrides[e].maxLeakRate, null, e);
   assert.match(thresholds._overridesNote, /developer/);
+  assert.match(thresholds._overridesNote, /assumption/, 'the policy was extended to the other role experts on an assumption, and says so');
   assert.equal(thresholds.maxLeakRate, 0.1);
-  assert.deepEqual(Object.keys(thresholds.overrides), ['developer']);
+  assert.deepEqual(Object.keys(thresholds.overrides).sort(), ['architect', 'developer', 'quality', 'softarch']);
 });

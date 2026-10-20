@@ -11,9 +11,18 @@
   "overrides": {
     "developer": {
       "maxLeakRate": null
+    },
+    "architect": {
+      "maxLeakRate": null
+    },
+    "softarch": {
+      "maxLeakRate": null
+    },
+    "quality": {
+      "maxLeakRate": null
     }
   },
-  "_overridesNote": "2026-10-20, maintainer: the developer expert should raise everything it finds, including defects that belong to other domains. Lane discipline (leak) is reported for it and does not gate. Other experts keep the default limit.",
+  "_overridesNote": "2026-10-20, maintainer: the developer expert should raise everything it finds, including defects that belong to other domains. Lane discipline (leak) is reported for it and does not gate. The same policy is applied to the architect, softarch and quality experts on the assumption that it was meant for the whole group of role experts; revert an entry here if it was not.",
   "generation": {
     "cleanMarginTasks": 1,
     "overEngineeredDeltaRuns": 0,

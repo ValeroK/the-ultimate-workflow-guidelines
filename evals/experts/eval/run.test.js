@@ -268,7 +268,7 @@ test('scoreRun applies a per-expert threshold override: the same leak fails by d
     fs.writeFileSync(t.resultFile, JSON.stringify({ results: ids.map((caseId) => ({ caseId, labels: [{ findingIndex: 0, label: kinds.get(caseId) === 'sibling' ? 'out-of-domain' : 'planted', evidence: 'complete', reason: 'r', quote: kinds.get(caseId) === 'sibling' ? '' : 'a finding' }] })) }));
   }
   const leakCheck = (r) => r.comparisons.ArmPlain.checks.find((x) => /leak/.test(x.name));
-  const byDefault = run.scoreRun(dir, { ...thresholds, recallMarginCases: 0 }, 'ArmLens');
+  const byDefault = run.scoreRun(dir, { ...thresholds, recallMarginCases: 0, overrides: {} }, 'ArmLens');
   assert.equal(leakCheck(byDefault).ok, false);
   assert.equal(leakCheck(byDefault).informational, false);
   const overridden = run.scoreRun(dir, { ...thresholds, recallMarginCases: 0, overrides: { quality: { maxLeakRate: null } } }, 'ArmLens');

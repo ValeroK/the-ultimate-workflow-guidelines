@@ -10,7 +10,8 @@ How to build a domain expert and its skills, from nothing to shipped, the way th
  3  research     primary sources for the facts the domain depends on    -> research record
  4  compare      upstream agents against our references                 -> comparison digest
  5  references   the expert's plan / tests / review / build files       -> contract passes
- 6  skills       decide, write, source-tag, select                      -> selection tests pass
+ 6  skills       decide, draft, list the claims each draft rests on       -> claims to verify
+ 6b fact-check   send the claims to the maintainer, wait for the reply   -> research record
  7  verify       every fact in a skill checked against a primary source -> tags in the skill
  8  wire         stage references, agent file, NOTICE, CHANGES          -> full suite green
  9  document     docs/experts/<name>.md, catalogue, CHANGELOG           -> mirrors test green
@@ -24,7 +25,7 @@ Steps 2 to 4 are research done by subagents in the background; you read their di
 | Step | Required? | Why |
 |---|---|---|
 | 1 scope | always | Overlap between experts is the failure that costs most: two experts raising the same finding on one diff |
-| 3 research and 7 verify | whenever a skill states a number, a default or a version fact | Upstream facts were wrong or stale often enough on the architect (reserved concurrency, the inline Map "40") that an unchecked number is a wrong finding waiting to happen |
+| 3 research, 6b fact-check and 7 verify | whenever a skill states a number, a default, a version fact or a rule of a spec or tool | Upstream facts were wrong or stale often enough on the architect (reserved concurrency, the inline Map "40") that an unchecked number is a wrong finding waiting to happen |
 | 2 sweep and 4 compare | optional | Worth it where strong upstream sources exist. For DevOps, 18 upstream agents yielded about a dozen ideas and none covered the core infrastructure-change scope; writing the checklist from the domain directly gets most of it |
 | 6 skills from upstream (template B) | optional | Worth it where good upstream skills exist (Terraform, Docker); wasted where the catalogue already lists the domain as a gap |
 | 10 measure | before the expert is called done | Research depth does not show the expert beats the plain reviewer; only a corpus does |
@@ -74,6 +75,17 @@ For each candidate skill (template B gives the research), answer in order:
 Then write `experts/skills/<name>/skill.md` (a `# ` title, nothing that fetches or installs, at most 16 KB) and its `NOTICE.md` (sources, licences, what was ours, what was left out). Name it in each stage reference with its selector and cue. At plan there is no selector: the cue is the headline a model chooses by.
 
 Rejected skills are recorded with the reason, in `docs/experts/<name>.md`.
+
+## 6b. Send the fact-check to the maintainer, and wait
+
+The build session cannot reach most documentation hosts, and its own checks (GitHub-hosted docs, archived guides) can be dated. So every expert's facts also go through a live check by the maintainer, who has open web access. This is a real stop, like the plan and test-plan confirmations: the skills are not written as final until the reply is in.
+
+1. Write the prompt into `docs/expert-research-prompts.md`: the shared rules, the task, and a **Claims to verify** list taken from the drafted skills and the upstream sources, one checkable sentence each with the primary source that should hold it. No opinions: only what a page can confirm or contradict.
+2. Send it to the maintainer in the conversation, as one block ready to paste, and say what you will do with each kind of answer.
+3. Stop. Do not write the skills as final, wire them or document them until the maintainer replies.
+4. On the reply, record it in `docs/research/<topic>-<date>.md` and fold it in by the rules in step 7: confirmed facts are tagged **[R]**, contradicted ones corrected, missing ones dropped or kept weak. Items that belong to another expert are routed, not added.
+
+Work that does not depend on the facts (scope, the references, selectors, tests of the selection plumbing) may go ahead while you wait.
 
 ## 7. Verify every fact
 

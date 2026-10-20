@@ -66,3 +66,19 @@ The pre-set gate passes (a margin of one task is required, and there is one). **
 Every craft measure is identical: no trap fallen into by either arm, nothing over-engineered by either arm. The tasks did not separate the arms on craft, because a Sonnet implementer asked for "the smallest change that works" already avoids every trap here (0 of 27 without the brief). So this run shows no evidence that the brief helps, and no evidence that it hurts: no extra over-engineering, equal correctness, equal size. It is cheap (under 3.5 KB per build).
 
 Not measured, and the limits of this harness: the brief's rule to run the repository's lint, format and type-check (implementers may not run anything here); other models (Haiku, Opus); larger or longer tasks, where drift over a long session is the real complaint; the held-out split (3 tasks; unrun on purpose, since the dev run did not separate the arms and tuning the tasks against it would spend it). To get a signal: harder tasks authored blind, with the repository's convention far from the code being changed, or a weaker implementer model.
+
+## architect, softarch, quality: dev split, expert v1 against the plain reviewer
+
+Six cases per expert, three runs per case, one judge pass per batch (not repeated, only spot-checked). JSON: `2026-10-20-{architect,softarch,quality}-dev-expert-v1-vs-baseline.json`.
+
+| expert | recall (cases) expert / plain | false-positive runs expert / plain | pre-set gate |
+|---|---|---|---|
+| architect | 6 of 6 / 6 of 6 | 0 of 12 / 0 of 12 | fail (no margin) |
+| softarch | 6 of 6 / 5 of 6 | 0 of 12 / 0 of 12 | pass |
+| quality | 6 of 6 / 6 of 6 | 1 of 12 / 0 of 12 | fail (margin, and one false positive) |
+
+**Read this as: no demonstrated gain, except possibly softarch.** The plain Sonnet reviewer already finds every planted defect on the architect and quality corpora, so these cannot show a recall gain; the ceiling is hit. The softarch pass rests on one case (`c3d41fb77`, plain 1 of 3, expert 3 of 3) and is exactly the one-case margin the threshold asks for, so it is weak evidence, not proof. The one quality false-positive run is a single run in twelve; it is not enough to call a pattern. Evidence completeness (informational) is lower for the expert on architect and quality, and the judge's evidence rating is the least reliable label (see the calibration section).
+
+Leak into sibling domains is 75 to 100 percent for the experts and for the plain reviewer alike. With "raise everything found" in force, leak is informational for these experts; it does not measure a defect. That policy for architect, softarch and quality is my assumption extended from the developer decision, and is flagged in `eval/thresholds.json`.
+
+Not done: held-out runs for these three, a repeated judge pass, a corpus hard enough to separate the arms.

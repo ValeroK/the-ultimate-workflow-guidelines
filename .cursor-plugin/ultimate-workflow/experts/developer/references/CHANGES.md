@@ -34,3 +34,5 @@ Dropped: everything that runs a tool, fetches a page, or installs something.
 
 - The plan and review references name two shared skills with their cues: `engineering-principles` (exact meaning, misreading, counter-case of each principle and pattern) and `failure-handling` (questions per handler, hiding patterns by language, retries, cleanup, what is not a finding).
 - Not measured yet. The held-out split of the general review corpus is still reserved.
+
+- Later the same day: the review reference also names `python-craft` and `typescript-craft`, loaded by file type.

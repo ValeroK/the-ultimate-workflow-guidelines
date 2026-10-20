@@ -76,6 +76,8 @@ Check what the change adds and skip the rest.
 Skills are files in the `skills/` folder of the experts directory that holds your references. Load one only when its cue matches this change; many reviews need none.
 
 - `experts/skills/failure-handling/skill.md`: load when the diff adds or changes a catch or except block, an error return, a fallback or default on error, a retry, or work that must be undone on failure.
+- `experts/skills/python-craft/skill.md`: load when the diff touches `.py` files.
+- `experts/skills/typescript-craft/skill.md`: load when the diff touches `.ts`, `.tsx`, `.js`, `.mjs` or `.cjs` files.
 - `experts/skills/engineering-principles/skill.md`: load when a candidate finding rests on a design principle or pattern (single responsibility, open/closed, substitution, KISS, YAGNI, DRY, a named pattern), to check its exact meaning and its counter-case before you report the cost.
 
 ## Do not report

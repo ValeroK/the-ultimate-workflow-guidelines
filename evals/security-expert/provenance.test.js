@@ -121,8 +121,20 @@ test('the release workflow still excludes top-level fixtures and architecture-ev
 });
 
 test('shipped experts/ stays under a byte budget so the ZIP ceiling is not eaten', () => {
+  // The shared skills library (experts/skills/) has its own budget below, so a
+  // growing library does not hide growth in the experts themselves, or the reverse.
   const BUDGET = 150 * 1024;
-  const files = walk(path.join(PAYLOAD, 'experts')).filter((p) => fs.statSync(p).isFile());
+  const skills = path.join(PAYLOAD, 'experts', 'skills');
+  const files = walk(path.join(PAYLOAD, 'experts')).filter((p) => fs.statSync(p).isFile() && !p.startsWith(skills + path.sep));
   const total = files.reduce((n, p) => n + fs.statSync(p).size, 0);
-  assert.ok(total <= BUDGET, `experts/ is ${total} bytes, budget ${BUDGET}`);
+  assert.ok(total <= BUDGET, `experts/ (without skills/) is ${total} bytes, budget ${BUDGET}`);
+});
+
+test('the shared skills library stays under its own byte budget', () => {
+  // About a dozen planned skills at the 16 KB per-skill cap the contract enforces.
+  const BUDGET = 200 * 1024;
+  const dir = path.join(PAYLOAD, 'experts', 'skills');
+  const files = fs.existsSync(dir) ? walk(dir).filter((p) => fs.statSync(p).isFile()) : [];
+  const total = files.reduce((n, p) => n + fs.statSync(p).size, 0);
+  assert.ok(total <= BUDGET, `experts/skills/ is ${total} bytes, budget ${BUDGET}`);
 });

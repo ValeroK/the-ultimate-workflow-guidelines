@@ -221,8 +221,9 @@ Taken from each expert's `.cursor-plugin/ultimate-workflow/experts/<name>/skills
 
 | softarch | review | `protobuf-compat` | `files: *.proto, buf.yaml, buf.gen.yaml, buf.lock` | wire, ProtoJSON and generated-code compatibility |
 | softarch | review | `schema-evolution` | API description and GraphQL files; `added:` an `openapi:` line, `type Query {`, a JSON Schema `$schema` | what breaks callers or readers; versions |
+| softarch | review | `event-schema-evolution` | `files: *.avsc, *.avdl, asyncapi.*`; `added:` registry compatibility modes, Glue schemas, Avro records, CloudEvents attributes | registry modes, Avro resolution, CloudEvents and AsyncAPI |
 | softarch | review | `module-boundaries` | boundary tool configs, `tsconfig*.json`, `module-info.java`, `project.json`; `added:` `/internal/`, `"exports":`, tag constraints | what each ecosystem's boundary tool enforces |
-| softarch | plan | all three | offered | the plan changes a contract or a module boundary |
+| softarch | plan | all four | offered | the plan changes a contract or a module boundary |
 
 No skills: `security` (plan, tests, review), and `quality` at plan and review.
 

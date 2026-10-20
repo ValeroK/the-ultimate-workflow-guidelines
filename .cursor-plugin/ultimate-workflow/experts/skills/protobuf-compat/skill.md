@@ -1,50 +1,82 @@
 ---
 name: protobuf-compat
-description: Use when a change changes a .proto message, enum or service: field numbers, reserved, types, oneofs, enums, renames, and which compatibility the repository promises.
+description: Use when a change changes a .proto message, enum or service, or the Buf configuration: field numbers, reserved, types, cardinality, oneofs, enums, renames, RPC signatures, and which compatibility the repository promises.
+verified: 2026-10-20
+requires: proto2, proto3 or Editions 2023/2024; Buf v1 or v2 configuration
 ---
 
 # Protobuf and gRPC compatibility
 
-Use this when a change touches a `.proto` file or the Buf configuration. It holds what decides whether existing producers, consumers and stored messages still work after the change. Rollout order, rollback and replay of stored messages are the architect's ("Two versions at once"); deadlines and retries are the architect's and `failure-handling`'s; authorization per method is security's.
+## Goal
 
-Each fact carries its source: **[R]** the maintainer's check of protobuf.dev, buf.build, aip.dev and the gRPC repository (2026-10-20); **[T]** an upstream community skill, not checked; **[O]** our own reasoning.
+- **Lets the expert catch:** a `.proto` change that breaks existing producers, consumers or stored messages on the encoding the repository actually promises (binary wire, ProtoJSON, or generated code), including the changes that look safe on one encoding and break another.
+- **Applies to:** `.proto` files, `buf.yaml`, `buf.gen.yaml`, `buf.lock`.
+- **Not for:** rollout order, rollback and replay of stored messages (architect); deadlines and retries (architect, `failure-handling`); per-method authorization and reflection endpoints (security); fixtures and contract tests (quality).
 
-**First, find which compatibility the repository promises.** The answer to "is this breaking" differs by target: the binary wire only, the wire plus ProtoJSON, or generated source code as well. Buf's categories, strictest first, are `FILE` (the default), `PACKAGE`, `WIRE_JSON` and `WIRE` [R]; Google's AIP-180 is as strict as `FILE` [R]. Read `buf.yaml` (`breaking.use`), check whether the service is exposed as JSON (gRPC-Gateway, `google.api.http`, ProtoJSON clients), and check whether generated code is published to other repositories. Also read the file's first line: `syntax = "proto2"`, `syntax = "proto3"` or `edition = "2023"` / `"2024"` changes several rules below [R].
+Sources: **[R]** the maintainer's live check of protobuf.dev, buf.build, aip.dev and the gRPC repository (2026-10-20); **[O]** our own reasoning. An [O] item is a prompt to check, not a finding on its own.
+
+## First, establish the target
+
+- **The compatibility promised.** Buf's categories, strictest first: `FILE` (the default), `PACKAGE`, `WIRE_JSON`, `WIRE` [R]; AIP-180 is as strict as `FILE` [R]. Read `breaking.use` in `buf.yaml`, check whether the service is exposed as JSON (gRPC-Gateway, `google.api.http`, ProtoJSON clients), and whether generated code is published to other repositories.
+- **The syntax.** The file's first line: `syntax = "proto2"`, `syntax = "proto3"` or `edition = "2023"` / `"2024"`. proto3 `optional` is on by default from protoc 3.15 [R]; under Editions `optional` is not a keyword, explicit presence is the default, and `features.field_presence = IMPLICIT` turns it off [R].
+- **What Buf already skips.** `breaking.ignore_unstable_packages: true` skips packages whose last component is `v1alpha1`, `v1beta`, `v1test`, `v1p1beta1` and the like [R]. In `buf.yaml` v2, `// buf:lint:ignore` comments are allowed unless `disallow_comment_ignores: true`; in v1 they were refused by default [R].
+- protoc already refuses a reused `reserved` number, a field in 19,000 to 19,999, a non-zero first proto3 enum value and the wrong reserved-name form; do not report those.
+- If you cannot establish the target, say which you assumed and lower your confidence by one step.
 
 ## Field numbers and names
 
 | Rule | What breaks it in a diff | When it does not apply |
 |---|---|---|
-| Changing an existing field's number is unsafe [R] | The integer after `=` changes on an existing field | A message never merged, released or stored |
-| A deleted field's number must never be reused; `reserved` makes protoc refuse reuse [R] | A field line removed with no `reserved` for its number | The same |
-| Reserve the name as well, so ProtoJSON and text format still parse old messages [R] | A removed field whose name is not reserved, where JSON or text format is used | Binary-only contracts |
-| Reserved names are quoted in proto2 and proto3 (`reserved "foo";`) and bare identifiers under Editions (`reserved foo;`) [R] | The wrong form for the file's syntax | |
-| Numbers 19,000 to 19,999 are reserved for the implementation [R] | A new field in that range | |
-| A new field with a new number is safe: old binaries keep it as an unknown field [R] | | ProtoJSON readers reject unknown fields unless told to ignore them [R] |
-| ProtoJSON writes field and enum value names into the message, so renaming either breaks JSON readers; `json_name` can keep the old name [R] | A renamed field or enum value on a service with JSON clients, with no `json_name` | Binary-only contracts (Buf `WIRE`) |
-| A gRPC method's path is `/package.Service/Method` [R] | A renamed package, service or method: every existing client calls a path that no longer exists | A REST path through `google.api.http` that stays the same, for clients that only use it |
+| A deleted field's number must never be reused, and changing an existing field's number is a delete plus an add; `reserved` the number [R] | A field line removed, or its number changed, with no `reserved` for the old number | A message never merged, released or stored |
+| Reserve the deleted name as well, so ProtoJSON and text format still parse old messages [R] | A removed field whose name is not in `reserved` | Binary-only contracts (`WIRE`) |
+| A removed enum value reserves both its number and its name (ranges and `max` are allowed) [R] | An enum value line removed with no `reserved` in the enum | |
+| A new field with a new number is safe on the wire [R] | | ProtoJSON readers reject unknown fields unless told to ignore them [R] |
+| ProtoJSON writes field and enum value names, so renaming either breaks JSON readers; `json_name` keeps the old name [R] | A renamed field or enum value on a service with JSON clients, with no `json_name` | `WIRE` contracts |
+| `google.protobuf.Any` stores the type URL `type.googleapis.com/<package>.<Message>`, and ProtoJSON writes it as `@type`, so renaming a packed message or its package breaks unpacking [R] | A renamed `message` or `package` whose type is packed into `Any` anywhere | Messages never packed into `Any` |
+| A gRPC method's path is `/package.Service/Method` [R] | A renamed package, service or method | A REST path through `google.api.http` that stays the same, for clients that use only it |
+| Moving a message, enum or service to another file in the same package is wire-safe but breaks generated imports in C++ and Python; Buf `FILE` flags it, `PACKAGE` does not [R] | A definition deleted from one file and added to another | The repository's target is `PACKAGE` or looser |
+| A new name close to an existing one (`foo_value` beside `foo`) can collide in generated code [R] | A field or enum added whose name is an existing name plus a suffix | |
+
+## RPC signatures
+
+| Rule | What breaks it in a diff | When it does not apply |
+|---|---|---|
+| Changing an RPC's request or response message type is breaking in every Buf category, `WIRE` included [R] | `rpc M(A) returns (B)` with `A` or `B` changed | A package Buf ignores as unstable |
+| Adding or removing `stream` on either side is breaking in every category [R] | `stream` added to or removed from an `rpc` line | The same |
 
 ## Types and cardinality
 
-- A type change across wire encodings, such as `string` to `int32`, breaks deserialization [R].
-- `int32`, `uint32`, `int64`, `uint64` and `bool` are compatible on the binary wire, and a narrower reader truncates [R]. The same change is **breaking** in ProtoJSON (64-bit integers are JSON strings, 32-bit ones numbers), in generated code, under Buf `FILE` and `WIRE_JSON`, and under AIP-180 [R]. Report it unless the repository's target is `WIRE`.
-- `string` and `bytes` are compatible on the wire while the bytes are valid UTF-8, and unsafe in ProtoJSON, where bytes are base64 [R].
-- `int32`, `sint32`, `sfixed32` and `fixed32` are safe to swap in ProtoJSON, but varint and fixed-width types differ on the binary wire [R]. The same holds for the 64-bit family.
-- Moving fields into an existing `oneof` is unsafe; moving a single field into a new `oneof` is wire-safe [R]. AIP-180 and Buf `FILE` and `PACKAGE` disallow any move into or out of a `oneof`, because generated accessors change [R].
-- proto3 has no `required` [R]; a request field newly marked required (`google.api.field_behavior = REQUIRED`) breaks callers that do not send it, under AIP-180 [R].
-- proto3 `optional` (explicit presence) is on by default from protoc 3.15, experimental from 3.12 [R]. Under Editions `optional` is not a keyword: explicit presence is the default, and `features.field_presence = IMPLICIT` turns it off [R]. Adding or removing presence changes the generated API [T].
-- Changing a default value or an existing behaviour, moving a definition to another file, or tightening a length limit are breaking under AIP-180 [R]. Moving between files breaks generated imports under Buf `FILE` [R].
+| Rule | What breaks it in a diff | When it does not apply |
+|---|---|---|
+| `int32`, `uint32`, `int64`, `uint64` and `bool` swap safely on the binary wire, a narrower reader truncating, but the swap breaks ProtoJSON (64-bit integers are JSON strings), generated code, `FILE`, `WIRE_JSON` and AIP-180 [R] | An integer or `bool` field's type changed within that family | The target is `WIRE` |
+| `string` and `bytes` swap on the wire while the bytes are valid UTF-8, and break ProtoJSON, where bytes are base64 [R] | `string` to `bytes` or back | `WIRE`, with UTF-8 guaranteed |
+| `int32`, `sint32`, `sfixed32` and `fixed32` swap safely in ProtoJSON but differ on the binary wire (varint or fixed width); the same for the 64-bit family [R] | A change between varint and fixed-width types | A JSON-only service |
+| Singular and `repeated` swap on the wire for `string`, `bytes` and messages (a singular reader keeps the last value or merges); packed numeric repeated fields (the proto3 default) do not; the swap breaks ProtoJSON and generated code (`FIELD_WIRE_JSON_COMPATIBLE_CARDINALITY`, `FIELD_SAME_CARDINALITY`) [R] | `repeated` added to or removed from an existing field | `WIRE`, for a string, bytes or message field |
+| `map<K, V>` is wire-equivalent to `repeated` entry messages with fields 1 and 2, but maps may reorder and drop duplicate keys, and the swap breaks ProtoJSON (an object, not an array) and generated code [R] | A `repeated Entry` replaced by `map<K, V>` on the same number, or back | `WIRE`, when order and duplicates do not matter |
+| Adding a member to a `oneof`, removing one, or moving fields into an existing `oneof` is unsafe: `NOT_SET` cannot tell "unset" from a member another version knows, and tag reuse can clear the set member [R]; AIP-180 and Buf `FILE` and `PACKAGE` refuse any move into or out of a `oneof` [R] | A field added to, removed from or moved into a `oneof` | One existing field moved into a new `oneof` is wire-safe (not source-safe) [R] |
+| `required` (proto2, or `LEGACY_REQUIRED` under Editions) is never added, and an existing one is permanent; Buf's cardinality rules refuse a change to or from it [R] | `required` added, or removed from an existing field | |
+| A request field newly marked `google.api.field_behavior = REQUIRED` breaks callers that do not send it (AIP-180) [R] | The annotation added to an existing request field | A field in a request type no caller sends yet |
+| Adding or removing proto3 `optional` on an existing field changes the generated API, so it is incompatible (AIP-149) [R] | `optional` added to or removed from an existing proto3 field | The target is `WIRE` or `WIRE_JSON` |
+| Changing a default value or an existing behaviour, or tightening a length limit, is breaking under AIP-180 [R] | A changed default, documented behaviour or limit | |
 
 ## Enums
 
-- A proto3 enum's first value must be 0; a `_UNSPECIFIED` name for it is recommended [R]. Closed enums (proto2, or `features.enum_type = CLOSED`) have no such rule [R].
-- proto3 enums are open and proto2 enums closed; runtimes differ (Go treats every enum as open, Dart every enum as closed) [R].
-- A new enum value is wire-compatible for open enums [R]. It can still break a ProtoJSON reader, a closed enum, or consumer code that switches over the enum with no default branch [R]. AIP-180 calls a new value in a request-only enum compatible and asks for caution in response enums [R]. Find a consumer's `switch` before reporting.
+| Rule | What breaks it in a diff | When it does not apply |
+|---|---|---|
+| A new enum value is wire-safe for open enums, but can break a ProtoJSON reader, a closed enum, or consumer code that switches with no default branch; AIP-180 calls a new value in a request-only enum compatible and asks for caution in response enums [R] | A value added to an enum a consumer switches over | Find the consumer's `switch` before reporting; none, or a default branch, means no finding |
+| proto3 enums are open and proto2 enums closed, and runtimes differ (Go treats every enum as open, Dart every enum as closed) [R] | A new value relied on by a Dart or proto2 consumer | |
 
-## Editions
+## Configuration and Editions
 
-- Edition 2024 enforces a naming style by default (`STYLE2024`), so protoc rejects names such as `bar_1`; `features.enforce_naming_style = STYLE_LEGACY` keeps old names [R]. A file moved to Edition 2024 that renames fields to satisfy the style breaks JSON and source compatibility [O].
+| Rule | What breaks it in a diff | When it does not apply |
+|---|---|---|
+| The file options `go_package`, `java_package`, `java_multiple_files`, `java_outer_classname`, `csharp_namespace` and their peers are breaking under `FILE` and `PACKAGE` (not `WIRE` or `WIRE_JSON`) [R] | A changed file option at the top of a `.proto` | The target is `WIRE` or `WIRE_JSON` |
+| A `buf.yaml` change in the same diff that would hide the break: a weaker `breaking.use`, a new `breaking.ignore` or `ignore_only` entry for the changed file, `ignore_unstable_packages` turned on, or a v1 to v2 upgrade with no `disallow_comment_ignores` [R] | Any of these beside a `.proto` change it would refuse | The plan records the loosening as the user's decision |
+| A file moved to Edition 2024 that renames fields to satisfy `STYLE2024` breaks JSON and source compatibility; `features.enforce_naming_style = STYLE_LEGACY` keeps the old names [O] | `edition = "2024"` with field renames | |
 
-## Configuration
+## Not a finding
 
-- Loosening `buf.yaml` in the same change that a stricter rule would reject (a weaker `breaking.use` category, a new `breaking.ignore` or `ignore_only` entry for the changed file) hides the break instead of handling it [O]. Report it with the rule it silences.
+- A formatting-only `.proto` change.
+- A new optional field flagged only because old clients ignore it.
+- A missing reservation for a field that never shipped.
+- `optional` together with `google.api.field_behavior = REQUIRED` on one field: they are unrelated (AIP-149) [R].

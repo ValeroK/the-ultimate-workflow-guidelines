@@ -67,6 +67,14 @@ Read `tsconfig.json` (and any `tsconfig.*.json` the changed files belong to), th
 - **Regular expressions with nested quantifiers** (`(a+)+`, `(.*)*`) applied to user input: catastrophic backtracking freezes the event loop.
 - **`child_process.exec`** with interpolated input; use `execFile` or `spawn` with an argument list.
 
+## Published package versions
+
+For a package other repositories install (not `"private": true`). Sources: semver.org and the npm node-semver documentation, checked live by the maintainer on 2026-10-20.
+
+- Under SemVer, major version zero means anything may change; from 1.0, deprecating something needs at least a minor bump, and a breaking change a major one.
+- npm's `^0.2.3` allows `<0.3.0`, and `^0.0.3` allows only `0.0.3`. So in a 0.x package, a breaking change released as a patch reaches every consumer on a caret range.
+- A breaking change to an exported function, type or entry point with no matching version bump, or a changeset marked patch for a removed export, is a finding. Consumers inside this repository are the software architect's.
+
 ## Not a finding
 
 - Formatting, semicolons, quote style, import order where a formatter is configured.

@@ -248,3 +248,24 @@ test('no two experts claim the same Responsibilities area, and every example own
     }
   }
 });
+
+test('no shipped reference or skill quotes an eval corpus case, which would leak it into the expert', () => {
+  // A worked example taken from a held-out case biases every later run in the expert's favour.
+  const corpusDir = path.join(__dirname, 'corpus');
+  const needles = [];
+  for (const f of fs.readdirSync(corpusDir).filter((x) => x.endsWith('.json') && x !== 'MANIFEST.json')) {
+    const c = JSON.parse(fs.readFileSync(path.join(corpusDir, f), 'utf8'));
+    for (const x of Array.isArray(c) ? c : c.cases || []) {
+      if (x.id) needles.push(x.id);
+      if (typeof x.summary === 'string' && x.summary.length > 30) needles.push(x.summary.toLowerCase());
+    }
+  }
+  assert.ok(needles.length > 50, 'the corpora were read');
+  const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]));
+  const shipped = [...walk(path.join(PAYLOAD, 'experts')), ...walk(path.join(PAYLOAD, 'agents'))].filter((f) => f.endsWith('.md'));
+  for (const f of shipped) {
+    const t = fs.readFileSync(f, 'utf8').toLowerCase();
+    const hit = needles.find((n) => t.includes(n));
+    assert.ok(!hit, `${path.relative(PAYLOAD, f)} contains corpus text: ${hit}`);
+  }
+});

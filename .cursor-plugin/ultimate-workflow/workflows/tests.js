@@ -187,6 +187,14 @@ if (!args || args.available === undefined || args.available === null) {
   const forced = availableExperts.filter((e) => Array.isArray(e.always) && e.always.includes('tests') && !selectedExperts.includes(e.name)).map((e) => e.name)
   const selectedHere = [...selectedExperts, ...forced]
   const taking = takingPart(availableExperts, selectedHere, 'tests')
+  // The workflow cannot read files, so experts.js sends the shared rules (experts/protocol.md) with
+  // the skills, under `_protocol`, and they are pasted into each expert's prompt. Telling an expert
+  // to open a file did not get it opened, which is why skills are pasted too.
+  const protocolText = args && args.skills && typeof args.skills === 'object' && typeof args.skills._protocol === 'string' ? args.skills._protocol.trim() : ''
+  const readFirst = (dir, name, stage) =>
+    protocolText
+      ? `Read ${dir}/${name}/references/${stage}.md.\n\nTHE PROTOCOL every expert follows:\n${protocolText}`
+      : `Read ${dir}/protocol.md first (the rules every expert follows), then ${dir}/${name}/references/${stage}.md.`
   // Skills were chosen in code from the plan (`experts.js skills --stage tests --plan`) and arrive
   // as { <expert>: { skills: [{ name, text }], dropped } }; the text is pasted into the prompt.
   const skillsFor = (name) => {
@@ -203,7 +211,7 @@ if (!args || args.available === undefined || args.available === null) {
   const results = await parallel(
     taking.map((e) => () =>
       agent(
-        `You are the ${e.name} domain expert, adding the test cases your domain needs. Stage: tests. Read ${args.expertsDir}/protocol.md first (the rules every expert follows), then ${args.expertsDir}/${e.name}/references/tests.md.
+        `You are the ${e.name} domain expert, adding the test cases your domain needs. Stage: tests. ${readFirst(args.expertsDir, e.name, 'tests')}
 
 ${planFile ? `The plan is at ${planFile}; read it, including its "Expert input" section where you stated what you required.` : 'Read the active PLAN-*.md, including its "Expert input" section where you stated what you required.'}
 

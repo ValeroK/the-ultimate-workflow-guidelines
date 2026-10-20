@@ -562,6 +562,12 @@ function resolve(cwd, id, reason, pluginRoot = PLUGIN_ROOT) {
  * fingerprint is always of the working tree, because the commit gate compares it with
  * the working tree at the moment of the commit.
  */
+/** The rules every expert follows, sent to the workflows under `skills._protocol` to be pasted in. */
+function protocolText(pluginRoot = PLUGIN_ROOT) {
+  const file = path.join(pluginRoot, 'experts', 'protocol.md');
+  return fs.existsSync(file) ? fs.readFileSync(file, 'utf8').trim() : '';
+}
+
 function prepare(cwd, range = 'working', pluginRoot = PLUGIN_ROOT) {
   const changes = workingChanges(cwd);
   const diff = range === 'working' ? changes.diff : git(cwd, ['diff', ...DIFF_FORMAT, range]);
@@ -582,7 +588,8 @@ function prepare(cwd, range = 'working', pluginRoot = PLUGIN_ROOT) {
     if (sel.dropped.length > 0) skillProblems.push(`${e.name}: skills left out at the ${SKILLS_BYTES}-byte cap: ${sel.dropped.join(', ')}`);
     if (sel.skills.length > 0 || sel.dropped.length > 0) skills[e.name] = { skills: sel.skills, dropped: sel.dropped };
   }
-  return { hash, range, diffFile, files: changes.files, available, skills, ...(skillProblems.length > 0 ? { skillProblems } : {}) };
+  // The shared rules ride with the skills, because the workflow cannot read files (see protocolText).
+  return { hash, range, diffFile, files: changes.files, available, skills: { ...skills, _protocol: protocolText(pluginRoot) }, ...(skillProblems.length > 0 ? { skillProblems } : {}) };
 }
 
 /**
@@ -717,7 +724,7 @@ function main(argv) {
       if (o.stage === 'tests' && !o.plan) fail('skills --stage tests needs --plan <plan file>: the skills are chosen from it');
       const k = o.stage === 'plan' ? planSkills(o.pluginRoot) : testsSkills(o.pluginRoot, fs.readFileSync(o.plan, 'utf8'));
       if (k.problems.length > 0) process.stderr.write(`experts.js: ${k.problems.join('; ')}\n`);
-      return out(k.skills);
+      return out({ ...k.skills, _protocol: protocolText(o.pluginRoot) });
     }
     if (o.cmd === 'read') {
       const r = readExperts(fs.readFileSync(needPlan(), 'utf8'));

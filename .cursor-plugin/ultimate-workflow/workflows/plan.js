@@ -69,6 +69,15 @@ const takingPart = (available, selected, stage) =>
   selected.map((n) => available.find((e) => e.name === n)).filter((e) => e && e.stages.includes(stage))
 // --- end expert lane helpers ---
 
+// The workflow cannot read files, so experts.js sends the shared rules (experts/protocol.md) with
+// the skills, under `_protocol`, and they are pasted into each expert's prompt. Telling an expert
+// to open a file did not get it opened, which is why skills are pasted too.
+const protocolText = args && args.skills && typeof args.skills === 'object' && typeof args.skills._protocol === 'string' ? args.skills._protocol.trim() : ''
+const readFirst = (dir, name, stage) =>
+  protocolText
+    ? `Read ${dir}/${name}/references/${stage}.md.\n\nTHE PROTOCOL every expert follows:\n${protocolText}`
+    : `Read ${dir}/protocol.md first (the rules every expert follows), then ${dir}/${name}/references/${stage}.md.`
+
 // Skills at the plan stage. No code can see the draft (it exists only in this script), so the
 // selection call is also asked which skills the draft needs, from a list experts.js built:
 // args.skills is { <expert>: [{ name, headline, text }] } from `experts.js skills --stage plan`.
@@ -77,6 +86,7 @@ const offeredSkills = (() => {
   const raw = args && args.skills && typeof args.skills === 'object' && !Array.isArray(args.skills) ? args.skills : {}
   const out = {}
   for (const [expert, list] of Object.entries(raw)) {
+    if (expert.startsWith('_')) continue
     const ok = (Array.isArray(list) ? list : []).filter((x) => x && typeof x.name === 'string' && typeof x.headline === 'string' && typeof x.text === 'string' && x.text.trim() !== '')
     if (ok.length > 0) out[expert] = ok
   }
@@ -305,7 +315,7 @@ ${describeSkills(available.map((e) => e.name))}`
     const results = await parallel(
       taking.map((e) => () =>
         agent(
-          `You are the ${e.name} domain expert, giving input to a plan before it is confirmed. Stage: plan. Read ${args.expertsDir}/protocol.md first (the rules every expert follows), then ${args.expertsDir}/${e.name}/references/plan.md.
+          `You are the ${e.name} domain expert, giving input to a plan before it is confirmed. Stage: plan. ${readFirst(args.expertsDir, e.name, 'plan')}
 
 THE REQUEST
 ${feature}

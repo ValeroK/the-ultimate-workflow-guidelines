@@ -321,7 +321,7 @@ Left out, and why: FILL-IN (what belongs to another skill or expert, what was op
 
 ## What changed in code to support this (done 2026-10-20)
 
-- Every expert reads `experts/protocol.md` first, the way it reads its references; the eval harness pastes it. (Planned as pasted by code; changed so no command gains an argument.)
+- `experts/protocol.md` is pasted into every expert's prompt by code: `experts.js` sends it under `skills._protocol`, which every command already passes unchanged, and the plan, tests and review workflows paste it (the eval harness does the same). A first version only told the expert to open the file; smoke runs had shown experts not opening files they were told to, so that was not trusted. Without `_protocol` the workflow still names the file.
 - The findings schema has optional `evidence`, `category`, `severity` and `fix`, sorted by severity, then confidence. The plain reviewer is unchanged.
 - `experts.js` reads a skill's frontmatter (`description` as the cue and the plan headline), strips it before pasting, and reads selectors from `experts/<name>/skills.md`, so no `## Skills` list reaches a model.
 - `contract.js` and the checklist lint:

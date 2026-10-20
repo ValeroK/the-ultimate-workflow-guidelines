@@ -197,6 +197,15 @@ const NO_QUOTA =
 
 phase('Lenses')
 
+// The workflow cannot read files, so experts.js sends the shared rules (experts/protocol.md) with
+// the skills, under `_protocol`, and they are pasted into each expert's prompt. Telling an expert
+// to open a file did not get it opened, which is why skills are pasted too.
+const protocolText = args && args.skills && typeof args.skills === 'object' && typeof args.skills._protocol === 'string' ? args.skills._protocol.trim() : ''
+const readFirst = (dir, name, stage) =>
+  protocolText
+    ? `Read ${dir}/${name}/references/${stage}.md.\n\nTHE PROTOCOL every expert follows:\n${protocolText}`
+    : `Read ${dir}/protocol.md first (the rules every expert follows), then ${dir}/${name}/references/${stage}.md.`
+
 // Skills were chosen in code from the diff by `experts.js prepare` and arrive as
 // { <expert>: { skills: [{ name, text }], dropped: [names] } }. The text goes into the expert's
 // prompt; asking a model to open the skill whose cue matched did not get it opened.
@@ -224,7 +233,7 @@ const lensResults = await parallel(
 
 ${
   reviewingNames.includes(lens)
-    ? `The diff for ${range} is saved at ${args.diffFile}. Read it there. Stage: review. Read ${args.expertsDir}/protocol.md first (the rules every expert follows), then ${args.expertsDir}/${lens}/references/review.md.${
+    ? `The diff for ${range} is saved at ${args.diffFile}. Read it there. Stage: review. ${readFirst(args.expertsDir, lens, 'review')}${
         args.plan
           ? ` The plan is at ${args.plan}: find the "Expert input" section, read what you required from this change at planning time, and report any requirement the diff does not honour.`
           : ''

@@ -3,7 +3,7 @@
 The plugin does two things:
 
 1. **The ADLC workflow.** Plan, tests, build, review and harvest, with confirmation points and gates. This exists.
-2. **The expert catalogue.** Experts that any phase can bring in. This document lists them. Eight are built: `architect`, `softarch`, `developer`, `quality`, `security`, `devops`, and, with no skills yet, `genai` and `frontend`. All but `security` have shared skills (see "Skills by expert and stage"). Experts 6, 8 and 11 to 14 are not built.
+2. **The expert catalogue.** Experts that any phase can bring in. This document lists them. Nine are built: `architect`, `softarch`, `developer`, `quality`, `security`, `devops`, and, with no skills yet, `genai`, `frontend` and `data`. All but `security` have shared skills (see "Skills by expert and stage"). Experts 6, 8 and 11 to 14 are not built.
 
 Skills are chosen in code at review, build and tests, and by a model question at plan; the chosen text is pasted into the expert's prompt. How it works: [Shared skills](adding-an-expert.md#shared-skills).
 
@@ -97,7 +97,7 @@ An agent was placed under an expert by its name and the survey's domain notes, n
 
 ### 7. (merged into 6)
 
-### 8. Data and database (new)
+### 8. Data and database (have: `data`, plan and review; skills wait for the fact-check, see `docs/experts/data.md`)
 - **Owns:** Postgres and pgvector schema, migrations, queries and indexes, DynamoDB key design, and data lifecycle at the data layer. Multi-tenancy is the architect's (decided 2026-10-20), including tenant isolation where data is read.
 - **Stages:** plan, review.
 - **Upstream agents:**

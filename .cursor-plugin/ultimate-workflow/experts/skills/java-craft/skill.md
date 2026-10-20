@@ -11,7 +11,7 @@ requires: Java 8+ (java.time); Spring Framework and Spring Boot where used (Boot
 
 - **Lets the expert catch:** Java and Spring behaviour that compiles, passes small tests and fails in production: boxed equality outside the cache, a swallowed interruption, `BigDecimal` scale, a shared formatter, a transaction or `@Async` that never applies, an unbounded executor queue, and a library change that breaks callers at link time.
 - **Applies to:** `.java` files, `pom.xml`, `build.gradle`, `build.gradle.kts`.
-- **Not for:** checks true in every language (`failure-handling`, `engineering-principles`, the review reference); deserialisation, XXE, command and SQL injection (security); N+1 queries, fetch strategy and paging (data and performance experts, planned; softarch for API shape); `@SpringBootTest` against slice tests (quality).
+- **Not for:** checks true in every language (`failure-handling`, `engineering-principles`, the review reference); deserialisation, XXE, command and SQL injection (security); N+1 queries, fetch strategy and paging (the data expert; softarch for API shape); `@SpringBootTest` against slice tests (quality).
 
 Sources: **[D]** SpotBugs `messages.xml` and Error Prone bug-pattern documentation as published in their repositories, and the Java Language Specification (2026-10-20); **[R]** the maintainer's live check (spotbugs.readthedocs.io, errorprone.info, docs.spring.io, JLS 21, the japicmp site; 2026-10-20); **[T]** an upstream community skill, not checked; **[O]** our own reasoning. A [T] or [O] item is a prompt to check, not a finding on its own.
 

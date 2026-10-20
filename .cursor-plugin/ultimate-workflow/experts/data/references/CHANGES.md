@@ -1,0 +1,8 @@
+# Changes
+
+## 2026-10-20: first version
+
+- Written to the expert templates from the sources in `../NOTICE.md`; no text copied.
+- Plan and review only: quality's tests reference already holds the cases.
+- No version-specific facts, no migration-tool flags and no skills until the maintainer's live check returns.
+- Not measured.

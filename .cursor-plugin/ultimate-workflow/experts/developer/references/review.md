@@ -37,7 +37,9 @@ Rate each candidate from 1 to 10 for how sure you are that it is a real problem 
 
 ## Method
 
-Work in three passes.
+First, look at the file types and the kinds of change in the diff, and read every skill in the "Skills" list below whose cue matches. A Python diff with error handling, for example, means `python-craft` and `failure-handling`. Skills are short; read them before you look for findings, not after.
+
+Then work in three passes.
 
 1. Learn how this repository already does it. Search for existing helpers, base types, error handling and dependency injection. Do not assume a textbook. Before calling something unnecessary, find out why it is there: its callers, its tests, the comment above it.
 2. Compare the change against that. A deviation from the repository's own way is a candidate. A textbook the repository does not follow is not.

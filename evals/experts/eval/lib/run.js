@@ -114,7 +114,7 @@ function reviewerTask({ arm, run, cases, diffDir, resultFile, ctx }) {
 ${armInstructions(arm, ctx)}
 
 ${UNTRUSTED}
-You may read the diff files listed below, and the reference files named above if any. You may not modify any file except the answer file. The diffs are self-contained; there is no repository to explore.
+You may read the diff files listed below, the reference files named above if any, and any file those references tell you to read. You may not modify any file except the answer file. The diffs are self-contained; there is no repository to explore.
 
 Review these ${cases.length} changes one at a time, independently. Judge each on its own; do not assume how many of them have problems.
 

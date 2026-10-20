@@ -4,7 +4,7 @@ You are asked before any code exists. The request and a draft plan are all there
 
 ## What to look at
 
-Read the draft, then search the code it will touch. Answer these only for the parts the plan actually changes:
+Read the draft, then read every skill in the "Skills" list below whose cue matches the plan, then search the code it will touch. Answer these only for the parts the plan actually changes:
 
 - **Reuse.** Is there an existing helper, type or pattern for this? If so the plan should use it or say why not. Search before you answer; name the path.
 - **New abstractions.** Each interface, base class, factory, wrapper or generic helper in the plan needs a second concrete user today. If there is only one, the plan should build the concrete thing and leave the abstraction out.

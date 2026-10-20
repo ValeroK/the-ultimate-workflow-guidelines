@@ -122,3 +122,38 @@ Here the upstream skill found exactly what the plain reviewer found. The differe
 Every arm's one benign false positive was on the same case (`c13deb587`): a speculative concern about callers not shown in the diff.
 
 Reading across both splits: the expert's advantage comes from naming specific defect classes that a general reviewer, with or without the upstream skill, walks past. The caveat stays the same: the corpus and the expert's categories come from the same craft definition, so this measures the expert on the defects it was built for. Neither split rewards the upstream skill's security, performance or process coverage.
+
+## A broader corpus: general code review, three arms (dev split)
+
+Corpus `corpus/review.json` (pinned before any run): 36 cases from two blind agents told not to read any checklist, skill or corpus; 20 seeded defects across correctness, edge, concurrency, security, performance, maintainability, resilience and testing (categories in `review-categories.json`), 10 benign, 6 product-and-documentation siblings. This run uses the dev split (14 seeded, 7 benign, 4 sibling); the 11 held-out cases are kept unused. Same arms, models and procedure as above; every judge batch complete. JSON: `2026-10-20-review-dev-three-arms.json`.
+
+| | A0 plain | A2 upstream skill | A3 developer expert |
+|---|---|---|---|
+| seeded cases found in a majority of runs | 11 of 14 | 13 of 14 | 12 of 14 |
+| seeded runs that found the defect | 35 of 42 | 38 of 42 | 35 of 42 |
+| false-positive runs on benign cases | 0 of 21 | 1 of 21 | 2 of 21 |
+| false-positive runs on sibling cases | 1 of 12 | 1 of 12 | 0 of 12 |
+
+Runs that found the defect, by category (3 runs per case):
+
+| category | cases | A0 | A2 | A3 |
+|---|---|---|---|---|
+| correctness | 3 | 9 | 9 | 9 |
+| security | 3 | 9 | 9 | 9 |
+| resilience | 2 | 6 | 6 | 6 |
+| edge | 1 | 3 | 3 | 3 |
+| concurrency | 1 | 3 | 3 | 3 |
+| performance | 2 | 4 | 5 | 5 |
+| testing | 1 | 1 | 3 | 0 |
+| maintainability | 1 | 0 | 0 | 0 |
+
+What it says:
+- On general review the upstream skill is the best of the three, by a small margin: it found the test that cannot fail in every run (the plain reviewer once, the expert never), and one more performance run.
+- The developer expert gave up nothing on correctness, security, resilience, edges or concurrency: its "raise everything you find" rule held. It lost exactly where its scope says to look away. Its checklist puts tests out of scope, so it walked past a test that passes with or without the fix. In this plugin the quality expert covers tests; used alone, the developer expert would miss them.
+- No arm found the maintainability defect (an approval rule kept as a list of tool names in another package, so the next write tool silently skips approval). The expert's categories do not name that shape (a parallel registry that must be edited in step), so this is a gap in its checklist, not only a hard case.
+- The expert raised two benign false positives here, the most of the three.
+
+What it does not say:
+- The plain reviewer already finds 35 of 42; most of this corpus does not separate the arms. The decisive cases are one test case, one performance case and one maintainability case, so these are small numbers.
+- The judge labelled the same claim (a missing import in an excerpted hunk) false-positive in some batches and valid-other in others. That noise touches valid-other and false-positive counts, not recall.
+- One split, 3 runs, one judge pass. The held-out split is reserved for checking any change made because of this run.

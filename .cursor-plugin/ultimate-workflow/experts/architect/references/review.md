@@ -39,6 +39,8 @@ Work in three passes.
 2. Compare the change against that, and against the plan's topology and state ownership. A new store, queue or service that the plan does not mention is a plan deviation.
 3. Trace each risky path from the triggering event to the outcome, with file and line at every step. If you cannot complete the path from what is in the repository, you have a suspicion and not a finding.
 
+Two rules while you trace. A claim is not evidence: a comment, a name or a plan line that says "idempotent", "retried" or "bounded" proves nothing, and code that contradicts it is a finding. Resolve every named resource: a queue, table, topic or service the code or the plan refers to must exist in the infrastructure files with the shape claimed. Mask any secret you quote as evidence.
+
 A skeptic will try to refute each finding after you. Write the evidence so that it can be checked line by line.
 
 ## Categories
@@ -48,6 +50,13 @@ Check what the change touches and skip the rest.
 - **Retry or duplicate delivery without idempotency.** A retry wrapper, a queue consumer or an event handler around a step whose side effect cannot be undone, with no key or compensation in the diff. Show the duplicate and what it does.
 - **No bound.** A call with no timeout, a loop with no ceiling, fan-out with no cap, a queue or buffer that grows without limit, retries that multiply cost.
 - **Queue configuration.** No dead-letter queue, a visibility timeout below the processing time, a poison message that blocks the queue, ordering assumed where the queue does not give it, a batch where one failure fails or repeats the rest.
+- **A call that waits on itself.** A new synchronous call from service A to B where B already calls A, directly or through another service, so one slow service stalls both. Give the call chain with file and line. (Import cycles inside one codebase are the software architect's.)
+- **A remote call per item.** An HTTP, database or queue call inside a loop over data whose size a user or upstream controls, on a request path. Name the loop and the call.
+- **A budget the parts cannot fit.** A downstream timeout longer than the caller's own deadline (a 30-second call behind a 10-second gateway); a connection pool size times the maximum instance count above what the database accepts. Show both numbers and where each is set.
+- **A write to two places with no way back.** A database write and then a publish, or writes to two stores, in one handler with no outbox, transaction or compensation, so a failure between them leaves the two disagreeing. A compensation whose own failure is only logged.
+- **Two versions at once.** A change to a message, event or stored record that the old and the new version both read during a rolling deploy, or that queued messages still carry, which the old reader cannot parse. (A broken contract between modules is the software architect's.)
+- **Moving existing data.** A schema or store change with no step that moves the data already there, or a backfill or copy with no check (row counts, a checksum, a sample comparison) before traffic moves to it.
+- **Replay with side effects.** A projection, consumer or rebuild that sends, charges or publishes again when events are replayed.
 - **State in the wrong place.** State held in one instance's memory while more than one instance can run, state lost on restart or deploy, two writers for the same record, a cache with no invalidation owner.
 - **Tenant isolation at the data layer.** A read or search with no tenant key or filter, a shared cache, queue or index namespace across tenants, enforced only by an instruction or by the caller.
 - **A failure nobody sees.** A catch that logs and returns success at a service boundary, a failure path with no log, metric or alarm, a consumer that acknowledges before the work is durable.

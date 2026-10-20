@@ -186,7 +186,7 @@ Also return: which of these differ between versions still in common use (protobu
 
 ## 3b. Library API compatibility (developer) and event schema evolution (software architect)
 
-> Status: sent to the maintainer on 2026-10-20 (playbook step 6b); waiting for the reply. Part A goes into the developer's language skills (`go-craft`, `java-craft`, `typescript-craft`, `rust-craft`, `python-craft`), one short section each, for code whose package is exported or published. Part B is a new software architect skill, `event-schema-evolution`. The claims were drafted in the build session from memory and are unverified until the reply.
+> Status: answered on 2026-10-20; record `docs/research/api-and-event-schemas-2026-10-20.md`. Applied when the skills are converted (Phase 3). Part A goes into the developer's language skills (`go-craft`, `java-craft`, `typescript-craft`, `rust-craft`, `python-craft`), one short section each, for code whose package is exported or published. Part B is a new software architect skill, `event-schema-evolution`. The claims were drafted in the build session from memory and are unverified until the reply.
 
 ```
 [shared rules above]
@@ -430,7 +430,7 @@ Also return: what a reviewer can and cannot judge from a diff, and when a change
 | 1c | Architect: multi-tenancy | not run | Unblocks a tenancy skill |
 | 2 | Developer | done | Used in the developer references and skills |
 | 3 | Software architect | answered 2026-10-20 | 41 of 45 confirmed, 4 narrowed or secondary only; 10 extra facts |
-| 3b | Library API compatibility (developer) and event schemas (software architect) | sent to the maintainer 2026-10-20, waiting | 39 claims |
+| 3b | Library API compatibility (developer) and event schemas (software architect) | answered 2026-10-20 | 38 of 39 confirmed, 1 different (PEP 8: undocumented names are internal); 10 extra facts. Record: `docs/research/api-and-event-schemas-2026-10-20.md` |
 | R2 | Round 2, one prompt per expert, from the extraction audit | sent to the maintainer 2026-10-20, waiting | `docs/research/fact-check-round-2-prompts.md`; claims listed in each `docs/experts/ledgers/<expert>.md`, section 4 |
 | 4 | Quality engineer | not run | The expert ships; `test-craft` was built from upstream skills, not primary sources |
 | 5 | Generative AI engineer | not run | Next expert to build |

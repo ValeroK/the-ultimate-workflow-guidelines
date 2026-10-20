@@ -163,6 +163,10 @@ const FINDINGS = {
           howItFails: { type: 'string', description: 'Concrete inputs or state leading to a wrong result' },
           confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
           wouldSettleIt: { type: 'string', description: 'What check would confirm or kill this' },
+          evidence: { type: 'array', items: { type: 'string' }, description: 'Domain experts: one step per item, each with file and line (or the plan line, or a cited URL), ending at the failure' },
+          category: { type: 'string', description: 'Domain experts: the category from your reference, or the owning expert when it is outside your domain' },
+          severity: { type: 'string', enum: ['high', 'medium', 'low'], description: 'Domain experts: by the protocol and your reference' },
+          fix: { type: 'string', description: 'Domain experts: the fix in one sentence, smaller than the problem' },
         },
       },
     },
@@ -216,11 +220,11 @@ log(`Reviewing ${range} through ${lenses.length} lenses (rigor: ${rigor})`)
 const lensResults = await parallel(
   lenses.map((lens) => () =>
     agent(
-      `Review the diff for ${range} through the ${lens} lens ONLY. Another reviewer has each of the other lenses; stay inside yours.
+      `${reviewingNames.includes(lens) ? `Review the diff for ${range} as the ${lens} expert.` : `Review the diff for ${range} through the ${lens} lens ONLY. Another reviewer has each of the other lenses; stay inside yours.`}
 
 ${
   reviewingNames.includes(lens)
-    ? `The diff for ${range} is saved at ${args.diffFile}. Read it there. Stage: review. Your references are in ${args.expertsDir}/${lens}/references/; read ${args.expertsDir}/${lens}/references/review.md first.${
+    ? `The diff for ${range} is saved at ${args.diffFile}. Read it there. Stage: review. Read ${args.expertsDir}/protocol.md first (the rules every expert follows), then ${args.expertsDir}/${lens}/references/review.md.${
         args.plan
           ? ` The plan is at ${args.plan}: find the "Expert input" section, read what you required from this change at planning time, and report any requirement the diff does not honour.`
           : ''
@@ -267,7 +271,7 @@ const failedLenses = lenses.filter((_, i) => !lensResults[i])
 const expertFindings = (list, status) =>
   list
     .filter((f) => reviewingNames.includes(f.lens))
-    .map((f) => ({ expert: f.lens, file: f.file, line: f.line, what: f.what, confidence: f.confidence, status }))
+    .map((f) => ({ expert: f.lens, file: f.file, line: f.line, what: f.what, confidence: f.confidence, ...(f.severity ? { severity: f.severity } : {}), status }))
 const lane = (found = []) => ({
   stage: 'review',
   available: available.map((e) => e.name),
@@ -393,8 +397,11 @@ numbered.forEach((f) => {
   else refuted.push({ ...f, refutedBecause: v.reason })
 })
 
-const severity = { high: 0, medium: 1, low: 2 }
-confirmed.sort((a, b) => severity[a.confidence] - severity[b.confidence])
+// Order for the reader: severity first where an expert gave one, then confidence. Nothing
+// downstream (the lane, the commit gate, finding ids) depends on this order.
+const rank = { high: 0, medium: 1, low: 2 }
+const by = (key) => (f) => (f[key] in rank ? rank[f[key]] : 1)
+confirmed.sort((a, b) => by('severity')(a) - by('severity')(b) || by('confidence')(a) - by('confidence')(b))
 
 log(`${confirmed.length} confirmed, ${refuted.length} refuted, ${unverified.length} unverified`)
 

@@ -101,7 +101,7 @@ const PLAN_INPUT = {
   required: ['summary', 'constraints', 'risks', 'questions'],
   properties: {
     summary: { type: 'string', description: 'Two sentences at most: what this domain needs from the plan' },
-    constraints: { type: 'array', items: { type: 'string' }, description: 'Requirements the implementation must meet, each one checkable. At most six' },
+    constraints: { type: 'array', items: { type: 'string' }, description: 'Requirements the implementation must meet, each one checkable by someone who is not you. At most four' },
     risks: { type: 'array', items: { type: 'string' }, description: 'What goes wrong if the plan is built as written. At most four' },
     questions: { type: 'array', items: { type: 'string' }, description: 'Decisions only the user can make. Empty when there are none' },
   },
@@ -305,7 +305,7 @@ ${describeSkills(available.map((e) => e.name))}`
     const results = await parallel(
       taking.map((e) => () =>
         agent(
-          `You are the ${e.name} domain expert, giving input to a plan before it is confirmed. Stage: plan. Your references are in ${args.expertsDir}/${e.name}/references/; read ${args.expertsDir}/${e.name}/references/plan.md first.
+          `You are the ${e.name} domain expert, giving input to a plan before it is confirmed. Stage: plan. Read ${args.expertsDir}/protocol.md first (the rules every expert follows), then ${args.expertsDir}/${e.name}/references/plan.md.
 
 THE REQUEST
 ${feature}
@@ -313,7 +313,7 @@ ${feature}
 THE DRAFT PLAN
 ${planMarkdown}
 
-Say what your domain requires of this plan that it does not yet say. Read the code the plan touches where you need to. Constraints must be checkable by someone who is not you. Stay inside your domain: other experts cover theirs. Zero constraints is a correct answer when the plan already covers your domain, and then say so in the summary.${skillBlock(e.name)}`,
+Say what your domain requires of this plan that it does not yet say. Read the code the plan touches where you need to.${skillBlock(e.name)}`,
           { agentType: e.agent, label: `plan:${e.name}`, phase: 'Experts', schema: PLAN_INPUT }
         )
       )

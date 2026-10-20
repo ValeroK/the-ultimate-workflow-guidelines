@@ -100,7 +100,10 @@ function armInstructions(arm, ctx) {
     const agent = path.join(ctx.plugin, 'agents', `uw-expert-${arm.expert}.md`);
     if (!fs.existsSync(agent)) throw new Error(`run: no expert agent at ${agent}`);
     const body = fs.readFileSync(agent, 'utf8').replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, '').trim();
-    return `${common}\nYou are the expert described below, at the review stage. The directory that holds your references is ${path.join(ctx.plugin, 'experts', arm.expert, 'references')}${path.sep}. You may read files; you cannot run commands or reach the web in this exercise, so ignore any instruction of the role that needs them.\n\n--- ROLE ---\n${body}`;
+    // The shared rules the workflow tells every expert to read first, pasted here so the eval
+    // measures the prompt that ships.
+    const protocol = fs.readFileSync(path.join(ctx.plugin, 'experts', 'protocol.md'), 'utf8').trim();
+    return `${common}\nYou are the expert described below, at the review stage. The directory that holds your references is ${path.join(ctx.plugin, 'experts', arm.expert, 'references')}${path.sep}. You may read files; you cannot run commands or reach the web in this exercise, so ignore any instruction of the role that needs them.\n\n--- PROTOCOL ---\n${protocol}\n\n--- ROLE ---\n${body}`;
   }
   throw new Error(`run: unknown arm kind ${arm.kind}`);
 }

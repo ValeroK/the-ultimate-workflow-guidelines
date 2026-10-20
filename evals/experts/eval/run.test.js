@@ -292,3 +292,13 @@ test('an expert arm gets the skills the review command would select, per case, a
   const plain = run.reviewerTask({ arm: { label: 'P', kind: 'plain' }, run: 1, cases, diffDir: '/d', resultFile: '/r.json', ctx });
   assert.ok(!plain.includes('skills for this change') && !plain.includes('--- SKILLS ---'));
 });
+
+test('an expert arm gets the shared protocol the workflow tells experts to read; the plain arm does not', () => {
+  const cases = [{ id: 'c1', summary: 's1', diff: 'diff --git a/x.go b/x.go\n--- a/x.go\n+++ b/x.go\n@@ -0,0 +1 @@\n+package x\n' }];
+  const ctx = { plugin: PLUGIN, domain: { name: 'developer', scope: 'x' } };
+  const protocol = fs.readFileSync(path.join(PLUGIN, 'experts', 'protocol.md'), 'utf8').trim();
+  const task = run.reviewerTask({ arm: { label: 'E', kind: 'expert', expert: 'developer' }, run: 1, cases, diffDir: '/d', resultFile: '/r.json', ctx });
+  assert.ok(task.includes('--- PROTOCOL ---') && task.includes(protocol));
+  const plain = run.reviewerTask({ arm: { label: 'P', kind: 'plain' }, run: 1, cases, diffDir: '/d', resultFile: '/r.json', ctx });
+  assert.ok(!plain.includes('--- PROTOCOL ---'), 'the plain baseline arm is unchanged');
+});

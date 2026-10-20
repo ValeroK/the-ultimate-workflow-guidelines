@@ -203,14 +203,14 @@ if (!args || args.available === undefined || args.available === null) {
   const results = await parallel(
     taking.map((e) => () =>
       agent(
-        `You are the ${e.name} domain expert, adding the test cases your domain needs. Stage: tests. Your references are in ${args.expertsDir}/${e.name}/references/; read ${args.expertsDir}/${e.name}/references/tests.md first.
+        `You are the ${e.name} domain expert, adding the test cases your domain needs. Stage: tests. Read ${args.expertsDir}/protocol.md first (the rules every expert follows), then ${args.expertsDir}/${e.name}/references/tests.md.
 
 ${planFile ? `The plan is at ${planFile}; read it, including its "Expert input" section where you stated what you required.` : 'Read the active PLAN-*.md, including its "Expert input" section where you stated what you required.'}
 
 THE DRAFT TESTS
 ${draft.testsMarkdown}
 
-Add only cases that the draft does not already cover and that your domain says must exist. Do not restate the draft. Zero cases is a correct answer.${skillBlock(e.name)}`,
+Add only cases that the draft does not already cover and that your domain says must exist. Do not restate the draft.${skillBlock(e.name)}`,
         { agentType: e.agent, label: `tests:${e.name}`, phase: 'Experts', schema: TESTS_INPUT }
       )
     )

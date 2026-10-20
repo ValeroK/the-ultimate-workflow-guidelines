@@ -82,3 +82,22 @@ Six cases per expert, three runs per case, one judge pass per batch (not repeate
 Leak into sibling domains is 75 to 100 percent for the experts and for the plain reviewer alike. With "raise everything found" in force, leak is informational for these experts; it does not measure a defect. That policy for architect, softarch and quality is my assumption extended from the developer decision, and is flagged in `eval/thresholds.json`.
 
 Not done: held-out runs for these three, a repeated judge pass, a corpus hard enough to separate the arms.
+
+## developer: a third-party skill as a comparison arm (dev split)
+
+JSON: `2026-10-20-developer-dev-a2-addyosmani-vs-expert-v2.json`. The upstream skill is `addyosmani/agent-skills`, `skills/code-review-and-quality/SKILL.md` (MIT, about 21 KB), fetched on the day and used only as the A2 reviewer's reading material; it is not stored in this repository. A2 was told to apply it as written but to run nothing and fetch nothing it names, because reviewers here cannot run anything. A0 is the plain reviewer; A3 is the developer expert as it stands after the 2026-10-20 source pass (so this also checks that edit for regressions). 12 seeded, 10 benign and 8 sibling-domain cases, 3 runs each, all arms in one plan and one judge pass (one judge batch skipped a finding, the scorer refused it, and the batch was judged again; the first answer is kept outside the repository).
+
+| | A0 plain | A2 upstream skill | A3 expert |
+|---|---|---|---|
+| seeded cases found in a majority of runs | 8 of 12 | 10 of 12 | 12 of 12 |
+| seeded runs that found the defect | 24 of 36 | 31 of 36 | 36 of 36 |
+| false-positive runs on benign cases | 5 of 30 | 3 of 30 | 0 of 30 |
+| false-positive runs on sibling cases | 0 of 24 | 3 of 24 | 0 of 24 |
+| evidence complete (informational) | 0.83 | 0.84 | 0.95 |
+
+What it says: the upstream skill is a real improvement over a plain reviewer (24 to 31 of 36), so it is not a weak baseline. The expert found every planted defect in every run and raised no false positive on this split. Three cases separate the arms: the two the upstream skill found once or not at all in most runs (`c32b04375`, `c83de8112`) and one it found two of three times (`cb23e0ec9`).
+
+What it does not say:
+- The corpus was written to the narrow craft scope the expert covers (SOLID, simplicity, duplication, error handling, dependencies, speculative generality). The upstream skill also covers security, performance, review process and change sizing, none of which this split rewards. A fair reading is "better on this scope", not "better".
+- One split, 3 runs per case, one judge pass, and an expert whose categories were written against the same taxonomy as the corpus. The held-out split has not been run for this comparison.
+- The expert's two categories added on 2026-10-20 are still not exercised by any case. This run shows they did not cause regressions on the existing cases, nothing more.

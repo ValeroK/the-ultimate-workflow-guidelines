@@ -1,0 +1,177 @@
+{
+  "expert": "developer",
+  "split": "dev",
+  "runsPerCase": 3,
+  "arms": {
+    "A0": {
+      "runsPerCase": 3,
+      "cases": {
+        "seeded": 12,
+        "benign": 10,
+        "sibling": 8
+      },
+      "seeded": {
+        "runsFound": 27,
+        "runs": 36,
+        "recall": 0.75,
+        "casesFoundMajority": 9,
+        "casesFoundAllRuns": 7
+      },
+      "benign": {
+        "fpRuns": 4,
+        "runs": 30,
+        "fpRate": 0.13333333333333333
+      },
+      "sibling": {
+        "leakRuns": 18,
+        "fpRuns": 0,
+        "runs": 24,
+        "leakRate": 0.75,
+        "fpRate": 0
+      },
+      "findings": {
+        "total": 73,
+        "perRun": 0.8111111111111111,
+        "validOtherRuns": 11,
+        "evidenceComplete": 0.8082191780821918
+      },
+      "failedRuns": 0,
+      "totalRuns": 90
+    },
+    "A3": {
+      "runsPerCase": 3,
+      "cases": {
+        "seeded": 12,
+        "benign": 10,
+        "sibling": 8
+      },
+      "seeded": {
+        "runsFound": 36,
+        "runs": 36,
+        "recall": 1,
+        "casesFoundMajority": 12,
+        "casesFoundAllRuns": 12
+      },
+      "benign": {
+        "fpRuns": 1,
+        "runs": 30,
+        "fpRate": 0.03333333333333333
+      },
+      "sibling": {
+        "leakRuns": 12,
+        "fpRuns": 0,
+        "runs": 24,
+        "leakRate": 0.5,
+        "fpRate": 0
+      },
+      "findings": {
+        "total": 58,
+        "perRun": 0.6444444444444445,
+        "validOtherRuns": 1,
+        "evidenceComplete": 0.9310344827586207
+      },
+      "failedRuns": 0,
+      "totalRuns": 90
+    }
+  },
+  "comparisons": {
+    "A3": {
+      "pass": false,
+      "checks": [
+        {
+          "name": "recall beats baseline by the margin",
+          "ok": true,
+          "detail": "candidate 12 of 12 cases, baseline 9, margin 1",
+          "informational": false
+        },
+        {
+          "name": "false positives on benign cases no worse than baseline",
+          "ok": true,
+          "detail": "candidate 1/30 runs, baseline 4/30",
+          "informational": false
+        },
+        {
+          "name": "leak into sibling domains is low",
+          "ok": false,
+          "detail": "12/24 sibling runs reported another domain's defect, limit 0.1",
+          "informational": false
+        },
+        {
+          "name": "evidence completeness (informational)",
+          "ok": true,
+          "detail": "candidate 0.9310344827586207, baseline 0.8082191780821918",
+          "informational": true
+        },
+        {
+          "name": "no failed runs",
+          "ok": true,
+          "detail": "0 of 90 runs failed",
+          "informational": false
+        }
+      ]
+    }
+  },
+  "perCase": {
+    "c069a2c8b": {
+      "A0": "1/3",
+      "A3": "3/3"
+    },
+    "c123c39fe": {
+      "A0": "3/3",
+      "A3": "3/3"
+    },
+    "c32b04375": {
+      "A0": "3/3",
+      "A3": "3/3"
+    },
+    "c380d4788": {
+      "A0": "3/3",
+      "A3": "3/3"
+    },
+    "c5210cb37": {
+      "A0": "3/3",
+      "A3": "3/3"
+    },
+    "c5fd0d9bc": {
+      "A0": "2/3",
+      "A3": "3/3"
+    },
+    "c83de8112": {
+      "A0": "0/3",
+      "A3": "3/3"
+    },
+    "ca9daa8ca": {
+      "A0": "3/3",
+      "A3": "3/3"
+    },
+    "cb23e0ec9": {
+      "A0": "2/3",
+      "A3": "3/3"
+    },
+    "cc45b69d4": {
+      "A0": "3/3",
+      "A3": "3/3"
+    },
+    "ce2d96cdd": {
+      "A0": "3/3",
+      "A3": "3/3"
+    },
+    "cea1be72f": {
+      "A0": "1/3",
+      "A3": "3/3"
+    }
+  },
+  "baseline": "A0",
+  "thresholds": {
+    "_comment": "Set before the first run and not tuned afterwards. These are our own choices, not an external standard. Differences under one case are not distinguishable at this sample size, so recall is compared in cases.",
+    "recallMarginCases": 1,
+    "maxFpRateDelta": 0,
+    "maxLeakRate": 0.1,
+    "evidenceTolerance": 0.05,
+    "minSelectionRecall": 0.9,
+    "maxCofireRate": 0.1,
+    "judgeAgreementMin": 0.9,
+    "runsPerCase": 3
+  },
+  "date": "2026-10-20"
+}

@@ -23,6 +23,14 @@ const DECLARED_TOOLS = {
   // steer it. The agent file must state the rules it follows (the contract below
   // requires them), and the dependency audit still runs as a script outside the model.
   security: ['Bash', 'Glob', 'Grep', 'Read', 'WebFetch', 'WebSearch'],
+  // Decided by the maintainer on 2026-10-20: the role experts may look facts up on the
+  // web at the plan and review stages. Developer gets search only (no arbitrary URL, so
+  // no fetch-based exfiltration path); the others may also fetch pages. Same rules as
+  // security: public identifiers only in a query, fetched content is untrusted.
+  developer: ['Glob', 'Grep', 'Read', 'WebSearch'],
+  architect: ['Glob', 'Grep', 'Read', 'WebFetch', 'WebSearch'],
+  softarch: ['Glob', 'Grep', 'Read', 'WebFetch', 'WebSearch'],
+  quality: ['Glob', 'Grep', 'Read', 'WebFetch', 'WebSearch'],
 };
 
 // What a domain's checklist must not exclude and must mention depends on the domain.

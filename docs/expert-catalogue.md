@@ -3,7 +3,7 @@
 The plugin does two things:
 
 1. **The ADLC workflow.** Plan, tests, build, review and harvest, with confirmation points and gates. This exists.
-2. **The expert catalogue.** Experts that any phase can bring in. This document lists them. Seven are built: `architect`, `softarch`, `developer`, `quality`, `security`, `devops` and `genai` (no skills yet). All but `security` have shared skills (see "Skills by expert and stage"). Experts 6, 8 and 11 to 14 are not built.
+2. **The expert catalogue.** Experts that any phase can bring in. This document lists them. Eight are built: `architect`, `softarch`, `developer`, `quality`, `security`, `devops`, and, with no skills yet, `genai` and `frontend`. All but `security` have shared skills (see "Skills by expert and stage"). Experts 6, 8 and 11 to 14 are not built.
 
 Skills are chosen in code at review, build and tests, and by a model question at plan; the chosen text is pasted into the expert's prompt. How it works: [Shared skills](adding-an-expert.md#shared-skills).
 
@@ -158,7 +158,7 @@ An agent was placed under an expert by its name and the survey's domain notes, n
   - awesome-copilot `frontend-performance-investigator`, `mongodb-performance-advisor`
 - **Survey candidates:** web performance (addyosmani 48, ziniman 45), cost and performance (vercel, 40). These are weak sources: performance has the thinnest material.
 
-### 13. Frontend and accessibility (new)
+### 13. Frontend and accessibility (have: `frontend`, plan, tests, review; skills wait for the fact-check, see `docs/experts/frontend.md`)
 - **Owns:** UI components and state, rendering, design-system drift, accessibility.
 - **Stages:** plan, tests, review.
 - **Upstream agents:**

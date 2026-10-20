@@ -27,7 +27,7 @@ readonly: true
 | AWS integration tests | what runs on an emulator and what against a real account, and what the emulator cannot show | which services are used and how they fail (architect) | a smoke test's exact expected answer is this expert's; the failure it probes is the architect's |
 | Fixtures and test data | committed, fake, current with the contract | real credentials and personal data (security) | a smoke test that writes to a real account is this expert's; a leaked secret is security's |
 | Error paths in production code | that the change's error path has a test that fails if the error is swallowed | how the error is handled (developer) | a fallback with no test is this expert's; a fallback that hides the error is the developer's |
-| Frontend tests | the oracle and determinism of a UI test | selectors, rendering and accessibility (frontend, planned) | a UI test that only asserts a component renders is this expert's |
+| Frontend tests | the oracle and determinism of a UI test | which UI cases and accessible queries are needed (frontend) | a UI test that only asserts a component renders is this expert's |
 
 ## How to judge
 

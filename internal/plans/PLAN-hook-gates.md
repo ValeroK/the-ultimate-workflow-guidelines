@@ -1,6 +1,8 @@
 # PLAN: hook-gates (v2.4.0)
 
-> Implements section 5, 5.1, and 9.1 of [PRD-graph-orchestration.md](PRD-graph-orchestration.md).
+> Historical: shipped (see CHANGELOG). Kept because code comments cite it.
+
+> Implements section 5, 5.1, and 9.1 of [PRD-graph-orchestration.md](../../PRD-graph-orchestration.md).
 > Scope is the **gates release only**. The eight workflow scripts are v3.0.0 and out of scope here.
 
 ## Feature description

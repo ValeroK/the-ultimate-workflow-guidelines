@@ -200,7 +200,7 @@ Rejected for specific reasons: trailofbits/claude-code-config (no licence, force
 ## 4. What was done with it
 
 - **Nothing from these repositories is vendored.** No file was copied into this repository, no script from any of them was run, no URL they mention was fetched. They were cloned read-only into a throwaway container and read as data. The repositories themselves were not changed.
-- **Ideas were restated, not copied, into five experts.** Each expert credits its sources and their licences in its own `NOTICE.md`; `references/CHANGES.md` says what was kept, reversed and added.
+- **Ideas were restated, not copied, into four experts** (`developer`, `architect`, `softarch`, `quality`) **and twelve shared skills** under `experts/skills/`. Each expert and each skill credits its sources and their licences in its own `NOTICE.md`; an expert's `references/CHANGES.md` says what was kept, reversed and added.
 
 | Expert | Main sources (ideas only) | Notes |
 |---|---|---|
@@ -210,9 +210,9 @@ Rejected for specific reasons: trailofbits/claude-code-config (no licence, force
 | `quality` | ECC eval harness and contract-first, muratcankoylan evaluation, wshobson eval-harness-first, morluto CI audit, emilkowalski edge catalogue, Anthropic pr-review-toolkit | Trail of Bits (CC BY-SA) ideas only |
 | `security` (pre-existing) | Anthropic's security-review prompt (vendored earlier under its own licence) | Not part of this survey |
 
-- **Rejected as sources:** trailofbits/claude-code-config (no licence, force-merges as admin, sends diffs to external CLIs), garrytan/gstack (binary launcher, telemetry), buildwithclaude (124 name collisions, curl-pipe installers), awslabs/aidlc-workflows (personas, a curl-pipe installer), and most of the persona-only collections.
+- **Rejected as sources:** trailofbits/claude-code-config (no licence, force-merges as admin, sends diffs to external CLIs), garrytan/gstack (binary launcher, telemetry; rejected for installing or vendoring, though `test-craft` restates a few ideas from the text of its `test-audit` skill, leaving its harness preamble out), buildwithclaude (124 name collisions, curl-pipe installers), awslabs/aidlc-workflows (personas, a curl-pipe installer), and most of the persona-only collections.
 - **An earlier version of this document proposed six "super experts" that merged five or six sources across domains each.** That plan was withdrawn: the intent is one narrow expert per role, distilled from the best of several skills, not one expert that does many things.
-- **Not yet used:** the AWS, Terraform, Docker, observability, database, accessibility and security repositories. They are the source list for experts that have not been built: cloud platform (IAM, cost), infrastructure as code and delivery, application security, agent design (tools, prompts, memory, evals of agents), data (migrations, pgvector, tenancy), UI and accessibility, observability. Per-repository scores and candidate names are in `skills-survey-2026-10-20.json`.
+- **Not yet used:** the Terraform, Docker, observability, database and accessibility repositories, and most of the AWS and security ones. Two exceptions, checked against the `NOTICE.md` files: the architect draws on `aws/agent-toolkit-for-aws`, and `trailofbits/skills` (security) informed the developer, the quality expert and seven of the shared skills (`failure-handling`, `python-craft`, `typescript-craft`, `go-craft`, `rust-craft`, `java-craft`, `test-craft`), ideas only. Also, `garrytan/gstack`, rejected above as a whole, was later read for `test-craft` (its `test-audit` skill, ideas only). The unused repositories are the source list for experts that have not been built: cloud platform (IAM, cost), infrastructure as code and delivery, application security, agent design (tools, prompts, memory, evals of agents), data (migrations, pgvector, tenancy), UI and accessibility, observability. Per-repository scores and candidate names are in `skills-survey-2026-10-20.json`.
 
 ## 5. Caveats that matter
 

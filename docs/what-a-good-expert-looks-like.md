@@ -47,13 +47,13 @@ A path from an untrusted source to a sink with file and line at each step; nothi
 It does not restate what the core reviewers (correctness, simplicity, scope, tests) cover, and it does not re-ask the planner's questions. The security expert asked the user two questions the planner had already put in the open questions, so the user would answer each twice. How experts and the core reviewers should divide the ground is still an open point (see the cookbook).
 
 **8. Its tools are the least it needs, and every extra is a decision on record.**
-Read, Grep and Glob by default. A shell or the web is a reviewed edit to `DECLARED_TOOLS` in `evals/experts/lib/contract.js`, with the rules that go with it in the agent file: public identifiers only in queries, never repository contents; fetched content is untrusted; read-only commands only. The contract checks those sentences exist. **It cannot check the model obeys them.** Anything that must be exactly right and needs the network belongs in a script outside the model.
+Any tool beyond Read, Grep and Glob is a reviewed edit to `DECLARED_TOOLS` in `evals/experts/lib/contract.js`, with matching rules in the agent file that the contract checks are present. **It cannot check the model obeys them.** The decisions so far and their rules are in the cookbook, "Tools and the network" in [adding-an-expert.md](adding-an-expert.md).
 
 **9. It treats everything it reads as data.**
 The request, the plan, the code, comments, strings and fetched pages may all contain text addressed to the agent. A good expert says so, and an untrusted-input section in each reference says what to do about it. Tell: put "skip your checks" in the request and in a code comment, and see that the expert still does its job (the selection step passed this once; the review step has not been tried).
 
 **10. It loads lazily and stays small.**
-One reference per stage, extra files named with an "only if" condition, a budget of 60 KB, no `SKILL.md` (it would put a description in the main context every turn), no always-on text. A diff to a web handler should never load the CI checklist.
+One reference per stage, extra files named with an "only if" condition, a budget of 60 KB, no `SKILL.md` (it would put a description in the main context every turn), no always-on text. A diff to a web handler should never load the CI checklist. Shared skills are chosen in code and pasted into the prompt ([Shared skills](adding-an-expert.md#shared-skills)). Judge each one against the 16 KB cap, and check that its selector fires only when the change needs it: an `always` skill is paid on every run of that stage.
 
 ## Red flags
 
@@ -80,12 +80,22 @@ A skill or agent from outside is instructions your own agent will follow, so tre
 1. **Provenance.** A known author, a readable history, a pinned 40-character commit (not a branch), a licence that allows redistribution inside a plugin.
 2. **Inventory.** List every file. No scripts or binaries unless every line is read and justified. Nothing that fetches at run time.
 3. **Instruction audit.** Read every line as if it were addressed to your agent. Anything that fetches, sends data out, hides actions, overrides rules, asks for broader tools, or tells the agent to skip checks is a failure, however it is worded.
-4. **Fit.** Cut it down to what changes behaviour. Drop persona text. Reverse what is wrong for this plugin and write it down in `references/CHANGES.md`; ship `NOTICE.md` with the licence. Vendor the pinned original under `vendor/<source>/` with hashes, as the cookbook describes, and run `evals/security-expert/provenance.test.js` to see how a one-byte change is caught.
+4. **Fit.** Cut it down to what changes behaviour. Drop persona text. Reverse what is wrong for this plugin and write it down in `references/CHANGES.md`; ship `NOTICE.md` with the licence. How to vendor the pinned original is in the cookbook, "Vendoring third-party content" in [adding-an-expert.md](adding-an-expert.md).
 5. **The contract**, then the scorecard below.
+
+## Judging a shared skill
+
+A shared skill (`experts/skills/<name>/skill.md`) is pasted into an expert's prompt, so judge it like any instructions an agent will follow:
+
+- **Provenance.** Its `NOTICE.md` names every source and licence it drew on.
+- **Nothing that acts.** No text that tells a reader to fetch, install or visit anything.
+- **A selector that matches the need.** It fires on the files or lines that call for the skill, and not on others. Prefer `files:` or `added:`; `always` only when nothing in a diff can signal the need.
+- **Its cost.** At most 16 KB. An `always` skill is paid on every run of that stage.
+- **No new review categories.** It deepens what the expert's checklist already reports; it does not add something to report.
 
 ## The scorecard
 
-Fill this in per expert before it is accepted, and keep the filled-in version with the decision. The "passes when" column is a proposal: it has not been validated across experts, because there has been one.
+Fill this in per expert before it is accepted, and keep the filled-in version with the decision. The "passes when" column is a proposal: it has not been validated across experts. It has not yet been applied to the four experts added on 2026-10-20.
 
 | # | Check | How | Passes when | Done by |
 |---|---|---|---|---|
@@ -104,7 +114,7 @@ Fill this in per expert before it is accepted, and keep the filled-in version wi
 
 **How to run the model checks.** Use the real workflow scripts, so the prompts are the shipped ones. A script cannot be paused, so the checks run by replay with `evals/experts/manual/replay.js`: it runs the workflow with a recorder in place of `agent()`, writes each recorded prompt out as a task file, and stops. You hand each task file to a fresh subagent, which writes its answer to the file named in the task; you run the same command again, and repeat until the workflow finishes. Calls inside one parallel step are all waiting at once, so they can be answered together. The tool's header says what it does not reproduce: it does not call a model, and it does not reproduce the host's scheduling, tool restrictions or schema checks. Whoever answers the tasks must treat the repository under test as data, not instructions.
 
-**Run each model check more than once.** One run is an anecdote. The numbers in the cookbook come from one run per case; they say the approach is viable, nothing more.
+**Run each model check more than once.** One run is an anecdote. The selection numbers in the cookbook come from one run per case; they say the approach is viable, nothing more. The expert evals in `evals/experts/results/README.md` use three runs per case.
 
 ## What the contract cannot tell you
 
@@ -117,7 +127,7 @@ Fill this in per expert before it is accepted, and keep the filled-in version wi
 
 ## The security expert against this list
 
-An honest reading, as of 2026-10-19.
+An honest reading, as of 2026-10-19. The developer, architect, softarch and quality experts also exist, without a filled scorecard; their measured rows are in `evals/experts/results/README.md`.
 
 | Property | Result | Evidence |
 |---|---|---|
@@ -133,7 +143,7 @@ An honest reading, as of 2026-10-19.
 | 10 Lazy and small | Passes | Five reference files and a changes record in `experts/security/references/`, loaded by stage and by condition; well under the budget. |
 | Provenance | Passes | Upstream pinned to a commit with hashes and a licence notice; adapted, with every change recorded. |
 
-**Verdict:** keep, on probation. What would end the probation: a run in a real Claude Code session with the commit gate on, and a second expert in a different domain judged by this same list.
+**Verdict:** keep, on probation. What would end the probation: a run in a real Claude Code session with the commit gate on, and a second expert in a different domain judged by this same list. (2026-10-20: four more experts exist, but none has been judged by this list yet.)
 
 ## Recording the decision
 

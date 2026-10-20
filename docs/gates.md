@@ -63,7 +63,7 @@ Exit is always 0, blocking or not, so it stays usable under `set -e`.
   "blocking": { "blocked": true, "reason": "Gate G1: ..." },
   "g3Active": true,
   "experts":  {                              // null outside a feature
-    "decided": true, "selected": ["security"], "available": ["security"],
+    "decided": true, "selected": ["security"], "available": ["architect", "developer", "quality", "security", "softarch"],
     "openFindings": 0,                       // high-confidence findings still open
     "commit": { "allowed": false, "reason": "Gate G6: ..." }
   }

@@ -2,6 +2,8 @@
 
 Why this exists: the cloud session that built the experts cannot reach most documentation hosts (`docs.aws.amazon.com`, `docs.anthropic.com` fail DNS or are refused by the proxy). Run these prompts in a place with open web access (claude.ai with web search, or Claude Code on a machine with a normal network) and bring the answers back. Nothing returned is trusted until each claim has a source URL and a quote.
 
+Since 2026-10-20 the experts themselves have `WebSearch` and `WebFetch` at the plan and review stages. This research is still needed: a reference has to be vetted once, with sources, before it ships, and a lookup during a run is not that.
+
 ## Rules every prompt shares (paste this first)
 
 ```
@@ -26,6 +28,8 @@ Rules:
 ```
 
 ## 1. Architect: verify the AWS Well-Architected material
+
+> Status: not run. The architect's `NOTICE.md` still cites search results for the AWS material; the AWS pages were not fetched.
 
 A draft skill (written by a model, from memory, not from the pages) is below under "Claims to verify". It is useful as a list of things to check. It is not evidence.
 
@@ -57,6 +61,8 @@ Claims to verify:
 
 ## 2. Developer: SOLID, clean code, KISS, design patterns, linters
 
+> Status: run. The results are in `experts/developer/NOTICE.md` ("Primary sources checked on 2026-10-20"). That record is historical now: the developer's checklist has changed since.
+
 ```
 [shared rules above]
 
@@ -76,6 +82,8 @@ Also return: which of the 15 checks in our current developer checklist have no p
 
 ## 3. Software architect: boundaries, dependencies, contracts
 
+> Status: not run. The softarch `NOTICE.md` still cites search results.
+
 ```
 [shared rules above]
 
@@ -92,6 +100,8 @@ Also return: which sources contradict the layering ideal when a repository does 
 ```
 
 ## 4. Quality engineer: oracles, contracts, evals, gates
+
+> Status: not run.
 
 ```
 [shared rules above]
@@ -110,6 +120,8 @@ I. Secrets and personal data in fixtures: OWASP guidance and GitHub secret scann
 ```
 
 ## 5. Agent-system architect (not built yet)
+
+> Status: not run; the expert is not built.
 
 The user said agent-specific design should be a different expert from the system architect. This prompt gathers its sources.
 

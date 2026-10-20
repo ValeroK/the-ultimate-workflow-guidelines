@@ -28,16 +28,16 @@ Dropped: everything that runs a tool, fetches a page, or installs something.
 - Method: read the project's written rules first; Chesterton's fence before calling something unnecessary; stop after three empty searches; one finding per repeated problem; mark read versus inferred evidence.
 - Build brief: every changed line traces to the task; keep a property next to the thing; find out why something exists before removing it.
 - Not taken: personas, capability lists, length and nesting thresholds, praise sections, language-specific rules (they go to skills), anything that runs tools or edits code.
-- Not remeasured yet. The held-out split of the general review corpus is reserved for this change.
+- Measured 2026-10-20 on the held-out review split with skills injected: saturated, no dilution, no gain shown.
 
 ## 2026-10-20: first shared skills
 
 - The plan and review references name two shared skills with their cues: `engineering-principles` (exact meaning, misreading, counter-case of each principle and pattern) and `failure-handling` (questions per handler, hiding patterns by language, retries, cleanup, what is not a finding).
-- Not measured yet. The held-out split of the general review corpus is still reserved.
+- Measured 2026-10-20 on the held-out review split with skills injected: saturated, no dilution, no gain shown.
 
 - Later the same day: the review reference also names `python-craft` and `typescript-craft`, loaded by file type.
 - Then `simplification`, `surgical-change` and `dependency-discipline` (review), and `dependency-discipline` (plan).
-- Then `go-craft`, `rust-craft`, `java-craft` and `react-craft` (review), loaded by file type. All eleven planned skills are now built; none is measured yet.
+- Then `go-craft`, `rust-craft`, `java-craft` and `react-craft` (review), loaded by file type. All eleven planned skills are now built; none was measured then. A twelfth shared skill, `test-craft`, belongs to the quality expert.
 
 ## 2026-10-20: skills chosen in code
 
@@ -45,4 +45,4 @@ Dropped: everything that runs a tool, fetches a page, or installs something.
 - `surgical-change`, `simplification` and `engineering-principles` are `always`: no file name or added line shows when they apply, and a cue had already failed to load them.
 - Build: the brief now names skills too (`## Skills` in `build.md`, cut out of the brief text), chosen from the files and text of the plan.
 - Plan stage: the call that chooses the experts also picks skills from the plan list, by headline, and the chosen text is pasted in. Still a model's choice, but a required answer.
-- Not measured. The reserved held-out split of the general review corpus is the test, and it may show the larger prompt costs more than it adds.
+- Measured 2026-10-20 on the held-out review split with skills injected: saturated, no dilution, no gain shown.

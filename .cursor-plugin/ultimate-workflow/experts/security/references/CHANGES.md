@@ -14,7 +14,7 @@ Upstream: `anthropics/claude-code-security-review`, `.claude/commands/security-r
 - Three confidence scales (over 80%, 0.7 to 1.0, and 1 to 10 with a cutoff of 8) became one: 1 to 10, report 8 or above, mapped to the `high` and `medium` values of the workflow's confidence field.
 - Duplicate list numbering (two items numbered 16) removed.
 - "Secrets stored on disk are excluded" contradicted "hardcoded secrets are in scope". Now: a hardcoded secret in source is a finding; a correctly permissioned secret on disk is not.
-- "Do not use the bash tool" next to an allowlist of git commands. The expert now has no shell at all and receives the diff as a file.
+- "Do not use the bash tool" next to an allowlist of git commands. The expert may now run read-only commands only (search, list, `git log`, `git show`, a scanner that modifies nothing), and receives the diff as a file.
 
 ## Reversed
 

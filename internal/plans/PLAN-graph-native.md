@@ -12,8 +12,10 @@ gate_violation:
 
 # PLAN: graph-native
 
+> Historical: shipped (see CHANGELOG). Kept because code comments cite it.
+
 > Rebuild of the enforcement approach, for Claude Code. Supersedes the
-> gates-first sequencing in [PRD-graph-orchestration.md](PRD-graph-orchestration.md)
+> gates-first sequencing in [PRD-graph-orchestration.md](../../PRD-graph-orchestration.md)
 > section 10.1 (Q2). The PRD's *design* still stands; its *priority order* was wrong.
 
 ## The change in one line

@@ -3,7 +3,9 @@
 The plugin does two things:
 
 1. **The ADLC workflow.** Plan, tests, build, review and harvest, with confirmation points and gates. This exists.
-2. **The expert catalogue.** Experts that any phase can bring in, each with the skills and tools it loads only when the change needs them. This document lists the experts. The next step maps each expert's skills, and then each expert is built one at a time.
+2. **The expert catalogue.** Experts that any phase can bring in. This document lists them. Experts 1 to 5 are built: `architect`, `softarch`, `developer`, `quality` and `security`. Skills are mapped for two of them: `developer` (eleven skills) and `quality` (`test-craft`). `architect`, `softarch` and `security` have none. Experts 6 to 14 are not built.
+
+Skills are chosen in code at review, build and tests, and by a model question at plan; the chosen text is pasted into the expert's prompt. How it works: [Shared skills](adding-an-expert.md#shared-skills).
 
 ## Where the list comes from
 
@@ -42,6 +44,7 @@ An agent was placed under an expert by its name and the survey's domain notes, n
 ### 3. Senior developer (have: `developer`)
 - **Owns:** craft in new code: simplicity, SOLID, duplication, naming, error handling, dependencies. It is also the standing brief at build.
 - **Stages:** plan, build, review.
+- **Skills:** see the table below and `docs/experts/developer.md`.
 - **Upstream agents:**
   - addyosmani `code-reviewer`
   - ECC `code-reviewer`, `code-simplifier`, `silent-failure-hunter`, `refactor-cleaner`, and 20 language reviewers (`python-`, `typescript-`, `go-`, `rust-`, `java-reviewer` and others)
@@ -66,7 +69,7 @@ An agent was placed under an expert by its name and the survey's domain notes, n
 
 ### 5. Security (have: `security`)
 - **Owns:** application security, authentication and authorisation, secrets, dependencies and supply chain, agent and CI configuration.
-- **Stages:** plan, tests, review.
+- **Stages:** plan, tests, review. Also references `agent-surface.md` and `dependencies.md`, and the dependency audit script `experts/deps-audit.js`.
 - **Upstream agents:**
   - addyosmani, anthropics, wshobson and buildwithclaude `security-auditor`
   - ECC `security-reviewer`
@@ -172,12 +175,40 @@ An agent was placed under an expert by its name and the survey's domain notes, n
   - alirezarezvani `cs-dpo-gdpr`, `cs-soc2-auditor`, `cs-ai-act-compliance`
 - **Survey candidates:** privacy (agency-agents 70, Sushegaad GRC 62).
 
+## Skills by expert and stage
+
+Taken from the `## Skills` list in each stage reference under `.cursor-plugin/ultimate-workflow/experts/<name>/references/`. Skills live in `experts/skills/<name>/skill.md`. The selector is the rule in parentheses on the reference line; at plan there is none, and a model chooses from the skills offered. Rows are in each reference's priority order.
+
+| Expert | Stage | Skill | Selector as written | For |
+|---|---|---|---|---|
+| developer | review | `failure-handling` | `added: \b(catch\|except\|rescue\|recover\|finally\|retry\|fallback\|rollback)\b\|\.catch\(\|Err\(\|unwrap_or\|err != nil\|throw \|raise ` | catch blocks, error returns, fallbacks, retries, undo on failure |
+| developer | build | `failure-handling` | the review regex plus `\|error path\|error handling`, matched against the plan's text | the same, as the plan describes it |
+| developer | review, build | `python-craft` | `files: *.py, *.pyi` | Python idioms and mistakes |
+| developer | review, build | `typescript-craft` | `files: *.ts, *.tsx, *.mts, *.cts, *.js, *.jsx, *.mjs, *.cjs` | TypeScript and JavaScript |
+| developer | review, build | `react-craft` | `files: *.tsx, *.jsx` | React components and hooks |
+| developer | review, build | `go-craft` | `files: *.go, go.mod` | Go |
+| developer | review, build | `rust-craft` | `files: *.rs, Cargo.toml` | Rust |
+| developer | review, build | `java-craft` | `files: *.java, pom.xml, build.gradle, build.gradle.kts` | Java |
+| developer | review, build | `dependency-discipline` | `files: package.json, package-lock.json, yarn.lock, pnpm-lock.yaml, requirements*.txt, pyproject.toml, uv.lock, poetry.lock, Pipfile, Pipfile.lock, go.mod, go.sum, Cargo.toml, Cargo.lock, pom.xml, build.gradle, build.gradle.kts, Gemfile, Gemfile.lock` | a manifest or lockfile change |
+| developer | review, build | `surgical-change` | `always` | every changed line traced to the task |
+| developer | review, build | `simplification` | `always` | no structure the change does not need |
+| developer | review, build | `engineering-principles` | `always` | a principle's exact meaning and counter-case |
+| developer | plan | `engineering-principles` | offered | the plan adds structure |
+| developer | plan | `dependency-discipline` | offered | the plan adds, removes or upgrades a dependency |
+| developer | plan | `failure-handling` | offered | the plan adds error paths, fallbacks, retries or multi-step writes |
+| quality | tests | `test-craft` | `always` | each case can fail and has an exact expected value |
+| quality | build | `test-craft` | `always` | writing any test |
+
+No skills: `architect` (plan, review), `softarch` (plan, review), `security` (plan, tests, review), and `quality` at plan and review.
+
+Fixed cost per build: the developer's three `always` skills, `test-craft` and the two briefs come to about 28 KB before any file-matched skill.
+
 ## What is not an expert, and where it goes instead
 
 | Upstream items | Where they go |
 |---|---|
 | Planners, spec writers, PRD agents, TDD red/green, interview and refine agents | Part 1, the workflow phases |
-| Language reviewers (ECC's 20, the `*-expert` and `*-pro` agents in wshobson and buildwithclaude) | **Skills** the developer expert loads by language |
+| Language reviewers (ECC's 20, the `*-expert` and `*-pro` agents in wshobson and buildwithclaude) | Language **skills** that code selects by file name for the developer expert |
 | Build-error resolvers (ECC's `*-build-resolver`) | Build-phase skills or tools, not reviewers |
 | Doc writers, doc updaters, comment analysers, ADR generators | The harvest phase, or skills |
 | FinOps, threat modelling, OWASP, RLS, Docker hardening | **Skills** under their expert |
@@ -197,6 +228,8 @@ That leaves 9 experts instead of 14.
 
 From the survey: DynamoDB and OpenSearch, VPC and networking depth, CloudFormation/CDK review depth, CI/CD beyond GitHub Actions, Claude tool use and MCP design (one good source each), LLM privacy and PII, LLM cost control, alerting and SLOs, and performance. These experts will need more of our own writing.
 
-## Next step
+## Status
 
-For each expert, in build order: list the skills it needs from the 3,694 skill names and the survey candidates, pick the source for each, then build the expert and its skills.
+Built: experts 1 to 5 (`architect`, `softarch`, `developer`, `quality`, `security`). Skills are mapped for `developer` (eleven) and `quality` (`test-craft`); `architect`, `softarch` and `security` have none. Experts 6 to 14 are not built.
+
+Next: choose expert 6 or later. The candidates are agent-system design (6), data and Postgres (8), and UI and accessibility (13).

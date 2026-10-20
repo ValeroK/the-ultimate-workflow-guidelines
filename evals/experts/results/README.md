@@ -15,7 +15,7 @@ What they show:
 
 Judge calibration on the gold sets (label agreement): softarch 100%, developer 100% (after a prompt fix), architect 97%, quality 89% (below the 90% bar: two unlabelled items, two borderline calls). Evidence-rating agreement was 61 to 92% and is informational only.
 
-Not yet done: A2 (third-party skill as is) and A3 (our expert) arms; the heldout split; other models; judge run twice per batch.
+Not yet done: A2 (third-party skill as is) and A3 (our expert) arms; the heldout split; other models; judge run twice per batch. (A2, A3 and the held-out split were run later the same day: see below. Other models and a second judge pass were not.)
 
 ## 2026-10-20 developer expert v1 versus the plain reviewer (dev split, 3 runs, Sonnet reviewers)
 
@@ -26,7 +26,7 @@ File: `2026-10-20-developer-dev-expert-v1-vs-baseline.json`. `A0` plain reviewer
 - Real but unplanted findings ("valid-other"): A3 1, A0 11. The expert is more conservative; some of what it drops is real.
 - Findings per run: 0.64 against 0.81.
 - Lane discipline (a real defect of another domain reported on a sibling case): A3 12 of 24 runs, A0 18 of 24. **This fails the pre-set limit of 10 percent.** Test-quality siblings no longer leak (0, against 10 for A0). What remains is string-built SQL and a swallowing catch, which the expert reports as deviation from the repository's convention and as a swallowed failure. Those are categories of its own checklist that overlap security and reliability.
-- Not yet run: the heldout split. It is untouched; running it once is the unbiased figure.
+- Not yet run: the heldout split. It is untouched; running it once is the unbiased figure. (Run later the same day: see below.)
 - Nothing has been tuned against these results. Any change to the expert after this point makes the dev numbers a development number, not a test.
 
 ## 2026-10-20 developer expert v1, held-out split (run once, expert unchanged since the dev run)
@@ -63,7 +63,7 @@ The pre-set gate passes (a margin of one task is required, and there is one). **
 - `gfd97a60e`: plain 3 of 3, brief 2 of 3. The brief arm's one failure used a config key with a different name from the one specified. That is against the brief, and also noise.
 - `gd6b2b81a`: 0 of 3 in both arms, because the task's check requires a `cancelled_at` timestamp that the request never mentions. A task-authoring defect; it adds the same noise to both arms.
 
-Every craft measure is identical: no trap fallen into by either arm, nothing over-engineered by either arm. The tasks did not separate the arms on craft, because a Sonnet implementer asked for "the smallest change that works" already avoids every trap here (0 of 27 without the brief). So this run shows no evidence that the brief helps, and no evidence that it hurts: no extra over-engineering, equal correctness, equal size. It is cheap (under 3.5 KB per build).
+Every craft measure is identical: no trap fallen into by either arm, nothing over-engineered by either arm. The tasks did not separate the arms on craft, because a Sonnet implementer asked for "the smallest change that works" already avoids every trap here (0 of 27 without the brief). So this run shows no evidence that the brief helps, and no evidence that it hurts: no extra over-engineering, equal correctness, equal size. It is cheap (under 3.5 KB per build). (Note, 2026-10-20, later: builds now also carry pasted skills, about 28 KB fixed per build before any file-matched skill. This run did not measure that.)
 
 Not measured, and the limits of this harness: the brief's rule to run the repository's lint, format and type-check (implementers may not run anything here); other models (Haiku, Opus); larger or longer tasks, where drift over a long session is the real complaint; the held-out split (3 tasks; unrun on purpose, since the dev run did not separate the arms and tuning the tasks against it would spend it). To get a signal: harder tasks authored blind, with the repository's convention far from the code being changed, or a weaker implementer model.
 
@@ -99,7 +99,7 @@ What it says: the upstream skill is a real improvement over a plain reviewer (24
 
 What it does not say:
 - The corpus was written to the narrow craft scope the expert covers (SOLID, simplicity, duplication, error handling, dependencies, speculative generality). The upstream skill also covers security, performance, review process and change sizing, none of which this split rewards. A fair reading is "better on this scope", not "better".
-- One split, 3 runs per case, one judge pass, and an expert whose categories were written against the same taxonomy as the corpus. The held-out split has not been run for this comparison.
+- One split, 3 runs per case, one judge pass, and an expert whose categories were written against the same taxonomy as the corpus. The held-out split has not been run for this comparison. (Run later the same day: see the next section.)
 - The expert's two categories added on 2026-10-20 are still not exercised by any case. This run shows they did not cause regressions on the existing cases, nothing more.
 
 ## developer: the same three arms on the held-out split
@@ -125,7 +125,7 @@ Reading across both splits: the expert's advantage comes from naming specific de
 
 ## A broader corpus: general code review, three arms (dev split)
 
-Corpus `corpus/review.json` (pinned before any run): 36 cases from two blind agents told not to read any checklist, skill or corpus; 20 seeded defects across correctness, edge, concurrency, security, performance, maintainability, resilience and testing (categories in `review-categories.json`), 10 benign, 6 product-and-documentation siblings. This run uses the dev split (14 seeded, 7 benign, 4 sibling); the 11 held-out cases are kept unused. Same arms, models and procedure as above; every judge batch complete. JSON: `2026-10-20-review-dev-three-arms.json`.
+Corpus `corpus/review.json` (pinned before any run): 36 cases from two blind agents told not to read any checklist, skill or corpus; 20 seeded defects across correctness, edge, concurrency, security, performance, maintainability, resilience and testing (categories in `review-categories.json`), 10 benign, 6 product-and-documentation siblings. This run uses the dev split (14 seeded, 7 benign, 4 sibling); the 11 held-out cases are kept unused (run later the same day: see the last section). Same arms, models and procedure as above; every judge batch complete. JSON: `2026-10-20-review-dev-three-arms.json`.
 
 | | A0 plain | A2 upstream skill | A3 developer expert |
 |---|---|---|---|
@@ -156,11 +156,11 @@ What it says:
 What it does not say:
 - The plain reviewer already finds 35 of 42; most of this corpus does not separate the arms. The decisive cases are one test case, one performance case and one maintainability case, so these are small numbers.
 - The judge labelled the same claim (a missing import in an excerpted hunk) false-positive in some batches and valid-other in others. That noise touches valid-other and false-positive counts, not recall.
-- One split, 3 runs, one judge pass. The held-out split is reserved for checking any change made because of this run.
+- One split, 3 runs, one judge pass. The held-out split is reserved for checking any change made because of this run. (Run later the same day, with skills injected: see below.)
 
 ## The broad corpus, held-out split: developer expert v2 with skills injected in code
 
-JSON: `2026-10-20-review-heldout-three-arms-skills-injected.json`. Corpus `review.json`, held-out split, run once: 6 seeded, 3 benign, 2 sibling cases, 3 runs each. Arms as before: `A0` plain, `A2` the addyosmani `code-review-and-quality` skill, `A3` the developer expert v2. For the first time the A3 prompt carries skill text chosen in code, per case, by the same `selectSkills` the review command uses. Each batch carried the union of its cases' skills, 35 KB; one real change gets at most 25 KB. Reviewers on Sonnet, judges on Sonnet. In three batches the judge left out one case, so those three were judged again and the incomplete answers were kept aside.
+JSON: `2026-10-20-review-heldout-three-arms-skills-injected.json`. Corpus `review.json`, held-out split, run once: 6 seeded, 3 benign, 2 sibling cases, 3 runs each. Arms as before: `A0` plain, `A2` the addyosmani `code-review-and-quality` skill, `A3` the developer expert v2. For the first time the A3 prompt carries skill text chosen in code, per case, by the same `selectSkills` the review command uses. Each batch carried the union of its cases' skills, 35 KB; any one case in this split gets at most 25 KB; the cap is 32 KB per expert per stage. Reviewers on Sonnet, judges on Sonnet. In three batches the judge left out one case, so those three were judged again and the incomplete answers were kept aside.
 
 | | A0 plain | A2 upstream skill | A3 expert + skills |
 |---|---|---|---|
@@ -180,3 +180,9 @@ What it says:
 - The sibling-leak check fails in every arm (6 of 6). As before, that is expected of a general reviewer and only informational for this corpus.
 
 What would answer the open question: cases the plain reviewer misses (repository context, a convention two files away), and an expert-without-skills arm on them.
+
+## Not measured
+
+- Skills at the build, tests and plan stages. Only review, on the held-out split above, has been run with skills.
+- An expert-without-skills twin on any split.
+- Skills in the build brief generation eval: that harness (`eval/lib/gen.js`) does not inject skills, so its results above say nothing about them. The brief itself was inconclusive there.

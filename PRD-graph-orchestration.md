@@ -624,6 +624,8 @@ The question is asked once, its answer is written into `PRD.md` front-matter as 
 
 **Q7 — Prompt duplication. RESOLVED: single source.** Each phase prompt lives once in `phases/<name>.md`; the workflow script, the subagent definition, and the skill prose all reference it. Decided before any prompt is written three times, because retrofitting a single source after the fact does not happen.
 
+Superseded: workflow scripts cannot read files; the agent definition is the single source for a role (see .cursor-plugin/ultimate-workflow/memory/workflows-authoring.md).
+
 **Q8 — Escalation payload. RESOLVED: reuse the blocker protocol.** The existing skill already specifies what an escalation looks like — name the problem, present two or three options with tradeoffs, wait for the user. The round-cap escalation emits exactly that, plus what was tried, what changed between rounds, and the failure signature. No second escalation format.
 
 ### 10.2 Still open

@@ -4,10 +4,10 @@ Kept as ideas: see NOTICE.md in the folder above. Everything is restated.
 
 Reversed or narrowed:
 - Persona framing ("you are a senior ...") dropped.
-- Sources that treat a principle or a framework name as a finding: removed as topics. A finding here needs a stated cost and a path.
-- Advice that argues for structure, regions, replicas or layers without a workload reason: dropped. The system's own conventions come first.
+- Coverage percentage by itself, test names, layout and style, and framework or assertion-library preferences: not findings (the "Do not report" list in `review.md`).
+- Claims that need a run (whether a test fails first, what a mutation tool would report): asked for in the finding, never reported as established, because the expert cannot run anything.
 
-Added by us (no source): the calibration to workload criticality; the rule to raise everything found while naming the domain it belongs to; the cap of four constraints at the plan stage; the "Do not report" lists.
+Added by us (no source): the rule to raise everything found while naming the domain it belongs to; the caps of four constraints and four risks at the plan stage and eight cases at the tests stage; the "Do not report" list in `review.md`.
 
 Dropped: everything that runs a tool, fetches a page, or installs something.
 
@@ -17,4 +17,4 @@ Dropped: everything that runs a tool, fetches a page, or installs something.
 - New shared skill `test-craft` (always, at build and tests): a test that can fail, the expected value, doubles, determinism, shape. Sources and the choices between them are in its NOTICE.
 - The agent file says `always: [tests]`: the quality expert joins every tests stage, whether or not the plan selected it.
 - `tests.md` asks that each case be one that can be written to the `test-craft` standard.
-- Not measured.
+- Not measured at build or tests. The dev-split review was measured, with no gain shown: the plain reviewer already finds every seeded defect on that corpus.

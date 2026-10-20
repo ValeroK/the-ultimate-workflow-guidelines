@@ -372,3 +372,10 @@ test('architect review: a cache or CDN change selects caching-and-latency; a pla
   assert.ok(arch({ 'infra/cdn.tf': ['resource "aws_cloudfront_distribution" "site" {'] }).includes('caching-and-latency'));
   assert.ok(!arch({ 'svc/handler.py': ['def handle(event):', '    return {"statusCode": 200}'] }).includes('caching-and-latency'));
 });
+
+test('architect review: tenant ids and row-level security select multi-tenancy; ordinary code does not', () => {
+  assert.ok(arch({ 'svc/orders.py': ['    rows = db.query(Order).filter_by(tenant_id=ctx.tenant_id)'] }).includes('multi-tenancy'));
+  assert.ok(arch({ 'db/001.sql': ['ALTER TABLE orders ENABLE ROW LEVEL SECURITY;'] }).includes('multi-tenancy'));
+  assert.ok(arch({ 'db/002.sql': ["CREATE POLICY p ON orders USING (tenant = current_setting('app.tenant'));"] }).includes('multi-tenancy'));
+  assert.ok(!arch({ 'svc/orders.py': ['    rows = db.query(Order).all()'] }).includes('multi-tenancy'));
+});

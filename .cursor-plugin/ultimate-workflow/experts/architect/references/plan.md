@@ -38,5 +38,6 @@ The workflow asks, in the call that chooses the experts, which of these the draf
 
 - `experts/skills/lambda-event-sources/skill.md`: load when the plan adds a queue, stream or event that triggers Lambda, or changes concurrency, for how these lose or repeat messages.
 - `experts/skills/step-functions/skill.md`: load when the plan adds a workflow, a saga or any multi-step process that must undo earlier steps on failure.
+- `experts/skills/multi-tenancy/skill.md`: load when the plan serves more than one customer from shared data or resources, for the isolation model, tenant context, enforcement and tenant lifecycle.
 - `experts/skills/caching-and-latency/skill.md`: load when the plan adds a cache, a CDN or a latency target.
 - `experts/skills/aws-well-architected/skill.md`: load when the plan adds or changes AWS infrastructure or a call to an AWS service, for the recovery tiers, the practices a plan should turn into constraints, and verified AWS costs and limits.

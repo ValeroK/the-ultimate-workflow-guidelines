@@ -42,7 +42,7 @@ Each fact in the two serverless skills says where it comes from: AWS's own devel
 **Deferred, with a research prompt each** (`docs/expert-research-prompts.md`, prompts 1b and 1c):
 
 - **Messaging semantics** (SQS standard and FIFO, SNS, EventBridge, Kinesis: ordering, deduplication windows, retention, payload limits, delivery and retry policies). No surveyed source held them.
-- **Multi-tenancy isolation** (silo, pool and bridge models from the SaaS Lens; tenant context, noisy neighbours). The plan and review references keep their tenancy checks until then.
+- **Multi-tenancy isolation** (silo, pool and bridge models from the SaaS Lens; tenant context, noisy neighbours). Multi-tenancy is the architect's, not the data expert's (decided 2026-10-20), including tenant isolation where data is read; the data expert only knows each store's mechanics (row-level security, partition keys). The plan and review references keep their tenancy checks until the skill exists. Candidate sources besides the SaaS Lens: cloudflare's tenancy skill and supabase's row-level security guidance.
 
 Rejected as separate skills: cost and FinOps (the sources were discount headlines; the cost checks are in `aws-well-architected`), sagas on their own (folded into `step-functions`), capacity planning (the source sized support teams), and decision records (the plan reference already says when one is needed).
 

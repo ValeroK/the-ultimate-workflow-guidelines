@@ -20,7 +20,7 @@ An agent was placed under an expert by its name and the survey's domain notes, n
 "Have" means the expert exists in the plugin today. Upstream agents are listed by repository. The survey candidates column gives the best-scored skill sources for that domain (score 0 to 100).
 
 ### 1. System architect (have: `architect`)
-- **Owns:** components and services, the flows between them, AWS service fit, failure handling at boundaries, state, cost, and the Well-Architected concerns.
+- **Owns:** components and services, the flows between them, AWS service fit, failure handling at boundaries, state, cost, the Well-Architected concerns, and multi-tenancy (isolation models, tenant context through every layer, tenant isolation where data is read, noisy neighbours, per-tenant limits and cost).
 - **Stages:** plan, review.
 - **Sources compared and skills:** `docs/experts/architect.md`.
 - **Upstream agents:**
@@ -29,7 +29,7 @@ An agent was placed under an expert by its name and the survey's domain notes, n
   - wshobson and buildwithclaude `cloud-architect`, `architect-review`
   - awslabs aidlc `architect-agent`, `aidlc-architecture-reviewer-agent`
   - anthropics `architecture-critic`
-- **Survey candidates:** AWS serverless (aws/agent-toolkit, 62), finops (agency-agents, 66), our `distributed-systems-resilience-guidelines` and `system-architect-engineering-guidelines` skills.
+- **Survey candidates:** AWS serverless (aws/agent-toolkit, 62), finops (agency-agents, 66), tenancy (cloudflare, 70; RLS from supabase, 82, for the data-layer mechanics), our `distributed-systems-resilience-guidelines` and `system-architect-engineering-guidelines` skills.
 
 ### 2. Software architect (have: `softarch`)
 - **Owns:** module boundaries, dependency direction, public contracts and their compatibility, data ownership between modules.
@@ -97,7 +97,7 @@ An agent was placed under an expert by its name and the survey's domain notes, n
 ### 7. (merged into 6)
 
 ### 8. Data and database (new)
-- **Owns:** Postgres and pgvector schema, migrations, queries and indexes, DynamoDB key design, tenancy and data lifecycle at the data layer.
+- **Owns:** Postgres and pgvector schema, migrations, queries and indexes, DynamoDB key design, and data lifecycle at the data layer. Multi-tenancy is the architect's (decided 2026-10-20), including tenant isolation where data is read.
 - **Stages:** plan, review.
 - **Upstream agents:**
   - ECC `database-reviewer`
@@ -106,7 +106,7 @@ An agent was placed under an expert by its name and the survey's domain notes, n
   - awesome-copilot `postgresql-dba`, `neon-migration-specialist`, `neon-optimization-analyzer`
   - agency-agents `database-optimizer`, `database-reliability-engineer`, `data-engineer`
   - alirezarezvani `migration-planner`
-- **Survey candidates:** migrations (timescale, 84), pgvector (timescale, 82), RLS (supabase, 82), DB reliability (agency-agents, 72), Postgres table design (timescale and wshobson, 62 to 70), tenancy (cloudflare, 70), AWS data (aws/agent-toolkit, 72).
+- **Survey candidates:** migrations (timescale, 84), pgvector (timescale, 82), RLS (supabase, 82), DB reliability (agency-agents, 72), Postgres table design (timescale and wshobson, 62 to 70), AWS data (aws/agent-toolkit, 72). (Tenancy, cloudflare 70, moved to the architect.)
 - **Full catalogue sweep (2026-10-20), skills to read when it is built:**
   - Vendors first: planetscale/database-skills `postgres`, `mysql`; supabase/agent-skills `supabase-postgres-best-practices`; timescale/pg-aiguide `design-postgres-tables`, `postgres-database-migration`, `postgres`, `pgvector-semantic-search`, `postgres-hybrid-text-search`; aws/agent-toolkit `amazon-dynamodb`, `amazon-aurora-postgresql`, `aurora-dsql`, `aws-database`, `connecting-lambda-to-dynamodb`.
   - Community: ECC `postgres-patterns`, `database-migrations`, `prisma-patterns`, `mysql-patterns`, `redis-patterns`; itsmostafa/aws-agent-skills `dynamodb`, `rds`; wshobson `postgresql-table-design`, `sql-optimization-patterns`, `database-migration`; Jeffallan `postgres-pro`, `sql-pro`, `database-optimizer`; alirezarezvani `database-designer`, `database-schema-designer`.

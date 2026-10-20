@@ -113,23 +113,75 @@ H. Research on what LLM-written code typically gets wrong (security, over-abstra
 Also return: which of the 15 checks in our current developer checklist have no primary source behind them. The checks are: unearned abstraction, complexity moved not removed, two reasons to change, growing type switch, substitutability, interface too wide, hard-wired dependency, diverged duplicate, swallowed failure, wrong or hidden meaning, flag switching behaviour, speculative generality, shared mutable state, new dependency, dead code.
 ```
 
-## 3. Software architect: boundaries, dependencies, contracts
+## 3. Software architect: contract compatibility and module boundaries
 
-> Status: not run. The softarch `NOTICE.md` still cites search results.
+> Status: sent to the maintainer on 2026-10-20 (playbook step 6b); waiting for the reply. The claims come from three drafted skills (`protobuf-compat`, `schema-evolution`, `module-boundaries`) and the upstream sources compared the same day. Principles (dependency direction, stable dependencies) are not in it: a page cannot confirm or contradict them, and the reference already treats them as the repository's call.
 
 ```
 [shared rules above]
 
-Task: build the verified source list for a software-architect reviewer (code components, module boundaries, contracts).
+Task: verify the facts a software-architect reviewer relies on when it reads a diff that changes a contract (protobuf, OpenAPI, JSON Schema, GraphQL, a published package) or a module boundary (Go, Node and TypeScript, Java modules, Python import-linter, dependency-cruiser, Nx, ArchUnit, pnpm workspaces). For each claim below: confirmed, different (give the documented value), or not found, with the page and a quote. Prefer the spec or the tool's own documentation. Then add up to 10 facts from the same pages that a reviewer of a diff would need and that are not listed.
 
-A. Dependency direction and layering: Robert Martin's dependency rule, Alistair Cockburn's ports and adapters, Parnas on information hiding (1972), Stable Dependencies and Stable Abstractions principles. The primary source for each.
-B. Cycles and coupling: the acyclic dependencies principle; how tools report cycles (dependency-cruiser, import-linter, ArchUnit, Go's import rules). Official documentation for each.
-C. API and contract compatibility: semantic versioning (semver.org), Google API Improvement Proposals on compatibility (AIP-180 and related), Protocol Buffers and gRPC compatibility rules, OpenAPI and JSON schema evolution, Hyrum's law, Postel's law and its criticism, tolerant reader. The exact list of changes each source calls breaking, including adding an enum value and changing nullability.
-D. Data ownership: database per service, shared database as an integration style, expand-and-contract migrations. Primary source (Newman, Fowler, Richardson, vendor docs).
-E. Architecture decision records (Nygard) and when a structural change should carry one.
-F. Modular monolith versus services: published arguments from both sides, with the conditions each source gives.
+Claims to verify:
 
-Also return: which sources contradict the layering ideal when a repository does not follow it, so the reviewer knows when NOT to report.
+Protobuf and gRPC
+1. Changing the number of an existing field is a breaking change. (protobuf.dev/programming-guides/proto3/#updating)
+2. A deleted field's number must not be reused; `reserved` makes the compiler refuse reuse. (proto3/#reserved)
+3. Reserving the field's name as well protects encodings that use names (ProtoJSON, text format).
+4. A new field with a new number is wire-compatible; an old binary keeps it as an unknown field when it parses the binary format.
+5. int32, uint32, int64, uint64 and bool are wire-compatible with each other, and a narrower reader truncates the value.
+6. string and bytes are compatible only while the bytes are valid UTF-8.
+7. Moving fields into an existing oneof is unsafe; moving a single field into a new oneof is safe.
+8. Changing a field between types with different wire encodings (string to int32) is breaking.
+9. proto3 has no `required` label.
+10. proto3 `optional` (explicit presence) is on by default from protoc 3.15, experimental from 3.12. (programming-guides/field_presence)
+11. A proto3 enum's first value must be 0; a `*_UNSPECIFIED` zero value is recommended. (proto3/#enum, best-practices/dos-donts)
+12. proto3 enums are open and proto2 enums closed; what a reader does with an unknown value differs by language. (programming-guides/enum)
+13. Adding an enum value with a new number is wire-compatible.
+14. ProtoJSON does not keep unknown fields, and renaming a field or enum value breaks ProtoJSON. (programming-guides/json)
+15. Under Editions, `reserved` names are written as identifiers without quotes. (editions/overview)
+16. Buf's breaking-change categories are FILE, PACKAGE, WIRE_JSON and WIRE, and FILE is the default. (buf.build/docs/breaking/rules)
+17. A gRPC method's path is /package.Service/Method, so renaming the package, service or method breaks existing clients. (grpc/grpc doc/PROTOCOL-HTTP2.md)
+18. AIP-180's list of backward-incompatible changes: give the exact list (field removal or rename, type change, moving into or out of a oneof, resource name format, default values, anything else). (google.aip.dev/180)
+
+OpenAPI and JSON Schema
+19. OpenAPI 3.0 marks a nullable schema with `nullable: true`; 3.1 removes it in favour of a type array that includes "null". (spec.openapis.org/oas/v3.0.3 and v3.1.0)
+20. When `additionalProperties` is absent, a JSON Schema object accepts properties it does not list. (json-schema.org understanding-json-schema, object)
+21. OpenAPI Operation and Schema objects support `deprecated: true`.
+22. oasdiff classifies a new required request property, a removed response property and a removed operation as breaking. (oasdiff documentation)
+
+GraphQL
+23. Removing an output field is breaking; on an output field, non-null to nullable is breaking and nullable to non-null is not. (graphql-inspector documentation)
+24. On an argument or input field, nullable to non-null without a default is breaking, and the reverse is not.
+25. graphql-inspector classifies removing a union member, removing an enum value, and removing an interface from an object type as breaking; adding an enum value as dangerous.
+26. From the October 2021 spec, `@deprecated` may be applied to arguments and input fields. (spec.graphql.org/October2021)
+27. A client may omit a non-null argument that has a default value.
+
+HTTP
+28. The Sunset header is defined in RFC 8594.
+29. The Deprecation header is defined in RFC 9745.
+
+Versioning
+30. SemVer item 4: under major version 0 anything may change at any time; the public API is not stable. (semver.org)
+31. npm's ^0.2.3 means >=0.2.3 <0.3.0, and ^0.0.3 means only 0.0.3. (npm/node-semver, caret ranges)
+32. Go modules at major version 2 or above need a /vN suffix in the module path. (go.dev/ref/mod#major-version-suffixes)
+
+Module boundaries
+33. Go refuses an import of a path containing `internal` from outside the tree rooted at the parent of `internal`. (pkg.go.dev/cmd/go, Internal Directories)
+34. When a package.json has `exports`, Node refuses subpaths it does not list, with ERR_PACKAGE_PATH_NOT_EXPORTED. (nodejs.org/api/packages.html)
+35. TypeScript honours `exports` only under moduleResolution node16, nodenext or bundler, not node10. (typescriptlang.org modules reference)
+36. A referenced TypeScript project needs `composite: true`, and circular project references are an error. (typescriptlang.org project references)
+37. In Java modules, other modules can use a package at compile time only if it is exported; `opens` grants reflective access at run time only. (JLS 7.7)
+38. Two modules in the same layer may not contain the same package (split packages). (java.lang.module package summary)
+39. import-linter's contract types include forbidden, layers and independence: give the full current list. (import-linter.readthedocs.io, contract types)
+40. import-linter reads its configuration from .importlinter, setup.cfg or pyproject.toml ([tool.importlinter]).
+41. dependency-cruiser's forbidden rules match `from` and `to` paths by regular expression, and `to.path` can refer to groups captured in `from.path` as $1. (dependency-cruiser rules reference)
+42. dependency-cruiser forbids cycles with `to: { circular: true }`.
+43. Nx enforce-module-boundaries takes depConstraints with sourceTag, onlyDependOnLibsWithTags and notDependOnLibsWithTags, and reports deep imports into another project. (nx.dev enforce-module-boundaries)
+44. ArchUnit's FreezingArchRule records existing violations and fails only on new ones. (archunit.org user guide)
+45. pnpm replaces `workspace:` ranges with real versions on pack and publish. (pnpm.io/workspaces)
+
+Also return: which of these differ between versions still in common use (protobuf editions against proto3, OpenAPI 3.0 against 3.1, TypeScript module resolution modes), so the reviewer knows when to ask which version the repository uses.
 ```
 
 ## 4. Quality engineer: oracles, contracts, evals, gates
@@ -302,7 +354,7 @@ Also return: what a reviewer can and cannot judge from a diff, and when a change
 | 1b | Architect: messaging and unverified facts | not run | Unblocks a messaging skill and confirms the [T] facts |
 | 1c | Architect: multi-tenancy | not run | Unblocks a tenancy skill |
 | 2 | Developer | done | Used in the developer references and skills |
-| 3 | Software architect | not run | The expert ships with sources from search results only |
+| 3 | Software architect | sent to the maintainer 2026-10-20, waiting | 45 claims on contract compatibility and module boundaries, from the drafted skills |
 | 4 | Quality engineer | not run | The expert ships; `test-craft` was built from upstream skills, not primary sources |
 | 5 | Generative AI engineer | not run | Next expert to build |
 | 6 | Data and database | not run | Next after the Generative AI engineer |

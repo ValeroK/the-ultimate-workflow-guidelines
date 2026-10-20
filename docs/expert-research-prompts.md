@@ -119,25 +119,165 @@ H. Gates: what makes a CI gate unable to fail (zero tests collected passing, all
 I. Secrets and personal data in fixtures: OWASP guidance and GitHub secret scanning documentation.
 ```
 
-## 5. Agent-system architect (not built yet)
+## 5. Generative AI engineer: prompts, model calls, agents, RAG, Bedrock and AgentCore
 
-> Status: not run; the expert is not built. It is now part of the Generative AI engineer (catalogue 6), which also needs a research pass on Amazon Bedrock AgentCore (Runtime, Gateway and the rest). The Generative AI Lens is already researched: `docs/research/aws-well-architected-2026-10-20.md`.
+> Status: not run. The expert is not built (catalogue 6, which merges the former agent-system architect and AI/LLM engineer). The Generative AI Lens part is already researched (`docs/research/aws-well-architected-2026-10-20.md`); do not repeat it, except where section G asks.
 
-The user said agent-specific design should be a different expert from the system architect. This prompt gathers its sources.
+This expert reviews code and plans that call language models or build agents: prompts, tool definitions, agent loops, retrieval, guardrails, model cost and evaluation, on any provider and on AWS (Amazon Bedrock and Amazon Bedrock AgentCore).
 
 ```
 [shared rules above]
 
-Task: build the verified source list for an agentic-systems design reviewer.
+Task: build the verified source list for a generative-AI engineering reviewer.
 
-A. Anthropic's "Building effective agents" and the Claude Code, Agent SDK and Claude Agent skills documentation: workflows versus agents, orchestrator-worker, evaluator-optimizer, when not to use an agent.
-B. Tool design: the tool-definition guidance from Anthropic, OpenAI and the Model Context Protocol specification; tool error handling, idempotency, argument validation, output size limits.
-C. Security: the OWASP Top 10 for LLM Applications (current edition), the OWASP guidance on agentic threats, prompt injection research (indirect injection, Greshake et al.), and MCP security guidance. For each risk: what is visible in a code diff.
-D. Reliability: loop and budget limits, timeouts, retries with backoff for model APIs, fallback models, state and checkpointing, human approval for destructive actions. Primary sources only.
-E. Memory and context: context-window management, what to persist, how stale memory fails. Published guidance and any measured results.
-F. Evaluation of agents: trajectory and outcome evals, tool-call correctness, pass^k for reliability. Sources and numbers.
-G. The AWS Generative AI Lens and Amazon Bedrock Agents and AgentCore documentation: what they require for guardrails, identity, and observability.
+A. Prompt engineering. Anthropic's prompt engineering documentation (docs.anthropic.com / docs.claude.com) and OpenAI's prompt engineering guide: what each says about system prompts versus user messages, structure (XML tags or delimiters), examples, asking for a format, prefilling, long-context placement, chain of thought, and what they say NOT to do. Then the prompt-caching rules: Anthropic's cache breakpoints, minimum cacheable length, time to live, and what invalidates the cache; the same for Amazon Bedrock prompt caching (`cachePoint`). For each rule: what a reviewer would see in code (a prompt built by string concatenation with user text, a cache breakpoint after a part that changes every call).
+
+B. Model calls and their failure modes. For the Anthropic Messages API and the Amazon Bedrock Converse / InvokeModel APIs: the documented error types and which are retryable (rate limit, overloaded, throttling, validation), the recommended retry and backoff, `max_tokens` and stop reasons (what happens when output is cut at `max_tokens`), streaming, timeouts, and structured output (tool use or JSON schema) versus parsing free text. Quote the error names and status codes.
+
+C. Tool use and agents. Anthropic "Building effective agents" (workflows versus agents, orchestrator-worker, evaluator-optimizer, when not to use an agent), Anthropic's tool-use documentation and its guidance on writing tools for agents, OpenAI's function-calling guide. Tool design rules: names and descriptions, argument validation, errors returned to the model, output size limits, idempotency, and human confirmation before destructive actions. Loop limits: maximum steps, token or cost budgets, timeouts.
+
+D. Model Context Protocol. The current MCP specification (modelcontextprotocol.io): its version date, the authorization specification, and its security best practices page (confused deputy, token passthrough, session hijacking, any others it names). What a server or client diff would show.
+
+E. Security of LLM applications. The OWASP Top 10 for LLM Applications 2025 (each item's id and title, for example LLM01), the OWASP agentic AI threats and mitigations guidance (its threat ids), indirect prompt injection (Greshake et al., 2023), and Anthropic's or AWS's guidance on mitigating prompt injection. For each risk: one thing visible in a code diff, and one thing that is not.
+
+F. Retrieval (RAG) and embeddings. Primary sources on chunking, hybrid search, reranking, citation of sources, and evaluation of retrieval (recall@k, faithfulness, groundedness). Amazon Bedrock Knowledge Bases documentation: supported vector stores, chunking strategies, metadata filtering (and whether it can enforce tenant isolation), and quotas. pgvector documentation for index types (HNSW, IVFFlat) and their trade-offs.
+
+G. Amazon Bedrock. From the Bedrock user guide and pricing pages: Guardrails (what each policy type filters, how a guardrail is attached to a call, what happens on a block), Prompt Management, cross-region inference profiles (what they do to latency, quota and data residency), batch inference (eligibility and price), provisioned throughput, model invocation logging, the service quotas that most often throttle (tokens and requests per minute), and the IAM actions that must be scoped (`bedrock:InvokeModel` and others). Confirm the batch discount from the primary pricing page and the prompt-caching saving from a primary page if one exists (the last research found it only in a secondary source).
+
+H. Amazon Bedrock AgentCore. From its own documentation: the list of AgentCore services exactly as AWS names them (for example Runtime, Gateway, Memory, Identity, and any others), what each does, and for each: session or execution limits (maximum duration, payload size), isolation between sessions, how authentication and authorization work (inbound and outbound, OAuth and IAM), how Gateway turns APIs or Lambda functions into MCP tools, what Memory keeps and for how long, and what observability it emits. Its pricing model. What is generally available and what is preview, with dates.
+
+I. Evaluation and cost. Anthropic's guidance on building evals, the LLM-as-a-judge paper (Zheng et al., 2023) on position and verbosity bias and agreement rates, pass@k (Chen et al., 2021) and pass^k for reliability. Published per-token prices are NOT wanted (they change); the pricing structure (input, output, cached, batch) is.
+
+J. What LLM-built applications typically get wrong, from peer-reviewed papers or vendor research with data: quote the finding and the sample size.
+
+Also return: for each of A to H, the three checks you would put first in a code review, each with its source.
 ```
+
+## 6. Data and database: schema changes, transactions, Postgres and DynamoDB
+
+> Status: not run; the expert is not built (catalogue 8).
+
+```
+[shared rules above]
+
+Task: build the verified source list for a data and database reviewer.
+
+A. PostgreSQL schema changes. From the official PostgreSQL documentation (state the version): the lock each ALTER TABLE form takes; which changes rewrite the table; adding a column with a default (and since which version it no longer rewrites); CREATE INDEX CONCURRENTLY and its failure mode; adding a NOT NULL or foreign key with NOT VALID then VALIDATE; lock_timeout and statement_timeout. What a migration diff shows.
+B. Zero-downtime migrations: expand and contract (parallel change), backfills in batches, renaming a column safely. Primary sources (Fowler, vendor docs, the tools' own docs such as strong_migrations, squawk).
+C. Transactions and isolation: PostgreSQL isolation levels and the anomalies each allows, SELECT ... FOR UPDATE, advisory locks, serialization failures and retry. The N+1 query and how ORMs document it (Django, SQLAlchemy, Prisma, Hibernate).
+D. Connections: pool sizing guidance, RDS Proxy and what it does for Lambda, the connection limits of RDS and Aurora as documented.
+E. DynamoDB. From the developer guide: partition key design and hot partitions, adaptive capacity, item size limit, GSI and LSI limits and consistency, transactions and their limits, conditional writes for idempotency, TTL behaviour, on-demand versus provisioned, Scan versus Query. Quote the numbers.
+F. Data lifecycle: backups and point-in-time recovery (RDS, Aurora, DynamoDB), deletion protection, and how an IaC change can delete a database (CloudFormation DeletionPolicy, Terraform prevent_destroy, CDK removalPolicy defaults).
+
+Also return: the five migration mistakes that most often cause an outage, each with a source.
+```
+
+## 7. Cloud infrastructure and IaC: Terraform, CloudFormation, CDK
+
+> Status: not run; the expert is not built (catalogue 9). Overlaps the architect; this one owns how infrastructure code is written and changed, the architect owns what is built.
+
+```
+[shared rules above]
+
+Task: build the verified source list for an infrastructure-as-code reviewer.
+
+A. Terraform: state and locking, `lifecycle` (prevent_destroy, create_before_destroy, ignore_changes) and when each is wrong, `moved` and `import` blocks, provider and module version pinning, plans that replace a resource ("forces replacement"). HashiCorp documentation, with versions.
+B. CloudFormation: DeletionPolicy and UpdateReplacePolicy, which property changes cause replacement (and how the docs mark them), stack policies, drift detection, change sets.
+C. CDK: removalPolicy defaults per resource, construct levels, `cdk diff`, and what the CDK docs say about logical id changes causing replacement.
+D. Static checks: checkov, tfsec / Trivy, cfn-lint, cfn-nag. Their rule ids for the most common findings and how to suppress one with a reason.
+E. Tagging and cost allocation, and least-privilege for deployment roles (OIDC from CI to AWS).
+
+Also return: the changes in an IaC diff most likely to delete or replace data, each with a source.
+```
+
+## 8. Delivery and CI/CD
+
+> Status: not run; the expert is not built (catalogue 10).
+
+```
+[shared rules above]
+
+Task: build the verified source list for a CI/CD and delivery reviewer.
+
+A. GitHub Actions security hardening (GitHub's own docs): pinning actions to a full commit SHA, `permissions` for GITHUB_TOKEN, `pull_request_target` and untrusted checkouts, script injection through `${{ }}` expressions, OIDC to cloud providers instead of long-lived secrets, environments and required reviewers.
+B. Supply chain: SLSA levels (slsa.dev, current version), artifact attestation and provenance, dependency review, Dependabot or Renovate configuration.
+C. Deployment safety: progressive delivery, feature flags, automatic rollback on alarms (AWS CodeDeploy, ECS, Lambda aliases), database migrations in a pipeline.
+D. Gates that cannot fail: `continue-on-error`, allow-failure jobs, required checks that are skipped by path filters, tests that collect nothing. Vendor docs for GitHub Actions and GitLab CI.
+
+Also return: the five pipeline changes most likely to leak a secret or let unreviewed code reach production, with sources.
+```
+
+## 9. Observability and operations
+
+> Status: not run; the expert is not built (catalogue 11).
+
+```
+[shared rules above]
+
+Task: build the verified source list for an observability and operations reviewer.
+
+A. SLOs and alerting: the Google SRE book and workbook chapters on SLOs, error budgets, alerting on symptoms, and multi-window multi-burn-rate alerts (quote the windows and rates).
+B. OpenTelemetry: semantic conventions for HTTP, database and messaging spans (current stability status), context propagation across queues, and the OpenTelemetry guidance on attribute cardinality.
+C. Logging: structured logging, correlation ids, what not to log (OWASP logging cheat sheet), log levels in production, CloudWatch Logs retention and the Embedded Metric Format.
+D. Metrics cost: CloudWatch custom metric and high-cardinality dimension pricing structure, and what the docs say about dimension limits.
+E. Runbooks and alarms: what AWS and SRE sources say an actionable alarm must include.
+
+Also return: the five observability mistakes visible in a diff (an alarm with no action, an unbounded metric dimension, logging a secret), with sources.
+```
+
+## 10. Frontend and accessibility
+
+> Status: not run; the expert is not built (catalogue 13).
+
+```
+[shared rules above]
+
+Task: build the verified source list for a frontend and accessibility reviewer.
+
+A. WCAG 2.2 (W3C): the success criteria new in 2.2 and the level of each; the criteria most often failed in components (name, role, value; focus visible; focus not obscured; target size; contrast). Quote the criterion numbers and titles.
+B. WAI-ARIA Authoring Practices: the first rule of ARIA, the keyboard patterns for dialog, menu, tabs and combobox, and common ARIA misuses.
+C. Core Web Vitals: the current metrics and their "good" thresholds (LCP, INP, CLS) from web.dev, and the main code-level causes of each.
+D. React and framework guidance on accessibility (eslint-plugin-jsx-a11y rules) and on performance (React docs on memoization and when not to).
+E. What automated tools (axe-core, Lighthouse) can and cannot detect, as their own docs state.
+
+Also return: the five accessibility failures most visible in a component diff, with sources.
+```
+
+## 11. Privacy and compliance
+
+> Status: not run; the expert is not built (catalogue 14, which may fold into security).
+
+```
+[shared rules above]
+
+Task: build the verified source list for a privacy reviewer of code changes.
+
+A. GDPR: the articles a code change most often touches (Article 5 principles including data minimisation and storage limitation, Article 17 erasure, Article 25 data protection by design, Article 32 security, Article 35 DPIA), quoted from the official text (EUR-Lex).
+B. Personal data in code: in logs, analytics events, error reports, prompts sent to model providers, test fixtures. OWASP and vendor guidance.
+C. Retention and deletion: how erasure must reach backups, caches, search indexes and derived data, per published guidance.
+D. Data residency and transfers: what cross-region replication or a third-party API call implies, and AWS's documentation on Region selection for data residency.
+E. CCPA/CPRA basics that a code change can affect (do-not-sell signals, deletion requests).
+
+Also return: what a reviewer can and cannot judge from a diff, and when a change needs a person (a DPO or legal) instead.
+```
+
+## Which experts need research, and in what order
+
+| Prompt | Expert | Status | Why it matters next |
+|---|---|---|---|
+| 1 | Architect (AWS Well-Architected) | done 2026-10-20 | Used in `aws-well-architected` |
+| 2 | Developer | done | Used in the developer references and skills |
+| 3 | Software architect | not run | The expert ships with sources from search results only |
+| 4 | Quality engineer | not run | The expert ships; `test-craft` was built from upstream skills, not primary sources |
+| 5 | Generative AI engineer | not run | Next expert to build |
+| 6 | Data and database | not run | Next after the Generative AI engineer |
+| 7 | Cloud infrastructure and IaC | not run | Overlaps the architect; decide whether it is a separate expert after this research |
+| 8 | Delivery and CI/CD | not run | |
+| 9 | Observability and operations | not run | |
+| 10 | Frontend and accessibility | not run | |
+| 11 | Privacy and compliance | not run | May fold into security |
+
+Security (catalogue 5) is not listed: it was built from vetted sources and has its own provenance record. Performance (catalogue 12) has no prompt yet; its material is spread across the architect, data and frontend prompts.
 
 ## What happens with the results
 

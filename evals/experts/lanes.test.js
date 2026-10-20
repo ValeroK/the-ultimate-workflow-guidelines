@@ -158,7 +158,7 @@ test('tests: the plan\'s experts add cases, appended under their names after the
   assert.ok(exp.prompt.includes('PLAN-x.md') && /Expert input/.test(exp.prompt), 'it is pointed at what it required at planning time');
   assert.ok(exp.prompt.includes('the route works'), 'it sees the draft');
   assert.match(result.testsMarkdown, /### Expert test cases\n\n#### security\n\nAbuse cases for the new route\.\n\n- \*\*other user is refused\*\*: GET \/orders\/2 as user 1 returns 403 \(catches: a missing ownership check\)/);
-  assert.deepStrictEqual(result.expertLane, { stage: 'tests', available: ['security'], selected: ['security'], ran: ['security'], failed: [], added: [] });
+  assert.deepStrictEqual(result.expertLane, { stage: 'tests', available: AVAILABLE.map((e) => e.name), selected: ['security'], ran: ['security'], failed: [], added: [] });
 });
 
 test('tests: no critic ever sees the experts\' cases, so they cannot anchor on them', async () => {

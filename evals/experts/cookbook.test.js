@@ -74,10 +74,12 @@ test('an expert that joins only some stages needs only those references, and pas
 
 test('two experts added one after the other both pass, and security still does', () => {
   const tree = copyTree();
+  const shipped = discover(tree.payload).experts.map((e) => e.name);
+  assert.ok(shipped.includes('security'));
   scaffoldExpert({ ...tree, cookbook: text(), name: 'infra', domain: 'infrastructure', fill: FILL });
   scaffoldExpert({ ...tree, cookbook: text(), name: 'privacy', domain: 'privacy', fill: FILL });
   assert.deepStrictEqual(checkAll({ payloadDir: tree.payload, examplesDir: tree.examples }), []);
-  assert.deepStrictEqual(discover(tree.payload).experts.map((e) => e.name).sort(), ['infra', 'privacy', 'security']);
+  assert.deepStrictEqual(discover(tree.payload).experts.map((e) => e.name).sort(), [...shipped, 'infra', 'privacy'].sort());
 });
 
 test('a contributor who skips the placeholders is stopped: the notes and examples fail the contract', () => {

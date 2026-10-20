@@ -173,6 +173,7 @@ test('the recheck can add an expert at commit time, and the commit then waits fo
 
 test('a brand-new expert is picked up by every part of the flow with no edit beyond its own files', async () => {
   const { payload, examples } = pluginCopy();
+  const shipped = JSON.parse(experts(payload, tmp('x'), ['list']).stdout).map((e) => e.name);
   scaffoldExpert({
     payload,
     examples,
@@ -185,7 +186,7 @@ test('a brand-new expert is picked up by every part of the flow with no edit bey
 
   // discovery
   const list = JSON.parse(experts(payload, tmp('x'), ['list']).stdout);
-  assert.deepStrictEqual(list.map((e) => e.name).sort(), ['security', 'uiux']);
+  assert.deepStrictEqual(list.map((e) => e.name).sort(), [...shipped, 'uiux'].sort());
 
   // the plan phase offers it, consults it, and writes its input into the plan
   const planRun = loadWorkflow(path.join(payload, 'workflows', 'plan.js'));
@@ -254,7 +255,7 @@ test('every gate invocation leaves a heartbeat, and status.js reports the expert
   const j = JSON.parse(s.stdout);
   assert.strictEqual(j.liveness.state, 'live');
   assert.strictEqual(j.experts.decided, false);
-  assert.deepStrictEqual(j.experts.available, ['security']);
+  assert.deepStrictEqual([...j.experts.available].sort(), JSON.parse(experts(payload, dir, ['list']).stdout).map((e) => e.name).sort());
   assert.strictEqual(j.experts.commit.allowed, false);
 });
 

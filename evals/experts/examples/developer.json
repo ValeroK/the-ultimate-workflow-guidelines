@@ -1,0 +1,18 @@
+{
+  "applies": [
+    "Adds a NotificationService class that validates a ticket, writes it to the database, formats the email and sends it",
+    "Introduces a RepositoryFactory and a Repository interface although only one repository class exists",
+    "Adds a retry wrapper around the billing client that returns a default invoice when all attempts fail",
+    "Adds a base Handler class with three subclasses, one of which overrides a method to raise NotImplementedError",
+    "Adds a function with a mode flag that switches between exporting CSV and exporting JSON, and a new dependency to parse dates",
+    "Rewrites the document ingestion module into new classes and helper functions"
+  ],
+  "does_not_apply": [
+    "Fixes a typo in the README",
+    "Renames a CSS class in a button component",
+    "Adds a unit test for a date-formatting helper",
+    "Changes a timeout value in a configuration file from 5 to 10 seconds",
+    "Reorders the columns of a report table in the UI",
+    "Reformats a file with the project's formatter and sorts its imports"
+  ]
+}

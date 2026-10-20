@@ -28,8 +28,12 @@ function bullets(body) {
 const SECURITY_PROFILE = {
   exclusionTerms: /prompt|markdown|outdated|third-party|dependenc|\.github|workflow|agent|skill|hook|\bmcp\b/i,
   scopeMustMention: ['callers'],
+  // Every finding is a path from something untrusted to a harmful place.
+  shapeWords: ['file', 'line', 'evidence', 'source', 'sink'],
 };
-const GENERIC_PROFILE = { exclusionTerms: null, scopeMustMention: [] };
+// A domain whose findings are not source-to-sink paths (craft, architecture) still has to say
+// where, and show the evidence.
+const GENERIC_PROFILE = { exclusionTerms: null, scopeMustMention: [], shapeWords: ['file', 'line', 'evidence'] };
 
 function lintChecklist(text, profile = SECURITY_PROFILE) {
   const problems = [];
@@ -87,7 +91,7 @@ function lintChecklist(text, profile = SECURITY_PROFILE) {
     }
   }
 
-  const shapeWords = ['file', 'line', 'evidence', 'source', 'sink'];
+  const shapeWords = profile.shapeWords || ['file', 'line', 'evidence'];
   const method = `${s.Result || ''}\n${s.Method || ''}`.toLowerCase();
   for (const w of shapeWords) {
     if (!method.includes(w)) problems.push(`the finding shape must mention "${w}"`);

@@ -1,77 +1,96 @@
 ---
 name: lambda-event-sources
-description: Use when a change adds a queue, stream or event that triggers Lambda, or changes concurrency, for how these lose or repeat messages.
+description: Use when a change adds or changes a queue, stream or event that triggers Lambda (an SQS, Kinesis or DynamoDB Streams event source mapping, an asynchronous invocation, an S3 notification) or a function's concurrency settings - how these lose or repeat messages, and how they scale.
+verified: 2026-10-20
+requires: AWS Lambda event source mappings; the SQS provisioned mode and 1 MB asynchronous payload as of 2026
 ---
 
 # Lambda event sources and concurrency
 
-Use this when a change adds or changes a queue or stream that triggers Lambda (an event source mapping for SQS, Kinesis or DynamoDB Streams), an asynchronous invocation path, or a function's concurrency settings. It holds how these behave when something goes wrong, which is where a working-looking configuration loses or repeats messages.
+## Goal
 
-Each fact carries its source: **[G]** AWS's Lambda, SQS, SNS, EventBridge and DynamoDB developer guides (AWS-written, in their late-2022 form); **[R]** AWS pages checked by the maintainer on 2026-10-20; **[T]** AWS's own agent toolkit (2026), not yet checked against the current guide. A [T] number is a prompt to check, not a finding on its own: when a decision turns on it, fetch the current page and say what you found.
+- **Lets the expert catch:** a working-looking trigger configuration that loses messages (a filter that deletes, a stream with no failure destination, an asynchronous path with nowhere to put exhausted events), repeats them (a visibility timeout shorter than the work, an idempotency key that changes on redrive), or stalls (a poison record blocking a shard, caps that throttle each other).
+- **Applies to:** `AWS::Lambda::EventSourceMapping`, `aws_lambda_event_source_mapping`, CDK event sources, `ScalingConfig`, `ReservedConcurrentExecutions`, provisioned concurrency, `ReportBatchItemFailures`, `FilterCriteria`, `DestinationConfig`, `VpcConfig`, and handler code that returns `batchItemFailures`.
+- **Not for:** queue, topic and bus semantics on their own (`aws-messaging`); what an IaC change replaces or destroys (devops); queue policies' source conditions and IAM (security); the test that proves a duplicate is harmless (quality).
+
+Sources: **[D]** the AWS Lambda, DynamoDB, S3, SNS and EventBridge developer guides as published in the awsdocs repositories (late-2022 to 2023 snapshots, before the sources were removed from GitHub); **[R]** the maintainer's live check of docs.aws.amazon.com (2026-10-20); **[T]** AWS or community agent skills (2026), not checked; **[O]** our own reasoning. A [D] value may be out of date where an [R] row gives a newer one; a [T] or [O] item is a prompt to check the current page, not a finding on its own.
+
+## First, establish the target
+
+- **The source type and queue type:** SQS standard or FIFO, Kinesis, DynamoDB Streams (single-Region or global table), asynchronous invocation, S3.
+- **The function's timeout and concurrency settings,** and every mapping that feeds the same function.
+- **Where the settings live:** a stack, a Terraform module, or a console setting the repository cannot show; say what you could not see.
+- If you cannot establish these, say which you assumed and lower your confidence by one step.
 
 ## SQS triggers
 
-| Rule | What breaks it in a change |
-|---|---|
-| The queue's visibility timeout is at least six times the function timeout, plus the batching window when one is set [G] | A shorter visibility timeout: the message becomes visible again while the first invocation still runs, and is processed twice |
-| Batch size is up to 10,000 for a standard queue and 10 for FIFO; the batching window is 0 to 300 seconds and must be at least 1 second when the batch size is above 10; an invocation payload is at most 6 MB [G] | A batch size or window outside these, or a batch of large messages that can pass 6 MB |
-| A message that does not match the event source's filter is deleted from the queue [G]. A filter on a JSON field silently drops a plain-text body [T] | A new or changed `FilterCriteria`: say what happens to the messages it rejects |
-| A FIFO queue scales to the number of active message groups, one batch per group at a time [G] | A FIFO queue with one message group id expecting parallel processing |
-| Scaling out takes time: Lambda starts with five concurrent batches and adds more per minute (the 2022 guide: up to 60 more per minute and 1,000 at most; the 2026 toolkit: 300 more per minute and 1,250 by default) [G, T] | A plan that expects a sudden backlog to drain at once |
-| `ScalingConfig.MaximumConcurrency` caps one source, minimum 2 [R], maximum 1,000 [T] | Missing on a source that feeds a limited downstream (see `aws-well-architected`) |
-| `MaximumConcurrency` reserves nothing: other callers can still use up the function's concurrency, and reserved concurrency below the sum of the caps throttles the sources [T] | A function shared by an API and a queue, with caps but no reserved concurrency |
+| Rule | What breaks it in a diff | When it does not apply |
+|---|---|---|
+| The queue's visibility timeout is at least six times the function timeout, plus the batching window when one is set [D] | A shorter visibility timeout: the message reappears while the first invocation runs, and is processed twice | |
+| A FIFO mapping's batch size is at most 10; above 10 (standard queues) the batching window must be at least 1 second [R]; an invocation payload is at most 6 MB [D] | A larger batch on a `.fifo` queue, or large messages whose batch can pass 6 MB | |
+| A message that does not match the mapping's filter is deleted from the queue [D]; a JSON body filter drops a plain-string body [R] | A new or changed `FilterCriteria` with no word on what happens to the messages it rejects, or a body filter on a queue that also receives plain text | A filter on message metadata only [R] |
+| At most 5 filters per mapping by default (10 on request), ORed together; DynamoDB filtering has no numeric operators, even for numbers [R] | A sixth filter, or `{"numeric": ...}` on a DynamoDB stream mapping | Matching an exact number by its string form |
+| A FIFO queue scales to the number of active message groups, one batch per group at a time [D] | A FIFO queue with one message group id expected to process in parallel | |
+| Default scaling starts at 5 concurrent invocations, adds up to 300 a minute, and stops at 1,250 [R] | A plan that expects a sudden backlog to drain at once | Provisioned mode, which scales faster and higher [R] |
+| `ScalingConfig.MaximumConcurrency` caps one source, 2 to 1,000 [R], and reserves nothing; reserved concurrency below the sum of the function's caps throttles the sources [R] | A source feeding a limited downstream with no cap; a function shared by an API and a queue with caps but no reservation; reserved concurrency smaller than the summed caps | A function with no reserved concurrency, drawing from the account pool |
+| `MaximumConcurrency` and provisioned mode (`ProvisionedPollerConfig`) are mutually exclusive [R] | Both set on one mapping | Clearing one with an empty value while setting the other |
+| Provisioned concurrency warms execution environments and does not drain a queue faster; SQS polling capacity is the mapping's provisioned mode, where each poller handles up to 1 MB/s or 10 concurrent invokes [R] | Provisioned concurrency added to fix a queue backlog | Provisioned concurrency added for cold-start latency |
 
 ## Partial batch failures
 
-With `ReportBatchItemFailures`, the function returns the ids of the records that failed.
-
-- **SQS** [G]: the whole batch is retried when the function throws, returns invalid JSON, or returns an empty or null `itemIdentifier`, a wrong key name, or an id not in the batch. An empty `batchItemFailures` list means every record succeeded.
-- **Streams** [G]: Lambda checkpoints at the lowest failed sequence number, so everything after it is retried.
-- **FIFO**: stop at the first failure and report it and every record after it, or the order is broken [T].
-
-A handler that catches every error per record and reports none has turned failures into successes (see `failure-handling`).
+| Rule | What breaks it in a diff | When it does not apply |
+|---|---|---|
+| With `ReportBatchItemFailures` on SQS, the whole batch is retried when the function throws, returns invalid JSON, or returns an empty or null `itemIdentifier`, a wrong key name, or an id not in the batch; an empty `batchItemFailures` means every record succeeded [D] | A handler that returns ids under another key, or reports failures by throwing | |
+| On a FIFO queue the function stops at the first failure and reports it and every later message [R] | A loop that records the failed `messageId` and continues | Messages from different message groups, where order is only per group [T] |
+| On a stream, Lambda checkpoints at the lowest failed sequence number, so everything after it is retried [D] | A stream handler that reports a late record and expects earlier ones to stay done | |
+| A handler that catches every per-record error and reports none has turned failures into successes (see `failure-handling`) [O] | | |
 
 ## Streams: Kinesis and DynamoDB Streams
 
-| Rule | What breaks it |
-|---|---|
-| `MaximumRetryAttempts` and `MaximumRecordAgeInSeconds` default to -1, infinite; they go up to 10,000 retries and 604,800 seconds [G] | A new stream mapping with neither set: one bad record blocks its shard until the record expires |
-| DynamoDB Streams keep records for 24 hours [G] | So a poison record on a DynamoDB stream can block a shard for a day |
-| Bound it with `BisectBatchOnFunctionError`, a retry limit, a maximum age and an on-failure destination (an SQS queue or SNS topic) [G] | A stream mapping without an on-failure destination drops what it gives up on |
-| No more than two processes read one DynamoDB stream shard at the same time [G]; one for global tables [T] | A third consumer added to the same table's stream |
+| Rule | What breaks it in a diff | When it does not apply |
+|---|---|---|
+| `MaximumRetryAttempts` and `MaximumRecordAgeInSeconds` default to -1, infinite; the age is -1 or 60 to 604,800 seconds [R]; DynamoDB Streams keep records 24 hours [D] | A new stream mapping with neither set: one bad record blocks its shard until it expires, a day on DynamoDB | |
+| `BisectBatchOnFunctionError` cannot be enabled while `MaximumRetryAttempts` is -1, the default [R] | Bisect turned on with no finite retry count | A finite retry count is set |
+| A stream mapping's on-failure destination can be SQS, SNS, S3 or Kafka [R]; without one, what Lambda gives up on is dropped [D] | A bounded stream mapping with no `DestinationConfig.OnFailure` | |
+| `LATEST` as the starting position can miss records written while the mapping is created; `TRIM_HORIZON` does not [R] | `StartingPosition: LATEST` on a mapping whose consumer must see every record | Telemetry where earlier records do not matter |
+| Up to two Lambda readers per DynamoDB Streams shard, stated for single-Region tables that are not global tables [R] | A third mapping on a table's stream, or a second on a global table's | |
 
 ## Asynchronous invocation
 
-Lambda retries throttles and system errors for up to 6 hours, and retries a function error twice more by default (0 to 2), up to a maximum event age of 6 hours [G]. So the handler must be idempotent, and a new asynchronous path needs an on-failure destination or a dead-letter queue, or events that exhaust their retries are dropped. With reserved concurrency of 0, new asynchronous events go straight to the dead-letter queue or on-failure destination, with no retries [G].
-
-Payload limits: 6 MB for a synchronous request and for its response; 256 KB for an asynchronous event in the 2022 guide [G], 1 MB in 2026 sources [T].
-
-## S3 notifications
-
-S3 event notifications arrive at least once and in no promised order, and the object key in the event is URL-encoded [G]. A function that writes to the bucket that triggers it can run in a loop [G]. What breaks it: a handler that writes its output under the same bucket and prefix, assumes order, or uses the key without decoding it.
-
-## Kinesis read capacity
-
-Each shard gives 2 MB/s of reads, shared by all standard consumers; enhanced fan-out gives each consumer its own 2 MB/s [G]. A new Lambda consumer on a stream already read at capacity slows every consumer.
+| Rule | What breaks it in a diff | When it does not apply |
+|---|---|---|
+| An asynchronous call returns success as soon as the event is queued, not when the function has run [R] | Caller code that treats a 202 from `InvocationType: Event` as "done" | |
+| Lambda retries throttles and system errors for up to 6 hours, and a function error twice more by default (0 to 2), up to a maximum event age of 6 hours; events that run out are dropped without an on-failure destination or a dead-letter queue [D] | A new asynchronous path with neither | Events that may be lost by design |
+| With reserved concurrency of 0 the function processes nothing [R], and new asynchronous events go straight to the dead-letter queue or destination, with no retries [D] | A leftover `ReservedConcurrentExecutions: 0` | An intended kill switch, documented as one |
+| The asynchronous payload limit is 1 MB; synchronous requests and responses are 6 MB [R] | Code that rejects or splits asynchronous payloads at 256 KB, or sends more than 1 MB | |
 
 ## Concurrency
 
-| Rule | What breaks it |
-|---|---|
-| Reserved concurrency can be set up to the unreserved account concurrency minus 100 [G]; reserved concurrency of 0 stops every invocation [T] | A leftover `0` from an incident, or reservations that starve every other function |
-| Provisioned concurrency cannot exceed reserved concurrency and cannot be set on `$LATEST` [G]; it cannot be combined with SnapStart [T] | Provisioned concurrency on an unpublished version or above the reservation |
-| Provisioned concurrency is paid while idle and does not drain a queue backlog faster; the poller settings do [T] | Provisioned concurrency added to fix a queue backlog |
-| A synchronous caller that is throttled gets a 429 [T] | An API path with no handling for it |
-| Concurrency needed is about requests per second times average duration [T]. Scaling out has a ceiling: the 2022 guide gives a per-Region burst of 500 to 3,000 then 500 more per minute [G]; 2026 sources give 1,000 new environments per 10 seconds per function [T] | A plan sized from requests per second alone, or expecting a sudden spike to be absorbed at once |
+| Rule | What breaks it in a diff | When it does not apply |
+|---|---|---|
+| Reserved concurrency can be set up to the unreserved account concurrency minus 100 [D] | Reservations that starve every other function | |
+| Provisioned concurrency cannot exceed reserved concurrency and cannot be set on `$LATEST` [D], and SnapStart does not support it [R] | Provisioned concurrency on an unpublished version, above the reservation, or beside SnapStart | |
+| Concurrency needed is requests per second times average duration in seconds [R]; each function scales by 1,000 environments every 10 seconds, and the account allows 10 times its concurrency in requests per second [R] | A plan sized from requests per second alone, or expecting a sudden spike to be absorbed at once | |
 
-## Lambda in a VPC
+## Other sources and networking
 
-A function attached to a VPC has no internet access, even in a public subnet, unless the route goes through a NAT gateway [G]; AWS services need a NAT or VPC endpoints. Functions sharing a subnet and security group share network interfaces [G], so many concurrent functions in one small subnet can run it out of addresses [T]. What breaks it: `VpcConfig` added to a function that calls a third-party API with no NAT route; one small subnet for a high-concurrency function.
+| Rule | What breaks it in a diff | When it does not apply |
+|---|---|---|
+| S3 event notifications arrive at least once, in no promised order, with the object key URL-encoded, and a function writing to the bucket that triggers it can loop [D] | A handler that writes under the triggering prefix, assumes order, or uses the key without decoding it | |
+| A function attached to a VPC has no internet access, even in a public subnet, unless the route goes through a NAT gateway; AWS services need a NAT or VPC endpoints [D] | `VpcConfig` added to a function that calls an external API, with no NAT route | |
+| Lambda creates one Hyperplane ENI per subnet and security-group pair and shares it [R]; many such pairs in a small subnet can run it out of addresses [T] | A distinct security group per function in the same subnets with no isolation reason | Functions that need network isolation from each other |
+| An SQS queue used as the dead-letter queue of an EventBridge target or an SNS subscription needs a queue policy letting `events.amazonaws.com` or `sns.amazonaws.com` send to it; the console adds it, infrastructure code must [D] | A DLQ wired in IaC with no queue policy: it receives nothing, silently | The policy's source conditions are security's |
 
 ## Idempotency keys by source
 
-Use the id the source gives for the same delivery: SQS `messageId`, EventBridge event `id`, DynamoDB Streams `eventID`, an `Idempotency-Key` header for an API. Keep the key at least as long as the source can redeliver: for SQS, the receive limit times the visibility timeout [T].
+| Rule | What breaks it in a diff | When it does not apply |
+|---|---|---|
+| Key on the id the source keeps for the same delivery: EventBridge event `id`, DynamoDB Streams `eventID`, an `Idempotency-Key` header for an API [T]. A message redriven out of an SQS dead-letter queue gets a new `messageId` and enqueue time [R], so an SQS consumer that must survive a redrive keys on a business id in the body | Deduplication keyed on `messageId` for a queue whose DLQ is redriven | Queues that are never redriven |
+| Keep the key at least as long as the source can redeliver: for SQS, the receive limit times the visibility timeout [T] | A key store whose time-to-live is shorter | |
 
-## Dead-letter queues that need a policy
+## Not a finding
 
-An SQS queue used as the dead-letter queue of an EventBridge target or an SNS subscription must have a queue policy that lets `events.amazonaws.com` or `sns.amazonaws.com` send to it. The console adds it for a queue in the same account; through the API or infrastructure code you add it yourself [G]. A dead-letter queue without it receives nothing, silently.
+- A batch size above 10 on a standard queue with a batching window of at least 1 second.
+- Provisioned concurrency set for cold-start latency on a synchronous path.
+- A stream mapping with `TRIM_HORIZON` and bounded retries, age and an on-failure destination.
+- A queue with no dead-letter queue whose messages are rebuildable, stated in the plan.

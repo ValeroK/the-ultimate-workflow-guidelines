@@ -1,6 +1,6 @@
 # Pipelines and deploys
 
-Use this when a change adds or changes a CI/CD workflow: a GitHub Actions workflow, a GitLab pipeline, a CodeBuild or CodeDeploy spec, a Jenkinsfile. It holds what decides whether what reaches production is what was tested, and whether two deploys can collide. CI workflow security (triggers that run fork code with secrets, `permissions`, pinning actions to a commit, OIDC) is the security expert's; whether a check can fail is quality's.
+Use this when a change adds or changes a CI/CD workflow. GitHub Actions is the main CI this skill is written for; GitLab, CodeBuild, CodeDeploy and Jenkins get the general rules and a short section. It holds what decides whether what reaches production is what was tested, and whether two deploys can collide. CI workflow security (triggers that run fork code with secrets, `permissions`, pinning actions to a commit, OIDC) is the security expert's; whether a check can fail is quality's.
 
 Each fact carries its source: **[D]** GitHub's documentation as published on GitHub (`github/docs`, read 2026-10-20; github.com unless marked); **[T]** an upstream community skill, not checked; **[O]** our own reasoning. **[R]** the maintainer's check of the live GitLab documentation (2026-10-20). Other GitLab rules are [O]: check the current GitLab documentation before a finding rests on one.
 
@@ -13,6 +13,19 @@ Each fact carries its source: **[D]** GitHub's documentation as published on Git
 | Promotion goes through the earlier stages [O] | A production job whose `needs:` leaves out the test or staging job, or that runs under `if: always()` | |
 | Infrastructure applies the plan that was reviewed [O] | An apply job that plans again instead of applying the saved plan; `apply -auto-approve` on a schedule | A saved plan applies exactly its operations, with no prompt [D] |
 | Infrastructure before the code that needs it [O] | The app deploy job does not depend on the infrastructure job | |
+
+## GitHub Actions: what a run actually builds and deploys
+
+| Rule | What breaks it in a diff | When it does not apply |
+|---|---|---|
+| On `pull_request`, `GITHUB_SHA` is the merge commit of the pull request's merge branch, not its head; the head is `github.event.pull_request.head.sha` [D] | An image or artifact built on a pull request, tagged with `github.sha`, and later promoted: that commit never lands on the default branch [O] | Builds that are only tested, never deployed |
+| `workflow_run` runs the workflow file from the default branch, with `GITHUB_SHA` set to the default branch's last commit [D] | A deploy triggered by `workflow_run` that checks out or tags `github.sha`, so it deploys whatever the branch holds now, not the commit the triggering run tested; use the triggering run's head commit from the event [O] | |
+| Each job on a GitHub-hosted runner starts on a fresh machine; data moves between jobs as artifacts or outputs [D] | A deploy job that expects the build job's files on disk, then builds again or deploys nothing [O] | Steps in the same job |
+| The default shell runs with `set -e` only; `-o pipefail` is added only when `shell: bash` is named [D] | `./deploy.sh \| tee deploy.log` in a step with no `shell: bash`: the deploy fails and the step passes [O] | A step that names `shell: bash` |
+| `always()` runs a job or step even when the run was cancelled; the documentation recommends `!cancelled()` instead [D] | A deploy or migration job under `if: always()`, which runs after its tests failed or the run was cancelled [O] | Clean-up and reporting steps |
+| A matrix cancels its in-progress and queued jobs when one fails, by default (`fail-fast` is true) [D] | A matrix that deploys to several regions or environments: one failure leaves the rest half deployed [O] | Test matrices |
+| A reusable workflow that is not passed an environment secret gets an empty string, with no error, unless the secret is declared `required: true` [D] | A called deploy workflow that reads a credential the caller does not pass, and deploys with an empty value or skips a step silently [O] | |
+| The `-latest` runner labels point at whichever image GitHub currently calls latest stable [D] | A release build on `ubuntu-latest` whose toolchain changes when the label moves, with no change in the repository [O] | Test jobs where that is wanted |
 
 ## Environments and gates
 

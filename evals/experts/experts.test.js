@@ -688,22 +688,23 @@ test('briefs: a missing, empty or oversized build.md is reported and left out, n
   const original = fs.readFileSync(file, 'utf8');
 
   fs.rmSync(file);
+  const dev = (x) => x.briefs.filter((b) => b.name === 'developer');
   let r = briefs(payload);
-  assert.deepEqual(r.briefs.map((b) => b.name), []);
+  assert.deepEqual(dev(r), []);
   assert.match(r.problems.join('|'), /developer: declares the build stage but .*build\.md cannot be read/);
 
   fs.writeFileSync(file, '   \n');
   r = briefs(payload);
-  assert.deepEqual(r.briefs, []);
+  assert.deepEqual(dev(r), []);
   assert.match(r.problems.join('|'), /build\.md is empty/);
 
   fs.writeFileSync(file, 'x'.repeat(5000));
   r = briefs(payload);
-  assert.deepEqual(r.briefs, []);
+  assert.deepEqual(dev(r), []);
   assert.match(r.problems.join('|'), /capped at 4096/);
 
   fs.writeFileSync(file, original);
-  assert.equal(briefs(payload).briefs.length, 1);
+  assert.equal(dev(briefs(payload)).length, 1);
 });
 
 test('briefs: the build stage is declarable but is not a lane stage, so nothing can be recorded for it', () => {
@@ -717,6 +718,6 @@ test('briefs: the cli prints the briefs as JSON and says why one was left out', 
   const r = spawnSync(process.execPath, [path.join(PLUGIN, 'experts', 'experts.js'), 'brief'], { encoding: 'utf8' });
   assert.equal(r.status, 0);
   const out = JSON.parse(r.stdout);
-  assert.deepEqual(out.map((b) => b.name), ['developer']);
+  assert.deepEqual(out.map((b) => b.name), ['developer', 'quality']);
   assert.equal(typeof out[0].text, 'string');
 });

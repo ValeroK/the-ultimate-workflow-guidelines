@@ -268,3 +268,33 @@ test('plan: with no skills passed, the question and the schema are what they wer
   assert.deepEqual(asked.schema.required, ['experts']);
   assert.equal(result.expertLane.skillReasons, undefined);
 });
+
+// ---- quality: a build brief and test-craft at build and at tests ---------------------------
+
+test('build: the quality brief joins the developer brief, and test-craft rides with it on every plan', () => {
+  const b = ex.briefs(PLUGIN, { planText: 'Change `svc/pay.py`.' });
+  const q = b.briefs.find((x) => x.name === 'quality');
+  assert.ok(q, 'quality declares build');
+  assert.ok(!q.text.includes('experts/skills/') && q.text.length < ex.BRIEF_BYTES);
+  assert.deepEqual(q.skills.map((s) => s.name), ['test-craft']);
+  const none = ex.briefs(PLUGIN, { planText: 'Make it better.' });
+  assert.deepEqual(none.briefs.find((x) => x.name === 'quality').skills.map((s) => s.name), ['test-craft']);
+});
+
+test('skills --stage tests: test-craft is chosen for the quality expert from any plan', () => {
+  const k = ex.testsSkills(PLUGIN, 'Add a refund endpoint in `api/refund.ts`.');
+  assert.deepEqual(k.problems, []);
+  assert.deepEqual(k.skills.quality.skills.map((s) => s.name), ['test-craft']);
+  assert.equal(k.skills.security, undefined);
+});
+
+test('build.js: test-craft reaches the test-writing prompt once, with both briefs', async () => {
+  const b = ex.briefs(PLUGIN, { planText: 'Change `svc/pay.py`.' }).briefs;
+  const responder = (call) =>
+    call.label === 'write-tests' ? { filesWritten: ['t.py'], testsFailAsExpected: true, summary: 'w', testCommand: 'pytest' } : { green: true, filesChanged: ['a.py'], summary: 'done' };
+  const { result, calls } = await loadWorkflow(path.join(PLUGIN, 'workflows', 'build.js'))({ plan: 'PLAN-x.md', briefs: b }, responder);
+  const w = calls.find((c) => c.label === 'write-tests');
+  assert.match(w.prompt, /STANDING BRIEF, from developer, quality/);
+  assert.equal((w.prompt.match(/^# Test craft$/gm) || []).length, 1);
+  assert.ok(result.skillsLoaded.includes('test-craft') && result.skillsLoaded.includes('python-craft'));
+});

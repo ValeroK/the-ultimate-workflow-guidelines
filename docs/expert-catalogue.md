@@ -53,7 +53,7 @@ An agent was placed under an expert by its name and the survey's domain notes, n
 
 ### 4. Quality engineer (have: `quality`)
 - **Owns:** tests, evals, fixtures and CI gates, and whether each can actually fail.
-- **Stages:** plan, tests, review.
+- **Stages:** plan, tests (always), build (a standing test brief), review. Skill: `test-craft`.
 - **Upstream agents:**
   - addyosmani and anthropics `test-engineer`
   - ECC and anthropics `pr-test-analyzer`

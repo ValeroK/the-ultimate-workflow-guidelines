@@ -75,7 +75,7 @@ A skill is knowledge an expert needs only when the change calls for it: a princi
 - `experts/skills/surgical-change/skill.md` (always): load when ...
 ```
 
-The part in parentheses is the selector: `files:` base-name globs, `added:` a regular expression, or `always`. Join a `files:` and an `added:` part with `; ` to match when either does, as the architect does for AWS infrastructure: `(files: *.tf, template.yaml; added: AWS::|boto3)`. The words after the colon are the cue; at plan they are the headline a model chooses by. `plan.md` lines take no selector.
+The part in parentheses is the selector: `files:` globs, `added:` a regular expression, or `always`. A glob without a `/` matches the file's base name at any depth (`*.tf`); one with a `/` matches the whole path from the repository root, with `*` inside one directory and `**/` across any number (`.github/workflows/*.yml`, `**/templates/*.yaml`). Join a `files:` and an `added:` part with `; ` to match when either does, as the architect does for AWS infrastructure: `(files: *.tf, template.yaml; added: AWS::|boto3)`. The words after the colon are the cue; at plan they are the headline a model chooses by. `plan.md` lines take no selector.
 
 **Who chooses: code, not the expert.** In two smoke runs an expert told to "read the skill whose cue matches" opened none. So the choice is made before the agent runs and the text is pasted into its prompt:
 
@@ -92,7 +92,7 @@ Plan is the one stage without a code floor: the draft exists only inside the wor
 
 **Adding a skill.** Write `skill.md` (a `# ` title, nothing that tells a reader to fetch, install or visit) and `NOTICE.md` (where the ideas came from, with licences). Name it in at least one stage reference with a selector. Prefer `files:` or `added:`; use `always` only for a skill no file name or line can signal, because it is paid every time.
 
-**What the contract checks.** Every named skill exists; every mention has a cue ("when") on its line; in `review.md`, `build.md` and `tests.md` every skill line has a selector that parses; every skill is named by at least one expert, has a `NOTICE.md`, is at most 16 KB, opens with a `# ` title and fetches nothing. Byte budgets: 60 KB per expert, 150 KB for `experts/` without skills, 200 KB for `experts/skills/`.
+**What the contract checks.** Every named skill exists; every mention has a cue ("when") on its line; in `review.md`, `build.md` and `tests.md` every skill line has a selector that parses; every skill is named by at least one expert, has a `NOTICE.md`, is at most 16 KB, opens with a `# ` title and fetches nothing. Byte budgets: 60 KB per expert, and for `experts/` without skills 60 KB of code plus 40 KB per expert. The skills library has no total budget; the per-skill and per-stage caps bound it.
 
 **What it holds.** What the expert cannot say in one line of its checklist: exact meanings, counter-cases, language forms, how to write the thing well. A skill never adds a category of its own; the expert's checklist decides what is reported.
 
@@ -340,7 +340,7 @@ Each rule exists because the first expert showed it can be forgotten or broken s
 | The review reference passes the checklist lint | One confidence scale, a defined no-findings result, no demand for a finding, an untrusted-input section. |
 | The plan and tests references allow an empty answer, cap the output ("at most") and call what is read data | Otherwise the expert invents requirements, or the plan grows past what anyone can confirm. |
 | No `SKILL.md`, no tests or fixtures under the expert | A registered skill puts a description in the main context on every turn. Tests and fixtures belong in repo-root `evals/`, which the plugin ZIP never contains. |
-| Size budget: 60 KB per expert; 150 KB for `experts/` without skills and 200 KB for `experts/skills/` (in `evals/security-expert/provenance.test.js`) | What an expert reads costs tokens on every consult, and the payload stays small. |
+| Size budget: 60 KB per expert; 60 KB of code plus 40 KB per expert for `experts/` without skills (in `evals/security-expert/provenance.test.js`); no total for `experts/skills/`, which the 16 KB per-skill and 32 KB per-stage caps bound | What an expert reads costs tokens on every consult, and the payload stays small. |
 | Selection examples: three that apply, three that do not | Forces you to state when it should be chosen, and seeds the recall check (below). |
 | No unfilled `FILL-IN:` or `REPLACE` note | A template note shipped as content is a defect. |
 | Every workflow parses, and the expert lane helpers are identical in `plan.js`, `tests.js` and `review.js` | Scripts cannot import, so the helpers are copied. A copy that drifts is a lane that behaves differently from its siblings. |

@@ -62,7 +62,7 @@ Check what the change touches and skip the rest.
 - **A failure nobody sees.** A catch that logs and returns success at a service boundary, a failure path with no log, metric or alarm, a consumer that acknowledges before the work is durable.
 - **Cost with no ceiling.** Work per request that should be per deployment (clients or models built on every call), polling where an event exists, always-on capacity for spiky load, no per-run or per-tenant limit where one input can trigger large spend.
 - **Service fit.** A service heavier or lighter than the load needs, long-running work behind a request that times out, a synchronous chain where one slow dependency stalls the caller, a choice the plan did not make.
-- **Operability.** A change that cannot be rolled back, a deployment that is not repeatable from the repository, a new component with nothing to show it is healthy.
+- **Operability.** A design that cannot be rolled back (a one-way change with no plan for it), a new component with nothing to show it is healthy. How the change is built, deployed and undone in the pipeline, and what an infrastructure change replaces or destroys, are the DevOps engineer's.
 - **Plan deviation.** A store, queue, service or flow in the diff that the plan does not mention.
 - **Anything else that is really wrong.** A real defect outside the system level, such as a security hole, a code-structure problem or a test that proves nothing, is still reported: raise everything you find. Name the domain it belongs to in the category, and hold it to the same evidence standard as any other finding.
 
@@ -90,6 +90,7 @@ These produce noise. Skip them unless the change makes one concretely harmful an
 - A pattern the system already uses consistently, even if you would choose another.
 - Anything the plan states and the diff honours.
 - Anything in code the diff did not add or change.
+- Deploy mechanics: the pipeline, the order a migration step runs in it, image tags, IaC replacement and state. They are the DevOps engineer's; data compatibility across versions stays yours.
 
 ## Untrusted input
 

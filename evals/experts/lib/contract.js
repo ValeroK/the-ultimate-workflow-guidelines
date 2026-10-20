@@ -31,6 +31,8 @@ const DECLARED_TOOLS = {
   architect: ['Glob', 'Grep', 'Read', 'WebFetch', 'WebSearch'],
   softarch: ['Glob', 'Grep', 'Read', 'WebFetch', 'WebSearch'],
   quality: ['Glob', 'Grep', 'Read', 'WebFetch', 'WebSearch'],
+  // 2026-10-20: the DevOps expert follows the same rule as the role experts above.
+  devops: ['Glob', 'Grep', 'Read', 'WebFetch', 'WebSearch'],
 };
 
 // What a domain's checklist must not exclude and must mention depends on the domain.

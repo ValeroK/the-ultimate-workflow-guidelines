@@ -19,13 +19,25 @@ How to build a domain expert and its skills, from nothing to shipped, the way th
 
 Steps 2 to 4 are research done by subagents in the background; you read their digests, never the raw files. Steps 5 to 9 are yours. Step 10 decides whether the work stays.
 
+**What is required and what is optional** (decided 2026-10-20, after the architect and DevOps runs):
+
+| Step | Required? | Why |
+|---|---|---|
+| 1 scope | always | Overlap between experts is the failure that costs most: two experts raising the same finding on one diff |
+| 3 research and 7 verify | whenever a skill states a number, a default or a version fact | Upstream facts were wrong or stale often enough on the architect (reserved concurrency, the inline Map "40") that an unchecked number is a wrong finding waiting to happen |
+| 2 sweep and 4 compare | optional | Worth it where strong upstream sources exist. For DevOps, 18 upstream agents yielded about a dozen ideas and none covered the core infrastructure-change scope; writing the checklist from the domain directly gets most of it |
+| 6 skills from upstream (template B) | optional | Worth it where good upstream skills exist (Terraform, Docker); wasted where the catalogue already lists the domain as a gap |
+| 10 measure | before the expert is called done | Research depth does not show the expert beats the plain reviewer; only a corpus does |
+
+An expert built with only the required steps is a normal expert. Say in its `docs/experts/<name>.md` which optional steps were skipped.
+
 ## 1. Scope
 
 Write the catalogue entry in `docs/expert-catalogue.md` first: what the expert owns, its stages, and, as important, what it does **not** own and who does. Overlap between experts makes two of them raise the same finding on one diff. Before you go on, grep the neighbouring experts' references for your topics and draw the line in one sentence (the architect: services, queues and AWS resources; softarch: modules, imports and contracts inside one codebase).
 
 Decide the stages. `plan` and `review` for almost every expert; `tests` when the domain has cases the tests would miss (abuse cases, accessibility states); `build` only for a short brief that shapes how code is written on every build; `always: [tests]` only when every test plan is the expert's business (today only quality).
 
-## 2. Sources: sweep, do not search
+## 2. Sources: sweep, do not search (optional)
 
 Start from the whole catalogue, not from the repositories you remember:
 
@@ -40,7 +52,7 @@ A skill that holds numbers (limits, prices, defaults) needs a research pass with
 
 When the docs host is blocked, a vendor's archived documentation sources on GitHub (for AWS, the `awsdocs` repositories, deleted in 2023 but readable at an earlier commit) are primary but dated. Use them, record the snapshot date, and do not let them override a newer vendor source on something that changed since.
 
-## 4. Compare: what the upstream agents know that ours does not
+## 4. Compare: what the upstream agents know that ours does not (optional)
 
 Run one research agent over the upstream agents (template A below). Its digest must say, for every idea, **NEW** or **OVERLAP** with the file that already says it, and must list what not to take and why. Expect most upstream agents to be personas, capability lists or tool runners; expect very few to review a diff with evidence. Take ideas, never text, and never their tools, scripts or fetches.
 

@@ -120,24 +120,18 @@ test('the release workflow still excludes top-level fixtures and architecture-ev
   assert.match(wf, /-x 'architecture-evals\/\*'/);
 });
 
-test('shipped experts/ stays under a byte budget so the ZIP ceiling is not eaten', () => {
-  // The shared skills library (experts/skills/) has its own budget below, so a
-  // growing library does not hide growth in the experts themselves, or the reverse.
-  // Raised from 150 KB to 165 KB on 2026-10-20, by decision: experts.js gained skill selection
-  // (about 10 KB of code) and the architect gained its upstream-combined references. Each
-  // expert is still capped at 60 KB by the contract; this total is the backstop.
-  const BUDGET = 165 * 1024;
-  const skills = path.join(PAYLOAD, 'experts', 'skills');
-  const files = walk(path.join(PAYLOAD, 'experts')).filter((p) => fs.statSync(p).isFile() && !p.startsWith(skills + path.sep));
+test('shipped experts/ stays under a byte budget that grows with each expert', () => {
+  // Decided by the maintainer on 2026-10-20: a fixed total had to be raised for every new
+  // expert, so the budget is 60 KB for the code (experts.js, deps-audit.js) plus 40 KB per
+  // expert directory. The contract still caps each expert at 60 KB, and the release workflow
+  // still refuses a ZIP over 2 MB. The shared skills library (experts/skills/) has no total
+  // budget, by the same decision: each skill is capped at 16 KB and each expert's skills at
+  // one stage at 32 KB, which bound what any one prompt pays.
+  const root = path.join(PAYLOAD, 'experts');
+  const skills = path.join(root, 'skills');
+  const experts = fs.readdirSync(root, { withFileTypes: true }).filter((d) => d.isDirectory() && d.name !== 'skills');
+  const BUDGET = 60 * 1024 + experts.length * 40 * 1024;
+  const files = walk(root).filter((p) => fs.statSync(p).isFile() && !p.startsWith(skills + path.sep));
   const total = files.reduce((n, p) => n + fs.statSync(p).size, 0);
-  assert.ok(total <= BUDGET, `experts/ (without skills/) is ${total} bytes, budget ${BUDGET}`);
-});
-
-test('the shared skills library stays under its own byte budget', () => {
-  // About a dozen planned skills at the 16 KB per-skill cap the contract enforces.
-  const BUDGET = 200 * 1024;
-  const dir = path.join(PAYLOAD, 'experts', 'skills');
-  const files = fs.existsSync(dir) ? walk(dir).filter((p) => fs.statSync(p).isFile()) : [];
-  const total = files.reduce((n, p) => n + fs.statSync(p).size, 0);
-  assert.ok(total <= BUDGET, `experts/skills/ is ${total} bytes, budget ${BUDGET}`);
+  assert.ok(total <= BUDGET, `experts/ (without skills/) is ${total} bytes, budget ${BUDGET} for ${experts.length} experts`);
 });

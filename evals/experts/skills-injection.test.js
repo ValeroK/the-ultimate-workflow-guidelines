@@ -321,7 +321,19 @@ test('selector: "files: ...; added: ..." matches when either part does, and a ba
   const s = ex.parseSelector('files: *.tf; added: AWS::');
   assert.equal(s.kind, 'any');
   assert.equal(ex.parseSelector('files: *.tf; added: [unclosed').error !== undefined, true);
-  assert.equal(ex.parseSelector('files: a/b.tf; added: x').error !== undefined, true);
+  assert.equal(ex.parseSelector('files: /a/b.tf; added: x').error !== undefined, true);
+});
+
+test('selector: a glob with a directory matches the whole path, * stays in one segment, **/ spans any depth', () => {
+  const m = (sel, f) => ex.matches(ex.parseSelector(sel), { files: [f], text: '' });
+  assert.equal(m('files: .github/workflows/*.yml', '.github/workflows/ci.yml'), true);
+  assert.equal(m('files: .github/workflows/*.yml', './.github/workflows/ci.yml'), true);
+  assert.equal(m('files: .github/workflows/*.yml', '.github/workflows/sub/ci.yml'), false);
+  assert.equal(m('files: .github/workflows/*.yml', 'docs/.github/workflows/ci.yml'), false);
+  assert.equal(m('files: .github/workflows/*.yml', 'ci.yml'), false);
+  assert.equal(m('files: **/templates/*.yaml', 'charts/api/templates/deploy.yaml'), true);
+  assert.equal(m('files: **/templates/*.yaml', 'templates/deploy.yaml'), true);
+  assert.equal(m('files: *.yml', 'deep/dir/ci.yml'), true, 'a base-name glob still matches at any depth');
 });
 
 test('architect review: Terraform, CloudFormation and SAM files select aws-well-architected', () => {

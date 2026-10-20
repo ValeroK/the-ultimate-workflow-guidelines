@@ -155,7 +155,9 @@ const SKILLS_BYTES = 32 * 1024;
 const SKILL_LINE = /^\s*-\s*`experts\/skills\/([a-z][a-z0-9-]*)\/skill\.md`\s*\((.*?)\):\s/;
 
 function globToRegExp(glob) {
-  return new RegExp(`^${glob.split('*').map((s) => s.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('[^/]*')}$`);
+  // `*` stays inside one path segment; `**/` matches any number of directories, none included.
+  const segment = (g) => g.split('*').map((s) => s.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('[^/]*');
+  return new RegExp(`^${glob.split('**/').map(segment).join('(?:.*/)?')}$`);
 }
 
 /** One selector, or `{ error }`. */
@@ -173,8 +175,9 @@ function parseSelector(text) {
   if (!m) return { error: `"${t}" is not a selector (expected "always", "files: <globs>" or "added: <regex>")` };
   if (m[1] === 'files') {
     const globs = m[2].split(',').map((s) => s.trim()).filter(Boolean);
-    if (globs.length === 0 || globs.some((g) => g.includes('/'))) return { error: `"${t}": files takes base-name globs such as *.go, without a directory` };
-    return { kind: 'files', globs, res: globs.map(globToRegExp) };
+    if (globs.length === 0 || globs.some((g) => g.startsWith('/'))) return { error: `"${t}": files takes globs such as *.go or .github/workflows/*.yml, relative to the repository root` };
+    // A glob with a directory in it matches the whole path; one without matches the base name.
+    return { kind: 'files', globs, res: globs.map((g) => ({ re: globToRegExp(g), full: g.includes('/') })) };
   }
   try {
     return { kind: 'added', re: new RegExp(m[2]) };
@@ -230,7 +233,10 @@ function matches(selector, { files, text }) {
   if (selector.kind === 'always') return true;
   if (selector.kind === 'any') return selector.any.some((s) => matches(s, { files, text }));
   if (selector.kind === 'added') return selector.re.test(text);
-  return files.some((f) => selector.res.some((re) => re.test(path.posix.basename(f.replace(/\\/g, '/')))));
+  return files.some((f) => {
+    const p = f.replace(/\\/g, '/').replace(/^\.\//, '');
+    return selector.res.some(({ re, full }) => re.test(full ? p : path.posix.basename(p)));
+  });
 }
 
 /**
@@ -708,6 +714,7 @@ module.exports = {
   SKILL_STAGES,
   SKILLS_BYTES,
   parseSelector,
+  matches,
   skillList,
   parseDiff,
   planPaths,

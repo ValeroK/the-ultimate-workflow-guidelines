@@ -108,8 +108,9 @@ An agent was placed under an expert by its name and the survey's domain notes, n
   - alirezarezvani `migration-planner`
 - **Survey candidates:** migrations (timescale, 84), pgvector (timescale, 82), RLS (supabase, 82), DB reliability (agency-agents, 72), Postgres table design (timescale and wshobson, 62 to 70), tenancy (cloudflare, 70), AWS data (aws/agent-toolkit, 72).
 
-### 9. Cloud infrastructure and IaC (new)
-- **Owns:** Terraform and CDK/CloudFormation, IAM policies, networking, containers, and AWS service configuration as code.
+### 9. DevOps engineer (new; merges the former 9, cloud infrastructure and IaC, and 10, delivery and CI/CD)
+- **Owns:** how infrastructure is written and changed (Terraform, CDK, CloudFormation, SAM: state, replacement and deletion, drift, pinning), containers and Kubernetes, CI/CD pipelines and their hardening, deployment and rollback, feature flags and release safety. The architect owns *what* is built and how it fails; this expert owns *how* it is built, shipped and changed. IAM policy content stays with security.
+- **Candidates routed here from the architect's research:** see "Routed to other experts" in `docs/experts/architect.md`.
 - **Stages:** plan, review.
 - **Upstream agents:**
   - awesome-copilot `terraform-iac-reviewer`, `terraform-aws-planning`, `terraform-aws-implement`, `aws-cloud-expert`
@@ -120,7 +121,7 @@ An agent was placed under an expert by its name and the survey's domain notes, n
   - aws/agent-toolkit (7 agents)
 - **Survey candidates:** Terraform (antonbabenko, 86), AWS IAM (aws/agent-toolkit, 84), CDK and CloudFormation (aws/agent-toolkit, 78), Docker (docker/skills, 80), cloud (alirezarezvani, 74), AWS ops (aws/agent-toolkit, 66), Terraform tests (hashicorp, 62).
 
-### 10. Delivery and CI/CD (new)
+### 10. (merged into 9, DevOps engineer; its sources below stay as candidates)
 - **Owns:** pipelines, GitHub Actions hardening, deploys and rollback, feature flags, release safety.
 - **Stages:** plan, review.
 - **Upstream agents:**

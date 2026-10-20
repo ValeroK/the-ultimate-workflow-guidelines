@@ -3,6 +3,9 @@
 > A recipe for adding a domain expert (security, architecture, UI/UX, DevOps and so on) to the `ultimate-workflow` plugin, and for finding out whether it earns its place.
 > Written 2026-10-19 from adding the first one, the security expert, and rewritten the same day after the design was simplified. The recipe is tested: `evals/experts/cookbook.test.js` follows it mechanically, and `evals/experts/lib/contract.js` fails when an expert is added half-way and says what is missing.
 
+
+This file is the reference for the mechanics. The order of work for building an expert and its skills, from sources to measurement, is `docs/expert-playbook.md`.
+
 ## Goal, and what is not the goal
 
 **Goal.** Adding a domain expert should cost one agent file, one reference file per stage it joins, and one examples file. Nothing else is edited. No registry, no router, no workflow, no command, no gate. The expert is then offered to the model at the right moments, runs at the stages it declared, and leaves evidence that a commit gate can check.

@@ -205,7 +205,7 @@ F. Data lifecycle: backups and point-in-time recovery (RDS, Aurora, DynamoDB), d
 Also return: the five migration mistakes that most often cause an outage, each with a source.
 ```
 
-## 7. Cloud infrastructure and IaC: Terraform, CloudFormation, CDK
+## 7. DevOps engineer, part 1: infrastructure as code (Terraform, CloudFormation, CDK)
 
 > Status: not run; the expert is not built (catalogue 9). Overlaps the architect; this one owns how infrastructure code is written and changed, the architect owns what is built.
 
@@ -223,9 +223,9 @@ E. Tagging and cost allocation, and least-privilege for deployment roles (OIDC f
 Also return: the changes in an IaC diff most likely to delete or replace data, each with a source.
 ```
 
-## 8. Delivery and CI/CD
+## 8. DevOps engineer, part 2: delivery and CI/CD
 
-> Status: not run; the expert is not built (catalogue 10).
+> Status: not run; the expert is not built (catalogue 9, the DevOps engineer, which merges the former 10).
 
 ```
 [shared rules above]
@@ -306,8 +306,8 @@ Also return: what a reviewer can and cannot judge from a diff, and when a change
 | 4 | Quality engineer | not run | The expert ships; `test-craft` was built from upstream skills, not primary sources |
 | 5 | Generative AI engineer | not run | Next expert to build |
 | 6 | Data and database | not run | Next after the Generative AI engineer |
-| 7 | Cloud infrastructure and IaC | not run | Overlaps the architect; decide whether it is a separate expert after this research |
-| 8 | Delivery and CI/CD | not run | |
+| 7 | DevOps engineer: infrastructure as code | not run | The DevOps engineer merges catalogue 9 and 10 |
+| 8 | DevOps engineer: delivery and CI/CD | not run | Same expert as 7 |
 | 9 | Observability and operations | not run | |
 | 10 | Frontend and accessibility | not run | |
 | 11 | Privacy and compliance | not run | May fold into security |

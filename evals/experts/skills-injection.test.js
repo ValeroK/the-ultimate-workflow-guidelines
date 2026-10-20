@@ -163,3 +163,45 @@ test('review.js: the expert gets its own skills pasted in, the lane records them
   assert.ok(!calls.find((c) => c.label === 'correctness').prompt.includes('SKILLS for this change'), 'core lenses get no skills');
   assert.deepEqual(result.expertLane.skillsLoaded, { developer: ['go-craft'], security: [] });
 });
+
+test('prepare: a user git config with no diff prefixes or forced colour still selects skills', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'uw-skills-'));
+  git(dir, 'init', '-q', '-b', 'main');
+  git(dir, 'config', 'user.email', 't@example.com');
+  git(dir, 'config', 'user.name', 't');
+  git(dir, 'config', 'diff.noprefix', 'true');
+  git(dir, 'config', 'color.diff', 'always');
+  fs.writeFileSync(path.join(dir, 'README.md'), '# x\n');
+  git(dir, 'add', '-A');
+  git(dir, 'commit', '-q', '-m', 'base');
+  fs.writeFileSync(path.join(dir, 'lib.rs'), 'fn main() {}\n');
+  git(dir, 'add', '-A');
+  for (const range of ['working', 'HEAD']) {
+    const p = ex.prepare(dir, range === 'HEAD' ? 'HEAD' : 'working', PLUGIN);
+    assert.ok(p.skills.developer.skills.some((s) => s.name === 'rust-craft'), range);
+  }
+});
+
+test('review: skills left out at the cap are reported by prepare and carried in the lane', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'uw-skills-'));
+  git(dir, 'init', '-q', '-b', 'main');
+  git(dir, 'config', 'user.email', 't@example.com');
+  git(dir, 'config', 'user.name', 't');
+  fs.writeFileSync(path.join(dir, 'README.md'), '# x\n');
+  git(dir, 'add', '-A');
+  git(dir, 'commit', '-q', '-m', 'base');
+  // Every language at once, with error handling and a manifest: more than the cap holds.
+  for (const f of ['a.py', 'b.tsx', 'c.go', 'd.rs', 'e.java']) fs.writeFileSync(path.join(dir, f), 'try { x } catch (e) {}\n');
+  fs.writeFileSync(path.join(dir, 'package.json'), '{}\n');
+  const p = ex.prepare(dir, 'working', PLUGIN);
+  assert.ok(p.skills.developer.dropped.length > 0);
+  assert.ok(p.skillProblems.some((m) => /developer: skills left out at the \d+-byte cap/.test(m)));
+  const total = p.skills.developer.skills.reduce((n, s) => n + Buffer.byteLength(s.text), 0);
+  assert.ok(total <= ex.SKILLS_BYTES);
+  const clean = (call) => (call.label === 'recheck' ? { experts: [] } : { findings: [], lensVerdict: 'clean' });
+  const { result } = await loadWorkflow(path.join(PLUGIN, 'workflows', 'review.js'))(
+    { available: ex.list(PLUGIN).experts, experts: ['developer'], diffFile: 'd', expertsDir: '/p', skills: p.skills },
+    clean
+  );
+  assert.deepEqual(result.expertLane.skillsDropped.developer, p.skills.developer.dropped);
+});

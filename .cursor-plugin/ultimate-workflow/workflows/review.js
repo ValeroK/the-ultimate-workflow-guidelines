@@ -200,6 +200,10 @@ const skillsFor = (name) => {
   const entry = args && args.skills && typeof args.skills === 'object' ? args.skills[name] : null
   return (entry && Array.isArray(entry.skills) ? entry.skills : []).filter((x) => x && typeof x.name === 'string' && typeof x.text === 'string' && x.text.trim() !== '')
 }
+const droppedFor = (name) => {
+  const entry = args && args.skills && typeof args.skills === 'object' ? args.skills[name] : null
+  return (entry && Array.isArray(entry.dropped) ? entry.dropped : []).filter((x) => typeof x === 'string')
+}
 const skillBlock = (name) => {
   const mine = skillsFor(name)
   return mine.length === 0
@@ -272,6 +276,7 @@ const lane = (found = []) => ({
   added,
   ran: reviewingNames.filter((n) => !failedLenses.includes(n)),
   skillsLoaded: Object.fromEntries(reviewingNames.map((n) => [n, skillsFor(n).map((x) => x.name)])),
+  skillsDropped: Object.fromEntries(reviewingNames.map((n) => [n, droppedFor(n)])),
   failed: reviewingNames.filter((n) => failedLenses.includes(n)),
   recheck,
   findings: found,

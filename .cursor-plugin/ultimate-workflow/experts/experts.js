@@ -325,6 +325,9 @@ function git(cwd, args) {
 // What the evidence is about must not change when the evidence is written, so the
 // evidence directory and the plan file (which gains an `experts:` line) are outside it.
 const EXCLUDES = [':(exclude).ultimate-workflow', ':(exclude)PLAN-*.md'];
+// The same diff text whatever the user's git config says (diff.noprefix, diff.mnemonicPrefix,
+// color.diff=always, an external diff tool): skill selection reads the a/ and b/ paths.
+const DIFF_FORMAT = ['--no-color', '--no-ext-diff', '--src-prefix=a/', '--dst-prefix=b/'];
 const ignored = (p) => p.startsWith('.ultimate-workflow/') || /(^|\/)PLAN-[^/]*\.md$/.test(p);
 
 function hasHead(cwd) {
@@ -342,8 +345,8 @@ function workingChanges(cwd) {
   // object a fresh repository has. What would be committed is the index, so use that.
   const heads = hasHead(cwd);
   const tracked = heads
-    ? git(cwd, ['diff', '--binary', 'HEAD', '--', '.', ...EXCLUDES])
-    : git(cwd, ['diff', '--cached', '--binary', '--', '.', ...EXCLUDES]) + git(cwd, ['diff', '--binary', '--', '.', ...EXCLUDES]);
+    ? git(cwd, ['diff', ...DIFF_FORMAT, '--binary', 'HEAD', '--', '.', ...EXCLUDES])
+    : git(cwd, ['diff', ...DIFF_FORMAT, '--cached', '--binary', '--', '.', ...EXCLUDES]) + git(cwd, ['diff', ...DIFF_FORMAT, '--binary', '--', '.', ...EXCLUDES]);
   const names = heads
     ? git(cwd, ['diff', '--name-only', 'HEAD', '--', '.', ...EXCLUDES])
     : git(cwd, ['diff', '--cached', '--name-only', '--', '.', ...EXCLUDES]) + git(cwd, ['diff', '--name-only', '--', '.', ...EXCLUDES]);
@@ -437,7 +440,7 @@ function resolve(cwd, id, reason, pluginRoot = PLUGIN_ROOT) {
  */
 function prepare(cwd, range = 'working', pluginRoot = PLUGIN_ROOT) {
   const changes = workingChanges(cwd);
-  const diff = range === 'working' ? changes.diff : git(cwd, ['diff', range]);
+  const diff = range === 'working' ? changes.diff : git(cwd, ['diff', ...DIFF_FORMAT, range]);
   const diffFile = path.join('.ultimate-workflow', 'review.diff');
   fs.mkdirSync(path.join(cwd, '.ultimate-workflow'), { recursive: true });
   fs.writeFileSync(path.join(cwd, diffFile), diff);
@@ -452,6 +455,7 @@ function prepare(cwd, range = 'working', pluginRoot = PLUGIN_ROOT) {
   for (const e of available.filter((x) => x.stages.includes('review'))) {
     const sel = selectSkills(pluginRoot, e.name, 'review', change);
     skillProblems.push(...sel.problems);
+    if (sel.dropped.length > 0) skillProblems.push(`${e.name}: skills left out at the ${SKILLS_BYTES}-byte cap: ${sel.dropped.join(', ')}`);
     if (sel.skills.length > 0 || sel.dropped.length > 0) skills[e.name] = { skills: sel.skills, dropped: sel.dropped };
   }
   return { hash, range, diffFile, files: changes.files, available, skills, ...(skillProblems.length > 0 ? { skillProblems } : {}) };

@@ -282,7 +282,7 @@ test('asking for the lens and the expert of the same name runs only the expert',
 
 test('the result carries everything `experts.js record` needs, and nothing the model wrote', async () => {
   const { result } = await loadWorkflow(REVIEW)(base({ experts: ['security'] }), rechecking());
-  assert.deepStrictEqual(Object.keys(result.expertLane).sort(), ['added', 'available', 'failed', 'findings', 'planned', 'ran', 'recheck', 'selected', 'skillsLoaded', 'stage'].sort());
+  assert.deepStrictEqual(Object.keys(result.expertLane).sort(), ['added', 'available', 'failed', 'findings', 'planned', 'ran', 'recheck', 'selected', 'skillsDropped', 'skillsLoaded', 'stage'].sort());
   assert.strictEqual(result.expertLane.stage, 'review');
   assert.deepStrictEqual(result.experts, result.expertLane.selected);
 });

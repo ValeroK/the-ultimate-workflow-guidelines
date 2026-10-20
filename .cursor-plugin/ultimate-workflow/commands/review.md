@@ -47,7 +47,7 @@ Findings below high confidence are reported with the others but do not block.
 
 ## When it returns
 
-Say which experts ran, which skills each one was given (`expertLane.skillsLoaded`), which were added by the diff beyond the plan (`expertLane.added`) and why (the recheck's reasons are in the workflow log), and any that failed. Present confirmed, refuted, and unverified findings **separately**. List the refuted ones rather than dropping them: a verifier that silently filters cannot be audited.
+Say which experts ran, which skills each one was given (`expertLane.skillsLoaded`) and which were left out at the cap (`expertLane.skillsDropped`), which were added by the diff beyond the plan (`expertLane.added`) and why (the recheck's reasons are in the workflow log), and any that failed. Present confirmed, refuted, and unverified findings **separately**. List the refuted ones rather than dropping them: a verifier that silently filters cannot be audited.
 
 ## If the Workflow tool is unavailable
 

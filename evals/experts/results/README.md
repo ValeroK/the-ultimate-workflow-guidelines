@@ -44,3 +44,25 @@ File: `2026-10-20-developer-heldout-expert-v1-vs-baseline.json`. Same arms, mode
 File: `2026-10-20-gen-developer-dev-harness-v1.json`. Dev split, 9 tasks, 3 runs, Sonnet implementers, no code run. **Plain and brief arms came out identical**: 8 of 9 tasks clean by majority in both, 0 of 27 traps fallen into in both, 0 over-engineered runs, correctness 23 of 27 in both, 23.4 against 23.8 added lines per run. The gate fails because the brief did not make more tasks clean.
 
 Why this run is not the answer: the harness's shared instruction told both arms "Match what the repository already does", which is the brief's most important rule. The real build prompt says only "smallest change that works, nothing beyond the plan". The plain arm was therefore stronger than the arm that ships. Found by reading the two prompts side by side after seeing the null result; the harness was then changed to mirror the real wording and the run repeated (v2). Both runs are kept. Also: task `gd6b2b81a` is 0 of 3 clean in both arms because the task's starting files omit the repository file the change must call, so its correctness check cannot be satisfied; it adds the same noise to both arms.
+
+## 2026-10-20 generation eval, harness v2 (the one that mirrors the real build prompt)
+
+File: `2026-10-20-gen-developer-dev-harness-v2.json`. Dev split, 9 tasks (5 trap, 4 restraint), 3 runs, Sonnet implementers, nothing run, one judge pass per batch.
+
+| | plain | with the brief |
+|---|---|---|
+| tasks clean by majority | 7 of 9 | 8 of 9 |
+| traps fallen into | 0 of 27 | 0 of 27 |
+| over-engineered runs | 0 | 0 |
+| correct runs | 22 of 27 | 22 of 27 |
+| added lines per run | 21.1 | 20.7 |
+
+The pre-set gate passes (a margin of one task is required, and there is one). **It should not be read as a result.** Reading the judge's reasons for the tasks that differ:
+
+- `gf5af64bd`: plain 1 of 3 clean, brief 2 of 3. The runs differ on whether the size check measured the whole serialised event or only a `body` field. That is a requirements-interpretation point; the brief says nothing about it. One run flipped.
+- `gfd97a60e`: plain 3 of 3, brief 2 of 3. The brief arm's one failure used a config key with a different name from the one specified. That is against the brief, and also noise.
+- `gd6b2b81a`: 0 of 3 in both arms, because the task's check requires a `cancelled_at` timestamp that the request never mentions. A task-authoring defect; it adds the same noise to both arms.
+
+Every craft measure is identical: no trap fallen into by either arm, nothing over-engineered by either arm. The tasks did not separate the arms on craft, because a Sonnet implementer asked for "the smallest change that works" already avoids every trap here (0 of 27 without the brief). So this run shows no evidence that the brief helps, and no evidence that it hurts: no extra over-engineering, equal correctness, equal size. It is cheap (under 3.5 KB per build).
+
+Not measured, and the limits of this harness: the brief's rule to run the repository's lint, format and type-check (implementers may not run anything here); other models (Haiku, Opus); larger or longer tasks, where drift over a long session is the real complaint; the held-out split (3 tasks; unrun on purpose, since the dev run did not separate the arms and tuning the tasks against it would spend it). To get a signal: harder tasks authored blind, with the repository's convention far from the code being changed, or a weaker implementer model.

@@ -1,0 +1,144 @@
+{
+  "split": "dev",
+  "runsPerTask": 3,
+  "arms": {
+    "P0": {
+      "runsPerTask": 3,
+      "tasks": {
+        "trap": 5,
+        "restraint": 4
+      },
+      "cleanTasksMajority": 7,
+      "cleanTasksMajorityTrap": 4,
+      "cleanTasksMajorityRestraint": 3,
+      "trap": {
+        "trapsTotal": 27,
+        "fellIn": 0
+      },
+      "overEngineered": {
+        "runs": 12,
+        "count": 0,
+        "allTasks": 0
+      },
+      "correct": {
+        "runs": 27,
+        "count": 22
+      },
+      "failedRuns": 0,
+      "meanAddedLines": 21.14814814814815
+    },
+    "P1": {
+      "runsPerTask": 3,
+      "tasks": {
+        "trap": 5,
+        "restraint": 4
+      },
+      "cleanTasksMajority": 8,
+      "cleanTasksMajorityTrap": 4,
+      "cleanTasksMajorityRestraint": 4,
+      "trap": {
+        "trapsTotal": 27,
+        "fellIn": 0
+      },
+      "overEngineered": {
+        "runs": 12,
+        "count": 0,
+        "allTasks": 0
+      },
+      "correct": {
+        "runs": 27,
+        "count": 22
+      },
+      "failedRuns": 0,
+      "meanAddedLines": 20.74074074074074
+    }
+  },
+  "comparisons": {
+    "P1": {
+      "pass": true,
+      "checks": [
+        {
+          "name": "more tasks come out clean (correct, no trap, not over-engineered) by majority",
+          "ok": true,
+          "detail": "brief 8, plain 7, margin 1",
+          "informational": false
+        },
+        {
+          "name": "no more over-engineering, on any task",
+          "ok": true,
+          "detail": "brief 0 runs (0/12 on restraint tasks), plain 0 (0/12)",
+          "informational": false
+        },
+        {
+          "name": "correctness not worse beyond the tolerance",
+          "ok": true,
+          "detail": "brief 22/27, plain 22/27, tolerance 0.05",
+          "informational": false
+        },
+        {
+          "name": "no failed runs",
+          "ok": true,
+          "detail": "0 failed",
+          "informational": false
+        },
+        {
+          "name": "traps fallen into (informational)",
+          "ok": true,
+          "detail": "brief 0/27, plain 0/27",
+          "informational": true
+        },
+        {
+          "name": "lines added per run (informational)",
+          "ok": true,
+          "detail": "brief 20.7, plain 21.1",
+          "informational": true
+        }
+      ]
+    }
+  },
+  "perTask": {
+    "g02d8f7d4": {
+      "P0": "3/3 clean",
+      "P1": "3/3 clean"
+    },
+    "g5dcb3221": {
+      "P0": "3/3 clean",
+      "P1": "3/3 clean"
+    },
+    "g69cc42ff": {
+      "P0": "3/3 clean",
+      "P1": "3/3 clean"
+    },
+    "g82bcb615": {
+      "P0": "3/3 clean",
+      "P1": "3/3 clean"
+    },
+    "g8a9e53c7": {
+      "P0": "3/3 clean",
+      "P1": "3/3 clean"
+    },
+    "gd6b2b81a": {
+      "P0": "0/3 clean",
+      "P1": "0/3 clean"
+    },
+    "gdee96281": {
+      "P0": "3/3 clean",
+      "P1": "3/3 clean"
+    },
+    "gf5af64bd": {
+      "P0": "1/3 clean",
+      "P1": "2/3 clean"
+    },
+    "gfd97a60e": {
+      "P0": "3/3 clean",
+      "P1": "2/3 clean"
+    }
+  },
+  "baseline": "P0",
+  "thresholds": {
+    "cleanMarginTasks": 1,
+    "overEngineeredDeltaRuns": 0,
+    "correctTolerance": 0.05
+  },
+  "date": "2026-10-20"
+}

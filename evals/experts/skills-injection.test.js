@@ -329,9 +329,9 @@ test('architect review: Terraform, CloudFormation and SAM files select aws-well-
 });
 
 test('architect review: AWS code in the added lines selects it in any file; other code does not', () => {
-  assert.deepEqual(arch({ 'stack/app.ts': ["import * as sqs from 'aws-cdk-lib/aws-sqs';"] }), ['aws-well-architected']);
+  assert.deepEqual(arch({ 'stack/app.ts': ["import * as sqs from 'aws-cdk-lib/aws-sqs';"] }), ['aws-messaging', 'aws-well-architected']);
   assert.deepEqual(arch({ 'svc/store.py': ['import boto3'] }), ['aws-well-architected']);
-  assert.deepEqual(arch({ 'cfn/queue.yml': ['  Type: AWS::SQS::Queue'] }), ['aws-well-architected']);
+  assert.deepEqual(arch({ 'cfn/queue.yml': ['  Type: AWS::SQS::Queue'] }), ['aws-messaging', 'aws-well-architected']);
   assert.deepEqual(arch({ 'svc/handler.py': ['def handle(event):', '    return 1'] }), []);
   assert.deepEqual(arch({ 'README.md': ['Deployed on AWS.'] }), []);
 });
@@ -378,4 +378,22 @@ test('architect review: tenant ids and row-level security select multi-tenancy; 
   assert.ok(arch({ 'db/001.sql': ['ALTER TABLE orders ENABLE ROW LEVEL SECURITY;'] }).includes('multi-tenancy'));
   assert.ok(arch({ 'db/002.sql': ["CREATE POLICY p ON orders USING (tenant = current_setting('app.tenant'));"] }).includes('multi-tenancy'));
   assert.ok(!arch({ 'svc/orders.py': ['    rows = db.query(Order).all()'] }).includes('multi-tenancy'));
+});
+
+test('architect review: queues, topics and buses select aws-messaging; API Gateway selects api-gateway', () => {
+  assert.ok(arch({ 'infra/q.tf': ['resource "aws_sqs_queue" "orders" {'] }).includes('aws-messaging'));
+  assert.ok(arch({ 'svc/pub.ts': ['await sns.send(new PublishCommand({ TopicArn, Message }));'] }).includes('aws-messaging'));
+  assert.ok(arch({ 'infra/api.tf': ['resource "aws_apigatewayv2_api" "http" {'] }).includes('api-gateway'));
+  assert.ok(!arch({ 'infra/bucket.tf': ['resource "aws_s3_bucket" "logs" {'] }).includes('aws-messaging'));
+  assert.ok(!arch({ 'infra/bucket.tf': ['resource "aws_s3_bucket" "logs" {'] }).includes('api-gateway'));
+});
+
+test('architect review: a change touching many AWS areas reports what the cap leaves out instead of growing past it', () => {
+  const sel = ex.selectSkills(PLUGIN, 'architect', 'review', ex.parseDiff(diffOf({ 'a.tf': [
+    'resource "aws_lambda_event_source_mapping" "x" {', 'resource "aws_sqs_queue" "q" {', 'resource "aws_sfn_state_machine" "y" {',
+    'resource "aws_apigatewayv2_api" "z" {', 'tenant_id = var.t', 'resource "aws_elasticache_cluster" "c" {'] })));
+  const total = sel.skills.reduce((n, s) => n + Buffer.byteLength(s.text), 0);
+  assert.ok(total <= ex.SKILLS_BYTES);
+  assert.equal(sel.skills[0].name, 'lambda-event-sources', 'the most specific first');
+  assert.ok(sel.dropped.length > 0, 'something is left out and named');
 });

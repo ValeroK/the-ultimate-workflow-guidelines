@@ -30,6 +30,11 @@ What breaks it: a step with a side effect that cannot repeat (a charge, an email
 | Give every Task a `TimeoutSeconds`, and long ones a `HeartbeatSeconds` [T] | A Task waiting on a callback or a slow call with no timeout runs until the execution's own limit |
 | A `Choice` with no `Default` fails when no rule matches [T] | A new `Choice` whose rules do not cover every value |
 | Standard workflows are billed per state transition, retries included [T] | Aggressive retries on a high-volume Standard workflow |
+| A failed branch fails the whole `Parallel` state and stops the other branches (`States.BranchFailed`); Lambda calls already running keep running [G]. A `Map` tolerates failures only through `ToleratedFailurePercentage` or `ToleratedFailureCount` [T] | A saga that assumes the branches that succeeded are kept, or a `Map` expected to finish despite failed items |
+| Retry counts start again when the execution moves to another state [T] | A `Choice` loop back to a retried Task, which gets fresh retries every time and never ends |
+| A child started without `.sync` returns at once [T] | A parent that continues as if the child had finished or succeeded |
+| A `.waitForTaskToken` Task waits until its timeout [T] | One with no `TimeoutSeconds` waits until the execution's own limit |
+| Start rates are limited: the 2022 quota table gives Standard a bucket of 1,300 executions refilling at 300 per second in the largest Regions, and Express 6,000 [G] | A plan that starts a Standard execution per incoming request at high volume |
 
 ## Sagas: undoing earlier steps
 

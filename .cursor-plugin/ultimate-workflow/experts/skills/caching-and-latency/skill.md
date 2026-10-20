@@ -2,7 +2,7 @@
 
 Use this when a change adds or changes a cache (Redis, Valkey, ElastiCache, an in-process cache), a CDN (CloudFront) or cache headers, or a latency target. A cache is a second copy of data with its own failure modes; most of them show up as wrong answers, not errors.
 
-Each fact carries its source: **[G]** an AWS developer guide (AWS-written, in its 2022 or 2023 form); **[T]** an AWS or community skill (2026), not yet checked against the current guide; **[O]** our own reasoning, stated as such. When a decision turns on a [T] fact, fetch the current page and say what you found.
+Each fact carries its source: **[G]** an AWS developer guide as AWS last published it on GitHub (2022 or 2023); **[T]** an AWS or community skill (2026), not yet checked against the current guide; **[O]** our own reasoning, stated as such. When a decision turns on a [T] fact, fetch the current page and say what you found.
 
 ## Correctness first
 
@@ -35,7 +35,7 @@ Each fact carries its source: **[G]** an AWS developer guide (AWS-written, in it
 
 | Rule | What breaks it | When it does not apply |
 |---|---|---|
-| A minimum TTL above zero overrides the origin's `no-cache`, `no-store` and `private` [T] | A cache behaviour with a minimum TTL above zero in front of per-user responses | Purely static origins |
+| A minimum TTL above zero overrides the origin's `no-cache`, `no-store` and `private` [G] | A cache behaviour with a minimum TTL above zero in front of per-user responses | Purely static origins |
 | Cache rules live in a cache policy, and API paths have their own behaviour | TTLs or the cache key set outside a cache policy; an `/api/*` path that falls into the long-TTL default behaviour [T] | |
 | A CDN does not protect an origin from requests it never caches | A plan that counts on CloudFront to absorb load on an uncached API with no throttling at the origin [T] | |
 

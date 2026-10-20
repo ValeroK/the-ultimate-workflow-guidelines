@@ -37,7 +37,17 @@ A handler that catches every error per record and reports none has turned failur
 
 ## Asynchronous invocation
 
-Lambda retries throttles and system errors for up to 6 hours, and retries a function error twice more by default (0 to 2), up to a maximum event age of 6 hours [G]. So the handler must be idempotent, and a new asynchronous path needs an on-failure destination or a dead-letter queue, or events that exhaust their retries are dropped.
+Lambda retries throttles and system errors for up to 6 hours, and retries a function error twice more by default (0 to 2), up to a maximum event age of 6 hours [G]. So the handler must be idempotent, and a new asynchronous path needs an on-failure destination or a dead-letter queue, or events that exhaust their retries are dropped. With reserved concurrency of 0, new asynchronous events go straight to the dead-letter queue or on-failure destination, with no retries [G].
+
+Payload limits: 6 MB for a synchronous request and for its response; 256 KB for an asynchronous event in the 2022 guide [G], 1 MB in 2026 sources [T].
+
+## S3 notifications
+
+S3 event notifications arrive at least once and in no promised order, and the object key in the event is URL-encoded [G]. A function that writes to the bucket that triggers it can run in a loop [G]. What breaks it: a handler that writes its output under the same bucket and prefix, assumes order, or uses the key without decoding it.
+
+## Kinesis read capacity
+
+Each shard gives 2 MB/s of reads, shared by all standard consumers; enhanced fan-out gives each consumer its own 2 MB/s [G]. A new Lambda consumer on a stream already read at capacity slows every consumer.
 
 ## Concurrency
 
@@ -47,6 +57,11 @@ Lambda retries throttles and system errors for up to 6 hours, and retries a func
 | Provisioned concurrency cannot exceed reserved concurrency and cannot be set on `$LATEST` [G]; it cannot be combined with SnapStart [T] | Provisioned concurrency on an unpublished version or above the reservation |
 | Provisioned concurrency is paid while idle and does not drain a queue backlog faster; the poller settings do [T] | Provisioned concurrency added to fix a queue backlog |
 | A synchronous caller that is throttled gets a 429 [T] | An API path with no handling for it |
+| Concurrency needed is about requests per second times average duration [T]. Scaling out has a ceiling: the 2022 guide gives a per-Region burst of 500 to 3,000 then 500 more per minute [G]; 2026 sources give 1,000 new environments per 10 seconds per function [T] | A plan sized from requests per second alone, or expecting a sudden spike to be absorbed at once |
+
+## Lambda in a VPC
+
+A function attached to a VPC has no internet access, even in a public subnet, unless the route goes through a NAT gateway [G]; AWS services need a NAT or VPC endpoints. Functions sharing a subnet and security group share network interfaces [G], so many concurrent functions in one small subnet can run it out of addresses [T]. What breaks it: `VpcConfig` added to a function that calls a third-party API with no NAT route; one small subnet for a high-concurrency function.
 
 ## Idempotency keys by source
 

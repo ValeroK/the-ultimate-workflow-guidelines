@@ -61,7 +61,7 @@ Claims to verify:
 
 ## 1b. Architect: messaging semantics, and the facts marked unverified
 
-> Status: not run. The architect's skills defer messaging semantics, and mark some facts as coming only from AWS's 2026 agent toolkit ([T]).
+> Status: partly answered on 2026-10-20 without live pages: `aws-messaging` was built from AWS's archived guides (2022 to 2023) and 2026 skills. Still needed from the live pages: every fact marked [T] in the architect's skills, and the gaps listed in `docs/experts/architect.md`.
 
 ```
 [shared rules above]
@@ -78,7 +78,7 @@ F. Step Functions: Distributed Map limits; JitterStrategy and its default; the d
 
 ## 1c. Architect: multi-tenancy isolation
 
-> Status: not run. The architect keeps its tenancy checks in its references until then.
+> Status: partly answered on 2026-10-20: `multi-tenancy` was built from Cloudflare's and Supabase's guidance and the SaaS Lens names. The SaaS Lens text itself is still needed (it has no public source repository).
 
 ```
 [shared rules above]

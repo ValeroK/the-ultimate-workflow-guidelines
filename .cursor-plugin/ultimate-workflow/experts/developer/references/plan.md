@@ -16,7 +16,7 @@ Read the draft, then search the code it will touch. Answer these only for the pa
 
 ## Skills
 
-Skills are files in the `skills/` folder of the experts directory that holds your references. Load one only when its cue matches this plan.
+A skill named `experts/skills/<name>/skill.md` lives in this plugin's `experts/skills/` folder: from your references directory (`.../experts/developer/references/`) that is `../../skills/<name>/skill.md`. Load one only when its cue matches this plan.
 
 - `experts/skills/engineering-principles/skill.md`: load when the plan adds structure (a type hierarchy, an interface, a pattern, a shared helper), to check whether it has the need the structure exists for.
 - `experts/skills/dependency-discipline/skill.md`: load when the plan adds, removes or upgrades a dependency.

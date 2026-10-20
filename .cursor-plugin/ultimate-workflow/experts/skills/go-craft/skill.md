@@ -12,7 +12,7 @@ Read `go.mod` (the `go` version matters below), `.golangci.yml` or `.golangci.to
 | Mutex or other lock copied by value | `go vet` `copylocks` |
 | Context cancel function never called | `go vet` `lostcancel` |
 | Printf verbs that do not match the arguments | `go vet` `printf` |
-| Variable shadowing | `go vet` `shadow` (opt-in) |
+| Variable shadowing | golangci-lint `govet` with the `shadow` analyzer enabled (not part of plain `go vet`) |
 | Unused code, dead assignments | staticcheck, golangci-lint `unused`, `ineffassign` |
 | Data races | `go test -race` (a run-time check; ask whether CI runs it) |
 

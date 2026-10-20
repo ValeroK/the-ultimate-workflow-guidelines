@@ -73,7 +73,7 @@ Check what the change adds and skip the rest.
 
 ## Skills
 
-Skills are files in the `skills/` folder of the experts directory that holds your references. Load one only when its cue matches this change; many reviews need none.
+A skill named `experts/skills/<name>/skill.md` lives in this plugin's `experts/skills/` folder: from your references directory (`.../experts/developer/references/`) that is `../../skills/<name>/skill.md`. Load one only when its cue matches this change; many reviews need none.
 
 - `experts/skills/failure-handling/skill.md`: load when the diff adds or changes a catch or except block, an error return, a fallback or default on error, a retry, or work that must be undone on failure.
 - `experts/skills/python-craft/skill.md`: load when the diff touches `.py` files.

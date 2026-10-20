@@ -11,4 +11,6 @@ Sources compared on 2026-10-20, ideas only:
 | tech-leads-club/agent-skills, `react-composition-patterns` (authored by Vercel) | MIT | Boolean props versus explicit variants and composition through `children` |
 | wshobson/agents, `react-state-management` | MIT | Colocate state; do not duplicate server state in client stores |
 
+The rule names in the linter table (`react-hooks/rules-of-hooks`, `react-hooks/exhaustive-deps`, `react/jsx-key`, `react/no-array-index-key`) were verified on 2026-10-20 against each tool's own source repository on GitHub (the documentation sites were not reachable from the build session).
+
 Out-of-order responses in fetching effects and `count && <X />` rendering `0` come from our own review experience.

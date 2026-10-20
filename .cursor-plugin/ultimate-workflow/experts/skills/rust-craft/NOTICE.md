@@ -11,4 +11,4 @@ Sources compared on 2026-10-20, ideas only:
 | trailofbits/skills, `rust-review` | CC BY-SA 4.0 | Read; it is a multi-agent security audit pipeline with scripts. Only the point that the compiler proves nothing about `unsafe`, panics or lock ordering is reflected, as an idea |
 | wshobson/agents, `rust-async-patterns` | MIT | Never hold a lock across an await, bound task spawning, `Send` bounds on spawned futures |
 
-`as` truncation, panicking indexing and division, dropped `JoinHandle`s and the clippy lint names come from our own experience and the clippy documentation.
+`as` truncation, panicking indexing and division and dropped `JoinHandle`s come from our own review experience. The clippy lint names and their groups (restriction, pedantic) and rustc's `unused_must_use` and `dead_code` were verified on 2026-10-20 against each tool's own source repository on GitHub (the documentation sites were not reachable from the build session).

@@ -56,7 +56,7 @@ An expert added at the commit check was never consulted at planning. It reviews,
 A skill is knowledge an expert reads only when the change needs it: a principles reference, a failure-handling checklist, a language's idioms. It is not an expert and is never selected on its own.
 
 - **Where.** `.cursor-plugin/ultimate-workflow/experts/skills/<name>/skill.md`, with a `NOTICE.md` beside it. The file is `skill.md`, not `SKILL.md`, so no host loads it as a skill of its own on every turn.
-- **Who loads it.** An expert names it in its agent file or a reference, on one line with its cue: ``- `experts/skills/<name>/skill.md`: load when ...``. More than one expert may name the same skill.
+- **Who loads it.** An expert names it in its agent file or a reference, on one line with its cue: ``- `experts/skills/<name>/skill.md`: load when ...``. More than one expert may name the same skill. Say where the file is relative to the references directory the workflow gives the expert (`.../experts/<name>/references/`): `../../skills/<skill>/skill.md`.
 - **What the contract checks.** Every named skill exists; every mention has a cue ("when") on its line; every skill is named by at least one expert; every skill has a `NOTICE.md`, is at most 16 KB, opens with a `# ` title, and tells no one to fetch, install or visit anything.
 - **What it holds.** What the expert cannot say in one line of its checklist: exact meanings, counter-cases, language forms. A skill never adds a category of its own; the expert's checklist decides what is reported.
 

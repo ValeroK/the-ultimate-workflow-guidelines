@@ -184,6 +184,81 @@ Module boundaries
 Also return: which of these differ between versions still in common use (protobuf editions against proto3, OpenAPI 3.0 against 3.1, TypeScript module resolution modes), so the reviewer knows when to ask which version the repository uses.
 ```
 
+## 3b. Library API compatibility (developer) and event schema evolution (software architect)
+
+> Status: sent to the maintainer on 2026-10-20 (playbook step 6b); waiting for the reply. Part A goes into the developer's language skills (`go-craft`, `java-craft`, `typescript-craft`, `rust-craft`, `python-craft`), one short section each, for code whose package is exported or published. Part B is a new software architect skill, `event-schema-evolution`. The claims were drafted in the build session from memory and are unverified until the reply.
+
+```
+[shared rules above]
+
+Task: verify the rules a code reviewer needs to tell whether a change to a library's public API, or to an event or message schema, breaks existing callers, consumers or stored data. For each claim below: confirmed, different (give the documented value), or not found, with the page and a quote. Prefer the language's or tool's own documentation and specifications. Then add up to 10 facts from the same pages that a reviewer of a diff would need and that are not listed.
+
+Claims to verify:
+
+A. Library API compatibility
+
+Go (go.dev/blog/module-compatibility, go.dev/doc/modules/release-workflow, golang.org/x/exp/cmd/apidiff)
+1. Adding a method to an exported interface breaks every type outside the package that implements it.
+2. Adding a parameter to an exported function breaks callers; the recommended path is a new function or a variadic options parameter.
+3. Adding a field to an exported struct is compatible unless callers use unkeyed composite literals, or the new field makes a comparable struct no longer comparable.
+4. apidiff reports incompatible changes between two versions of a package.
+
+Java (Java Language Specification chapter 13, Binary Compatibility; japicmp; revapi)
+5. Changing a method's return type is binary-incompatible: already-compiled callers fail with NoSuchMethodError, even where their source still compiles.
+6. Removing a public method or field, or making it less accessible, is binary-incompatible.
+7. Adding an abstract method to an interface is binary-compatible but breaks the source of implementing classes; a default method does not.
+8. A compile-time constant (static final primitive or String) is inlined into callers, so changing its value does not reach callers compiled earlier.
+9. Changing a method's parameter types is binary-incompatible, because the method descriptor changes.
+10. japicmp and revapi compare two versions of a jar and report binary and source incompatibilities.
+
+TypeScript (semver-ts.org, Semantic Versioning for TypeScript Types; Microsoft api-extractor documentation)
+11. Widening a function's return type is a breaking change for consumers.
+12. Narrowing a function's parameter type is a breaking change for consumers.
+13. Adding a required property to an interface or type that consumers construct or implement is breaking.
+14. Dropping support for a TypeScript version consumers use is a breaking change under semver-ts.
+15. api-extractor writes an API report file (*.api.md) that shows changes to the public API in review.
+
+Rust (doc.rust-lang.org/cargo/reference/semver.html; cargo-semver-checks)
+16. Adding a public field to a struct whose fields are all public is a major change.
+17. Adding a private field to a struct whose fields are all public is a major change.
+18. Adding a variant to a public enum without #[non_exhaustive] is a major change; #[non_exhaustive] allows adding variants in a minor release.
+19. Adding a trait item without a default is a major change; adding one with a default is possibly breaking (minor).
+20. Under Cargo's rules, for 0.y.z versions a change in y is treated as major.
+21. cargo-semver-checks lints a crate's public API against an earlier release for semver violations.
+
+Python (PEP 8 Public and Internal Interfaces; the Python tutorial on import *; PEP 387; griffe documentation)
+22. Under PEP 8, documented names and names without a leading underscore are public, and modules should declare their public API in __all__.
+23. When a module defines __all__, `from module import *` imports only the names it lists.
+24. PEP 387 asks for a DeprecationWarning for at least two releases before an incompatible change in CPython.
+25. griffe can check a package's API against an earlier version and report breaking changes.
+
+B. Event and message schema evolution
+
+Confluent Schema Registry (docs.confluent.io, schema evolution and compatibility)
+26. The compatibility types are BACKWARD, BACKWARD_TRANSITIVE, FORWARD, FORWARD_TRANSITIVE, FULL, FULL_TRANSITIVE and NONE, and BACKWARD is the default.
+27. BACKWARD means consumers on the new schema can read data written with the previous one; it allows deleting fields and adding optional fields, and consumers are upgraded first.
+28. FORWARD means consumers on the previous schema can read data written with the new one; it allows adding fields and deleting optional fields, and producers are upgraded first.
+29. The non-transitive types check a new schema only against the latest version; the transitive types check it against all earlier versions.
+30. For Protobuf, Confluent recommends BACKWARD_TRANSITIVE, because adding new message types is not forward compatible.
+31. For JSON Schema, whether adding or removing a property is compatible depends on whether the schema's content model is open or closed (additionalProperties).
+
+Avro (avro.apache.org specification, schema resolution)
+32. A field in the reader's schema that is missing from the writer's schema must have a default, or reading fails.
+33. A renamed field is resolved only through aliases in the reader's schema.
+34. Reading an enum symbol the reader's schema does not have is an error unless the reader's enum declares a default (from Avro 1.9).
+35. The allowed type promotions are int to long, float or double; long to float or double; float to double; string to bytes and bytes to string.
+
+AWS Glue Schema Registry (docs.aws.amazon.com/glue, schema registry)
+36. Its compatibility modes are NONE, DISABLED, BACKWARD, BACKWARD_ALL, FORWARD, FORWARD_ALL, FULL and FULL_ALL, and BACKWARD is the default.
+
+CloudEvents and AsyncAPI (github.com/cloudevents/spec; asyncapi.com)
+37. CloudEvents' `dataschema` attribute identifies the schema the data adheres to, and an incompatible change to the schema should be reflected by a different URI.
+38. CloudEvents' `type` attribute is the basis for routing, and the specification recommends that a producer include a version in it (or not); give what it actually says.
+39. In AsyncAPI 3.0, a message's payload schema format defaults to the AsyncAPI schema format unless `schemaFormat` names another (Avro, JSON Schema, Protobuf).
+
+Also return: which of these differ between tool versions still in common use (Avro before and after 1.9; Schema Registry versions; Rust editions), so the reviewer knows when to ask which one the repository uses.
+```
+
 ## 4. Quality engineer: oracles, contracts, evals, gates
 
 > Status: not run.
@@ -355,6 +430,7 @@ Also return: what a reviewer can and cannot judge from a diff, and when a change
 | 1c | Architect: multi-tenancy | not run | Unblocks a tenancy skill |
 | 2 | Developer | done | Used in the developer references and skills |
 | 3 | Software architect | answered 2026-10-20 | 41 of 45 confirmed, 4 narrowed or secondary only; 10 extra facts |
+| 3b | Library API compatibility (developer) and event schemas (software architect) | sent to the maintainer 2026-10-20, waiting | 39 claims |
 | 4 | Quality engineer | not run | The expert ships; `test-craft` was built from upstream skills, not primary sources |
 | 5 | Generative AI engineer | not run | Next expert to build |
 | 6 | Data and database | not run | Next after the Generative AI engineer |

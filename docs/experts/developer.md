@@ -40,6 +40,7 @@ A skill is loaded by the expert, by a cue, only when the change needs it. For ea
 
 | # | Skill | Load when | Candidate sources |
 |---|---|---|---|
+| S0 | Engineering principles: SOLID, KISS, YAGNI, DRY and when not to apply it, composition over inheritance, command-query separation, least astonishment, fail fast, the Law of Demeter, and the design patterns most often misused | At plan, when the plan adds structure (a type hierarchy, an interface, a pattern, a shared helper); at review, when a finding rests on a principle and the expert must state the cost | Primary sources from the research pass: Martin's OCP paper, Liskov and Wing (via secondary sources), Sandi Metz "The Wrong Abstraction", Fowler on flag arguments and speculative generality, Google engineering practices on over-engineering, the GoF intents. Skills: ECC `coding-standards`, wshobson `python-design-patterns`, awesome-copilot `cloud-design-patterns`, tech-leads-club `modular-design-principles`, multica `karpathy-guidelines` |
 | S1 | Failure handling | The diff adds or changes a catch, except, fallback, default-on-error, retry or Result handling | ECC `error-handling`; wshobson `error-handling-patterns`, `python-error-handling`; anthropics and ECC `silent-failure-hunter`; addyosmani `debugging-and-error-recovery` |
 | S2 | Python craft | The diff touches `.py` files | ECC `python-patterns` and `python-reviewer`; wshobson `python-anti-patterns`, `python-type-safety`, `python-resource-management`, `async-python-patterns`; trailofbits `modern-python`; the Ruff and mypy rule families from the research pass |
 | S3 | TypeScript and JavaScript craft | The diff touches `.ts`, `.tsx`, `.js` or `.mjs` files | ECC `typescript-reviewer`; wshobson `typescript-advanced-types`, `modern-javascript-patterns`, `nodejs-backend-patterns`; the typescript-eslint rule families from the research pass |
@@ -47,6 +48,30 @@ A skill is loaded by the expert, by a cue, only when the change needs it. For ea
 | S5 | Scope and surgical change | The diff touches many files, or mixes a refactor with a behaviour change | agency-agents `minimal-change-engineer`; JuliusBrussee `surgical-patch`; alirezarezvani `karpathy-coder`; multica `karpathy-guidelines` |
 | S6 | Dependency discipline | A package manifest or lockfile changes | addyosmani dependency discipline (in `code-review-and-quality`); rmyndharis and wshobson `dependency-upgrade`; alirezarezvani `dependency-auditor`; the package-hallucination research. The audit itself stays a tool (`experts/deps-audit.js`, owned by security) |
 
-Later, only when a repository uses the language: Go (ECC `golang-patterns`, wshobson `go-concurrency-patterns`), Rust (ECC `rust-patterns`, trailofbits `rust-review`), Java (ECC `java-coding-standards`).
+| S7 | Go craft | The diff touches `.go` files | ECC `golang-patterns` and its `go-reviewer` agent; wshobson `go-concurrency-patterns`; rmyndharis `golang-pro`; trailofbits `sharp-edges` Go reference; `go vet` and staticcheck rule families |
+| S8 | Rust craft | The diff touches `.rs` files | ECC `rust-patterns` and its `rust-reviewer` agent; trailofbits `rust-review`; wshobson `rust-async-patterns`, `memory-safety-patterns`; Clippy lint groups |
+| S9 | Java craft | The diff touches `.java` files | ECC `java-coding-standards`, `springboot-patterns` and its `java-reviewer` agent; awesome-copilot `java-springboot`; trailofbits `sharp-edges` Java reference; Error Prone, SpotBugs and Checkstyle rule families |
+| S10 | React craft (shared with the frontend expert) | The diff touches `.tsx` or `.jsx` components | vercel-labs and tech-leads-club `react-best-practices`; ECC `react-patterns` and its `react-reviewer` agent; tech-leads-club `react-composition-patterns`; wshobson `react-state-management`; awesome-copilot `react19-concurrent-patterns`. The developer loads it for component craft; the frontend expert owns rendering, state, accessibility and performance |
+
+A language skill holds what is specific to the language: its idioms, its common mistakes and which of them its linter already catches. What is true in every language stays in the expert's checklist or in S0.
+
+### How the principles reach the expert today, and what S0 adds
+
+The principles are already in the checklist, but as checks with a cost rather than as names, because a principle name with no cost is not a finding:
+
+| Principle | Where it is in the expert now |
+|---|---|
+| Single responsibility | "Two reasons to change" |
+| Open/closed | "A growing type switch" |
+| Liskov substitution | "Substitutability" |
+| Interface segregation | "Interface too wide" |
+| Dependency inversion | "Hard-wired dependency" |
+| KISS, YAGNI | "Unearned abstraction", "Complexity moved, not removed", "Speculative generality" |
+| DRY, and its limit | "Duplicate that already diverged"; intentional duplication is not reported |
+| Command-query separation, least astonishment | "Wrong or hidden meaning" |
+| Fail fast | "Swallowed failure" |
+| Composition over inheritance | The build brief's subclassing rule |
+
+S0 adds what the checklist cannot hold in one line each: the author's own definition of each principle, the common misreading of it, the counter-case where it should not be applied, which design patterns a language makes unnecessary, and the principles the checklist does not cover yet (the Law of Demeter, tell-don't-ask, high cohesion and low coupling, the rule of three). It is loaded when a plan adds structure or when a review finding rests on a principle, so the expert can name the principle and still has to show the cost.
 
 Each skill is built the same way as the expert: fetch the candidates, read them, keep what adds a specific check, restate it, credit it, and measure it where the corpus can.

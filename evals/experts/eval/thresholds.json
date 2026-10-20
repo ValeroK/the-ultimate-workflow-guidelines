@@ -13,5 +13,11 @@
       "maxLeakRate": null
     }
   },
-  "_overridesNote": "2026-10-20, maintainer: the developer expert should raise everything it finds, including defects that belong to other domains. Lane discipline (leak) is reported for it and does not gate. Other experts keep the default limit."
+  "_overridesNote": "2026-10-20, maintainer: the developer expert should raise everything it finds, including defects that belong to other domains. Lane discipline (leak) is reported for it and does not gate. Other experts keep the default limit.",
+  "generation": {
+    "cleanMarginTasks": 1,
+    "overEngineeredDeltaRuns": 0,
+    "correctTolerance": 0.05
+  },
+  "_generationNote": "Set before the first generation run. A task is clean when it is correct, falls into no trap and is not over-engineered. The brief must make more tasks clean by majority, must not add over-engineering, and must not cost correctness beyond the tolerance."
 }

@@ -338,8 +338,9 @@ test('architect review: AWS code in the added lines selects it in any file; othe
 
 test('architect plan: aws-well-architected is offered with its headline; the developer offers are unchanged', () => {
   const k = ex.planSkills(PLUGIN);
-  assert.deepEqual(k.skills.architect.map((s) => s.name), ['lambda-event-sources', 'step-functions', 'aws-well-architected']);
-  assert.match(k.skills.architect[2].headline, /AWS infrastructure/);
+  const offered = k.skills.architect.map((s) => s.name);
+  for (const n of ['lambda-event-sources', 'step-functions', 'caching-and-latency', 'aws-well-architected']) assert.ok(offered.includes(n), n);
+  assert.match(k.skills.architect.find((s) => s.name === 'aws-well-architected').headline, /AWS infrastructure/);
   assert.equal(k.skills.developer.length, 3);
 });
 
@@ -364,4 +365,10 @@ test('architect review: all three AWS skills together stay under the cap', () =>
   const sel = ex.selectSkills(PLUGIN, 'architect', 'review', ex.parseDiff(diffOf({ 'a.tf': ['resource "aws_lambda_event_source_mapping" "x" {', 'resource "aws_sfn_state_machine" "y" {'] })));
   assert.deepEqual(names(sel), ['lambda-event-sources', 'step-functions', 'aws-well-architected']);
   assert.deepEqual(sel.dropped, []);
+});
+
+test('architect review: a cache or CDN change selects caching-and-latency; a plain handler does not', () => {
+  assert.ok(arch({ 'svc/cache.py': ['import redis', 'r = redis.Redis()'] }).includes('caching-and-latency'));
+  assert.ok(arch({ 'infra/cdn.tf': ['resource "aws_cloudfront_distribution" "site" {'] }).includes('caching-and-latency'));
+  assert.ok(!arch({ 'svc/handler.py': ['def handle(event):', '    return {"statusCode": 200}'] }).includes('caching-and-latency'));
 });

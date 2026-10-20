@@ -43,3 +43,11 @@ What breaks it: a step with a side effect that cannot repeat (a charge, an email
 - A saga stuck in "compensating" means a compensation never reported that it finished.
 
 In Step Functions, a saga is a `Catch` on each step that routes to the compensations for the steps before it.
+
+## Durable execution outside Step Functions (Temporal and similar)
+
+[S] The same failure rules apply to Temporal-style workflows, plus these of their own:
+
+- **Workflow code is deterministic.** The wall clock, random numbers, threads, or network and file access inside workflow code (rather than in an activity) break replay.
+- **Changing workflow code while executions run** needs the SDK's versioning API or a new workflow type; otherwise executions in flight fail when they are replayed. This is the "two versions at once" problem of a rolling deploy.
+- Give activities a maximum number of attempts and declare validation failures non-retryable.

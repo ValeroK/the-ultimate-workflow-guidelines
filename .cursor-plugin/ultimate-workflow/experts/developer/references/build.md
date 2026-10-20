@@ -20,6 +20,9 @@ This applies to every line you write, in tests and in code. It adds no work: if 
 - Name things for what they do. A name that says one thing while the code does another is a bug. Give a bare number or string its unit, or a name, when its meaning is not obvious.
 - Add nothing that nothing in this change uses: no parameter, hook, option or layer for later. No new dependency where the standard library or an existing one does the job.
 - Do not return or store an object that a caller could then alter, and no mutable default arguments.
+- Every line you change traces to the task. Do not reformat, rename or reword code the change does not need. List what you noticed but did not change as follow-ups in your summary.
+- Keep a property of a thing next to the thing. Do not add a second list, keyed by its name, that the next change must remember to edit.
+- Before you remove something, find out why it is there.
 
 ## When not to add structure
 

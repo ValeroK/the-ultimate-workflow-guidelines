@@ -18,3 +18,14 @@ Dropped: everything that runs a tool, fetches a page, or installs something.
 - New dependency now includes "cannot confirm the package is real".
 - Do-not-report list: patterns the language makes unnecessary, a top-level catch that logs and keeps the process alive, a stated-invariant unwrap, the flag exceptions Fowler names.
 - Not remeasured. The recorded eval results describe the text before this change. These additions are not exercised by the frozen corpus, so a rerun could only show whether they add false positives.
+
+## 2026-10-20: combined with the upstream developer agents
+
+- Tests the diff adds or changes are now in scope for one question: would the test fail if the change it covers were reverted? (A new category, a test that cannot fail. The expert missed such a test in every run on the general review corpus.)
+- New category: a list that must be edited in step with the thing it describes. (No reviewer found this on the general review corpus.)
+- New category: change outside the task.
+- Swallowed failure now also covers a lost cause, a retry that gives up silently, and log-and-continue.
+- Method: read the project's written rules first; Chesterton's fence before calling something unnecessary; stop after three empty searches; one finding per repeated problem; mark read versus inferred evidence.
+- Build brief: every changed line traces to the task; keep a property next to the thing; find out why something exists before removing it.
+- Not taken: personas, capability lists, length and nesting thresholds, praise sections, language-specific rules (they go to skills), anything that runs tools or edits code.
+- Not remeasured yet. The held-out split of the general review corpus is reserved for this change.

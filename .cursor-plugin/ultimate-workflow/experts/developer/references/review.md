@@ -6,7 +6,8 @@ This checklist finds engineering defects that cost something concrete, in code t
 
 Report craft problems that this change introduces. This is not a style review and not an audit of the whole codebase.
 
-- Only new or substantially rewritten production code is in scope. Config, tests, generated code, docs and unchanged code are not.
+- New or substantially rewritten production code is in scope. So is a test the diff adds or changes, for one question only: would it fail if the change it covers were reverted? Config, generated code, docs and unchanged code are not.
+- Read the project's written rules first: `CLAUDE.md`, `AGENTS.md`, `CONTRIBUTING`, and the lint and format configuration. A diff that breaks a written rule is a finding; cite the rule and the file it is in.
 - A problem that was already there and is untouched is out of scope.
 - You may read callers of the changed code, and the code the changed code calls. You must, to find the repository's convention and the second user of anything new.
 - If the plan has an "Expert input" section, check the diff against what you required there, and report any requirement the diff does not honour.
@@ -22,6 +23,8 @@ Return findings in the shape the workflow gives you. Every finding states:
 - the category, the severity and the confidence;
 - the fix, in one sentence, and it must be smaller than or equal to the code it replaces.
 
+Report a repeated problem once, with every location, not once per location. In the evidence, say which steps you read and which you inferred.
+
 If nothing is reportable, say so plainly. Return no findings and a verdict in this form:
 
 > No craft findings. Examined: the files you read, in one line; the checks you ran.
@@ -36,9 +39,11 @@ Rate each candidate from 1 to 10 for how sure you are that it is a real problem 
 
 Work in three passes.
 
-1. Learn how this repository already does it. Search for existing helpers, base types, error handling and dependency injection. Do not assume a textbook.
+1. Learn how this repository already does it. Search for existing helpers, base types, error handling and dependency injection. Do not assume a textbook. Before calling something unnecessary, find out why it is there: its callers, its tests, the comment above it.
 2. Compare the change against that. A deviation from the repository's own way is a candidate. A textbook the repository does not follow is not.
 3. For each candidate, find the concrete cost. If you cannot name a change that becomes harder or an input that goes wrong, you have a preference and not a finding.
+
+Stop working a candidate after three searches that turn up nothing new: report it with what you have, or drop it.
 
 A skeptic will try to refute each finding after you. Write the evidence so that it can be checked line by line.
 
@@ -54,7 +59,7 @@ Check what the change adds and skip the rest.
 - **Interface too wide.** A new interface that forces implementers to stub methods they cannot honour.
 - **Hard-wired dependency.** Logic that constructs its own database or HTTP client where the repository's other code receives it as a parameter, so tests must patch the module. Only when the repository injects elsewhere.
 - **Duplicate that already diverged.** Code copied from an existing helper (cite the helper's path) or two copies in the diff whose branches differ in a way that looks accidental. Two or three similar lines are not a finding.
-- **Swallowed failure.** An empty catch, a catch that continues, a default value returned on error, optional chaining that hides a failing call, a fallback to a stub outside tests, a broad catch that would also hide unrelated errors (name two). The caller must not be able to mistake failure for success.
+- **Swallowed failure.** An empty catch, a catch that continues, a default value returned on error, optional chaining that hides a failing call, a fallback to a stub outside tests, a broad catch that would also hide unrelated errors (name two), an error rethrown without its cause, a retry loop that gives up without telling anyone, a log line followed by carrying on as if the call worked. The caller must not be able to mistake failure for success.
 - **Wrong or hidden meaning.** A name that says one thing while the code does another (a `validate` that mutates, a `get` that writes); a bare number or string whose unit or meaning cannot be derived and has gone wrong or will (cents versus dollars); a parameter whose zero or empty value silently disables a check.
 - **Flag that switches behaviour.** A new boolean or mode parameter that selects between two different behaviours in one function, when the call sites all pass a literal.
 - **Speculative generality.** A parameter, hook, option or extension point that no caller in the diff or repository uses.
@@ -62,6 +67,9 @@ Check what the change adds and skip the rest.
 - **New dependency.** One that the standard library or an existing dependency already covers, or one whose name you cannot confirm is a real, canonical package (a model may have invented it, and a misspelt name can be a malicious look-alike). Check the manifest diff and the new imports; if you cannot confirm the package exists, say what you could not check.
 - **Resource not released.** A file, connection, lock or stream opened without the language's scoped cleanup (`with`, `defer`, `using`, try-with-resources, `finally`), where an error or early return between open and close leaks it. A `defer` inside a loop is a leak until the function ends. Skip a resource that the function hands to its caller to close.
 - **Dead code introduced.** Unreachable branches or unused functions added by this diff.
+- **Change outside the task.** Lines the request or the plan does not need: reformatting, renames or comment edits in code the change does not otherwise touch, a refactor mixed into a fix, a flag or option that no requirement asks for. Cite the request or plan line it goes beyond. The cost is a diff that is harder to review and to revert, and an unrelated change that ships unreviewed.
+- **A list that must be edited in step.** A property of a thing kept in a separate list, map or set keyed by its name, in another place from where the thing is defined: an approval list of tool names, a routing table of handler names, a set of feature names. Show both places. The cost is the next addition that forgets the second edit, and fails silently.
+- **A test that cannot fail.** A test the diff adds or changes that would still pass if the change it covers were reverted, because it asserts on what its own mock returns or never reaches the changed line. Name the revert that stays green.
 
 ## Do not report
 

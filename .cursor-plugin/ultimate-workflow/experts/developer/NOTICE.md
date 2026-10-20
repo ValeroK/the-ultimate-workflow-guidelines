@@ -31,3 +31,18 @@ Vendor research, weaker evidence: GitClear's 2025 report on 211 million changed 
 Not used as support, because the research pass could only reach them through blogs or slide decks: the original wording of SRP, LSP, ISP and DIP, the Gang of Four intents (reproduced on a university page), YAGNI on Fowler's site, and Fowler's smell catalogue. The checklist does not depend on their exact words. Figures quoted in the returned notes without a matching quote (task success rates in the Perry study, the exact sample size in the Spracklen study, claims about two follow-up studies, and a Checkstyle sentence on complexity 15) were not used.
 
 Checks of ours with no primary source under that name: unearned abstraction (closest: Fowler's "Speculative Generality", Metz), complexity moved not removed (closest: Ousterhout on shallow modules), diverged duplicate (clone-detection research calls it a near-miss clone), wrong or hidden meaning, shared mutable state (a general concurrency hazard), new dependency (supported only by the package-hallucination research above). They stay because the developer expert beat the plain reviewer on the frozen corpus; that measurement, not a citation, is their evidence, and a check that fires nothing in the corpus is the first to remove.
+
+## Agent sources compared on 2026-10-20
+
+Twenty-two upstream developer agents and skills were read side by side (the comparison is kept in the source repository and not shipped). Ideas taken from them, restated in our words:
+
+| Source | Licence | What it informed |
+|---|---|---|
+| affaan-m/ECC, `code-reviewer`, `silent-failure-hunter` | MIT | Report a repeated problem once with every location; lost error cause and log-and-continue as swallowed failures |
+| anthropics/claude-plugins-official, `pr-review-toolkit` `code-reviewer` and `silent-failure-hunter` | Apache-2.0 | Check the diff against the project's written rules; retries that give up silently |
+| addyosmani/agent-skills, `code-simplification` | MIT | Find out why code exists before calling it unnecessary (Chesterton's fence) |
+| msitarzewski/agency-agents, `minimal-change-engineer` | MIT | Every changed line traces to the task; changes outside the task as a finding |
+| alirezarezvani/claude-skills, `karpathy-reviewer` | MIT | Drive-by edits in untouched code as part of the same category |
+| github/awesome-copilot, `gem-reviewer` | MIT | Separate what was read from what was inferred; stop a candidate after three searches that add nothing |
+
+The checks for a list that must be edited in step, and for a test that cannot fail, come from our own measurements (a general review corpus where every reviewer missed them, or this expert did).

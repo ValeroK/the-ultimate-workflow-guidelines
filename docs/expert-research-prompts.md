@@ -200,7 +200,7 @@ B. Zero-downtime migrations: expand and contract (parallel change), backfills in
 C. Transactions and isolation: PostgreSQL isolation levels and the anomalies each allows, SELECT ... FOR UPDATE, advisory locks, serialization failures and retry. The N+1 query and how ORMs document it (Django, SQLAlchemy, Prisma, Hibernate).
 D. Connections: pool sizing guidance, RDS Proxy and what it does for Lambda, the connection limits of RDS and Aurora as documented.
 E. DynamoDB. From the developer guide: partition key design and hot partitions, adaptive capacity, item size limit, GSI and LSI limits and consistency, transactions and their limits, conditional writes for idempotency, TTL behaviour, on-demand versus provisioned, Scan versus Query. Quote the numbers.
-F. Data lifecycle: backups and point-in-time recovery (RDS, Aurora, DynamoDB), deletion protection, and how an IaC change can delete a database (CloudFormation DeletionPolicy, Terraform prevent_destroy, CDK removalPolicy defaults).
+F. Data lifecycle: backups and point-in-time recovery (RDS, Aurora, DynamoDB) and deletion protection settings. How an IaC change can delete a database (DeletionPolicy, prevent_destroy, removalPolicy) is the DevOps engineer's and already verified (`docs/research/devops-2026-10-20.md`).
 
 Also return: the five migration mistakes that most often cause an outage, each with a source.
 ```

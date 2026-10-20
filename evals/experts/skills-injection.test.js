@@ -459,3 +459,21 @@ test('devops build: the brief joins only when the plan names infrastructure; the
   assert.ok(prose.briefs.some((b) => b.name === 'devops'), 'a plan that describes the change without file names still selects it');
   assert.ok(!ex.briefs(PLUGIN).briefs.some((b) => b.name === 'devops'), 'with no plan there is nothing to select from');
 });
+
+test('devops review: a deleted or renamed infrastructure file still selects its skill', () => {
+  const del = 'diff --git a/infra/db.tf b/infra/db.tf\ndeleted file mode 100644\n--- a/infra/db.tf\n+++ /dev/null\n@@ -1,2 +0,0 @@\n-resource "aws_db_instance" "main" {\n-}\n';
+  const ren = 'diff --git a/infra/old.tf b/infra/new.tf\nsimilarity index 100%\nrename from infra/old.tf\nrename to infra/new.tf\n';
+  for (const d of [del, ren]) assert.deepEqual(names(ex.selectSkills(PLUGIN, 'devops', 'review', ex.parseDiff(d))), ['terraform-change-safety']);
+});
+
+test('devops build: the plan template and the repository plans for non-infrastructure work do not pull in the brief', () => {
+  const template = fs.readFileSync(path.join(PLUGIN, 'skills', 'the-ultimate-workflow-guidelines', 'references', 'plan-template.md'), 'utf8');
+  const appPlan = [
+    '---', 'plan_confirmed: true', 'experts: [developer]', '---', '# Plan: retry the billing client',
+    '## Files', '- `svc/billing/client.py`: add a bounded retry on 503.', '- `tests/test_client.py`: cases for 503 then 200, and 503 four times.',
+    '## Verification', 'Run the unit tests; CI runs the same suite on every push. Deploy as usual after merge; rollback is the previous release.',
+  ].join('\n');
+  for (const [name, planText] of [['plan template', template], ['an application plan', appPlan]]) {
+    assert.ok(ex.briefs(PLUGIN, { planText }).skipped.includes('devops'), name);
+  }
+});

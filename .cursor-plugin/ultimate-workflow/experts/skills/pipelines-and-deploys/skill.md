@@ -32,7 +32,7 @@ Each fact carries its source: **[D]** GitHub's documentation as published on Git
 - A matrix generates at most 256 jobs; reusable workflows nest at most 10 levels and 50 per file on github.com (4 and 20 on GitHub Enterprise Server) [D].
 - A workflow file over 500 KB does not start [D].
 - Scheduled workflows run at most every 5 minutes, only on the default branch, may be delayed or dropped at high load, and are disabled in public repositories after 60 days without activity [D]. A deploy or backup that depends on an exact schedule is a finding [O].
-- Events caused by `GITHUB_TOKEN` do not start new runs, except `workflow_dispatch` and `repository_dispatch` (and, on github.com, pull request events, which wait for approval) [D]. A release job that pushes a tag with `GITHUB_TOKEN` and expects the tag's workflow to run will wait forever [O].
+- Events caused by `GITHUB_TOKEN` do not start new runs, except `workflow_dispatch` and `repository_dispatch` (and, on github.com, pull request events, which wait for approval) [D]. A release job that pushes a tag with `GITHUB_TOKEN` and expects the tag's workflow to run gets no run at all [O].
 
 ## Caches and artifacts
 

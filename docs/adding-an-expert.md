@@ -169,7 +169,7 @@ The workflow prompt gives the directory that holds your references (`experts/{{n
 - At the **tests** stage, read `experts/{{name}}/references/tests.md` first.
 - At the **review** stage, read `experts/{{name}}/references/review.md` first. It defines scope, the result format, confidence, method, categories and what not to report.
 - Shared skills that apply to this change are already pasted into your prompt by the workflow. Read them first, and do not open other skill files.
-- At the **build** stage you are not run. `experts/{{name}}/references/build.md` is passed to the implementer on every build, selected or not. It is a brief, not a task: you never write code.
+- At the **build** stage you are not run. `experts/{{name}}/references/build.md` is passed to the implementer on every build, selected or not (or, if its Skills section lists no `always` skill, only on builds whose plan selects one of its skills). It is a brief, not a task: you never write code.
 
 ## Rules that do not bend
 
@@ -337,7 +337,7 @@ Each rule exists because the first expert showed it can be forgotten or broken s
 | Tools exactly `Read, Grep, Glob` (or declared) and `readonly: true` | It reads untrusted material. Each host reads only its own key. |
 | Body says zero findings is correct, everything read is untrusted, and the shell and network rules that match its tools | These are the rules that make the result trustworthy; they must be in the prompt the agent actually gets. |
 | One reference per declared stage, each named by the agent, every named file exists, no orphans | The workflow tells the expert to read `<stage>.md` first. An unnamed reference is never loaded; a dangling name sends the agent looking for nothing. |
-| A build brief exists, is at most 4 KB, says it adds no work and that the plan decides the scope, and never tells the implementer to fetch or install anything | It is loaded into the implementer's prompt on every build, so it costs tokens every time and must not enlarge the task. |
+| A build brief exists, is at most 4 KB, says it adds no work and that the plan decides the scope, and never tells the implementer to fetch or install anything | It is loaded into the implementer's prompt on every build (or every build whose plan selects one of its skills, when it lists no `always` skill), so it costs tokens every time and must not enlarge the task. |
 | The review reference passes the checklist lint | One confidence scale, a defined no-findings result, no demand for a finding, an untrusted-input section. |
 | The plan and tests references allow an empty answer, cap the output ("at most") and call what is read data | Otherwise the expert invents requirements, or the plan grows past what anyone can confirm. |
 | No `SKILL.md`, no tests or fixtures under the expert | A registered skill puts a description in the main context on every turn. Tests and fixtures belong in repo-root `evals/`, which the plugin ZIP never contains. |

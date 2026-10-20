@@ -150,7 +150,7 @@ Labels:
 - planted: the finding identifies the same root cause as the planted defect of a SEEDED case. A paraphrase counts. The line number does not matter. Pointing at a symptom without the cause does not count.
 - valid-other: a real defect in the ${domain.name} domain that the diff really contains, but that is not the planted one. Check it against the diff; if you cannot confirm it, it is not valid.
 - false-positive: not a real problem in the diff, or not supported by what the diff shows, or a matter of taste, or something a linter or formatter would catch. Any finding on a BENIGN case that is not a confirmed real defect is a false positive.
-- out-of-domain: a real problem, but it belongs to a different domain than "${domain.name}".
+- out-of-domain: a real problem, but it belongs to a different domain than "${domain.name}". A style or formatting issue that a linter or formatter would catch is never out-of-domain: it is a false-positive in every domain.
 
 Evidence, for each finding: complete (the path or counterexample is concrete, correct and checkable from the diff), partial (right idea, steps missing or one wrong), none (an assertion with no path).
 

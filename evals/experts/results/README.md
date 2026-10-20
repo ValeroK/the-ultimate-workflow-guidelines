@@ -157,3 +157,26 @@ What it does not say:
 - The plain reviewer already finds 35 of 42; most of this corpus does not separate the arms. The decisive cases are one test case, one performance case and one maintainability case, so these are small numbers.
 - The judge labelled the same claim (a missing import in an excerpted hunk) false-positive in some batches and valid-other in others. That noise touches valid-other and false-positive counts, not recall.
 - One split, 3 runs, one judge pass. The held-out split is reserved for checking any change made because of this run.
+
+## The broad corpus, held-out split: developer expert v2 with skills injected in code
+
+JSON: `2026-10-20-review-heldout-three-arms-skills-injected.json`. Corpus `review.json`, held-out split, run once: 6 seeded, 3 benign, 2 sibling cases, 3 runs each. Arms as before: `A0` plain, `A2` the addyosmani `code-review-and-quality` skill, `A3` the developer expert v2. For the first time the A3 prompt carries skill text chosen in code, per case, by the same `selectSkills` the review command uses. Each batch carried the union of its cases' skills, 35 KB; one real change gets at most 25 KB. Reviewers on Sonnet, judges on Sonnet. In three batches the judge left out one case, so those three were judged again and the incomplete answers were kept aside.
+
+| | A0 plain | A2 upstream skill | A3 expert + skills |
+|---|---|---|---|
+| seeded cases found in a majority of runs | 6 of 6 | 6 of 6 | 6 of 6 |
+| seeded runs that found the defect | 17 of 18 | 18 of 18 | 18 of 18 |
+| false-positive runs on benign cases | 1 of 9 | 1 of 9 | 1 of 9 |
+| false-positive runs on sibling cases | 2 of 6 | 3 of 6 | 2 of 6 |
+| findings per run | 0.88 | 1.03 | 0.91 |
+| evidence complete (informational) | 0.90 | 0.79 | 0.87 |
+
+Seeded runs by category: security, concurrency, correctness and edge 3 of 3 in every arm. Maintainability: A0 2, A2 3, A3 3. Testing: 3 of 3 in every arm. On the dev split the expert missed the testing case in all three runs; here it finds it. That may come from v2's "a test that cannot fail" category or from this case being easier. One case cannot tell which.
+
+What it says:
+- **The split is saturated.** The plain reviewer finds 17 of 18 runs, so no arm can show a gain. The pre-set "recall beats baseline by a margin of one case" check fails for both A2 and A3 for that reason, not because either did worse.
+- **No sign that the extra prompt hurt.** A3 carried about 35 KB of skills and ended level with A2 on recall and false positives, and wrote fewer findings with more complete evidence. That rules out large dilution on this sample. It cannot rule out small dilution.
+- **It does not show that the skills help.** The A3 arm has no "expert without skills" twin on this split, and the split leaves no room to show it anyway.
+- The sibling-leak check fails in every arm (6 of 6). As before, that is expected of a general reviewer and only informational for this corpus.
+
+What would answer the open question: cases the plain reviewer misses (repository context, a convention two files away), and an expert-without-skills arm on them.

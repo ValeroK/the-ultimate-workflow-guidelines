@@ -1,1 +1,2 @@
 vendor/** -text
+evals/experts/corpus/** -text

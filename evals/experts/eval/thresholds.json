@@ -1,0 +1,11 @@
+{
+  "_comment": "Set before the first run and not tuned afterwards. These are our own choices, not an external standard. Differences under one case are not distinguishable at this sample size, so recall is compared in cases.",
+  "recallMarginCases": 1,
+  "maxFpRateDelta": 0,
+  "maxLeakRate": 0.1,
+  "evidenceTolerance": 0.05,
+  "minSelectionRecall": 0.9,
+  "maxCofireRate": 0.1,
+  "judgeAgreementMin": 0.9,
+  "runsPerCase": 3
+}

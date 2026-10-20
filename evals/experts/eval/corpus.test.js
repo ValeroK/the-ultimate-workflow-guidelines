@@ -1,0 +1,130 @@
+'use strict';
+
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+
+const corpus = require('./lib/corpus.js');
+
+// The second place each frozen corpus hash is pinned. corpus/MANIFEST.json is the first.
+// Changing a frozen corpus means editing both on purpose, with a reason in the commit.
+const PINNED = {
+  architect: '0152cdc2597e5a381c170953e5451ad91d9eb96e1e0d21c41a6979a452741197',
+  developer: '829c83bf9dbafc6da5905461a4ad3812a0a84832a811314c3e8deaa0c654e211',
+  quality: '7832c12fecb5af8dc081e68101725397b875abdea3a2b3f518f3b8b5a5c7e53f',
+  softarch: 'c38136776a080a55a0b9846ae36fa9a157fcf5a81ebbbca8c5e2cd92c0d40231',
+};
+
+const rawCase = (over = {}) => ({
+  kind: 'seeded',
+  summary: 'Adds a retry around a charge call',
+  diff: 'diff --git a/x.py b/x.py\n--- a/x.py\n+++ b/x.py\n@@ -1,2 +1,3 @@\n a = 1\n+b = 2\n c = 3\n',
+  planted: 'The retry repeats a charge that is not idempotent, so a timeout bills twice.',
+  ...over,
+});
+
+function validCorpus() {
+  const raws = [];
+  for (let i = 0; i < 8; i += 1) raws.push(rawCase({ summary: `Seeded change number ${i}` }));
+  for (let i = 0; i < 6; i += 1) raws.push({ kind: 'benign', summary: `Benign change number ${i}`, diff: rawCase().diff, whyOk: 'The guard is in the diff itself.' });
+  for (let i = 0; i < 6; i += 1) raws.push({ kind: 'sibling', summary: `Sibling change number ${i}`, diff: rawCase().diff, siblingDomain: 'security: SQL injection through a request parameter' });
+  return corpus.freeze('demo', raws);
+}
+
+test('every frozen corpus is valid', () => {
+  const experts = corpus.listCorpora();
+  assert.ok(experts.length >= 3, 'expected corpora on disk');
+  for (const e of experts) {
+    assert.deepEqual(corpus.validate(corpus.load(e)), [], `corpus ${e}`);
+  }
+});
+
+test('frozen corpora match the manifest and the pin in this file', () => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(corpus.CORPUS_DIR, 'MANIFEST.json'), 'utf8'));
+  const actual = corpus.manifest();
+  for (const e of Object.keys(PINNED)) {
+    assert.equal(actual[e], PINNED[e], `${e}: file changed after it was frozen (pin in this test)`);
+    assert.equal(manifest[e], PINNED[e], `${e}: MANIFEST.json disagrees with the pin in this test`);
+  }
+  assert.deepEqual(Object.keys(actual).sort(), Object.keys(manifest).sort(), 'a corpus is missing from MANIFEST.json or vice versa');
+});
+
+test('a corpus that is not pinned here is flagged, so a new one cannot slip in unpinned', () => {
+  const unpinned = corpus.listCorpora().filter((e) => !(e in PINNED));
+  assert.deepEqual(unpinned, []);
+});
+
+test('case ids are opaque and unique across all corpora', () => {
+  const seen = new Set();
+  for (const e of corpus.listCorpora()) {
+    for (const c of corpus.load(e).cases) {
+      assert.match(c.id, /^c[0-9a-f]{8}$/);
+      assert.ok(!seen.has(c.id), `duplicate id ${c.id}`);
+      seen.add(c.id);
+    }
+  }
+});
+
+test('the blind view shows a reviewer nothing that gives the answer away', () => {
+  for (const e of corpus.listCorpora()) {
+    for (const c of corpus.load(e).cases) {
+      const view = corpus.blindView(c);
+      assert.deepEqual(Object.keys(view).sort(), ['diff', 'id', 'summary']);
+      for (const secret of [c.planted, c.whyOk, c.siblingDomain].filter(Boolean)) {
+        assert.ok(!JSON.stringify(view).includes(secret), 'the view contains an answer');
+      }
+    }
+  }
+});
+
+test('the dev and heldout split is deterministic and covers every kind', () => {
+  const a = validCorpus();
+  const b = validCorpus();
+  assert.deepEqual(a, b);
+  for (const kind of corpus.KINDS) {
+    assert.ok(a.cases.some((c) => c.kind === kind && c.split === 'heldout'), `no heldout ${kind}`);
+    assert.ok(a.cases.some((c) => c.kind === kind && c.split === 'dev'), `no dev ${kind}`);
+  }
+  assert.deepEqual(corpus.validate(a), []);
+});
+
+test('hunk headers are recomputed from the body and content is untouched', () => {
+  const diff = 'diff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -1,99 +1,99 @@ def f():\n a\n-b\n+c\n+d\n e\n';
+  const fixed = corpus.normaliseHunks(diff);
+  assert.match(fixed, /@@ -1,3 \+1,4 @@ def f\(\):/);
+  assert.equal(corpus.hunksConsistent(fixed), true);
+  assert.equal(corpus.hunksConsistent(diff), false);
+  assert.equal(fixed.replace(/@@ .*@@/, '').replace(/\n$/, ''), diff.replace(/@@ .*@@/, '').replace(/\n$/, ''));
+});
+
+test('validation catches each way a corpus can be unsound', () => {
+  const mutate = (fn) => {
+    const c = validCorpus();
+    fn(c);
+    return corpus.validate(c);
+  };
+  assert.match(mutate((c) => (c.cases[0].summary = c.cases[1].summary)).join('|'), /duplicate summary|id does not match/);
+  assert.match(mutate((c) => (c.cases[0].id = 'c12345678')).join('|'), /id does not match/);
+  assert.match(mutate((c) => (c.cases = c.cases.filter((x) => x.kind !== 'sibling'))).join('|'), /at least 6 sibling/);
+  assert.match(mutate((c) => { const s = c.cases.find((x) => x.kind === 'seeded'); delete s.planted; }).join('|'), /planted/);
+  assert.match(mutate((c) => { const s = c.cases.find((x) => x.kind === 'benign'); delete s.whyOk; }).join('|'), /whyOk/);
+  assert.match(mutate((c) => { const s = c.cases.find((x) => x.kind === 'sibling'); delete s.siblingDomain; }).join('|'), /siblingDomain/);
+  assert.match(mutate((c) => { c.cases.find((x) => x.kind === 'benign').planted = 'a planted description that should not be here'; }).join('|'), /only seeded cases carry/);
+  assert.match(mutate((c) => (c.cases[0].diff = c.cases[0].diff.replace('+b = 2', '+b = 2  # BUG: double charge'))).join('|'), /giveaway/);
+  assert.match(mutate((c) => (c.cases[0].diff = c.cases[0].diff.replace('@@ -1,2 +1,3 @@', '@@ -1,9 +1,9 @@'))).join('|'), /hunk header/);
+  assert.match(mutate((c) => (c.cases[0].split = 'train')).join('|'), /split/);
+});
+
+test('freeze refuses to overwrite a corpus that exists', () => {
+  const { spawnSync } = require('node:child_process');
+  const raw = path.join(require('node:os').tmpdir(), `uw-freeze-${process.pid}.json`);
+  fs.writeFileSync(raw, JSON.stringify({ cases: [] }));
+  try {
+    const r = spawnSync(process.execPath, [path.join(__dirname, 'manual', 'freeze.js'), 'architect', raw], { encoding: 'utf8' });
+    assert.equal(r.status, 2);
+    assert.match(r.stderr, /already exists/);
+  } finally {
+    fs.rmSync(raw, { force: true });
+  }
+});

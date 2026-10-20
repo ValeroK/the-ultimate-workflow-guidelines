@@ -104,7 +104,7 @@ function judgeAll(dir, label = 'planted') {
   for (const t of tasks) {
     const text = read(t.taskFile);
     const ids = [...text.matchAll(/^caseId (c[0-9a-f]{8})$/gm)].map((m) => m[1]);
-    fs.writeFileSync(t.resultFile, JSON.stringify({ results: ids.map((caseId) => ({ caseId, labels: [{ findingIndex: 0, label, evidence: 'complete', reason: 'ok' }] })) }));
+    fs.writeFileSync(t.resultFile, JSON.stringify({ results: ids.map((caseId) => ({ caseId, labels: [{ findingIndex: 0, label, evidence: 'complete', reason: 'ok', quote: label === 'planted' || label === 'valid-other' ? 'a finding' : '' }] })) }));
   }
   return tasks;
 }
@@ -192,4 +192,62 @@ test('judge agreement with a gold set: counts agreement and names the disagreeme
   assert.equal(r.total, 4);
   assert.equal(r.rate, 0.5);
   assert.deepEqual(r.wrong.map((w) => [w.key, w.got]), [['b', 'planted'], ['d', null]]);
+});
+
+test('a planted label must carry a quote that is really in the finding', () => {
+  const f = { summary: 'Fixed sleep replaces polling', evidence: 'x.py:3 sleep(2)\nx.py:9 races the consumer' };
+  assert.equal(run.quoteOk({ label: 'planted', quote: 'fixed sleep replaces polling' }, f), true);
+  assert.equal(run.quoteOk({ label: 'planted', quote: 'x.py:9   races the\nconsumer' }, f), true, 'whitespace and case do not matter');
+  assert.equal(run.quoteOk({ label: 'planted', quote: 'the tests only assert the mock' }, f), false, 'words that are not in the finding');
+  assert.equal(run.quoteOk({ label: 'planted', quote: '' }, f), false);
+  assert.equal(run.quoteOk({ label: 'planted', quote: 'sleep' }, f), false, 'too short to show anything');
+  assert.equal(run.quoteOk({ label: 'valid-other' }, f), false);
+  assert.equal(run.quoteOk({ label: 'false-positive', quote: '' }, f), true, 'other labels need no quote');
+  assert.equal(run.quoteOk({ label: 'out-of-domain' }, f), true);
+});
+
+test('scoring stops when the judge calls a finding planted without a quote from it', () => {
+  const work = tmp();
+  const { plan: p, dir } = plan(work);
+  answerAll(p, dir);
+  const tasks = run.buildJudgeTasks(dir);
+  for (const t of tasks) {
+    const ids = [...read(t.taskFile).matchAll(/^caseId (c[0-9a-f]{8})$/gm)].map((m) => m[1]);
+    fs.writeFileSync(t.resultFile, JSON.stringify({ results: ids.map((caseId) => ({ caseId, labels: [{ findingIndex: 0, label: 'planted', evidence: 'complete', reason: 'it matches', quote: 'words that are nowhere in the finding' }] })) }));
+  }
+  assert.throws(() => run.scoreRun(dir, thresholds, 'ArmLens'), /no quote that appears in the finding/);
+});
+
+test('the judge is told to quote the finding and that an unquoted match is discarded', () => {
+  const work = tmp();
+  const { plan: p, dir } = plan(work);
+  answerAll(p, dir);
+  const text = read(run.buildJudgeTasks(dir)[0].taskFile);
+  assert.match(text, /exact words, copied from the finding/);
+  assert.match(text, /is rejected and the label is discarded/);
+  assert.match(text, /"quote"/);
+});
+
+test('gold scoring applies the same quote rule: a planted label with no quote is not agreement', () => {
+  const work = tmp();
+  const { dir } = run.buildGold({ expert: 'softarch', work, plugin: PLUGIN });
+  const { gold } = run.loadGold('softarch');
+  const batch = JSON.parse(read(path.join(dir, 'plan.json'))).batches[0];
+  const answer = (withQuote) => {
+    const seen = new Map();
+    const byCase = new Map();
+    for (const it of gold.items) {
+      const idx = seen.get(it.caseId) || 0;
+      seen.set(it.caseId, idx + 1);
+      if (!byCase.has(it.caseId)) byCase.set(it.caseId, []);
+      byCase.get(it.caseId).push({ findingIndex: idx, label: it.expected, evidence: it.expectedEvidence, reason: 'gold', quote: withQuote ? it.finding.summary : '' });
+    }
+    fs.writeFileSync(path.join(dir, 'judge', `${batch.id}.result.json`), JSON.stringify({ results: [...byCase].map(([caseId, labels]) => ({ caseId, labels })) }));
+    return run.scoreGold(dir, 'softarch');
+  };
+  assert.equal(answer(true).label.rate, 1);
+  const without = answer(false);
+  const needQuote = gold.items.filter((i) => i.expected === 'planted').length;
+  assert.equal(without.label.agree, gold.items.length - needQuote);
+  assert.ok(without.label.wrong.every((w) => w.got === 'unverified'));
 });

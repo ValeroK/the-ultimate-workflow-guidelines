@@ -71,12 +71,13 @@ const JUDGE_SCHEMA = {
             type: 'array',
             items: {
               type: 'object',
-              required: ['findingIndex', 'label', 'evidence', 'reason'],
+              required: ['findingIndex', 'label', 'evidence', 'reason', 'quote'],
               properties: {
                 findingIndex: { type: 'integer', description: 'Zero-based position of the finding in the list you were given.' },
                 label: { enum: score.LABELS },
                 evidence: { enum: score.EVIDENCE },
                 reason: { type: 'string', description: 'One sentence.' },
+                quote: { type: 'string', description: 'For planted and valid-other only: the exact words, copied from the finding\'s summary or evidence, that show it identifies that defect. Empty for the other labels.' },
               },
             },
           },
@@ -152,6 +153,8 @@ Labels:
 - false-positive: not a real problem in the diff, or not supported by what the diff shows, or a matter of taste, or something a linter or formatter would catch. Any finding on a BENIGN case that is not a confirmed real defect is a false positive.
 - out-of-domain: a real problem, but it belongs to a different domain than "${domain.name}". A style or formatting issue that a linter or formatter would catch is never out-of-domain: it is a false-positive in every domain.
 
+For planted and valid-other you must also give a quote: the exact words, copied from the finding's own summary or evidence, that show it identifies that defect. Judge what the finding says, not what it could have meant: if the finding is about a different defect, or only touches the same code, it is not planted, even if the planted defect is nearby. A quote that is not in the finding text is rejected and the label is discarded.
+
 Evidence, for each finding: complete (the path or counterexample is concrete, correct and checkable from the diff), partial (right idea, steps missing or one wrong), none (an assertion with no path).
 
 ${UNTRUSTED}
@@ -224,6 +227,16 @@ function buildJudgeTasks(dir) {
   return tasks;
 }
 
+const norm = (t) => String(t || '').replace(/\s+/g, ' ').trim().toLowerCase();
+
+/** A planted or valid-other label stands only if its quote is really in the finding. */
+function quoteOk(label, finding) {
+  if (label.label !== 'planted' && label.label !== 'valid-other') return true;
+  const q = norm(label.quote);
+  if (q.length < 8) return false;
+  return norm(`${finding.summary} ${finding.evidence}`).includes(q);
+}
+
 /** Map of caseId to findings, or null when the file is missing or not a usable answer. */
 function loadReview(file, caseIds) {
   if (!fs.existsSync(file)) return null;
@@ -251,6 +264,7 @@ function collectRecords(dir) {
   const plan = readJson(path.join(dir, 'plan.json'));
   const records = [];
   const missing = [];
+  const unverified = [];
   for (const b of plan.batches) {
     const answers = loadReview(b.resultFile, plan.cases);
     const judged = new Map();
@@ -271,12 +285,17 @@ function collectRecords(dir) {
           missing.push(`${b.arm} run ${b.run} case ${caseId} finding ${i}`);
           continue;
         }
+        if (!quoteOk(l, findings[i])) {
+          unverified.push(`${b.arm} run ${b.run} case ${caseId} finding ${i} (${l.label})`);
+          continue;
+        }
         labels.push({ label: l.label, evidence: l.evidence });
       }
       records.push({ arm: b.arm, run: b.run, caseId, failed: false, labels });
     }
   }
   if (missing.length > 0) throw new Error(`run: the judge has not labelled ${missing.length} finding(s), for example ${missing[0]}`);
+  if (unverified.length > 0) throw new Error(`run: ${unverified.length} planted or valid-other label(s) have no quote that appears in the finding, for example ${unverified[0]}; judge those batches again`);
   return { plan, records };
 }
 
@@ -365,7 +384,7 @@ function scoreGold(dir, expert) {
     labelGold.push({ key, expected: it.expected });
     const l = judged.get(key);
     if (l) {
-      labelled.set(key, l.label);
+      labelled.set(key, quoteOk(l, it.finding) ? l.label : 'unverified');
       if (l.evidence === it.expectedEvidence) evAgree += 1;
     }
   }
@@ -373,4 +392,4 @@ function scoreGold(dir, expert) {
   return { expert, label, evidence: { agree: evAgree, total: gold.items.length, rate: gold.items.length === 0 ? null : evAgree / gold.items.length } };
 }
 
-module.exports = { GOLD_DIR, loadGold, buildGold, scoreGold, batchId, orderFor, reviewerTask, judgeTask, truthOf, buildPlan, buildJudgeTasks, loadReview, collectRecords, scoreRun, goldAgreement, REVIEW_SCHEMA, JUDGE_SCHEMA };
+module.exports = { quoteOk, GOLD_DIR, loadGold, buildGold, scoreGold, batchId, orderFor, reviewerTask, judgeTask, truthOf, buildPlan, buildJudgeTasks, loadReview, collectRecords, scoreRun, goldAgreement, REVIEW_SCHEMA, JUDGE_SCHEMA };

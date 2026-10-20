@@ -1,0 +1,25 @@
+{
+  "_note": "Defect category of each seeded case in corpus/review.json, as the blind authors labelled it. Kept outside the frozen corpus so the corpus format stays unchanged; used only for per-category reporting.",
+  "categories": {
+    "c253f332f": "correctness",
+    "c8c2ccd5e": "correctness",
+    "ce37d1745": "edge",
+    "c9dd1020c": "concurrency",
+    "c934fd5c4": "security",
+    "c17cedd5e": "security",
+    "cc075395e": "performance",
+    "c9540eaeb": "maintainability",
+    "cc48762d2": "resilience",
+    "cba7ce319": "testing",
+    "ca4f60fe2": "correctness",
+    "c848463e3": "correctness",
+    "c680c507d": "edge",
+    "c3be1f57c": "concurrency",
+    "c4c2ed9a2": "security",
+    "cedfb74a0": "security",
+    "cedee9e33": "performance",
+    "c27a2290d": "maintainability",
+    "c15571779": "resilience",
+    "c14365a14": "testing"
+  }
+}

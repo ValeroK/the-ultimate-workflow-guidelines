@@ -1,0 +1,76 @@
+{
+  "expert": "architect",
+  "split": "dev",
+  "runsPerCase": 3,
+  "arms": {
+    "A0": {
+      "runsPerCase": 3,
+      "cases": {
+        "seeded": 6,
+        "benign": 4,
+        "sibling": 4
+      },
+      "seeded": {
+        "runsFound": 18,
+        "runs": 18,
+        "recall": 1,
+        "casesFoundMajority": 6,
+        "casesFoundAllRuns": 6
+      },
+      "benign": {
+        "fpRuns": 0,
+        "runs": 12,
+        "fpRate": 0
+      },
+      "sibling": {
+        "leakRuns": 9,
+        "fpRuns": 0,
+        "runs": 12,
+        "leakRate": 0.75,
+        "fpRate": 0
+      },
+      "findings": {
+        "total": 42,
+        "perRun": 1,
+        "validOtherRuns": 2,
+        "evidenceComplete": 1
+      },
+      "failedRuns": 0,
+      "totalRuns": 42
+    }
+  },
+  "comparisons": {},
+  "perCase": {
+    "c01de59cd": {
+      "A0": "3/3"
+    },
+    "c84b73972": {
+      "A0": "3/3"
+    },
+    "c8b78eee2": {
+      "A0": "3/3"
+    },
+    "ca04e2c03": {
+      "A0": "3/3"
+    },
+    "ce04b60b0": {
+      "A0": "3/3"
+    },
+    "cfe769754": {
+      "A0": "3/3"
+    }
+  },
+  "baseline": "A0",
+  "thresholds": {
+    "_comment": "Set before the first run and not tuned afterwards. These are our own choices, not an external standard. Differences under one case are not distinguishable at this sample size, so recall is compared in cases.",
+    "recallMarginCases": 1,
+    "maxFpRateDelta": 0,
+    "maxLeakRate": 0.1,
+    "evidenceTolerance": 0.05,
+    "minSelectionRecall": 0.9,
+    "maxCofireRate": 0.1,
+    "judgeAgreementMin": 0.9,
+    "runsPerCase": 3
+  },
+  "date": "2026-10-20"
+}

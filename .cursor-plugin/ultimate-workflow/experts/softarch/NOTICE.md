@@ -12,3 +12,7 @@ The software architect expert is mostly original writing: no skills repository t
 Sources that were read and left out: hexagonal and layered architecture guides, because they argue for structure the repository may not have and invite over-abstraction. The checklist follows the repository's own boundaries instead.
 
 The sources were read as data. None of their scripts, hooks or fetches are used.
+
+## 2026-10-20: combined with upstream agents, three skills
+
+Twenty upstream agents and skills were compared (anthropics, ECC, wshobson, awesome-copilot, agency-agents, addyosmani, mattpocock, tech-leads-club, alirezarezvani, Jeffallan, google-labs-code, hashicorp; licences in each skill's NOTICE). The new review lines (which side a field is on, two copies of a contract out of step, a rule loosened in the same change, an internal enum as the public shape, removal without deprecation, a published package without a version bump) restate ideas from awesome-copilot `protobuf-grpc-api-review`, agency-agents `api-platform-engineer`, ECC `contract-first`, mattpocock `setup-ts-deep-modules` and tech-leads-club `coupling-analysis`. Every fact in the three skills was checked live by the maintainer against the specifications and tool documentation.

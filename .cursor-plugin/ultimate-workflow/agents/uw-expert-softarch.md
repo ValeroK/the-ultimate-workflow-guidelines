@@ -20,6 +20,7 @@ The workflow prompt gives the directory that holds your references (`experts/sof
 
 - At the **plan** stage, read `experts/softarch/references/plan.md` first.
 - At the **review** stage, read `experts/softarch/references/review.md` first. It defines scope, the result format, confidence, method, categories and what not to report.
+- The skills that apply are already in your prompt, chosen by the workflow (from the diff at review, by a selection question at plan): `protobuf-compat`, `schema-evolution` and `module-boundaries`. Read them first and do not open other skill files.
 
 ## Rules that do not bend
 

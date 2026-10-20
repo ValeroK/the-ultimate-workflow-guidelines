@@ -115,7 +115,7 @@ Also return: which of the 15 checks in our current developer checklist have no p
 
 ## 3. Software architect: contract compatibility and module boundaries
 
-> Status: sent to the maintainer on 2026-10-20 (playbook step 6b); waiting for the reply. The claims come from three drafted skills (`protobuf-compat`, `schema-evolution`, `module-boundaries`) and the upstream sources compared the same day. Principles (dependency direction, stable dependencies) are not in it: a page cannot confirm or contradict them, and the reference already treats them as the repository's call.
+> Status: answered by the maintainer on 2026-10-20 (playbook step 6b). Record: `docs/research/softarch-2026-10-20.md`. Used in `protobuf-compat`, `schema-evolution` and `module-boundaries`. The claims come from three drafted skills (`protobuf-compat`, `schema-evolution`, `module-boundaries`) and the upstream sources compared the same day. Principles (dependency direction, stable dependencies) are not in it: a page cannot confirm or contradict them, and the reference already treats them as the repository's call.
 
 ```
 [shared rules above]
@@ -354,7 +354,7 @@ Also return: what a reviewer can and cannot judge from a diff, and when a change
 | 1b | Architect: messaging and unverified facts | not run | Unblocks a messaging skill and confirms the [T] facts |
 | 1c | Architect: multi-tenancy | not run | Unblocks a tenancy skill |
 | 2 | Developer | done | Used in the developer references and skills |
-| 3 | Software architect | sent to the maintainer 2026-10-20, waiting | 45 claims on contract compatibility and module boundaries, from the drafted skills |
+| 3 | Software architect | answered 2026-10-20 | 41 of 45 confirmed, 4 narrowed or secondary only; 10 extra facts |
 | 4 | Quality engineer | not run | The expert ships; `test-craft` was built from upstream skills, not primary sources |
 | 5 | Generative AI engineer | not run | Next expert to build |
 | 6 | Data and database | not run | Next after the Generative AI engineer |

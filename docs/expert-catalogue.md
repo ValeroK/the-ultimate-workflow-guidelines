@@ -3,7 +3,7 @@
 The plugin does two things:
 
 1. **The ADLC workflow.** Plan, tests, build, review and harvest, with confirmation points and gates. This exists.
-2. **The expert catalogue.** Experts that any phase can bring in. This document lists them. Experts 1 to 5 are built: `architect`, `softarch`, `developer`, `quality` and `security`. Skills are mapped for two of them: `developer` (eleven skills) and `quality` (`test-craft`). `architect`, `softarch` and `security` have none. Experts 6 to 14 are not built.
+2. **The expert catalogue.** Experts that any phase can bring in. This document lists them. Six are built: `architect`, `softarch`, `developer`, `quality`, `security` and `devops`. All but `security` have shared skills (see "Skills by expert and stage"). Experts 6, 8 and 11 to 14 are not built.
 
 Skills are chosen in code at review, build and tests, and by a model question at plan; the chosen text is pasted into the expert's prompt. How it works: [Shared skills](adding-an-expert.md#shared-skills).
 
@@ -34,6 +34,7 @@ An agent was placed under an expert by its name and the survey's domain notes, n
 ### 2. Software architect (have: `softarch`)
 - **Owns:** module boundaries, dependency direction, public contracts and their compatibility, data ownership between modules.
 - **Stages:** plan, review.
+- **Built:** three skills, every fact checked live by the maintainer; see `docs/experts/softarch.md`.
 - **Upstream agents:**
   - ECC and anthropics `code-architect`, `type-design-analyzer`
   - wshobson and buildwithclaude `backend-architect`, `graphql-architect`
@@ -218,7 +219,12 @@ Taken from the `## Skills` list in each stage reference under `.cursor-plugin/ul
 | devops | review, build | `containers` | Dockerfiles, Containerfiles, `.dockerignore`, compose files | stop signals, repeatable images, health and start order |
 | devops | plan | all six | offered | the plan changes infrastructure, pipelines, containers or releases |
 
-No skills: `softarch` (plan, review), `security` (plan, tests, review), and `quality` at plan and review.
+| softarch | review | `protobuf-compat` | `files: *.proto, buf.yaml, buf.gen.yaml, buf.lock` | wire, ProtoJSON and generated-code compatibility |
+| softarch | review | `schema-evolution` | API description and GraphQL files; `added:` an `openapi:` line, `type Query {`, a JSON Schema `$schema` | what breaks callers or readers; versions |
+| softarch | review | `module-boundaries` | boundary tool configs, `tsconfig*.json`, `module-info.java`, `project.json`; `added:` `/internal/`, `"exports":`, tag constraints | what each ecosystem's boundary tool enforces |
+| softarch | plan | all three | offered | the plan changes a contract or a module boundary |
+
+No skills: `security` (plan, tests, review), and `quality` at plan and review.
 
 Fixed cost per build: the developer's three `always` skills, `test-craft` and the two briefs come to about 28 KB before any file-matched skill. The DevOps brief has no `always` skill, so it joins only builds whose plan selects one of its skills.
 
@@ -249,6 +255,6 @@ From the survey: DynamoDB and OpenSearch, VPC and networking depth, CloudFormati
 
 ## Status
 
-Built: experts 1 to 5 (`architect`, `softarch`, `developer`, `quality`, `security`) and 9 (`devops`, six skills; see `docs/experts/devops.md`). Skills are mapped for `developer` (eleven), `quality` (`test-craft`) and `architect` (seven: `lambda-event-sources`, `aws-messaging`, `step-functions`, `api-gateway`, `multi-tenancy`, `caching-and-latency`, `aws-well-architected`; see `docs/experts/architect.md`); `softarch` and `security` have none. Experts 6, 8 and 11 to 14 are not built (7 is merged into 6, 10 into 9).
+Built: experts 1 to 5 (`architect`, `softarch`, `developer`, `quality`, `security`) and 9 (`devops`, six skills; see `docs/experts/devops.md`). `softarch` has three skills (`docs/experts/softarch.md`). Skills are mapped for `developer` (eleven), `quality` (`test-craft`) and `architect` (seven: `lambda-event-sources`, `aws-messaging`, `step-functions`, `api-gateway`, `multi-tenancy`, `caching-and-latency`, `aws-well-architected`; see `docs/experts/architect.md`); `security` has none. Experts 6, 8 and 11 to 14 are not built (7 is merged into 6, 10 into 9).
 
 Next: the Generative AI engineer (6), which has the Generative AI Lens research ready and needs an AgentCore pass; then data and Postgres (8), or UI and accessibility (13).

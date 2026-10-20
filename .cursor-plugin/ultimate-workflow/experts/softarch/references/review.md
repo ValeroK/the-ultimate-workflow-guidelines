@@ -47,13 +47,23 @@ Check what the change touches and skip the rest.
 
 - **Dependency direction.** Core or domain code that imports infrastructure or a framework, a stable module that imports a volatile one, a lower layer that imports a higher one in a repository that layers its code.
 - **A cycle.** Two or more modules that now import each other, directly or through a chain. Give the chain.
-- **A leaking boundary.** An internal type, database row or framework object returned from or accepted by a public function. Code that reaches into another module's internals, such as private paths, underscore names or a file the module does not export.
-- **A broken contract.** A removed or renamed field; a changed type, nullability, status code, error shape or meaning; a new required parameter; a narrowed accepted input; a new value in an enum that consumers switch over; changed event ordering or semantics. Find a consumer that depends on the old behaviour, and check whether the contract artifact, the version or the consumer changed with it.
+- **A leaking boundary.** An internal type, internal enum, database row or framework object returned from or accepted by a public function or used as a published schema. Code that reaches into another module's internals, such as private paths, underscore names or a file the module does not export.
+- **A broken contract.** A removed or renamed field; a changed type, nullability, status code, error shape or meaning; a new required parameter; a narrowed accepted input; a new value in an enum that consumers switch over; changed event ordering or semantics. Find a consumer that depends on the old behaviour, and check whether the contract artifact, the version or the consumer changed with it. Say which side the changed field is on: tightening what a provider accepts breaks callers, loosening what it returns breaks readers. A removal with no earlier deprecation, where the repository deprecates first elsewhere, is part of the finding. A published package (not private) whose export changes incompatibly with no matching version bump is one too.
+- **Two copies of a contract out of step.** A schema, `.proto` or OpenAPI file changed while the committed generated client, types or SDK did not, or the reverse; a hand-written type that duplicates a generated one.
+- **A rule loosened in the same change that crosses it.** A boundary rule, import contract, tag constraint, allow-list, compatibility baseline (`buf.yaml` ignores, a schema-diff baseline) or frozen-violation store changed in the same diff as the import or contract change it would have refused. Name the rule and what it would have caught.
 - **Two owners for the data.** Two modules that write the same table or record type, or a module that reads another module's storage directly instead of its interface.
 - **A dumping ground.** A shared or general module that gains feature-specific code, or a module whose imports now span unrelated areas.
 - **Against the repository's structure.** New code in a place or layer that the repository's convention does not use for this kind of thing, or a new layering style introduced beside the existing one.
 - **Scattered configuration.** A setting or flag now read from the environment in several modules instead of one place.
 - **Anything else that is really wrong.** A real defect outside code structure, such as a retry bug, a security hole or a test that proves nothing, is still reported: raise everything you find. Name the domain it belongs to in the category, and hold it to the same evidence standard.
+
+## Skills
+
+The workflow selects these in code, by the rule in parentheses, and puts their text in your prompt: `files` matches the names of the changed files, `added` matches the diff's added lines. Do not open other skill files.
+
+- `experts/skills/protobuf-compat/skill.md` (files: *.proto, buf.yaml, buf.gen.yaml, buf.lock): load when the diff touches a .proto file or the Buf configuration, for which field, type, enum and service changes break the wire, ProtoJSON or generated code.
+- `experts/skills/schema-evolution/skill.md` (files: openapi.yaml, openapi.yml, openapi.json, swagger.yaml, swagger.yml, swagger.json, asyncapi.yaml, asyncapi.yml, *.graphql, *.graphqls, *.gql, *.schema.json; added: \bopenapi: ["']?3|"openapi": "3|\btype Query \{|\btype Mutation \{|\bextend type \w+ \{|"\$schema": "https?://json-schema\.org): load when the diff changes an HTTP API description, a JSON Schema or a GraphQL schema, for which changes break callers or readers, and for package versions.
+- `experts/skills/module-boundaries/skill.md` (files: .dependency-cruiser.js, .dependency-cruiser.cjs, .dependency-cruiser.json, .importlinter, module-info.java, project.json, nx.json, tsconfig.json, tsconfig.*.json, pnpm-workspace.yaml, go.work; added: /internal/|"exports":|depConstraints|onlyDependOnLibsWithTags|notDependOnLibsWithTags|\[tool\.importlinter|\[importlinter|ArchRule|@ArchTest|FreezingArchRule|requires transitive): load when the diff adds or moves a module, imports across one, changes what a package exports, or changes a boundary tool's rules.
 
 ## Do not report
 

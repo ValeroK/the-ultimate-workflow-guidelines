@@ -477,3 +477,33 @@ test('devops build: the plan template and the repository plans for non-infrastru
     assert.ok(ex.briefs(PLUGIN, { planText }).skipped.includes('devops'), name);
   }
 });
+
+// ---- softarch: contract compatibility and boundary tools ----
+
+const sa = (files) => names(ex.selectSkills(PLUGIN, 'softarch', 'review', ex.parseDiff(diffOf(files))));
+
+test('softarch review: each skill is selected by its own files or constructs', () => {
+  assert.deepEqual(sa({ 'api/v1/orders.proto': ['  string id = 1;'] }), ['protobuf-compat']);
+  assert.deepEqual(sa({ 'buf.yaml': ['breaking:'] }), ['protobuf-compat']);
+  assert.deepEqual(sa({ 'api/openapi.yaml': ['      required: [id]'] }), ['schema-evolution']);
+  assert.deepEqual(sa({ 'schema/app.graphql': ['type Order {'] }), ['schema-evolution']);
+  assert.deepEqual(sa({ 'spec/api.yml': ['openapi: 3.1.0'] }), ['schema-evolution'], 'an OpenAPI file under another name, by its first line');
+  assert.deepEqual(sa({ 'src/server.ts': ['const typeDefs = `type Query {'] }), ['schema-evolution'], 'a GraphQL schema in code');
+  assert.deepEqual(sa({ '.importlinter': ['[importlinter:contract:layers]'] }), ['module-boundaries']);
+  assert.deepEqual(sa({ 'libs/a/project.json': ['  "tags": ["scope:shared"]'] }), ['module-boundaries']);
+  assert.deepEqual(sa({ 'pkg/a/main.go': ['import "example.com/app/internal/store"'] }), ['module-boundaries']);
+  assert.deepEqual(sa({ 'src/main/java/module-info.java': ['    exports com.example.impl;'] }), ['module-boundaries']);
+});
+
+test('softarch review: near misses select nothing', () => {
+  assert.deepEqual(sa({ 'src/types.ts': ['type Query = { id: string };'] }), [], 'a TypeScript type named Query');
+  assert.deepEqual(sa({ 'package.json': ['  "version": "1.2.4",', '  "lodash": "^4.17.21"'] }), [], 'a dependency bump');
+  assert.deepEqual(sa({ 'renovate.json': ['  "$schema": "https://docs.renovatebot.com/renovate-schema.json"'] }), [], 'a config file with a $schema');
+  assert.deepEqual(sa({ 'svc/handler.py': ['def handle(event):', '    return 1'] }), [], 'plain application code');
+});
+
+test('softarch review: all three skills at once fit under the cap', () => {
+  const sel = ex.selectSkills(PLUGIN, 'softarch', 'review', ex.parseDiff(diffOf({ 'a.proto': ['x'], 'openapi.yaml': ['x'], 'tsconfig.json': ['x'] })));
+  assert.deepEqual(names(sel), ['protobuf-compat', 'schema-evolution', 'module-boundaries']);
+  assert.ok(sel.skills.reduce((n, s) => n + Buffer.byteLength(s.text), 0) <= ex.SKILLS_BYTES);
+});

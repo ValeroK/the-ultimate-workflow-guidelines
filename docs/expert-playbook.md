@@ -9,6 +9,7 @@ How to build a domain expert and its skills, from nothing to shipped, the way th
  2  sources      every upstream agent and skill for the domain          -> source list
  3  research     primary sources for the facts the domain depends on    -> research record
  4  compare      upstream agents against our references                 -> comparison digest
+ 4b ledger       every item of every source: taken, routed, rejected    -> docs/experts/ledgers/<name>.md
  5  references   the expert's plan / tests / review / build files       -> contract passes
  6  skills       decide, draft, list the claims each draft rests on       -> claims to verify
  6b fact-check   send the claims to the maintainer, wait for the reply   -> research record
@@ -25,6 +26,7 @@ Steps 2 to 4 are research done by subagents in the background; you read their di
 | Step | Required? | Why |
 |---|---|---|
 | 1 scope | always | Overlap between experts is the failure that costs most: two experts raising the same finding on one diff |
+| 4b ledger | whenever sources were read | Without it there is no way to show that nothing worth taking was left behind; the 2026-10-20 audit found 177 duplicated rows and a dozen missing facts |
 | 3 research, 6b fact-check and 7 verify | whenever a skill states a number, a default, a version fact or a rule of a spec or tool | Upstream facts were wrong or stale often enough on the architect (reserved concurrency, the inline Map "40") that an unchecked number is a wrong finding waiting to happen |
 | 2 sweep and 4 compare | optional | Worth it where strong upstream sources exist. For DevOps, 18 upstream agents yielded about a dozen ideas and none covered the core infrastructure-change scope; writing the checklist from the domain directly gets most of it |
 | 6 skills from upstream (template B) | optional | Worth it where good upstream skills exist (Terraform, Docker); wasted where the catalogue already lists the domain as a gap |
@@ -34,7 +36,7 @@ An expert built with only the required steps is a normal expert. Say in its `doc
 
 ## 1. Scope
 
-Write the catalogue entry in `docs/expert-catalogue.md` first: what the expert owns, its stages, and, as important, what it does **not** own and who does. Overlap between experts makes two of them raise the same finding on one diff. Before you go on, grep the neighbouring experts' references for your topics and draw the line in one sentence (the architect: services, queues and AWS resources; softarch: modules, imports and contracts inside one codebase).
+Write the catalogue entry in `docs/expert-catalogue.md` first, then the agent file's **Goal** (prevents, done well, not the goal) and its **Responsibilities** table (area, what this expert judges, what is not its own with the owner, the border rule). Templates: `docs/expert-templates.md`. Read every sibling's Responsibilities table before you write yours: each border you draw must agree with theirs, and no two experts may claim the same area (a test checks it). Overlap makes two experts raise the same finding on one diff.
 
 Decide the stages. `plan` and `review` for almost every expert; `tests` when the domain has cases the tests would miss (abuse cases, accessibility states); `build` only for a short brief that shapes how code is written on every build; `always: [tests]` only when every test plan is the expert's business (today only quality).
 
@@ -53,6 +55,10 @@ A skill that holds numbers (limits, prices, defaults) needs a research pass with
 
 When the docs host is blocked, a vendor's archived documentation sources on GitHub (for AWS, the `awsdocs` repositories, deleted in 2023 but readable at an earlier commit) are primary but dated. Use them, record the snapshot date, and do not let them override a newer vendor source on something that changed since.
 
+## 4b. The extraction ledger
+
+For every source the expert or its skills cite, list every checkable item and its outcome: **taken** (the skill and row), **routed** (the owner), **rejected** (why), or **missing** (worth taking and not taken). Apply the value test (below, step 6) to every row the skills already have and mark it keep, cut or merge. Missing items that state a fact go into the fact-check prompt (step 6b). Keep it in `docs/experts/ledgers/<name>.md`.
+
 ## 4. Compare: what the upstream agents know that ours does not (optional)
 
 Run one research agent over the upstream agents (template A below). Its digest must say, for every idea, **NEW** or **OVERLAP** with the file that already says it, and must list what not to take and why. Expect most upstream agents to be personas, capability lists or tool runners; expect very few to review a diff with evidence. Take ideas, never text, and never their tools, scripts or fetches.
@@ -61,7 +67,7 @@ Reject by default anything that pushes toward heavier designs: high availability
 
 ## 5. References
 
-Edit `experts/<name>/references/<stage>.md` with the NEW items, in the house style: each review category names what in a diff shows it; each plan question names what the plan must state. Run `evals/experts/contract.test.js` after each file: the checklist lint enforces one confidence scale, a defined empty result, no quota and an untrusted-input section. Write a check as "the system already does X and this change does not", never as "add more monitoring", or it becomes noise the "do not report" list forbids.
+Write `experts/<name>/references/<stage>.md` from the templates in `docs/expert-templates.md`. Plan and tests open with "**Outcome of this stage:**" and define no return fields (the workflow schema does); plan has Questions, the one-way-choice rule and one good and one rejected constraint; tests has Families of cases, One worked case and Redundant here. Review has Purpose, Scope, a Method with a stop rule, Categories each with an inline "Not when", Severity here, Do not report, and one worked finding with one dropped candidate. Nothing the protocol (`experts/protocol.md`) holds is restated: no Result, Confidence or Untrusted input section, no threshold. Selection examples: at least half the negatives are near misses written "(owner: x)". Run `evals/experts/contract.test.js` after each file. Write a check as "the system already does X and this change does not", never as "add more monitoring".
 
 ## 6. Skills: decide before you write
 
@@ -72,7 +78,7 @@ For each candidate skill (template B gives the research), answer in order:
 3. **Is there a narrow trigger?** `files:` globs for file types, `added:` for constructs that show in added lines, both joined with `; `. Use `always` only when no file name or line can signal it, because it is paid on every run. A selector that matches every HTTP or queue call is `always` in disguise.
 4. **Does it fit?** Skills share a 40 KB cap per expert per stage. List the most specific skill first; check the worst case (every skill of that stage selected at once) fits.
 
-Then write `experts/skills/<name>/skill.md` (frontmatter with `name` and `description`, a `# ` title, nothing that installs or runs anything, at most 16 KB) and its `NOTICE.md` (sources, licences, what was ours, what was left out). List it in the expert's `experts/<name>/skills.md` under each stage, with its selector. At plan there is no selector: the skill's `description` is the headline a model chooses by.
+Then apply the **value test** to every row: non-obvious (a strong reviewer without the skill would miss it), checkable in a diff or plan, sourced (it carries a tag), and not covered elsewhere (no enabled linter or compiler, no other skill). A row that fails one is cut. Write `experts/skills/<name>/skill.md` from the skill template: frontmatter (`name`, `description` saying what and when, `verified`, optional `requires`), `## Goal` (lets the expert catch, applies to, not for), the source key, `## First, establish the target`, rule tables (`Rule [tag] | What breaks it in a diff | When it does not apply`), and `## Not a finding` (at most five). At most 16 KB, nothing that installs or runs anything. Its `NOTICE.md` has the version or date checked for each source. List it in the expert's `experts/<name>/skills.md` under each stage, with its selector. At plan there is no selector: the skill's `description` is the headline a model chooses by.
 
 Rejected skills are recorded with the reason, in `docs/experts/<name>.md`.
 
@@ -89,7 +95,7 @@ Work that does not depend on the facts (scope, the references, selectors, tests 
 
 ## 7. Verify every fact
 
-Every number or default in a skill carries a source tag the expert can see, such as **[G]** (vendor's developer guide, with its date), **[R]** (a live page checked by the maintainer), **[T]** (a vendor toolkit, not yet checked against the guide). Run template C over every fact the skill states. Then:
+Every row in a skill carries one of four tags: **[D]** vendor documentation as published in its repository (name, date), **[R]** the maintainer's live check (date), **[T]** a third-party skill or page, unchecked, **[O]** our own reasoning. A [T] or [O] row that a primary source could confirm goes on the next fact-check list. Run template C over every fact the skill states. Then:
 
 - confirmed: tag it;
 - different: correct it to the documented value, and if two vendor sources of different dates disagree, give both;
@@ -100,7 +106,7 @@ Tell the expert in the skill's opening how to treat a weakly sourced fact: as a 
 
 ## 8. Wire it
 
-- The agent file says which reference to read at each stage and that skills arrive in the prompt.
+- The agent file names `experts/protocol.md` first, then the reference for each stage, then the skills pasted into the prompt.
 - `NOTICE.md` of the expert lists every new source; `references/CHANGES.md` records what changed, what was not taken and that it is not measured.
 - Tests in `evals/experts/skills-injection.test.js`: each skill is selected by its trigger, **not** selected by a near miss (a plain handler, a different resource in the same file type), in priority order, and the worst case fits under the cap.
 - Run the full command and **gate the commit on its exit code**, not on reading the summary:

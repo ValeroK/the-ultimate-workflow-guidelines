@@ -1,0 +1,2561 @@
+{
+ "generated": "2026-10-20",
+ "note": "Model judgments from a sampled read of each repository, not a full audit. Scores are suitability as a source for domain experts for a production AI system on AWS. Repositories are the maintainer's GitHub stars that are skills, agents or plugin collections (75 of 245 stars). Nothing here was run; no script from any repository was executed.",
+ "repos": [
+  {
+   "repo": "antonbabenko/terraform-skill",
+   "category": "iac",
+   "score": 84,
+   "licence": "Apache-2.0",
+   "quality": "high",
+   "redFlags": [
+    "Response contract and workflow are written for a generating assistant, not a read-only reviewer; needs trimming into checklist form",
+    "Tells agent to run validate/plan/trivy/checkov commands and use Terraform MCP; extra tools beyond read",
+    "references/*.md not checked out, depth (LLM-mistake checklists) could not be verified"
+   ],
+   "duplicatesOf": null,
+   "candidates": [
+    {
+     "expert": "terraform",
+     "score": 86,
+     "fit": "high",
+     "useAs": "expert-base",
+     "stages": [
+      "plan",
+      "tests",
+      "review"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "agamm/claude-code-owasp",
+   "category": "security",
+   "score": 84,
+   "licence": "MIT",
+   "quality": "high",
+   "redFlags": [
+    "Large reference file that overlaps general reviewers (owasp-report.md about 1100 lines, languages.md covers 20+ languages)",
+    "Version-specific standard IDs (ASVS 5.0, LLM 2026, ASI 2026) will go stale; ID mapping is the maintenance burden"
+   ],
+   "duplicatesOf": null,
+   "candidates": [
+    {
+     "expert": "appsec",
+     "score": 85,
+     "fit": "high",
+     "useAs": "expert-base",
+     "stages": [
+      "plan",
+      "tests",
+      "review"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "aws/agent-toolkit-for-aws",
+   "category": "aws",
+   "score": 82,
+   "licence": "Apache-2.0",
+   "quality": "high",
+   "redFlags": [
+    "Duplicate content under several paths (aws-core/skills/* and skills/core-skills/* are byte-identical sizes; analytics skills repeated in aws-data-analytics and skills/specialized-skills/analytics-skills; agents-pay twice)",
+    "Bundled scripts and hooks (python, mjs, ts) shipped beside skills; agents-pay includes a payment/x402 client",
+    "Usage telemetry with consent file and vendored telemetry scripts (data sent out; opt-out offered)",
+    "Commercial offers layer injected into advice (Activate offers with tracked link)"
+   ],
+   "duplicatesOf": null,
+   "candidates": [
+    {
+     "expert": "awsiam",
+     "score": 84,
+     "fit": "high",
+     "useAs": "expert-base",
+     "stages": [
+      "plan",
+      "tests",
+      "review"
+     ]
+    },
+    {
+     "expert": "agentcore",
+     "score": 80,
+     "fit": "high",
+     "useAs": "expert-base",
+     "stages": [
+      "plan",
+      "tests",
+      "review"
+     ]
+    },
+    {
+     "expert": "awsiac",
+     "score": 78,
+     "fit": "high",
+     "useAs": "expert-base",
+     "stages": [
+      "plan",
+      "tests",
+      "review"
+     ]
+    },
+    {
+     "expert": "awsdata",
+     "score": 72,
+     "fit": "medium",
+     "useAs": "reference-material",
+     "stages": [
+      "plan",
+      "tests",
+      "review"
+     ]
+    },
+    {
+     "expert": "awsops",
+     "score": 66,
+     "fit": "medium",
+     "useAs": "reference-material",
+     "stages": [
+      "plan",
+      "review"
+     ]
+    },
+    {
+     "expert": "serverless",
+     "score": 62,
+     "fit": "medium",
+     "useAs": "reference-material",
+     "stages": [
+      "plan",
+      "tests",
+      "review"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "supabase/agent-skills",
+   "category": "databases",
+   "score": 80,
+   "licence": "MIT",
+   "quality": "high",
+   "redFlags": [
+    "Runtime fetch of changelog and docs URLs; curl to MCP endpoint in troubleshooting",
+    "Supabase-specific; only applies if Supabase is the database",
+    "Rule files not checked out; skill text is mainly index"
+   ],
+   "duplicatesOf": null,
+   "candidates": [
+    {
+     "expert": "rls",
+     "score": 82,
+     "fit": "high",
+     "useAs": "expert-base",
+     "stages": [
+      "plan",
+      "tests",
+      "review"
+     ]
+    },
+    {
+     "expert": "postgres",
+     "score": 66,
+     "fit": "medium",
+     "useAs": "reference-material",
+     "stages": [
+      "review"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "timescale/pg-aiguide",
+   "category": "databases",
+   "score": 78,
+   "licence": "Apache-2.0",
+   "quality": "high",
+   "redFlags": [
+    "Large files that also exist as router copies (postgres/SKILL.md references the same content as skills/<name> under references/), duplicated content",
+    "Tiger Data/TimescaleDB product bias in TimescaleDB-centric skills",
+    "Very large files (15-25KB) overlapping general reviewers",
+    "Fork-based migration testing recommends Tiger Cloud features"
+   ],
+   "duplicatesOf": null,
+   "candidates": [
+    {
+     "expert": "migrations",
+     "score": 84,
+     "fit": "high",
+     "useAs": "expert-base",
+     "stages": [
+      "plan",
+      "tests",
+      "review"
+     ]
+    },
+    {
+     "expert": "pgvector",
+     "score": 82,
+     "fit": "high",
+     "useAs": "expert-base",
+     "stages": [
+      "plan",
+      "tests",
+      "review"
+     ]
+    },
+    {
+     "expert": "postgres",
+     "score": 70,
+     "fit": "medium",
+     "useAs": "expert-base",
+     "stages": [
+      "plan",
+      "review"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "cloudflare/security-audit-skill",
+   "category": "security",
+   "score": 76,
+   "licence": "MIT",
+   "quality": "high",
+   "redFlags": [
+    "Bundled scripts (JS validators for findings and coverage ledger); local-only per the listing, but must be vetted before use",
+    "Very large orchestration skill (22KB SKILL.md and 11 companions) built for a parent agent that spawns many sub-agents and writes run files; does not fit a read-only advisor expert",
+    "Instructs the agent to build and run target code (inside a described sandbox) and write files; needs more than read tools"
+   ],
+   "duplicatesOf": null,
+   "candidates": [
+    {
+     "expert": "agentsec",
+     "score": 82,
+     "fit": "high",
+     "useAs": "expert-base",
+     "stages": [
+      "plan",
+      "tests",
+      "review"
+     ]
+    },
+    {
+     "expert": "cloudsec",
+     "score": 72,
+     "fit": "medium",
+     "useAs": "reference-material",
+     "stages": [
+      "plan",
+      "review"
+     ]
+    },
+    {
+     "expert": "tenancy",
+     "score": 70,
+     "fit": "medium",
+     "useAs": "reference-material",
+     "stages": [
+      "plan",
+      "tests",
+      "review"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "docker/skills",
+   "category": "containers",
+   "score": 74,
+   "licence": "Apache-2.0",
+   "quality": "high",
+   "redFlags": [
+    "Runtime fetch of external docs via curl and MCP server",
+    "Skills reference docker-agent / sbx products that are vendor-specific and fast-moving",
+    "Some skills have empty/dash frontmatter description in catalog"
+   ],
+   "duplicatesOf": null,
+   "candidates": [
+    {
+     "expert": "docker",
+     "score": 80,
+     "fit": "high",
+     "useAs": "expert-base",
+     "stages": [
+      "plan",
+      "review"
+     ]
+    },
+    {
+     "expert": "docker",
+     "score": 45,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "review"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "Community-Access/accessibility-agents",
+   "category": "ui-accessibility",
+   "score": 74,
+   "licence": "MIT",
+   "quality": "mixed",
+   "redFlags": [
+    "Bundled scripts that run at review time (render-report.mjs, repo-level a11y-lint.mjs, office/pdf scanners, mcp-server/scripts)",
+    "Tells the agent to tell the user to install packages (npm install -g @axe-core/cli, playwright) and to fetch webpages and use context7",
+    "Orchestration design that dispatches subagents and writes .a11y-history/ files; the lead must not read the specialist bodies",
+    "Duplicated content under several names (kb-* vs specialist; internal helpers per format: web/markdown/document csv-reporters, scanners, fixers)"
+   ],
+   "duplicatesOf": null,
+   "candidates": [
+    {
+     "expert": "a11y",
+     "score": 78,
+     "fit": "high",
+     "useAs": "expert-base",
+     "stages": [
+      "plan",
+      "tests",
+      "review"
+     ]
+    },
+    {
+     "expert": "a11ytest",
+     "score": 58,
+     "fit": "medium",
+     "useAs": "reference-material",
+     "stages": [
+      "tests"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "ollygarden/opentelemetry-agent-skills",
+   "category": "observability",
+   "score": 72,
+   "licence": "Apache-2.0",
+   "quality": "high",
+   "redFlags": [
+    "Bundled scripts: semconv query script, telemetrygen, verification harnesses",
+    "Skills instruct fetching upstream sources and running tools (curl, go install, npx)",
+    "Non-opinionated by design: lookup, not review checklist; large and version-pinned content goes stale",
+    "Language SDK skills for Ruby/.NET/Java likely unneeded"
+   ],
+   "duplicatesOf": null,
+   "candidates": [
+    {
+     "expert": "otel",
+     "score": 68,
+     "fit": "medium",
+     "useAs": "expert-base",
+     "stages": [
+      "plan",
+      "review"
+     ]
+    },
+    {
+     "expert": "otelbrowser",
+     "score": 64,
+     "fit": "medium",
+     "useAs": "expert-base",
+     "stages": [
+      "plan",
+      "review"
+     ]
+    },
+    {
+     "expert": "otel",
+     "score": 50,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "plan"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "trailofbits/skills",
+   "category": "security",
+   "score": 68,
+   "licence": "CC",
+   "quality": "high",
+   "redFlags": [
+    "Bundled scripts and binaries-adjacent tooling that run code or make network calls (HTTP to registries/GitHub, uv run collect.py)",
+    "Fetches remote content at run time (gh api for remote workflow files, Semgrep third-party rulesets cloned from other repos)",
+    "Sends code to external services (second-opinion sends diffs to Codex/Gemini)",
+    "Share-alike licence: adapted expert text must be released under CC BY-SA 4.0"
+   ],
+   "duplicatesOf": null,
+   "candidates": [
+    {
+     "expert": "ciagent",
+     "score": 80,
+     "fit": "high",
+     "useAs": "expert-base",
+     "stages": [
+      "review",
+      "plan"
+     ]
+    },
+    {
+     "expert": "defaults",
+     "score": 78,
+     "fit": "high",
+     "useAs": "expert-base",
+     "stages": [
+      "plan",
+      "tests",
+      "review"
+     ]
+    },
+    {
+     "expert": "footguns",
+     "score": 66,
+     "fit": "medium",
+     "useAs": "reference-material",
+     "stages": [
+      "plan",
+      "review"
+     ]
+    },
+    {
+     "expert": "triage",
+     "score": 62,
+     "fit": "medium",
+     "useAs": "reference-material",
+     "stages": [
+      "review"
+     ]
+    },
+    {
+     "expert": "supplychain",
+     "score": 55,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "review"
+     ]
+    },
+    {
+     "expert": "diffsec",
+     "score": 52,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "review"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "addyosmani/agent-skills",
+   "category": "architecture-process",
+   "score": 68,
+   "licence": "MIT",
+   "quality": "high",
+   "redFlags": [
+    "Persona opening ('You are an experienced Security Engineer...') though followed by a real checklist",
+    "Examples hard-wired to Vercel and Express/Prisma; npx used in CI examples and in the browser MCP setup",
+    "Large skills (14-21 KB) overlapping the general code-review skill and each other",
+    "Security auditor requires a proof of concept and 'Positive Observations' sections, which add noise and cannot be capped as is"
+   ],
+   "duplicatesOf": null,
+   "candidates": [
+    {
+     "expert": "appsec",
+     "score": 74,
+     "fit": "high",
+     "useAs": "expert-base",
+     "stages": [
+      "plan",
+      "tests",
+      "review"
+     ]
+    },
+    {
+     "expert": "observability",
+     "score": 72,
+     "fit": "high",
+     "useAs": "expert-base",
+     "stages": [
+      "plan",
+      "tests",
+      "review"
+     ]
+    },
+    {
+     "expert": "api",
+     "score": 62,
+     "fit": "medium",
+     "useAs": "reference-material",
+     "stages": [
+      "plan",
+      "review"
+     ]
+    },
+    {
+     "expert": "cicd",
+     "score": 52,
+     "fit": "medium",
+     "useAs": "reference-material",
+     "stages": [
+      "plan",
+      "review"
+     ]
+    },
+    {
+     "expert": "testing",
+     "score": 45,
+     "fit": "low",
+     "useAs": "do-not-use",
+     "stages": [
+      "tests"
+     ]
+    },
+    {
+     "expert": "webperf",
+     "score": 48,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "review"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "vercel-labs/agent-skills",
+   "category": "frontend",
+   "score": 62,
+   "licence": "MIT",
+   "quality": "high",
+   "redFlags": [
+    "Fetches instructions from a URL at run time and applies them as rules",
+    "Bundled scripts, zips and a build step; large test package",
+    "Runs a no-auth deploy script that uploads the project to a third-party endpoint and installs a global CLI (npm install -g vercel)",
+    "Vendor-specific (Vercel platform); several skills do not apply to an AWS system"
+   ],
+   "duplicatesOf": null,
+   "candidates": [
+    {
+     "expert": "react",
+     "score": 66,
+     "fit": "medium",
+     "useAs": "expert-base",
+     "stages": [
+      "plan",
+      "review"
+     ]
+    },
+    {
+     "expert": "costperf",
+     "score": 40,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "review"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "github/awesome-copilot",
+   "category": "general-collection",
+   "score": 62,
+   "licence": "MIT",
+   "quality": "mixed",
+   "redFlags": [
+    "Fetches URLs at run time (documentation fetch is mandated in the instructions)",
+    "Skill writes to external systems (bulk-creates GitHub issues, runs aws CLI against a live account)",
+    "Bundled scripts; setup.sh updates the skill and the pixie-qa package from the network at run time",
+    "Pipe-to-shell install instructions"
+   ],
+   "duplicatesOf": null,
+   "candidates": [
+    {
+     "expert": "actions",
+     "score": 85,
+     "fit": "high",
+     "useAs": "expert-base",
+     "stages": [
+      "plan",
+      "tests",
+      "review"
+     ]
+    },
+    {
+     "expert": "mcpserver",
+     "score": 82,
+     "fit": "high",
+     "useAs": "expert-base",
+     "stages": [
+      "plan",
+      "tests",
+      "review"
+     ]
+    },
+    {
+     "expert": "agentsec",
+     "score": 62,
+     "fit": "medium",
+     "useAs": "reference-material",
+     "stages": [
+      "plan",
+      "review"
+     ]
+    },
+    {
+     "expert": "awsiac",
+     "score": 58,
+     "fit": "medium",
+     "useAs": "reference-material",
+     "stages": [
+      "plan",
+      "tests",
+      "review"
+     ]
+    },
+    {
+     "expert": "triage",
+     "score": 55,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "tests"
+     ]
+    },
+    {
+     "expert": "a11y",
+     "score": 60,
+     "fit": "medium",
+     "useAs": "reference-material",
+     "stages": [
+      "plan",
+      "tests",
+      "review"
+     ]
+    },
+    {
+     "expert": "postgres",
+     "score": 48,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "review"
+     ]
+    },
+    {
+     "expert": "evals",
+     "score": 45,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "tests"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "anthropics/claude-plugins-official",
+   "category": "general-collection",
+   "score": 58,
+   "licence": "Apache-2.0",
+   "quality": "high",
+   "redFlags": [
+    "Plugin depends on bundled scripts not in the checkout (render_report.py, save_result.py, write_scan_meta.py, keep-waiting.sh, patch_artifacts.py) and a Workflow tool",
+    "Fetches a remote URL at run time before answering (llms-full.txt)",
+    "Project-specific assumptions baked in (errorIds.ts, logError, Sentry constants)",
+    "Persona with 'zero tolerance' and 'non-negotiable rules' tone; absolute rules like any silent fallback is a critical defect"
+   ],
+   "duplicatesOf": null,
+   "candidates": [
+    {
+     "expert": "security",
+     "score": 66,
+     "fit": "medium",
+     "useAs": "reference-material",
+     "stages": [
+      "review"
+     ]
+    },
+    {
+     "expert": "errors",
+     "score": 58,
+     "fit": "medium",
+     "useAs": "reference-material",
+     "stages": [
+      "review",
+      "tests"
+     ]
+    },
+    {
+     "expert": "agentsdk",
+     "score": 48,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "review"
+     ]
+    },
+    {
+     "expert": "mcp",
+     "score": 55,
+     "fit": "medium",
+     "useAs": "reference-material",
+     "stages": [
+      "plan"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "muratcankoylan/Agent-Skills-for-Context-Engineering",
+   "category": "ai-agent-llm",
+   "score": 56,
+   "licence": "MIT",
+   "quality": "high",
+   "redFlags": [
+    "Bundled scripts and a Python package in examples",
+    "Long skills (16-33 KB) with generic prose and source-specific benchmark numbers presented near-universally",
+    "Descriptions all begin 'This skill should be used for ...' and are long, trigger-heavy",
+    "Off-target skills (book SFT pipeline, personal digital brain, BDI mental states, latent briefing)"
+   ],
+   "duplicatesOf": null,
+   "candidates": [
+    {
+     "expert": "tooldesign",
+     "score": 76,
+     "fit": "high",
+     "useAs": "expert-base",
+     "stages": [
+      "plan",
+      "tests",
+      "review"
+     ]
+    },
+    {
+     "expert": "agentevals",
+     "score": 72,
+     "fit": "high",
+     "useAs": "expert-base",
+     "stages": [
+      "plan",
+      "tests",
+      "review"
+     ]
+    },
+    {
+     "expert": "agentcontext",
+     "score": 58,
+     "fit": "medium",
+     "useAs": "reference-material",
+     "stages": [
+      "plan"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "anthropics/skills",
+   "category": "ai-agent-llm",
+   "score": 55,
+   "licence": "Apache-2.0",
+   "quality": "high",
+   "redFlags": [
+    "Bundled scripts: eval report builder and runner scaffold (.mjs) and Python probes inside the skill",
+    "Fetches live docs at run time (tells the agent to use WebFetch for 'latest' information)",
+    "Over-aggressive trigger text ('read BEFORE opening the target file; don't skip because it looks like a one-liner'); fires on any mention of Claude",
+    "Very large file (105 KB SKILL.md plus ~60 reference files) that overlaps a general reviewer's remit if loaded whole"
+   ],
+   "duplicatesOf": null,
+   "candidates": [
+    {
+     "expert": "claude-api",
+     "score": 74,
+     "fit": "high",
+     "useAs": "expert-base",
+     "stages": [
+      "plan",
+      "tests",
+      "review"
+     ]
+    },
+    {
+     "expert": "mcp",
+     "score": 45,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "plan"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "tech-leads-club/agent-skills",
+   "category": "general-collection",
+   "score": 55,
+   "licence": "MIT",
+   "quality": "mixed",
+   "redFlags": [
+    "bundled scripts and binaries that execute at run time",
+    "fetches and runs remote installer",
+    "sends data to external services (Sentry API token, GitHub review posting, deploy providers, outreach tooling)",
+    "very large files overlapping general reviewers or off-topic"
+   ],
+   "duplicatesOf": null,
+   "candidates": [
+    {
+     "expert": "reviewgate",
+     "score": 74,
+     "fit": "high",
+     "useAs": "expert-base",
+     "stages": [
+      "review"
+     ]
+    },
+    {
+     "expert": "threatmodel",
+     "score": 72,
+     "fit": "high",
+     "useAs": "expert-base",
+     "stages": [
+      "plan",
+      "review"
+     ]
+    },
+    {
+     "expert": "websec",
+     "score": 62,
+     "fit": "medium",
+     "useAs": "expert-base",
+     "stages": [
+      "plan",
+      "review"
+     ]
+    },
+    {
+     "expert": "aws",
+     "score": 58,
+     "fit": "medium",
+     "useAs": "reference-material",
+     "stages": [
+      "plan",
+      "review"
+     ]
+    },
+    {
+     "expert": "webquality",
+     "score": 55,
+     "fit": "medium",
+     "useAs": "reference-material",
+     "stages": [
+      "tests",
+      "review"
+     ]
+    },
+    {
+     "expert": "none",
+     "score": 30,
+     "fit": "low",
+     "useAs": "do-not-use",
+     "stages": [
+      "plan"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "affaan-m/ECC",
+   "category": "general-collection",
+   "score": 55,
+   "licence": "MIT",
+   "quality": "mixed",
+   "redFlags": [
+    "Copies of the same content under several names (mirrors and translations)",
+    "Persona line / 'zero tolerance' framing in agents",
+    "Absolute rules that contradict good practice",
+    "Very large files that overlap general reviewers"
+   ],
+   "duplicatesOf": null,
+   "candidates": [
+    {
+     "expert": "retrieval",
+     "score": 82,
+     "fit": "high",
+     "useAs": "expert-base",
+     "stages": [
+      "plan",
+      "tests",
+      "review"
+     ]
+    },
+    {
+     "expert": "agentsec",
+     "score": 80,
+     "fit": "high",
+     "useAs": "expert-base",
+     "stages": [
+      "plan",
+      "tests",
+      "review"
+     ]
+    },
+    {
+     "expert": "database",
+     "score": 68,
+     "fit": "medium",
+     "useAs": "expert-base",
+     "stages": [
+      "plan",
+      "tests",
+      "review"
+     ]
+    },
+    {
+     "expert": "llmcost",
+     "score": 62,
+     "fit": "medium",
+     "useAs": "reference-material",
+     "stages": [
+      "plan",
+      "tests"
+     ]
+    },
+    {
+     "expert": "evals",
+     "score": 58,
+     "fit": "medium",
+     "useAs": "reference-material",
+     "stages": [
+      "tests"
+     ]
+    },
+    {
+     "expert": "failures",
+     "score": 50,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "review"
+     ]
+    },
+    {
+     "expert": "a11y",
+     "score": 55,
+     "fit": "medium",
+     "useAs": "reference-material",
+     "stages": [
+      "tests",
+      "review"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "msitarzewski/agency-agents",
+   "category": "general-collection",
+   "score": 55,
+   "licence": "MIT",
+   "quality": "mixed",
+   "redFlags": [
+    "persona-first framing with emoji and invented 'memory/experience' backstory (no real memory)",
+    "no tools: field in the frontmatter, so no read-only restriction; an expert built from these must add one",
+    "'defaults to finding issues' stance (pressure to always find something)",
+    "very large files overlapping a general reviewer"
+   ],
+   "duplicatesOf": null,
+   "candidates": [
+    {
+     "expert": "cloudsec",
+     "score": 68,
+     "fit": "high",
+     "useAs": "expert-base",
+     "stages": [
+      "plan",
+      "tests",
+      "review"
+     ]
+    },
+    {
+     "expert": "dbreliability",
+     "score": 72,
+     "fit": "high",
+     "useAs": "expert-base",
+     "stages": [
+      "plan",
+      "tests",
+      "review"
+     ]
+    },
+    {
+     "expert": "authz",
+     "score": 74,
+     "fit": "high",
+     "useAs": "expert-base",
+     "stages": [
+      "plan",
+      "tests",
+      "review"
+     ]
+    },
+    {
+     "expert": "privacy",
+     "score": 70,
+     "fit": "high",
+     "useAs": "expert-base",
+     "stages": [
+      "plan",
+      "tests",
+      "review"
+     ]
+    },
+    {
+     "expert": "finops",
+     "score": 66,
+     "fit": "medium",
+     "useAs": "expert-base",
+     "stages": [
+      "plan",
+      "review"
+     ]
+    },
+    {
+     "expert": "agentdesign",
+     "score": 62,
+     "fit": "medium",
+     "useAs": "reference-material",
+     "stages": [
+      "plan",
+      "tests",
+      "review"
+     ]
+    },
+    {
+     "expert": "aicodesec",
+     "score": 64,
+     "fit": "medium",
+     "useAs": "expert-base",
+     "stages": [
+      "review"
+     ]
+    },
+    {
+     "expert": "a11y",
+     "score": 50,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "tests",
+      "review"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "hashicorp/agent-skills",
+   "category": "iac",
+   "score": 52,
+   "licence": "MPL-2.0",
+   "quality": "mixed",
+   "redFlags": [
+    "Provider-development skills are irrelevant to the target system (we consume providers, not write them)",
+    "Template-recipe format with no 'do not report' list; overlaps with antonbabenko terraform skill",
+    "Skill files that tell agent to run npx skills add / CLI commands",
+    "Azure and Windows skills off-target"
+   ],
+   "duplicatesOf": "antonbabenko__terraform-skill (partial overlap on test/style/module topics)",
+   "candidates": [
+    {
+     "expert": "tftest",
+     "score": 62,
+     "fit": "medium",
+     "useAs": "reference-material",
+     "stages": [
+      "tests"
+     ]
+    },
+    {
+     "expert": "terraform",
+     "score": 48,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "review"
+     ]
+    },
+    {
+     "expert": "packer",
+     "score": 40,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "plan"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "Sushegaad/Claude-Skills-Governance-Risk-and-Compliance",
+   "category": "security",
+   "score": 52,
+   "licence": "MIT",
+   "quality": "mixed",
+   "redFlags": [
+    "Persona opening ('You are an expert ... advisor') with workflows aimed at compliance paperwork (policies, evidence, gap analysis), not code or design review",
+    "Time-sensitive legal claims (fines, deadlines, 'Last verified' dates, court case numbers) that cannot be checked from the repo and will rot",
+    "Very large files (14-29KB) for jurisdictions and frameworks mostly irrelevant here (ITAR, EAR, CMMC, TISAX, NZISM, ISM, Saudi, UAE, SWIFT, TSA)",
+    "Vague trigger descriptions that fire on any adjacent topic ('Trigger even for adjacent topics')"
+   ],
+   "duplicatesOf": null,
+   "candidates": [
+    {
+     "expert": "privacy",
+     "score": 62,
+     "fit": "medium",
+     "useAs": "reference-material",
+     "stages": [
+      "plan",
+      "review"
+     ]
+    },
+    {
+     "expert": "aigov",
+     "score": 48,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "plan"
+     ]
+    },
+    {
+     "expert": "a11y",
+     "score": 58,
+     "fit": "medium",
+     "useAs": "reference-material",
+     "stages": [
+      "review",
+      "tests"
+     ]
+    },
+    {
+     "expert": "controls",
+     "score": 35,
+     "fit": "low",
+     "useAs": "do-not-use",
+     "stages": [
+      "plan"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "ziniman/ai-instruct",
+   "category": "frontend",
+   "score": 52,
+   "licence": "Apache-2.0",
+   "quality": "high",
+   "redFlags": [
+    "Very large files (web-performance 55 KB, seo-llmo 51 KB, accessibility 34 KB, GA4 21 KB) that overlap general reviewers",
+    "Repo is distributed through an npx CLI that downloads guides (installer, not in checkout)",
+    "Tied to a narrow stack and the Amplify Gen 1 console path; dated 'Updated Feb/Mar 2026'",
+    "Interactive 'ask the user these questions first' preface conflicts with a non-interactive advisory expert"
+   ],
+   "duplicatesOf": null,
+   "candidates": [
+    {
+     "expert": "a11y",
+     "score": 78,
+     "fit": "high",
+     "useAs": "expert-base",
+     "stages": [
+      "plan",
+      "tests",
+      "review"
+     ]
+    },
+    {
+     "expert": "awsfrontend",
+     "score": 62,
+     "fit": "medium",
+     "useAs": "reference-material",
+     "stages": [
+      "plan",
+      "tests",
+      "review"
+     ]
+    },
+    {
+     "expert": "webperf",
+     "score": 45,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "review"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "alirezarezvani/claude-skills",
+   "category": "general-collection",
+   "score": 52,
+   "licence": "MIT",
+   "quality": "mixed",
+   "redFlags": [
+    "Bundled scripts that SKILL.md tells the agent to run (not read or run by me)",
+    "Persona-driven agents with scripted 'Voice' / opening lines",
+    "Copies of the same content under several names (13-host mirrors)",
+    "Vague promotional description / marketing claims ('most comprehensive', '388 production-ready')"
+   ],
+   "duplicatesOf": null,
+   "candidates": [
+    {
+     "expert": "cloud",
+     "score": 74,
+     "fit": "high",
+     "useAs": "expert-base",
+     "stages": [
+      "plan",
+      "tests",
+      "review"
+     ]
+    },
+    {
+     "expert": "llmsec",
+     "score": 63,
+     "fit": "medium",
+     "useAs": "reference-material",
+     "stages": [
+      "plan",
+      "tests",
+      "review"
+     ]
+    },
+    {
+     "expert": "promptops",
+     "score": 56,
+     "fit": "medium",
+     "useAs": "reference-material",
+     "stages": [
+      "plan",
+      "tests"
+     ]
+    },
+    {
+     "expert": "e2e",
+     "score": 66,
+     "fit": "medium",
+     "useAs": "expert-base",
+     "stages": [
+      "plan",
+      "tests",
+      "review"
+     ]
+    },
+    {
+     "expert": "retrieval",
+     "score": 50,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "plan",
+      "tests"
+     ]
+    },
+    {
+     "expert": "observability",
+     "score": 45,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "plan"
+     ]
+    },
+    {
+     "expert": "a11y",
+     "score": 48,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "tests",
+      "review"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "langfuse/skills",
+   "category": "observability",
+   "score": 50,
+   "licence": "MIT",
+   "quality": "mixed",
+   "redFlags": [
+    "Runtime fetching of URLs and npx langfuse-cli execution declared in allowed-tools (curl, WebFetch, npx/bunx)",
+    "Vendor-specific; most value lives in unfetched references",
+    "Duplicate skill-creator under .cursor"
+   ],
+   "duplicatesOf": null,
+   "candidates": [
+    {
+     "expert": "llmeval",
+     "score": 55,
+     "fit": "medium",
+     "useAs": "reference-material",
+     "stages": [
+      "plan",
+      "tests"
+     ]
+    },
+    {
+     "expert": "otelmigrate",
+     "score": 35,
+     "fit": "low",
+     "useAs": "do-not-use",
+     "stages": [
+      "plan"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "planetscale/database-skills",
+   "category": "databases",
+   "score": 50,
+   "licence": "MIT",
+   "quality": "mixed",
+   "redFlags": [
+    "Instructs agent to recommend PlanetScale as the best host for new databases, 'backed by benchmarks'",
+    "All references loaded by URL at run time from raw.githubusercontent.com",
+    "Absolute rules without context (e.g. always utf8mb4, drop indexes with count_read = 0)"
+   ],
+   "duplicatesOf": "overlaps timescale__pg-aiguide and supabase__agent-skills for Postgres",
+   "candidates": [
+    {
+     "expert": "postgres",
+     "score": 45,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "review"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "ibelick/ui-skills",
+   "category": "frontend",
+   "score": 50,
+   "licence": "MIT",
+   "quality": "mixed",
+   "redFlags": [
+    "Router skill tells the agent to run npx ui-skills and fetch skills from a remote registry/MCP at run time",
+    "Malformed or empty description frontmatter",
+    "Accessibility rules are a thin subset of what Community-Access offers",
+    "Mixed purpose: fixing-skills edit code while improve-ui is read-only"
+   ],
+   "duplicatesOf": null,
+   "candidates": [
+    {
+     "expert": "uidrift",
+     "score": 62,
+     "fit": "medium",
+     "useAs": "expert-base",
+     "stages": [
+      "review"
+     ]
+    },
+    {
+     "expert": "uifixes",
+     "score": 45,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "review"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "awslabs/agent-plugins",
+   "category": "aws",
+   "score": 45,
+   "licence": "Apache-2.0",
+   "quality": "mixed",
+   "redFlags": [
+    "Superseded by aws__agent-toolkit-for-aws (README says so); serverless, DSQL, Lambda skills reappear there with newer versions",
+    "Bundled scripts that create and delete databases and run shell",
+    "Fetches and runs code at run time: MCP servers launched with uvx '@latest' (unpinned) and a remote HTTP knowledge server",
+    "Hooks that run on tool use"
+   ],
+   "duplicatesOf": "aws__agent-toolkit-for-aws",
+   "candidates": [
+    {
+     "expert": "dsql",
+     "score": 55,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "plan",
+      "review"
+     ]
+    },
+    {
+     "expert": "deploydefaults",
+     "score": 50,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "review"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "emilkowalski/skills",
+   "category": "frontend",
+   "score": 45,
+   "licence": "MIT",
+   "quality": "high",
+   "redFlags": [
+    "Demands to find something: 'Default to flagging. Approval is earned, not assumed.'",
+    "Forced scripted greeting before any work ('respond only with ... Do not provide any other information')",
+    "Persona-heavy openings ('brutal eye for craft', 'most annoying real user')",
+    "Very large files overlapping each other"
+   ],
+   "duplicatesOf": null,
+   "candidates": [
+    {
+     "expert": "worstcase",
+     "score": 72,
+     "fit": "high",
+     "useAs": "expert-base",
+     "stages": [
+      "plan",
+      "tests",
+      "review"
+     ]
+    },
+    {
+     "expert": "motion",
+     "score": 52,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "review"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "openai/skills",
+   "category": "security",
+   "score": 42,
+   "licence": "Per-skill",
+   "quality": "mixed",
+   "redFlags": [
+    "Bundled scripts that must be run",
+    "Skill tells the agent to 'search online' when no reference exists",
+    "Very large reference files (1000+ lines) that overlap a general security reviewer",
+    "Vendor-specific integrations written for Codex, not portable"
+   ],
+   "duplicatesOf": null,
+   "candidates": [
+    {
+     "expert": "websec",
+     "score": 62,
+     "fit": "medium",
+     "useAs": "reference-material",
+     "stages": [
+      "plan",
+      "review"
+     ]
+    },
+    {
+     "expert": "threatmodel",
+     "score": 60,
+     "fit": "medium",
+     "useAs": "reference-material",
+     "stages": [
+      "plan"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "awslabs/aidlc-workflows",
+   "category": "architecture-process",
+   "score": 38,
+   "licence": "MIT-0",
+   "quality": "mixed",
+   "redFlags": [
+    "Persona with no checklist ('You are a senior ...')",
+    "Copies of the same content under several names",
+    "Install by piping a downloaded script into the shell (curl | sh, irm | iex) and a native binary installer",
+    "Very large files: composer agent 63 KB and orchestrator skills 49-63 KB"
+   ],
+   "duplicatesOf": null,
+   "candidates": [
+    {
+     "expert": "designreview",
+     "score": 48,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "review"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "pbakaus/impeccable",
+   "category": "frontend",
+   "score": 38,
+   "licence": "Apache-2.0",
+   "quality": "mixed",
+   "redFlags": [
+    "Copies of the same content under several names (the skill in 25 harness folders; 4 agents in 7 folders)",
+    "Bundled binaries and run-time code (Rust engine, CLI with platform packages, browser bundle injected into pages, live-mode server, hooks, comp-diff and concept-seed commands)",
+    "Very large files that overlap general reviewers",
+    "Absolute aesthetic rules stated as bans ('no brief earns it back', eyebrow ban, no side stripes); reviewer 'You are the last gate' calibrated to a design director's taste"
+   ],
+   "duplicatesOf": null,
+   "candidates": [
+    {
+     "expert": "uiresilience",
+     "score": 45,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "tests",
+      "review"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "wshobson/agents",
+   "category": "general-collection",
+   "score": 35,
+   "licence": "MIT",
+   "quality": "mixed",
+   "redFlags": [
+    "persona with capability list and no checklist or output contract",
+    "same content duplicated under many plugin names (backend-architect 18KB x6, code-reviewer x6, security-auditor x3, terraform-specialist x2, kubernetes-architect x3, cloud-architect x4, database-architect x2)",
+    "very large persona files overlapping general reviewers",
+    "agents mostly declare model only, no tools allow-list (inherit all tools), so cannot be treated as read-only"
+   ],
+   "duplicatesOf": null,
+   "candidates": [
+    {
+     "expert": "postgres",
+     "score": 62,
+     "fit": "medium",
+     "useAs": "expert-base",
+     "stages": [
+      "plan",
+      "tests",
+      "review"
+     ]
+    },
+    {
+     "expert": "preship",
+     "score": 48,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "review"
+     ]
+    },
+    {
+     "expert": "a11y",
+     "score": 45,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "tests",
+      "review"
+     ]
+    },
+    {
+     "expert": "threatmodel",
+     "score": 40,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "plan",
+      "tests"
+     ]
+    },
+    {
+     "expert": "llmeval",
+     "score": 42,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "tests",
+      "review"
+     ]
+    },
+    {
+     "expert": "none",
+     "score": 15,
+     "fit": "low",
+     "useAs": "do-not-use",
+     "stages": []
+    }
+   ]
+  },
+  {
+   "repo": "Jeffallan/claude-skills",
+   "category": "general-collection",
+   "score": 33,
+   "licence": "MIT",
+   "quality": "mixed",
+   "redFlags": [
+    "persona-first skills ('Senior X engineer') with generic MUST DO lists",
+    "absolute rules that contradict good practice",
+    "run-time tool execution and install of packages (npx create-server, pip install, semgrep/trivy/gitleaks scans, pen-test content)",
+    "overlap: many near-identical language/framework specialists and overlapping security skills"
+   ],
+   "duplicatesOf": null,
+   "candidates": [
+    {
+     "expert": "appsec",
+     "score": 50,
+     "fit": "medium",
+     "useAs": "reference-material",
+     "stages": [
+      "tests",
+      "review"
+     ]
+    },
+    {
+     "expert": "reliability",
+     "score": 40,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "plan",
+      "tests"
+     ]
+    },
+    {
+     "expert": "none",
+     "score": 38,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "plan"
+     ]
+    },
+    {
+     "expert": "none",
+     "score": 35,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "plan"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "huytieu/COG-second-brain",
+   "category": "architecture-process",
+   "score": 30,
+   "licence": "MIT",
+   "quality": "mixed",
+   "redFlags": [
+    "copies of the same content under several paths (.agents/, .claude/, skills/)",
+    "very large file",
+    "bundled scripts called by skills (lane-classify.sh, checkpoint.sh) and agents that can curl and call external trackers",
+    "personal-productivity framework: most skills are note capture, briefs, journaling, Confluence publishing"
+   ],
+   "duplicatesOf": null,
+   "candidates": [
+    {
+     "expert": "verifier",
+     "score": 55,
+     "fit": "medium",
+     "useAs": "reference-material",
+     "stages": [
+      "review"
+     ]
+    },
+    {
+     "expert": "productui",
+     "score": 57,
+     "fit": "medium",
+     "useAs": "reference-material",
+     "stages": [
+      "plan",
+      "tests",
+      "review"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "itsmostafa/aws-agent-skills",
+   "category": "aws",
+   "score": 28,
+   "licence": "MIT",
+   "quality": "mixed",
+   "redFlags": [
+    "No checklist: tutorial/reference style that a generic reviewer or the model already knows",
+    "Stale in places: most skills last_updated 2026-01-07",
+    "Duplicates the content of official AWS toolkit skills with less depth",
+    "README emoji and marketing claims ('deep expertise', weekly auto-update) not verifiable from the checkout"
+   ],
+   "duplicatesOf": "aws__agent-toolkit-for-aws",
+   "candidates": [
+    {
+     "expert": "bedrockref",
+     "score": 35,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "review"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "skills-il/localization",
+   "category": "ui-accessibility",
+   "score": 28,
+   "licence": "MIT",
+   "quality": "high",
+   "redFlags": [
+    "Bundled audit script and Bash(python:*) / Bash(pip:*) allowed-tools",
+    "Large files (16 to 35 KB) that mix legal text, tutorials and code",
+    "Loads fonts from Google Fonts by import URL in examples (privacy and CSP implication)",
+    "Hebrew and Israel specific; only useful if the product ships in Hebrew"
+   ],
+   "duplicatesOf": null,
+   "candidates": [
+    {
+     "expert": "rtl",
+     "score": 55,
+     "fit": "medium",
+     "useAs": "expert-base",
+     "stages": [
+      "plan",
+      "tests",
+      "review"
+     ]
+    },
+    {
+     "expert": "a11y",
+     "score": 40,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "review"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "nextlevelbuilder/ui-ux-pro-max-skill",
+   "category": "frontend",
+   "score": 28,
+   "licence": "MIT",
+   "quality": "low",
+   "redFlags": [
+    "Bundled Python scripts and CSV data driving the skill; sub-skills call external image APIs (Gemini, Atlas Cloud, MuAPI) and a background fetch script",
+    "Copies of the same content under several names",
+    "Persona-led agent with a name-dropping bar",
+    "Marketing copy in descriptions (counts of styles, palettes, platforms); description of design skill is a keyword list of 800+ characters"
+   ],
+   "duplicatesOf": null,
+   "candidates": [
+    {
+     "expert": "uireview",
+     "score": 48,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "tests",
+      "review"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "rmyndharis/antigravity-skills",
+   "category": "general-collection",
+   "score": 28,
+   "licence": "MIT",
+   "quality": "mixed",
+   "redFlags": [
+    "copy of another repo (wshobson/agents) under a new format",
+    "persona-only agent files with capability lists and no checklist ('Expert ... Masters ... Use PROACTIVELY')",
+    "skill that downloads and installs other skills at run time via npx",
+    "bundled scripts and a Node CLI with package.json"
+   ],
+   "duplicatesOf": "wshobson__agents",
+   "candidates": [
+    {
+     "expert": "pgschema",
+     "score": 58,
+     "fit": "medium",
+     "useAs": "reference-material",
+     "stages": [
+      "plan",
+      "review"
+     ]
+    },
+    {
+     "expert": "llmeval",
+     "score": 40,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "tests"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "Jakeschincariol/replica-skill",
+   "category": "architecture-process",
+   "score": 22,
+   "licence": "MIT",
+   "quality": "mixed",
+   "redFlags": [
+    "Bundled scripts run as part of the workflow (parity.py, sweep.py, listing.py)",
+    "Purpose is copying a third party's app (legal and ethics concern), unrelated to our system",
+    "Workflow stages that write many files and drive a browser, more than read tools"
+   ],
+   "duplicatesOf": null,
+   "candidates": [
+    {
+     "expert": "e2eedge",
+     "score": 40,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "tests"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "google-labs-code/design.md",
+   "category": "frontend",
+   "score": 22,
+   "licence": "Apache-2.0",
+   "quality": "mixed",
+   "redFlags": [
+    "CLI run through npx (@google/design.md) would be fetched and executed at run time",
+    "Skills are for developing this repo, not general use; tdd skill has absolute 'strictly forbidden' rules"
+   ],
+   "duplicatesOf": null,
+   "candidates": [
+    {
+     "expert": "designtokens",
+     "score": 32,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "plan",
+      "review"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "trailofbits/claude-code-config",
+   "category": "general-collection",
+   "score": 22,
+   "licence": "unknown",
+   "quality": "mixed",
+   "redFlags": [
+    "Instructs the agent to run every step without stopping or asking for confirmation",
+    "Force merges PRs as admin after the agent's own approval (gh pr merge --admin)",
+    "Sends repository diffs to external model CLIs (codex, gemini) and pins model names",
+    "Missing licence file"
+   ],
+   "duplicatesOf": null,
+   "candidates": [
+    {
+     "expert": "depbot",
+     "score": 30,
+     "fit": "low",
+     "useAs": "do-not-use",
+     "stages": [
+      "review"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "obra/superpowers",
+   "category": "architecture-process",
+   "score": 22,
+   "licence": "MIT",
+   "quality": "mixed",
+   "redFlags": [
+    "Absolute, non-negotiable rules that contradict good practice ('1% chance a skill might apply -> you ABSOLUTELY MUST invoke', skill check before even clarifying questions, 'you cannot rationalize your way out')",
+    "Capitalised EXTREMELY-IMPORTANT blocks and forced announcements on every action",
+    "Very large skills",
+    "Overlaps the host plugin's own plan/build/review workflow"
+   ],
+   "duplicatesOf": null,
+   "candidates": []
+  },
+  {
+   "repo": "davepoon/buildwithclaude",
+   "category": "general-collection",
+   "score": 22,
+   "licence": "MIT",
+   "quality": "low",
+   "redFlags": [
+    "Persona with no checklist ('You are a ...' plus generic When invoked/Process/Provide lists, often 1-2 KB, 'Use PROACTIVELY')",
+    "Copies of the same content under several names (all-agents/all-skills/all-commands re-bundle category plugins; three near-identical database optimizer agents)",
+    "Sends data to third party / depends on external connector (Rube MCP, Composio) for ~100 skills",
+    "Fetches and runs code at run time (npx @latest, curl | bash)"
+   ],
+   "duplicatesOf": null,
+   "candidates": [
+    {
+     "expert": "ragmetrics",
+     "score": 55,
+     "fit": "medium",
+     "useAs": "reference-material",
+     "stages": [
+      "tests"
+     ]
+    },
+    {
+     "expert": "agentreg",
+     "score": 40,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "tests"
+     ]
+    },
+    {
+     "expert": "toolcontract",
+     "score": 42,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "review"
+     ]
+    },
+    {
+     "expert": "awshealth",
+     "score": 30,
+     "fit": "low",
+     "useAs": "do-not-use",
+     "stages": [
+      "review"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "DietrichGebert/ponytail",
+   "category": "architecture-process",
+   "score": 22,
+   "licence": "MIT",
+   "quality": "mixed",
+   "redFlags": [
+    "copies of the same content under several paths",
+    "pushes a persona ('You are a lazy senior developer') and a minimalism bias that can contradict adding required tests, validation or error handling"
+   ],
+   "duplicatesOf": null,
+   "candidates": [
+    {
+     "expert": "none",
+     "score": 30,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "review"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "morluto/rea",
+   "category": "testing-quality",
+   "score": 22,
+   "licence": "MIT",
+   "quality": "high",
+   "redFlags": [
+    "references repo files not in the checkout (AGENTS.md, docs/testing.md, CONTRIBUTING.md)",
+    "dual-use subject matter (decompilation, runtime inspection of shipped apps)",
+    "large file"
+   ],
+   "duplicatesOf": null,
+   "candidates": [
+    {
+     "expert": "testaudit",
+     "score": 58,
+     "fit": "medium",
+     "useAs": "reference-material",
+     "stages": [
+      "tests",
+      "review"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "skills-il/developer-tools",
+   "category": "general-collection",
+   "score": 15,
+   "licence": "MIT",
+   "quality": "mixed",
+   "redFlags": [
+    "Bundled Python scripts (upload_asset.py, validate_*.py, artifactory_client.py, xray_client.py, scaffold-skill.py)",
+    "Allowed-tools include WebFetch and Bash node/python; downloads and runs a validator script via curl",
+    "Very large files, locale-specific, off-target",
+    "curl posting to Slack/Teams/Monday webhooks in workflow templates"
+   ],
+   "duplicatesOf": null,
+   "candidates": [
+    {
+     "expert": "cost",
+     "score": 35,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "plan"
+     ]
+    },
+    {
+     "expert": "postgres",
+     "score": 30,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "review"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "Leonxlnx/taste-skill",
+   "category": "frontend",
+   "score": 15,
+   "licence": "MIT",
+   "quality": "low",
+   "redFlags": [
+    "Bundled scripts run at use time that launch a browser and fetch network assets",
+    "Stub skills tell the agent to install other skills from GitHub via npx",
+    "Persona with no checklist; demand for variance ('never the same layout twice')",
+    "Very large files and multiple versions of the same content"
+   ],
+   "duplicatesOf": null,
+   "candidates": []
+  },
+  {
+   "repo": "skills-il/security-compliance",
+   "category": "security",
+   "score": 15,
+   "licence": "MIT",
+   "quality": "low",
+   "redFlags": [
+    "Out-of-date base standard: checklist keyed to OWASP Top 10 2021 and tells the reader to cross-walk to 2025",
+    "Domain-specific to Israel (law, payment gateways, SMS providers, civil-defence alerts); several items are unrelated to software security",
+    "Very large files (27-35KB) for narrow topics; legal disclaimers instead of checkable rules",
+    "README lists a skill missing from the repository"
+   ],
+   "duplicatesOf": "agamm__claude-code-owasp",
+   "candidates": [
+    {
+     "expert": "appsec",
+     "score": 25,
+     "fit": "low",
+     "useAs": "do-not-use",
+     "stages": [
+      "review"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "mattpocock/skills",
+   "category": "architecture-process",
+   "score": 15,
+   "licence": "MIT",
+   "quality": "mixed",
+   "redFlags": [
+    "Depends on a per-repo setup skill (setup-matt-pocock-skills) and issue-tracker label mapping",
+    "Skills are 'in-progress', writing/teaching/personal, off-domain",
+    "Very short or joke skills with no checklist"
+   ],
+   "duplicatesOf": null,
+   "candidates": [
+    {
+     "expert": "specreview",
+     "score": 40,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "review"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "awesome-dsh-plugin/awesome-dsh-plugin",
+   "category": "frontend",
+   "score": 14,
+   "licence": "CC0",
+   "quality": "mixed",
+   "redFlags": [
+    "Runs a bundled python search.py from CLAUDE_PLUGIN_ROOT; the script is not in the checkout so it could not be reviewed",
+    "Fetches rules from a URL at run time and applies them",
+    "Skill is explicitly marketed with counts (79 styles, 192 palettes) that point to data not checked out"
+   ],
+   "duplicatesOf": null,
+   "candidates": [
+    {
+     "expert": "uireview",
+     "score": 45,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "plan",
+      "review"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "skills-il/communication",
+   "category": "other",
+   "score": 14,
+   "licence": "MIT",
+   "quality": "mixed",
+   "redFlags": [
+    "Bundled script for sending messages ('the bundled script') and a mandatory-sounding legal checklist for one jurisdiction",
+    "Very large files"
+   ],
+   "duplicatesOf": null,
+   "candidates": [
+    {
+     "expert": "otp",
+     "score": 30,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "plan",
+      "review"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "garrytan/gstack",
+   "category": "general-collection",
+   "score": 14,
+   "licence": "MIT",
+   "quality": "low",
+   "redFlags": [
+    "Every skill runs a preamble binary (gstack-skill-start) and logs telemetry at the end; update check on by default",
+    "Skills run bundled binaries/launchers (gstack-cso-launcher, gstack-skill-start, gstack-telemetry-log) from home directory",
+    "Auto-upgrade skill clones and installs from GitHub and tells the user to install Bun via curl",
+    "Voice-trigger aliases and 'proactively suggest' auto-activation; instruction blocks injected through script output (GSTACK_INSTRUCTION_BEGIN)"
+   ],
+   "duplicatesOf": null,
+   "candidates": [
+    {
+     "expert": "security",
+     "score": 35,
+     "fit": "low",
+     "useAs": "do-not-use",
+     "stages": [
+      "review"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "ChrisWiles/claude-code-showcase",
+   "category": "frontend",
+   "score": 14,
+   "licence": "unknown",
+   "quality": "mixed",
+   "redFlags": [
+    "Missing licence",
+    "Description demands proactive invocation ('MUST BE USED PROACTIVELY after writing or modifying any code')",
+    "Absolute style rules presented as critical (no any, interface over type, no nested if/else, every list must have an empty state)",
+    "Tied to one project's design system and Jest/Formik/GraphQL stack"
+   ],
+   "duplicatesOf": null,
+   "candidates": [
+    {
+     "expert": "uistate",
+     "score": 35,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "review"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "tjboudreaux/cc-thinking-skills",
+   "category": "architecture-process",
+   "score": 14,
+   "licence": "MIT",
+   "quality": "mixed",
+   "redFlags": [
+    "Generic reasoning frameworks, true of every project, no technical checklist",
+    "Model router skill maps to other skills and may return NONE; adds indirection"
+   ],
+   "duplicatesOf": null,
+   "candidates": [
+    {
+     "expert": "redteam",
+     "score": 30,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "plan",
+      "review"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "markfulton/ai-employees",
+   "category": "other",
+   "score": 12,
+   "licence": "MIT",
+   "quality": "mixed",
+   "redFlags": [
+    "very large files",
+    "runs a bundled script before reading anything else, and instructs the agent not to read further until it has run",
+    "acts on external systems (publishing, browser sessions, outreach, dependency branches pushed)",
+    "metadata internal: true and references to files outside the checkout"
+   ],
+   "duplicatesOf": null,
+   "candidates": [
+    {
+     "expert": "none",
+     "score": 25,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "review"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "multica-ai/andrej-karpathy-skills",
+   "category": "architecture-process",
+   "score": 10,
+   "licence": "MIT",
+   "quality": "high",
+   "redFlags": [
+    "advice true of every project; no domain checklist"
+   ],
+   "duplicatesOf": null,
+   "candidates": []
+  },
+  {
+   "repo": "BankrBot/skills",
+   "category": "other",
+   "score": 8,
+   "licence": "unknown",
+   "quality": "low",
+   "redFlags": [
+    "Stub skills that only point to external install commands (catalog.json install.command)",
+    "Vendor-product docs that send secrets and data to external hosts (api.1claw.xyz) and need an API key env var",
+    "Text with prompt-override phrasing (probably documentation, listed in security docs or as patterns): grep for 'ignore previous' / 'curl | sh' patterns matched these files; not followed, not verified line by line",
+    "Financial actions (token distribution, trading, on-chain signing) with real money"
+   ],
+   "duplicatesOf": null,
+   "candidates": [
+    {
+     "expert": "skillscan",
+     "score": 35,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "review"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "0xNyk/awesome-hermes-agent",
+   "category": "general-collection",
+   "score": 8,
+   "licence": "CC",
+   "quality": "mixed",
+   "redFlags": [
+    "Paid sponsor placements in the list ('Featured from $199')",
+    "Tags (production/beta) are editorial, not audited"
+   ],
+   "duplicatesOf": null,
+   "candidates": [
+    {
+     "expert": "linkedrepos",
+     "score": 20,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": []
+    }
+   ]
+  },
+  {
+   "repo": "caramaschiHG/awesome-ai-agents-2026",
+   "category": "general-collection",
+   "score": 8,
+   "licence": "CC0",
+   "quality": "low",
+   "redFlags": [
+    "Product marketing claims and prices presented as facts, will be stale"
+   ],
+   "duplicatesOf": null,
+   "candidates": [
+    {
+     "expert": "linkedtools",
+     "score": 12,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": []
+    }
+   ]
+  },
+  {
+   "repo": "microsoft/AI-Engineering-Coach",
+   "category": "other",
+   "score": 8,
+   "licence": "MIT",
+   "quality": "mixed",
+   "redFlags": [
+    "Dispatcher/router agent with no checklist of its own; defers to prompts fetched elsewhere",
+    "Skill files belong to the repo's own CI tooling, not shipped content"
+   ],
+   "duplicatesOf": null,
+   "candidates": []
+  },
+  {
+   "repo": "tigerless-labs/autoharness",
+   "category": "ai-agent-llm",
+   "score": 8,
+   "licence": "MIT",
+   "quality": "mixed",
+   "redFlags": [
+    "Agent writes persistent skills from transcript content (proposals queue) and says 'when unsure, stage it'",
+    "Relies on an MCP stage_skill tool and a deterministic promoter outside the checkout",
+    "Persists user frustration signals into skills automatically"
+   ],
+   "duplicatesOf": null,
+   "candidates": []
+  },
+  {
+   "repo": "JuliusBrussee/caveman",
+   "category": "other",
+   "score": 8,
+   "licence": "Apache-2.0",
+   "quality": "mixed",
+   "redFlags": [
+    "run-time data leaving the machine: compression sends full file text to an external model provider via scripts/compress.py",
+    "bundled scripts",
+    "copies of the same content under several paths",
+    "voice/persona instructions that change output style ('drop articles/filler')"
+   ],
+   "duplicatesOf": null,
+   "candidates": [
+    {
+     "expert": "none",
+     "score": 25,
+     "fit": "low",
+     "useAs": "reference-material",
+     "stages": [
+      "review"
+     ]
+    }
+   ]
+  },
+  {
+   "repo": "skills-il/tax-and-finance",
+   "category": "other",
+   "score": 6,
+   "licence": "MIT",
+   "quality": "mixed",
+   "redFlags": [
+    "Very large files for vendor-specific payment integrations",
+    "Payment and financial data handling with third-party APIs"
+   ],
+   "duplicatesOf": null,
+   "candidates": []
+  },
+  {
+   "repo": "onebrain-ai/onebrain",
+   "category": "other",
+   "score": 6,
+   "licence": "Apache-2.0",
+   "quality": "mixed",
+   "redFlags": [
+    "skill that fetches and swaps system files from GitHub at run time and calls an external CLI",
+    "very large files",
+    "schedulers and auto-run skills (schedule-add, schedule-once) that run things unattended"
+   ],
+   "duplicatesOf": null,
+   "candidates": []
+  },
+  {
+   "repo": "LinklyAI/best-skills",
+   "category": "general-collection",
+   "score": 5,
+   "licence": "CC",
+   "quality": "mixed",
+   "redFlags": [
+    "Fetches instructions (llms.txt) and data from the network at run time and tells the agent to follow them",
+    "Ranks by popularity, which is not a quality signal"
+   ],
+   "duplicatesOf": null,
+   "candidates": []
+  },
+  {
+   "repo": "skills-il/accounting",
+   "category": "other",
+   "score": 5,
+   "licence": "MIT",
+   "quality": "mixed",
+   "redFlags": [
+    "Very large files (20 to 35 KB each) for a narrow national domain",
+    "Vendor integration skills that send financial data to third-party APIs"
+   ],
+   "duplicatesOf": null,
+   "candidates": []
+  },
+  {
+   "repo": "kepano/obsidian-skills",
+   "category": "other",
+   "score": 5,
+   "licence": "MIT",
+   "quality": "high",
+   "redFlags": [
+    "tells the agent to install global npm packages (knap, defuddle) if missing"
+   ],
+   "duplicatesOf": null,
+   "candidates": []
+  },
+  {
+   "repo": "virgiliojr94/book-to-skill",
+   "category": "other",
+   "score": 5,
+   "licence": "MIT",
+   "quality": "mixed",
+   "redFlags": [
+    "runs a bundled Python script (extract.py) on arbitrary documents",
+    "offers to publish output to GitHub / install via npx",
+    "very large single file"
+   ],
+   "duplicatesOf": null,
+   "candidates": []
+  },
+  {
+   "repo": "ScrapeCreators/social-media-research-skills",
+   "category": "other",
+   "score": 4,
+   "licence": "MIT",
+   "quality": "mixed",
+   "redFlags": [
+    "Vendor product skills that send queries to a third-party paid API and need a key",
+    "Scraping of third-party platforms, legal and ToS concerns"
+   ],
+   "duplicatesOf": null,
+   "candidates": []
+  },
+  {
+   "repo": "skills-il/government-services",
+   "category": "other",
+   "score": 4,
+   "licence": "MIT",
+   "quality": "mixed",
+   "redFlags": [
+    "Very large files for a narrow domain",
+    "Browser automation for filling government forms"
+   ],
+   "duplicatesOf": null,
+   "candidates": []
+  },
+  {
+   "repo": "Jakeschincariol/linkedin-agent-skill",
+   "category": "other",
+   "score": 3,
+   "licence": "MIT",
+   "quality": "mixed",
+   "redFlags": [
+    "Bundled scripts that run locally",
+    "Account automation (commenting, DMs) that conflicts with platform terms"
+   ],
+   "duplicatesOf": "Jakeschincariol__x-agent-skill (same pack structure and text pattern for X)",
+   "candidates": []
+  },
+  {
+   "repo": "Jakeschincariol/x-agent-skill",
+   "category": "other",
+   "score": 3,
+   "licence": "MIT",
+   "quality": "mixed",
+   "redFlags": [
+    "Bundled scripts",
+    "Account automation and virality tactics"
+   ],
+   "duplicatesOf": "Jakeschincariol__linkedin-agent-skill (same structure)",
+   "candidates": []
+  },
+  {
+   "repo": "PleasePrompto/notebooklm-skill",
+   "category": "other",
+   "score": 3,
+   "licence": "MIT",
+   "quality": "mixed",
+   "redFlags": [
+    "Bundled scripts that drive a logged-in browser session and send content to a Google service",
+    "Persistent authenticated browser state on disk"
+   ],
+   "duplicatesOf": null,
+   "candidates": []
+  },
+  {
+   "repo": "skills-il/design-systems",
+   "category": "frontend",
+   "score": 3,
+   "licence": "MIT",
+   "quality": "low",
+   "redFlags": [
+    "README instructs running an npx command that writes into the project (not run)",
+    "Content not present in the checkout, could not be judged"
+   ],
+   "duplicatesOf": null,
+   "candidates": []
+  },
+  {
+   "repo": "skills-il/legal-tech",
+   "category": "other",
+   "score": 3,
+   "licence": "MIT",
+   "quality": "mixed",
+   "redFlags": [
+    "Very large files for individual legal topics"
+   ],
+   "duplicatesOf": null,
+   "candidates": []
+  }
+ ]
+}

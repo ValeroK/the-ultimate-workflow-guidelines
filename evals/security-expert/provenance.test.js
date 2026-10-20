@@ -123,7 +123,10 @@ test('the release workflow still excludes top-level fixtures and architecture-ev
 test('shipped experts/ stays under a byte budget so the ZIP ceiling is not eaten', () => {
   // The shared skills library (experts/skills/) has its own budget below, so a
   // growing library does not hide growth in the experts themselves, or the reverse.
-  const BUDGET = 150 * 1024;
+  // Raised from 150 KB to 165 KB on 2026-10-20, by decision: experts.js gained skill selection
+  // (about 10 KB of code) and the architect gained its upstream-combined references. Each
+  // expert is still capped at 60 KB by the contract; this total is the backstop.
+  const BUDGET = 165 * 1024;
   const skills = path.join(PAYLOAD, 'experts', 'skills');
   const files = walk(path.join(PAYLOAD, 'experts')).filter((p) => fs.statSync(p).isFile() && !p.startsWith(skills + path.sep));
   const total = files.reduce((n, p) => n + fs.statSync(p).size, 0);

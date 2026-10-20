@@ -1,3 +1,8 @@
+---
+name: test-craft
+description: Use when writing any test, for what makes one able to fail, its expected value, its doubles, its determinism and its shape.
+---
+
 # Test craft
 
 Use this whenever a test is written or a test case is specified, in any language. It holds what makes a single test worth having. Framework details (pytest, Jest, JUnit, Playwright) are not here. The confirmed test plan decides which cases exist; this decides how each one is written.

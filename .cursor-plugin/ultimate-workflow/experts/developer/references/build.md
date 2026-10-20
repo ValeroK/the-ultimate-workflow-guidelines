@@ -27,19 +27,3 @@ This applies to every line you write, in tests and in code. It adds no work: if 
 ## When not to add structure
 
 The repository's current shape is the default. Matching it beats improving it. Do not refactor code you were not asked to touch. A little duplication costs less than the wrong abstraction. A class that wraps a third-party client at a boundary is already justified, and so is a closed switch over an enum.
-
-## Skills
-
-The build command selects these in code from the plan, by the rule in parentheses, and passes their text with this brief: `files` matches file names the plan mentions, `added` matches the plan's text, `always` always applies. The order is the order of priority when they would not all fit. This section is not part of the brief the implementer reads.
-
-- `experts/skills/failure-handling/skill.md` (added: \b(catch|except|rescue|recover|finally|retry|fallback|rollback)\b|\.catch\(|Err\(|unwrap_or|err != nil|throw |raise |error path|error handling): load when the plan adds error paths, fallbacks, retries or multi-step writes.
-- `experts/skills/python-craft/skill.md` (files: *.py, *.pyi): load when the plan touches Python files.
-- `experts/skills/typescript-craft/skill.md` (files: *.ts, *.tsx, *.mts, *.cts, *.js, *.jsx, *.mjs, *.cjs): load when the plan touches TypeScript or JavaScript files.
-- `experts/skills/react-craft/skill.md` (files: *.tsx, *.jsx): load when the plan touches React components or hooks.
-- `experts/skills/go-craft/skill.md` (files: *.go, go.mod): load when the plan touches Go files.
-- `experts/skills/rust-craft/skill.md` (files: *.rs, Cargo.toml): load when the plan touches Rust files.
-- `experts/skills/java-craft/skill.md` (files: *.java, pom.xml, build.gradle, build.gradle.kts): load when the plan touches Java files.
-- `experts/skills/dependency-discipline/skill.md` (files: package.json, package-lock.json, yarn.lock, pnpm-lock.yaml, requirements*.txt, pyproject.toml, uv.lock, poetry.lock, Pipfile, Pipfile.lock, go.mod, go.sum, Cargo.toml, Cargo.lock, pom.xml, build.gradle, build.gradle.kts, Gemfile, Gemfile.lock): load when the plan changes a package manifest or lockfile.
-- `experts/skills/surgical-change/skill.md` (always): load when writing any change, to keep every line traced to the task.
-- `experts/skills/simplification/skill.md` (always): load when writing any change, to keep it from growing structure it does not need.
-- `experts/skills/engineering-principles/skill.md` (always): load when writing any change, for what each principle means and when it does not apply.

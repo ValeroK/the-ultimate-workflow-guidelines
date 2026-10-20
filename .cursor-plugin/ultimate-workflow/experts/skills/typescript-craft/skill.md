@@ -1,3 +1,8 @@
+---
+name: typescript-craft
+description: Use when a change touches TypeScript or JavaScript files.
+---
+
 # TypeScript and JavaScript craft
 
 Use this when a change touches `.ts`, `.tsx`, `.js`, `.mjs` or `.cjs` files. It holds only what is specific to the language and the Node runtime. Component and hook rules are in the React skill; checks true in every language stay in the expert's checklist, `engineering-principles` and `failure-handling`.

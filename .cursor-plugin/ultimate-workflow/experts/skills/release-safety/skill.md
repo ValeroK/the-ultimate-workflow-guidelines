@@ -1,3 +1,8 @@
+---
+name: release-safety
+description: Use when a change ships behind a feature flag, a canary or traffic shifting, or changes where a migration runs in the release.
+---
+
 # Release safety
 
 Use this when a change ships behind a feature flag, changes a canary or traffic-shifting deployment, or changes where and when a migration runs in the release. It holds what decides whether a bad release can be stopped and undone. Whether old and new versions can share the same data is the architect's ("Two versions at once"); the migration SQL is the data expert's; whether the system needs a canary or a kill switch at all is the architect's (`aws-well-architected`, OPS06 and REL05). This skill is how the mechanism already in place is used.

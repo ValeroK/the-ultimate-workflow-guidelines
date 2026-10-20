@@ -14,14 +14,6 @@ Read the draft, then the skills included in your prompt, then search the code it
 - **Dependencies.** A new dependency needs a sentence on what the standard library or the existing stack could not do.
 - **Refactor versus behaviour.** If the plan both restructures and changes behaviour, they should be separate steps.
 
-## Skills
-
-The workflow asks, in the call that chooses the experts, which of these the draft needs, using the words after each colon as the skill's headline, and pastes the chosen ones into your prompt. Do not open skill files yourself.
-
-- `experts/skills/engineering-principles/skill.md`: load when the plan adds structure (a type hierarchy, an interface, a pattern, a shared helper), to check whether it has the need the structure exists for.
-- `experts/skills/dependency-discipline/skill.md`: load when the plan adds, removes or upgrades a dependency.
-- `experts/skills/failure-handling/skill.md`: load when the plan adds error paths, fallbacks, retries or multi-step writes.
-
 ## What to return
 
 - **summary**: two sentences at most.

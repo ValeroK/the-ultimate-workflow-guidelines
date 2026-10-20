@@ -1,3 +1,8 @@
+---
+name: caching-and-latency
+description: Use when a change adds a cache, a CDN or a latency target.
+---
+
 # Caching and latency
 
 Use this when a change adds or changes a cache (Redis, Valkey, ElastiCache, an in-process cache), a CDN (CloudFront) or cache headers, or a latency target. A cache is a second copy of data with its own failure modes; most of them show up as wrong answers, not errors.

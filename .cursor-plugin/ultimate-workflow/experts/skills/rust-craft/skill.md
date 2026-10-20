@@ -1,3 +1,8 @@
+---
+name: rust-craft
+description: Use when a change touches Rust files.
+---
+
 # Rust craft
 
 Use this when a change touches `.rs` files. It holds only what is specific to Rust. Checks true in every language stay in the expert's checklist, `engineering-principles` and `failure-handling`. The compiler proves the absence of data races in safe code; it proves nothing about panics, `unsafe` blocks, lock ordering or what happens across an `await`.

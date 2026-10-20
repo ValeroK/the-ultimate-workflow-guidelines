@@ -185,7 +185,7 @@ test('a build brief that is too big, that enlarges the task, or that fetches thi
   const problems = () => checkAll({ payloadDir: tree.payload, examplesDir: tree.examples }).join(' | ');
 
   fs.writeFileSync(file, `${good}\n${'Another rule that nobody needs. '.repeat(200)}`);
-  assert.match(problems(), /build\.md is \d+ bytes without its Skills section; it is loaded on every build and is capped at 4096/);
+  assert.match(problems(), /build\.md is \d+ bytes; it is loaded on every build and is capped at 4096/);
 
   fs.writeFileSync(file, '# Brief\n\nWrite code the way the team does.\n');
   assert.match(problems(), /must say that it adds no work and that the plan decides the scope/);

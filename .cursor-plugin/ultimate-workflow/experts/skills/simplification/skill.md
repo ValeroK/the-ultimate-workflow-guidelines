@@ -1,3 +1,8 @@
+---
+name: simplification
+description: Use when a change restructures existing code (extracts, inlines, moves, renames, rewrites) or says it simplifies something. Always included, for the same reason.
+---
+
 # Simplification and refactoring
 
 Use this when a change restructures existing code (extracts, inlines, moves, renames or rewrites it) or says it simplifies something. The question is whether the result is easier to understand and change, and whether behaviour stayed the same.

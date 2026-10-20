@@ -57,14 +57,6 @@ Check what the change touches and skip the rest.
 - **Scattered configuration.** A setting or flag now read from the environment in several modules instead of one place.
 - **Anything else that is really wrong.** A real defect outside code structure, such as a retry bug, a security hole or a test that proves nothing, is still reported: raise everything you find. Name the domain it belongs to in the category, and hold it to the same evidence standard.
 
-## Skills
-
-The workflow selects these in code, by the rule in parentheses, and puts their text in your prompt: `files` matches the names of the changed files, `added` matches the diff's added lines. Do not open other skill files.
-
-- `experts/skills/protobuf-compat/skill.md` (files: *.proto, buf.yaml, buf.gen.yaml, buf.lock): load when the diff touches a .proto file or the Buf configuration, for which field, type, enum and service changes break the wire, ProtoJSON or generated code.
-- `experts/skills/schema-evolution/skill.md` (files: openapi.yaml, openapi.yml, openapi.json, swagger.yaml, swagger.yml, swagger.json, asyncapi.yaml, asyncapi.yml, *.graphql, *.graphqls, *.gql, *.schema.json; added: \bopenapi: ["']?3|"openapi": "3|\btype Query \{|\btype Mutation \{|\bextend type \w+ \{|"\$schema": "https?://json-schema\.org): load when the diff changes an HTTP API description, a JSON Schema or a GraphQL schema, for which changes break callers or readers, and for package versions.
-- `experts/skills/module-boundaries/skill.md` (files: .dependency-cruiser.js, .dependency-cruiser.cjs, .dependency-cruiser.json, .importlinter, module-info.java, project.json, nx.json, tsconfig.json, tsconfig.*.json, pnpm-workspace.yaml, go.work; added: /internal/|"exports":|depConstraints|onlyDependOnLibsWithTags|notDependOnLibsWithTags|\[tool\.importlinter|\[importlinter|ArchRule|@ArchTest|FreezingArchRule|requires transitive): load when the diff adds or moves a module, imports across one, changes what a package exports, or changes a boundary tool's rules.
-
 ## Do not report
 
 These produce noise. Skip them unless the change makes one concretely harmful and you can name the consumer or the cost.

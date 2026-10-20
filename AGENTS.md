@@ -36,7 +36,7 @@ Equally, do not bog down on a trivial reversible decision: decide, flag it, move
 | Touching `workflows/*.js` or `agents/uw-*.md`; adding a phase; `parallel()` returned nothing | `.cursor-plugin/ultimate-workflow/memory/workflows-authoring.md` |
 | Building a new expert or its skills end to end (scope, sources, research, compare, skills, verify, measure) | `docs/expert-playbook.md` |
 | Adding a domain expert (an `agents/uw-expert-*` agent and one reference per stage), changing how experts are offered, consulted or gated, or deciding whether a domain deserves one | `docs/adding-an-expert.md` |
-| Touching `experts/experts.js`, `experts/skills/**`, a stage reference's `## Skills` list or a selector; which expert uses which skill | `docs/adding-an-expert.md` (Shared skills), `docs/expert-catalogue.md` |
+| Touching `experts/experts.js`, `experts/skills/**`, an expert's `skills.md` or a selector; which expert uses which skill | `docs/adding-an-expert.md` (Shared skills), `docs/expert-catalogue.md` |
 | Judging or vetting an expert, ours or someone else's | `docs/what-a-good-expert-looks-like.md` |
 | Expert eval runs and their results | `evals/experts/results/README.md` |
 | Editing `SKILL.md`, `rules/*.mdc`, `references/`, or `agents/` | `.cursor-plugin/ultimate-workflow/memory/mirrors.md` |

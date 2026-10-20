@@ -1,3 +1,8 @@
+---
+name: cloudformation-and-cdk
+description: Use when a change changes CloudFormation, SAM or CDK stacks: logical ids, replacement, deletion and replace policies, cross-stack exports, Lambda package limits.
+---
+
 # CloudFormation, SAM and CDK change safety
 
 Use this when a change touches a CloudFormation or SAM template or a CDK app. It holds what decides whether a stack update keeps, replaces or deletes what is already running.

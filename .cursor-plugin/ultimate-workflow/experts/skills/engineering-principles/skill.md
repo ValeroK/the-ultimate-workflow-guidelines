@@ -1,3 +1,8 @@
+---
+name: engineering-principles
+description: Use when a change adds structure (a type hierarchy, an interface, a pattern, a shared helper), to check whether it has the need the structure exists for.
+---
+
 # Engineering principles
 
 Use this when a plan question or a review finding rests on a design principle or a design pattern. It gives each principle's original meaning, the way it is usually misread, what it looks like in a diff, and when it should not be applied.

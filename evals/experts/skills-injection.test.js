@@ -67,7 +67,9 @@ test('review: skills come in list order, and what does not fit under the cap is 
 
 test('review: the injected text is the skill file itself, not a summary of it', () => {
   const go = review({ 'x.go': ['x'] }).skills.find((s) => s.name === 'go-craft');
-  assert.equal(go.text, fs.readFileSync(path.join(PLUGIN, 'experts', 'skills', 'go-craft', 'skill.md'), 'utf8').trim());
+  const raw = fs.readFileSync(path.join(PLUGIN, 'experts', 'skills', 'go-craft', 'skill.md'), 'utf8');
+  assert.equal(go.text, raw.replace(/^---\n[\s\S]*?\n---\n/, '').trim(), 'the body, without the frontmatter that only code reads');
+  assert.ok(!go.text.startsWith('---') && go.text.startsWith('# '));
 });
 
 test('review: an expert with no skills list gets none, and no problem', () => {
@@ -128,8 +130,21 @@ test('brief without a plan: no skills are attached, and the note says why', () =
   assert.match(b.note, /no plan given/);
 });
 
-test('withoutSkillsSection removes only that section', () => {
-  assert.equal(ex.withoutSkillsSection('# T\n\nkeep\n\n## Skills\n\n- a\n\n## After\n\nalso keep\n'), '# T\n\nkeep\n\n## After\n\nalso keep');
+test('parseSkillsFile: stages in order, selectors parsed, plan lines bare, problems named', () => {
+  const r = ex.parseSkillsFile('# Skills\n\n## plan\n\n- a\n\n## review\n\n- a (files: *.go)\n- b (always)\n- c\n\n## nonsense\n\n- d (always)\n');
+  assert.deepEqual(r.stages.plan.map((x) => x.name), ['a']);
+  assert.deepEqual(r.stages.review.map((x) => [x.name, x.selector.kind]), [['a', 'files'], ['b', 'always']]);
+  assert.ok(r.problems.some((p) => /review: c has no/.test(p)) && r.problems.some((p) => /"## nonsense" is not a stage/.test(p)));
+});
+
+test('no reference lists skills any more: selectors live only in skills.md, which no model reads', () => {
+  for (const e of ex.list(PLUGIN).experts) {
+    const dir = path.join(PLUGIN, 'experts', e.name, 'references');
+    for (const f of fs.readdirSync(dir).filter((x) => x.endsWith('.md') && x !== 'CHANGES.md')) {
+      const t = fs.readFileSync(path.join(dir, f), 'utf8');
+      assert.ok(!/^## Skills\b/m.test(t) && !/experts\/skills\/[a-z-]+\/skill\.md/.test(t), `${e.name}/${f}`);
+    }
+  }
 });
 
 // ---- the workflows paste what they were given ------------------------------------
@@ -213,8 +228,8 @@ test('skills --stage plan: each planning expert offers the skills its plan.md li
   assert.deepEqual(k.problems, []);
   assert.deepEqual(k.skills.developer.map((s) => s.name), ['engineering-principles', 'dependency-discipline', 'failure-handling']);
   for (const s of k.skills.developer) {
-    assert.match(s.headline, /^load when the plan/);
-    assert.equal(s.text, fs.readFileSync(path.join(PLUGIN, 'experts', 'skills', s.name, 'skill.md'), 'utf8').trim());
+    assert.equal(s.headline, ex.readSkill(PLUGIN, s.name).meta.description, 'the headline is the skill\'s own description');
+    assert.ok(s.text.startsWith('# ') && !s.text.includes('\ndescription: '));
   }
   assert.equal(k.skills.security, undefined, 'an expert with no skills offers none');
 });

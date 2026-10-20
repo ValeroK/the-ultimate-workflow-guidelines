@@ -179,7 +179,7 @@ An agent was placed under an expert by its name and the survey's domain notes, n
 
 ## Skills by expert and stage
 
-Taken from the `## Skills` list in each stage reference under `.cursor-plugin/ultimate-workflow/experts/<name>/references/`. Skills live in `experts/skills/<name>/skill.md`. The selector is the rule in parentheses on the reference line; at plan there is none, and a model chooses from the skills offered. Rows are in each reference's priority order.
+Taken from each expert's `.cursor-plugin/ultimate-workflow/experts/<name>/skills.md`, which only code reads. Skills live in `experts/skills/<name>/skill.md`. The selector is the rule in parentheses on the reference line; at plan there is none, and a model chooses from the skills offered. Rows are in each reference's priority order.
 
 | Expert | Stage | Skill | Selector as written | For |
 |---|---|---|---|---|

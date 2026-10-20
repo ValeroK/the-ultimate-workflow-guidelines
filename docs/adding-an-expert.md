@@ -66,17 +66,28 @@ An expert added at the commit check was never consulted at planning. It reviews,
 
 A skill is knowledge an expert needs only when the change calls for it: a principles reference, a failure-handling checklist, a language's idioms, how to write a test. It is not an expert and is never selected on its own. It is also not the same thing as the payload's `skills/` folder: those are `SKILL.md` guideline skills the host loads by itself; these are `skill.md` files that code pastes into an expert's prompt.
 
-**Where.** `.cursor-plugin/ultimate-workflow/experts/skills/<name>/skill.md`, with a `NOTICE.md` beside it. The file is `skill.md`, not `SKILL.md`, so no host loads it on every turn. At most 16 KB.
-
-**How an expert names a skill.** The stage reference (`review.md`, `build.md`, `tests.md`, `plan.md`) lists its skills under `## Skills`, one per line, in priority order:
+**Where.** `.cursor-plugin/ultimate-workflow/experts/skills/<name>/skill.md`, with a `NOTICE.md` beside it. The file is `skill.md`, not `SKILL.md`, so no host loads it on every turn. At most 16 KB. It opens with frontmatter that code reads and never pastes:
 
 ```
-- `experts/skills/go-craft/skill.md` (files: *.go, go.mod): load when the diff touches Go files.
-- `experts/skills/failure-handling/skill.md` (added: \bcatch\b|except): load when ...
-- `experts/skills/surgical-change/skill.md` (always): load when ...
+---
+name: go-craft
+description: What the skill holds and when it applies. It is the plan-stage headline a model chooses by.
+---
 ```
 
-The part in parentheses is the selector: `files:` globs, `added:` a regular expression, or `always`. A glob without a `/` matches the file's base name at any depth (`*.tf`); one with a `/` matches the whole path from the repository root, with `*` inside one directory and `**/` across any number (`.github/workflows/*.yml`, `**/templates/*.yaml`). Join a `files:` and an `added:` part with `; ` to match when either does, as the architect does for AWS infrastructure: `(files: *.tf, template.yaml; added: AWS::|boto3)`. The words after the colon are the cue; at plan they are the headline a model chooses by. `plan.md` lines take no selector.
+**How an expert names a skill.** In one file, `experts/<name>/skills.md`, which only code reads: a `## <stage>` section per stage (`plan`, `tests`, `build`, `review`), one skill per line, in priority order:
+
+```
+## review
+
+- go-craft (files: *.go, go.mod)
+- failure-handling (added: \bcatch\b|except)
+- surgical-change (always)
+```
+
+No reference lists skills; the contract refuses one that does, so a selector has one home.
+
+The part in parentheses is the selector: `files:` globs, `added:` a regular expression, or `always`. A glob without a `/` matches the file's base name at any depth (`*.tf`); one with a `/` matches the whole path from the repository root, with `*` inside one directory and `**/` across any number (`.github/workflows/*.yml`, `**/templates/*.yaml`). Join a `files:` and an `added:` part with `; ` to match when either does, as the architect does for AWS infrastructure: `(files: *.tf, template.yaml; added: AWS::|boto3)`. At plan a line is the skill's name alone: the model chooses by the skill's `description`.
 
 **Who chooses: code, not the expert.** In two smoke runs an expert told to "read the skill whose cue matches" opened none. So the choice is made before the agent runs and the text is pasted into its prompt:
 
@@ -124,7 +135,7 @@ Paths under `agents/`, `experts/` and `workflows/` are relative to `.cursor-plug
 |---|---|---|
 | 1 | `agents/uw-expert-<name>.md` | Create from the `agent` template. `<name>` is one lowercase word. Write the `description` so that a model can tell when the expert applies, and set `stages` to the stages it joins. Add `always: [tests]` only if the expert should join the tests stage whether or not it was selected (today only `quality`, because every test plan is about tests). |
 | 2 | `experts/<name>/references/<stage>.md` | One file per stage you declared, from the `plan-reference`, `tests-reference` and `review-reference` templates. Replace every `FILL-IN:` note. Add further files for material only some work needs, and name each in the agent file with an "only if" condition. |
-| 2b | `experts/<name>/references/build.md` | Optional. Only if the domain should shape the code as it is written, on every build, not only when the expert is chosen at plan time. If the brief is for some changes only (the DevOps brief is for infrastructure, pipelines and containers), list no `always` skill in its Skills section: the brief then joins a build only when the plan selects one of its skills. A short brief from the `build-reference` template, at most 4 KB, written as "when this, do that" rules including when not to add structure. Add `build` to `stages`. Nothing else is edited. |
+| 2b | `experts/<name>/references/build.md` | Optional. Only if the domain should shape the code as it is written, on every build, not only when the expert is chosen at plan time. If the brief is for some changes only (the DevOps brief is for infrastructure, pipelines and containers), list no `always` skill for it under `## build` in `experts/<name>/skills.md`: the brief then joins a build only when the plan selects one of its skills. A short brief from the `build-reference` template, at most 4 KB, written as "when this, do that" rules including when not to add structure. Add `build` to `stages`. Nothing else is edited. |
 | 3 | `evals/experts/examples/<name>.json` | From the `examples` template: at least three situations where the expert applies and three where it does not. |
 | 4 | `experts/<name>/NOTICE.md` | Only if any content is adapted from a third party: the licence text and a pointer to `references/CHANGES.md`. |
 
@@ -169,7 +180,7 @@ The workflow prompt gives the directory that holds your references (`experts/{{n
 - At the **tests** stage, read `experts/{{name}}/references/tests.md` first.
 - At the **review** stage, read `experts/{{name}}/references/review.md` first. It defines scope, the result format, confidence, method, categories and what not to report.
 - Shared skills that apply to this change are already pasted into your prompt by the workflow. Read them first, and do not open other skill files.
-- At the **build** stage you are not run. `experts/{{name}}/references/build.md` is passed to the implementer on every build, selected or not (or, if its Skills section lists no `always` skill, only on builds whose plan selects one of its skills). It is a brief, not a task: you never write code.
+- At the **build** stage you are not run. `experts/{{name}}/references/build.md` is passed to the implementer on every build, selected or not (or, if its build skills in `skills.md` include no `always` one, only on builds whose plan selects one of its skills). It is a brief, not a task: you never write code.
 
 ## Rules that do not bend
 

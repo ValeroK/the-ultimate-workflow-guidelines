@@ -1,3 +1,8 @@
+---
+name: multi-tenancy
+description: Use when a change serves more than one customer from shared data or resources, for the isolation model, tenant context, enforcement and tenant lifecycle.
+---
+
 # Multi-tenancy
 
 Use this when a change or plan touches data or resources that more than one customer shares: tenant ids, row-level security, per-tenant keys, prefixes, queues or limits. Tenancy is the architect's: where isolation is enforced and whether every path goes through it. An authorisation bug in one handler is the security expert's; a store's own mechanics are the data expert's.

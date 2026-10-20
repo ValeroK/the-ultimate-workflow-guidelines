@@ -1,3 +1,8 @@
+---
+name: api-gateway
+description: Use when a change adds or changes an API behind API Gateway, for timeouts, payload limits, throttling and what HTTP APIs lack.
+---
+
 # API Gateway
 
 Use this when a change adds or changes an API Gateway REST, HTTP or WebSocket API, its integrations, throttling, usage plans, authorizers or cache.

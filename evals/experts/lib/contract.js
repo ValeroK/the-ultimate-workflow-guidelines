@@ -39,7 +39,7 @@ const DECLARED_TOOLS = {
 const LINT_PROFILES = { security: SECURITY_PROFILE };
 
 const BYTE_BUDGET = 60 * 1024;
-const { BRIEF_BYTES, SKILL_STAGES, skillList, withoutSkillsSection } = require(path.join(__dirname, '..', '..', '..', '.cursor-plugin', 'ultimate-workflow', 'experts', 'experts.js'));
+const { BRIEF_BYTES, SKILL_STAGES, parseSkillsFile } = require(path.join(__dirname, '..', '..', '..', '.cursor-plugin', 'ultimate-workflow', 'experts', 'experts.js'));
 const MIN_EXAMPLES = 3;
 const STAGES = ['plan', 'tests', 'review'];
 const LANE_WORKFLOWS = ['plan.js', 'tests.js', 'review.js'];
@@ -152,13 +152,14 @@ function checkExpert({ payloadDir, examplesDir, name, declaredTools = DECLARED_T
     if (!fs.existsSync(file)) continue;
     const text = fs.readFileSync(file, 'utf8');
     if (/FILL-IN/.test(text)) bad(`experts/${name}/references/${stage}.md still has a FILL-IN note from the template`);
+    // Skills and their selectors have one home, the expert's skills.md, which no model reads.
+    if (/^## Skills\b/m.test(text) || /experts\/skills\/[a-z][a-z0-9-]*\/skill\.md/.test(text)) bad(`experts/${name}/references/${stage}.md lists skills; they belong in experts/${name}/skills.md, which only code reads`);
     if (stage === 'review') {
       for (const p of lintChecklist(text, LINT_PROFILES[name] || GENERIC_PROFILE)) bad(`review reference: ${p}`);
     } else if (stage === 'build') {
       // Loaded into the implementer's prompt on every build, so it is capped, and it may only say how to write.
-      // Its "## Skills" section selects skills and is not passed on, so it is not counted.
-      const brief = withoutSkillsSection(text);
-      if (Buffer.byteLength(brief) > BRIEF_BYTES) bad(`build.md is ${Buffer.byteLength(brief)} bytes without its Skills section; it is loaded on every build and is capped at ${BRIEF_BYTES}`);
+      const brief = text;
+      if (Buffer.byteLength(brief) > BRIEF_BYTES) bad(`build.md is ${Buffer.byteLength(brief)} bytes; it is loaded on every build and is capped at ${BRIEF_BYTES}`);
       if (!/\bplan\b/i.test(brief) || !/adds no work|did not ask|not ask for/i.test(brief)) bad('build.md must say that it adds no work and that the plan decides the scope: a brief says how to write, never what to build');
       if (/\bfetch\b|\bcurl\b|\bnpx?\b|https?:\/\//i.test(brief)) bad('build.md must not tell the implementer to fetch, install or visit anything');
     } else {
@@ -235,12 +236,12 @@ function laneHelperProblems(payloadDir) {
   return blocks.filter(([, b]) => b !== first).map(([f]) => `workflows/${f} has expert lane helpers that differ from workflows/${blocks[0][0]}; they must be identical`);
 }
 
-// Shared skills: knowledge an expert reads only when a cue in its own text says so.
-// They live in experts/skills/<name>/skill.md so that more than one expert can load
-// the same one. A skill no expert names is never loaded; a name with no file is a
-// silent miss at review time; a mention with no cue is loaded on every run or never.
+// Shared skills: knowledge code pastes into an expert's prompt. They live in
+// experts/skills/<name>/skill.md so that more than one expert can load the same one, and each
+// expert lists the ones it uses, per stage with a selector, in experts/<name>/skills.md. A skill
+// no expert lists is never loaded; a listed name with no file is a silent miss at review time.
 const SKILL_BYTES = 16 * 1024;
-const SKILL_REF = /experts\/skills\/([a-z][a-z0-9-]*)\/skill\.md/g;
+const FRONTMATTER = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/;
 
 function skillProblems(payloadDir, expertNames) {
   const out = [];
@@ -248,20 +249,16 @@ function skillProblems(payloadDir, expertNames) {
   const present = fs.existsSync(skillsDir) ? fs.readdirSync(skillsDir).filter((d) => fs.statSync(path.join(skillsDir, d)).isDirectory()) : [];
   const named = new Set();
   for (const name of expertNames) {
-    const texts = [path.join(payloadDir, 'agents', `uw-expert-${name}.md`)];
-    const refDir = path.join(payloadDir, 'experts', name, 'references');
-    if (fs.existsSync(refDir)) for (const f of fs.readdirSync(refDir).filter((x) => x.endsWith('.md') && x !== 'CHANGES.md')) texts.push(path.join(refDir, f));
-    for (const file of texts.filter((f) => fs.existsSync(f))) {
-      const where = path.relative(payloadDir, file).split(path.sep).join('/');
-      for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
-        for (const m of line.matchAll(SKILL_REF)) {
-          named.add(m[1]);
-          if (!present.includes(m[1])) out.push(`${where} names experts/skills/${m[1]}/skill.md, which does not exist`);
-          if (!/\bwhen\b/i.test(line)) out.push(`${where} names experts/skills/${m[1]}/skill.md without a cue on the same line ("load when ..."), so it is loaded always or never`);
-        }
+    const file = path.join(payloadDir, 'experts', name, 'skills.md');
+    if (!fs.existsSync(file)) continue;
+    const where = `experts/${name}/skills.md`;
+    const parsed = parseSkillsFile(fs.readFileSync(file, 'utf8'));
+    for (const p of parsed.problems) out.push(`${where}: ${p}`);
+    for (const [stage, list] of Object.entries(parsed.stages)) {
+      for (const { name: skill } of list) {
+        named.add(skill);
+        if (!present.includes(skill)) out.push(`${where} lists ${skill} at ${stage}, and experts/skills/${skill}/skill.md does not exist`);
       }
-      // At the stages where the workflow injects skills, every listed skill needs a selector code can apply.
-      if (SKILL_STAGES.some((st) => where.endsWith(`/references/${st}.md`))) for (const p of skillList(fs.readFileSync(file, 'utf8')).problems) out.push(`${where}: ${p}`);
     }
   }
   for (const d of present) {
@@ -272,11 +269,18 @@ function skillProblems(payloadDir, expertNames) {
       out.push(`experts/skills/${d} has no skill.md`);
       continue;
     }
-    if (!named.has(d)) out.push(`experts/skills/${d}/skill.md is named by no expert, so it is never loaded`);
+    if (!named.has(d)) out.push(`experts/skills/${d}/skill.md is listed by no expert's skills.md, so it is never loaded`);
     if (!fs.existsSync(path.join(dir, 'NOTICE.md'))) out.push(`experts/skills/${d} has no NOTICE.md: a skill says where its ideas come from, even when the answer is "our own writing"`);
-    const text = fs.readFileSync(file, 'utf8');
-    if (Buffer.byteLength(text) > SKILL_BYTES) out.push(`experts/skills/${d}/skill.md is ${Buffer.byteLength(text)} bytes; the cap is ${SKILL_BYTES}`);
-    if (!/^# /.test(text)) out.push(`experts/skills/${d}/skill.md must open with a "# " title`);
+    const raw = fs.readFileSync(file, 'utf8');
+    if (Buffer.byteLength(raw) > SKILL_BYTES) out.push(`experts/skills/${d}/skill.md is ${Buffer.byteLength(raw)} bytes; the cap is ${SKILL_BYTES}`);
+    const fm = FRONTMATTER.exec(raw);
+    if (!fm) out.push(`experts/skills/${d}/skill.md must open with frontmatter (name, description)`);
+    else {
+      if (!new RegExp(`^name: ${d}$`, 'm').test(fm[1])) out.push(`experts/skills/${d}/skill.md: frontmatter name must be "${d}"`);
+      if (!/^description: \S.{20,}$/m.test(fm[1])) out.push(`experts/skills/${d}/skill.md: frontmatter needs a description that says what the skill holds and when it applies`);
+    }
+    const text = fm ? raw.slice(fm[0].length).trimStart() : raw;
+    if (!/^# /.test(text)) out.push(`experts/skills/${d}/skill.md must have a "# " title after its frontmatter`);
     if (/FILL-IN/.test(text)) out.push(`experts/skills/${d}/skill.md still has a FILL-IN note`);
     if (/\bcurl\b|\bnpx\b|\bwget\b|https?:\/\//i.test(text)) out.push(`experts/skills/${d}/skill.md must not tell a reader to fetch, install or visit anything`);
     if (walk(dir).some((p) => path.basename(p) === 'SKILL.md')) out.push(`experts/skills/${d}: name the file skill.md, not SKILL.md, or a host loads it as a skill of its own on every turn`);

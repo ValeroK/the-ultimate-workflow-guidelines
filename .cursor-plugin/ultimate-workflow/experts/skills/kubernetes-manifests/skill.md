@@ -1,3 +1,8 @@
+---
+name: kubernetes-manifests
+description: Use when a change adds or changes Kubernetes workloads or Helm charts: probes, requests, rollout strategy, disruption budgets, shutdown.
+---
+
 # Kubernetes manifests
 
 Use this when a change adds or changes Kubernetes workloads, Helm charts or values, or Kustomize overlays. It holds what decides whether a rollout keeps serving, whether pods are restarted for the wrong reason, and whether a change can be applied at all.

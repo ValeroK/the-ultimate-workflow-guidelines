@@ -20,9 +20,3 @@ This applies to every test you write. It adds no work: the confirmed test plan d
 
 - Say which tests you saw fail before the code existed, and with what message.
 - Say which planned case you could not write, and why. Do not leave it out silently.
-
-## Skills
-
-The build command selects these in code from the plan, by the rule in parentheses, and passes their text with this brief. This section is not part of the brief the implementer reads.
-
-- `experts/skills/test-craft/skill.md` (always): load when writing any test, for what makes one able to fail, its expected value, its doubles, its determinism and its shape.

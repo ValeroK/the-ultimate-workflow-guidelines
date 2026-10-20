@@ -1,3 +1,8 @@
+---
+name: dependency-discipline
+description: Use when a change adds, removes or upgrades a dependency.
+---
+
 # Dependency discipline
 
 Use this when a change adds, removes or upgrades a dependency: a package manifest (`package.json`, `pyproject.toml`, `requirements*.txt`, `go.mod`, `Cargo.toml`, `pom.xml`, `build.gradle`), a lockfile, or new imports of a third-party package. Known vulnerabilities are checked by the dependency audit tool and the security expert; this skill is about whether the dependency should be there and whether the change to it is safe.

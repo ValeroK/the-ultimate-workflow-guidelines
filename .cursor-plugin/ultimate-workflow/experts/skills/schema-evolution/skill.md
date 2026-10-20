@@ -1,3 +1,8 @@
+---
+name: schema-evolution
+description: Use when a change changes an HTTP API description, a JSON Schema, a GraphQL schema or a published package's API: what breaks callers or readers, deprecation, and version bumps.
+---
+
 # Schema evolution: OpenAPI, JSON Schema, GraphQL and published packages
 
 Use this when a change touches an HTTP API description, a JSON Schema, a GraphQL schema, or the public API of a package that other repositories install. It holds what decides whether an existing client still works. REST naming and style, idempotency and rate limits (the architect's), and protobuf (`protobuf-compat`) are not here.

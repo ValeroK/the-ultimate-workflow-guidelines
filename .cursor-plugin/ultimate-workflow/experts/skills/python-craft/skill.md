@@ -1,3 +1,8 @@
+---
+name: python-craft
+description: Use when a change touches Python files.
+---
+
 # Python craft
 
 Use this when a change touches Python files. It holds only what is specific to Python: the language's traps, the mistakes that look correct, and which of them a linter already catches. Checks true in every language stay in the expert's checklist, `engineering-principles` and `failure-handling`.

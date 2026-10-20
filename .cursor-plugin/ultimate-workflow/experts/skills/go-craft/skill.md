@@ -1,3 +1,8 @@
+---
+name: go-craft
+description: Use when a change touches Go files.
+---
+
 # Go craft
 
 Use this when a change touches `.go` files. It holds only what is specific to Go. Checks true in every language stay in the expert's checklist, `engineering-principles` and `failure-handling`.

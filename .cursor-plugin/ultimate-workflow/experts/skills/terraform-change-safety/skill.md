@@ -1,3 +1,8 @@
+---
+name: terraform-change-safety
+description: Use when a change changes Terraform or OpenTofu code or its backend: what an apply will move, replace or destroy, state, version floors and pins.
+---
+
 # Terraform change safety
 
 Use this when a change touches Terraform or OpenTofu code, variables, a backend or the lock file. It holds what decides whether an apply keeps, replaces or destroys what is already running, and whether the run can be repeated.

@@ -1,3 +1,8 @@
+---
+name: step-functions
+description: Use when a change adds a workflow, a saga or any multi-step process that must undo earlier steps on failure.
+---
+
 # Step Functions and sagas
 
 Use this when a change adds or changes a Step Functions state machine, or a multi-step workflow that must undo its earlier steps when a later one fails (a saga). It holds the semantics that decide whether a workflow is correct under failure and duplicates.

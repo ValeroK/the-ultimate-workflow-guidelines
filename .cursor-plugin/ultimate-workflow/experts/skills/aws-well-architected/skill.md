@@ -1,3 +1,8 @@
+---
+name: aws-well-architected
+description: Use when a change adds or changes AWS infrastructure or a call to an AWS service, for the recovery tiers, the practices a plan should turn into constraints, and verified AWS costs and limits.
+---
+
 # AWS Well-Architected, as it shows in code
 
 Use this when a change touches AWS infrastructure (Terraform, CloudFormation, SAM, CDK, Serverless Framework) or code that calls AWS services. It holds the Well-Architected best practices that a plan or a diff can actually show, what each looks like in infrastructure code, and when it does not apply. Cite the best-practice ID in a finding or a constraint (for example `REL05-BP05`) so anyone can look it up.

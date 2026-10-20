@@ -1,3 +1,8 @@
+---
+name: surgical-change
+description: Use when a change touches files the request or plan does not mention, mixes a refactor with a behaviour change, or looks large for its task. Always included, because no file name shows it.
+---
+
 # Scope and surgical change
 
 Use this when a diff touches files the request or plan does not mention, mixes a refactor with a behaviour change, or looks large for the task it states. The question is whether every changed line is needed by the task.

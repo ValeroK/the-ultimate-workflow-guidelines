@@ -1,3 +1,8 @@
+---
+name: java-craft
+description: Use when a change touches Java files.
+---
+
 # Java craft
 
 Use this when a change touches `.java` files. It holds only what is specific to Java and its common frameworks (Spring, JPA). Checks true in every language stay in the expert's checklist, `engineering-principles` and `failure-handling`.

@@ -1,3 +1,8 @@
+---
+name: containers
+description: Use when a change adds or changes a Dockerfile or compose file: stop signals, repeatable images, health checks and start order.
+---
+
 # Containers
 
 Use this when a change adds or changes a Dockerfile, a `.dockerignore` or a compose file. It holds what decides whether the image can be rebuilt the same way and whether the container starts and stops cleanly. Running as root, capabilities, secrets in build arguments and credentials in the build context are the security expert's; mention them there.

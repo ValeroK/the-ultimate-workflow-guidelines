@@ -1,3 +1,8 @@
+---
+name: aws-messaging
+description: Use when a change adds a queue, topic, event bus or stream, for delivery, ordering, deduplication and loss.
+---
+
 # AWS messaging: SQS, SNS, EventBridge, Kinesis
 
 Use this when a change adds or changes a queue, topic, event bus, rule or stream, or code that sends to one. It holds the delivery semantics that decide whether messages arrive once, in order, or at all. Lambda as a consumer is in `lambda-event-sources`.

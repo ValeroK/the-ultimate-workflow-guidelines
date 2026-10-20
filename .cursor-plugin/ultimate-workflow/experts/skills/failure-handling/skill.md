@@ -1,3 +1,8 @@
+---
+name: failure-handling
+description: Use when a change adds error paths, fallbacks, retries or multi-step writes.
+---
+
 # Failure handling
 
 Use this when a change adds or changes a catch or except block, an error return, a fallback or default value on error, a retry, a Result or Option handler, or work that must be undone when it fails. The question is whether a failure still reaches someone who can act on it.

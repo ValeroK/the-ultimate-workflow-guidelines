@@ -124,13 +124,13 @@ function briefs(pluginRoot = PLUGIN_ROOT, { planText = null } = {}) {
       problems.push(`${e.name}: declares the build stage but experts/${e.name}/references/build.md cannot be read`);
       continue;
     }
-    // A brief whose build.md lists no `always` skill is for some changes only (the DevOps brief is
-    // for infrastructure, pipelines and containers): it joins a build only when the plan selects one
-    // of its skills, and never when there is no plan to select from.
-    const conditional = !skillList(text).skills.some((s) => s.selector.kind === 'always');
-    text = withoutSkillsSection(text);
+    // A brief whose build skills include no `always` one is for some changes only (the DevOps brief
+    // is for infrastructure, pipelines and containers): it joins a build only when the plan selects
+    // one of its skills, and never when there is no plan to select from.
+    const conditional = !skillsAt(pluginRoot, e.name, BUILD).skills.some((s) => s.selector.kind === 'always');
+    text = text.trim();
     if (text === '') problems.push(`${e.name}: build.md is empty`);
-    else if (Buffer.byteLength(text) > BRIEF_BYTES) problems.push(`${e.name}: build.md is ${Buffer.byteLength(text)} bytes without its Skills section; a brief loaded on every build is capped at ${BRIEF_BYTES}`);
+    else if (Buffer.byteLength(text) > BRIEF_BYTES) problems.push(`${e.name}: build.md is ${Buffer.byteLength(text)} bytes; a brief loaded on every build is capped at ${BRIEF_BYTES}`);
     else if (change === null) {
       if (conditional) skipped.push(e.name);
       else out.push({ name: e.name, text });
@@ -153,11 +153,14 @@ function briefs(pluginRoot = PLUGIN_ROOT, { planText = null } = {}) {
 //
 // A model told to "read the skill whose cue matches" did not read it, in two runs out of two. So
 // the choice is made here, where the files are, and the workflow pastes the text into the prompt.
-// A stage reference lists its skills one per line, each with a selector in parentheses:
+// Each expert lists its skills in `experts/<name>/skills.md`, read here and never by a model: one
+// `## <stage>` section per stage, one skill per line, each with a selector in parentheses:
 //
-//   - `experts/skills/go-craft/skill.md` (files: *.go, go.mod): load when ...
-//   - `experts/skills/failure-handling/skill.md` (added: catch|except): load when ...
-//   - `experts/skills/surgical-change/skill.md` (always): load when ...
+//   - go-craft (files: *.go, go.mod)
+//   - failure-handling (added: catch|except)
+//   - surgical-change (always)
+//
+// At plan a line is the name alone: a model chooses by the skill's own `description`.
 //
 // `files` globs match the base name of a changed path (review) or a path the plan names (build).
 // `added` is a case-sensitive regular expression over the diff's added lines (review) or the
@@ -168,7 +171,7 @@ const SKILL_STAGES = ['review', 'build', 'tests'];
 // catch and a manifest already filled 32 KB of the developer's skills before the API-compatibility
 // sections were added. What does not fit is still named in `dropped`.
 const SKILLS_BYTES = 40 * 1024;
-const SKILL_LINE = /^\s*-\s*`experts\/skills\/([a-z][a-z0-9-]*)\/skill\.md`\s*\((.*?)\):\s/;
+const SKILLS_FILE_LINE = /^\s*-\s*([a-z][a-z0-9-]*)(?:\s+\((.*)\))?\s*$/;
 
 function globToRegExp(glob) {
   // `*` stays inside one path segment; `**/` matches any number of directories, none included.
@@ -202,22 +205,69 @@ function parseSelector(text) {
   }
 }
 
-/** The skills a reference lists, in order, with their selectors. Lines that name a skill without one are problems. */
-function skillList(text) {
-  const skills = [];
+/**
+ * An expert's skills file: for each stage, the skills it lists in order, with their selectors.
+ * Plan lines carry no selector; every other stage's lines must. Problems are returned, not thrown.
+ */
+function parseSkillsFile(text) {
+  const stages = {};
   const problems = [];
-  for (const line of text.split(/\r?\n/)) {
-    if (!/experts\/skills\/[a-z][a-z0-9-]*\/skill\.md/.test(line)) continue;
-    const m = SKILL_LINE.exec(line);
+  let stage = null;
+  for (const line of String(text).split(/\r?\n/)) {
+    const h = /^##\s+([a-z]+)\s*$/.exec(line);
+    if (h) {
+      stage = h[1];
+      if (![...SKILL_STAGES, 'plan'].includes(stage)) problems.push(`"## ${stage}" is not a stage that takes skills`);
+      stages[stage] = stages[stage] || [];
+      continue;
+    }
+    if (!/^\s*-\s/.test(line) || stage === null) continue;
+    const m = SKILLS_FILE_LINE.exec(line);
     if (!m) {
-      if (/^\s*-\s*`experts\/skills\//.test(line)) problems.push(`a skill line has no "(selector):" after its path: ${line.trim()}`);
+      problems.push(`${stage}: "${line.trim()}" is not "- <skill> (<selector>)"`);
+      continue;
+    }
+    if (stage === 'plan') {
+      if (m[2] !== undefined) problems.push(`plan: ${m[1]} has a selector; at plan a model chooses by the skill's description`);
+      stages.plan.push({ name: m[1] });
+      continue;
+    }
+    if (m[2] === undefined) {
+      problems.push(`${stage}: ${m[1]} has no "(selector)"`);
       continue;
     }
     const sel = parseSelector(m[2]);
-    if (sel.error) problems.push(`${m[1]}: ${sel.error}`);
-    else skills.push({ name: m[1], selector: sel });
+    if (sel.error) problems.push(`${stage}: ${m[1]}: ${sel.error}`);
+    else stages[stage].push({ name: m[1], selector: sel });
   }
-  return { skills, problems };
+  return { stages, problems };
+}
+
+/** An expert's skills for one stage, read from its skills file. No file, or no section, is no skills. */
+function skillsAt(pluginRoot, expert, stage) {
+  let text = '';
+  try {
+    text = fs.readFileSync(path.join(pluginRoot, 'experts', expert, 'skills.md'), 'utf8');
+  } catch {
+    return { skills: [], problems: [] };
+  }
+  const parsed = parseSkillsFile(text);
+  return { skills: parsed.stages[stage] || [], problems: parsed.problems.map((p) => `${expert}/skills.md: ${p}`) };
+}
+
+/**
+ * A skill's frontmatter fields and its body. The frontmatter is read here and never pasted: the
+ * `description` is the cue and the plan-stage headline, the body is what the expert reads.
+ */
+function readSkill(pluginRoot, name) {
+  const raw = fs.readFileSync(path.join(pluginRoot, 'experts', 'skills', name, 'skill.md'), 'utf8');
+  const m = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/.exec(raw);
+  const meta = {};
+  if (m) for (const line of m[1].split(/\r?\n/)) {
+    const kv = /^([a-z]+):\s*(.*)$/.exec(line);
+    if (kv) meta[kv[1]] = kv[2].trim();
+  }
+  return { meta, text: (m ? raw.slice(m[0].length) : raw).trim() };
 }
 
 /** Changed paths and added lines, read from a unified diff. Works for any range, not only the working tree. */
@@ -262,21 +312,15 @@ function matches(selector, { files, text }) {
  */
 function selectSkills(pluginRoot, expert, stage, change, cap = SKILLS_BYTES) {
   const out = { skills: [], dropped: [], problems: [] };
-  let ref = '';
-  try {
-    ref = fs.readFileSync(path.join(pluginRoot, 'experts', expert, 'references', `${stage}.md`), 'utf8');
-  } catch {
-    return out;
-  }
-  const listed = skillList(ref);
-  out.problems.push(...listed.problems.map((p) => `${expert}/${stage}.md: ${p}`));
+  const listed = skillsAt(pluginRoot, expert, stage);
+  out.problems.push(...listed.problems);
   let used = 0;
   for (const s of listed.skills.filter((x) => matches(x.selector, change))) {
     let text = '';
     try {
-      text = fs.readFileSync(path.join(pluginRoot, 'experts', 'skills', s.name, 'skill.md'), 'utf8').trim();
+      text = readSkill(pluginRoot, s.name).text;
     } catch {
-      out.problems.push(`${expert}/${stage}.md names ${s.name}, which cannot be read`);
+      out.problems.push(`${expert}/skills.md names ${s.name}, which cannot be read`);
       continue;
     }
     const bytes = Buffer.byteLength(text);
@@ -291,28 +335,24 @@ function selectSkills(pluginRoot, expert, stage, change, cap = SKILLS_BYTES) {
 
 /**
  * The skills a model may choose from at the plan stage, where no code can see the draft: for each
- * expert that plans, every skill its plan.md lists, with the line's purpose as a headline and the
- * full text the workflow pastes in for the ones chosen. Code still decides what can be chosen.
+ * expert that plans, every skill its skills file lists at plan, with the skill's own description
+ * as the headline and the text the workflow pastes in for the ones chosen. Code still decides
+ * what can be chosen.
  */
-const PLAN_SKILL_LINE = /^\s*-\s*`experts\/skills\/([a-z][a-z0-9-]*)\/skill\.md`(?:\s*\([^)]*\))?:\s*(.+)$/;
 function planSkills(pluginRoot = PLUGIN_ROOT) {
   const out = {};
   const problems = [];
   for (const e of list(pluginRoot).experts.filter((x) => x.stages.includes('plan'))) {
-    let ref = '';
-    try {
-      ref = fs.readFileSync(path.join(pluginRoot, 'experts', e.name, 'references', 'plan.md'), 'utf8');
-    } catch {
-      continue;
-    }
+    const listed = skillsAt(pluginRoot, e.name, 'plan');
+    problems.push(...listed.problems);
     const offered = [];
-    for (const line of ref.split(/\r?\n/)) {
-      const m = PLAN_SKILL_LINE.exec(line);
-      if (!m || offered.some((x) => x.name === m[1])) continue;
+    for (const { name } of listed.skills) {
+      if (offered.some((x) => x.name === name)) continue;
       try {
-        offered.push({ name: m[1], headline: m[2].trim(), text: fs.readFileSync(path.join(pluginRoot, 'experts', 'skills', m[1], 'skill.md'), 'utf8').trim() });
+        const sk = readSkill(pluginRoot, name);
+        offered.push({ name, headline: sk.meta.description || name, text: sk.text });
       } catch {
-        problems.push(`${e.name}/plan.md names ${m[1]}, which cannot be read`);
+        problems.push(`${e.name}/skills.md names ${name}, which cannot be read`);
       }
     }
     if (offered.length > 0) out[e.name] = offered;
@@ -337,8 +377,6 @@ function testsSkills(pluginRoot, planText) {
   return { skills: out, problems };
 }
 
-/** A reference's "## Skills" section, which selects skills and is not itself brief text. */
-const withoutSkillsSection = (text) => text.replace(/^## Skills[ \t]*\r?\n[\s\S]*?(?=^## |(?![\s\S]))/m, '').trim();
 
 /** The experts that take part at a stage, in the order they were selected. */
 function expertsFor(available, selected, stage) {
@@ -731,14 +769,15 @@ module.exports = {
   SKILLS_BYTES,
   parseSelector,
   matches,
-  skillList,
+  parseSkillsFile,
+  skillsAt,
+  readSkill,
   parseDiff,
   planPaths,
   selectSkills,
   planSkills,
   testsSkills,
   ALWAYS_STAGES,
-  withoutSkillsSection,
   expertsFor,
   mergeAdd,
   readExperts,

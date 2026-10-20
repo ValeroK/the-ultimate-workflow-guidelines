@@ -1,3 +1,8 @@
+---
+name: module-boundaries
+description: Use when a change adds or moves a module or package, imports across one, or changes what a package exports: Go internal, Node and TypeScript exports, project references, Nx, dependency-cruiser, import-linter, Java modules.
+---
+
 # Module boundaries, ecosystem by ecosystem
 
 Use this when a change adds or moves a module or package, imports across one, changes what a package exports, or changes the tool that enforces boundaries. For each ecosystem, check only the mechanism the repository already uses; where it uses none, the convention method in your review reference applies instead. Lock files and version ranges are `dependency-discipline`'s; CI for affected packages is the DevOps engineer's.

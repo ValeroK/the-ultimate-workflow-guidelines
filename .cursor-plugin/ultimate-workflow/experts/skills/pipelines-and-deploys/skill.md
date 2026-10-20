@@ -1,3 +1,8 @@
+---
+name: pipelines-and-deploys
+description: Use when a change adds or changes a CI/CD workflow: promotion, environments, build once, deploy concurrency, caches and limits.
+---
+
 # Pipelines and deploys
 
 Use this when a change adds or changes a CI/CD workflow. GitHub Actions is the main CI this skill is written for; GitLab, CodeBuild, CodeDeploy and Jenkins get the general rules and a short section. It holds what decides whether what reaches production is what was tested, and whether two deploys can collide. CI workflow security (triggers that run fork code with secrets, `permissions`, pinning actions to a commit, OIDC) is the security expert's; whether a check can fail is quality's.

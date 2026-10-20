@@ -1,3 +1,8 @@
+---
+name: protobuf-compat
+description: Use when a change changes a .proto message, enum or service: field numbers, reserved, types, oneofs, enums, renames, and which compatibility the repository promises.
+---
+
 # Protobuf and gRPC compatibility
 
 Use this when a change touches a `.proto` file or the Buf configuration. It holds what decides whether existing producers, consumers and stored messages still work after the change. Rollout order, rollback and replay of stored messages are the architect's ("Two versions at once"); deadlines and retries are the architect's and `failure-handling`'s; authorization per method is security's.

@@ -1,3 +1,8 @@
+---
+name: lambda-event-sources
+description: Use when a change adds a queue, stream or event that triggers Lambda, or changes concurrency, for how these lose or repeat messages.
+---
+
 # Lambda event sources and concurrency
 
 Use this when a change adds or changes a queue or stream that triggers Lambda (an event source mapping for SQS, Kinesis or DynamoDB Streams), an asynchronous invocation path, or a function's concurrency settings. It holds how these behave when something goes wrong, which is where a working-looking configuration loses or repeats messages.

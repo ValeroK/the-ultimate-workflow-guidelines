@@ -1,3 +1,8 @@
+---
+name: react-craft
+description: Use when a change touches React components or hooks.
+---
+
 # React craft
 
 Use this when a change touches React components (`.tsx`, `.jsx`) or hooks. It covers component and hook correctness. Accessibility, rendering performance and visual behaviour belong to the frontend expert; TypeScript and JavaScript traps are in `typescript-craft`.

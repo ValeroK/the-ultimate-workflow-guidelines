@@ -95,7 +95,7 @@ JSON: `2026-10-20-developer-dev-a2-addyosmani-vs-expert-v2.json`. The upstream s
 | false-positive runs on sibling cases | 0 of 24 | 3 of 24 | 0 of 24 |
 | evidence complete (informational) | 0.83 | 0.84 | 0.95 |
 
-What it says: the upstream skill is a real improvement over a plain reviewer (24 to 31 of 36), so it is not a weak baseline. The expert found every planted defect in every run and raised no false positive on this split. Three cases separate the arms: the two the upstream skill found once or not at all in most runs (`c32b04375`, `c83de8112`) and one it found two of three times (`cb23e0ec9`).
+What it says: the upstream skill is a real improvement over a plain reviewer (24 to 31 of 36), so it is not a weak baseline. The expert found every planted defect in every run and raised no false positive on this split. Three cases separate the expert from the upstream skill: it found `c32b04375` and `c83de8112` in one run of three each, and `cb23e0ec9` in two of three; the expert found all three every time.
 
 What it does not say:
 - The corpus was written to the narrow craft scope the expert covers (SOLID, simplicity, duplication, error handling, dependencies, speculative generality). The upstream skill also covers security, performance, review process and change sizing, none of which this split rewards. A fair reading is "better on this scope", not "better".

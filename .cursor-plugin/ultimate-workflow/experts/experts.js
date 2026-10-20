@@ -164,7 +164,10 @@ function briefs(pluginRoot = PLUGIN_ROOT, { planText = null } = {}) {
 // plan's text (build). The order of the list is the order of priority when the cap is reached.
 
 const SKILL_STAGES = ['review', 'build', 'tests'];
-const SKILLS_BYTES = 32 * 1024;
+// Raised from 32 KB to 40 KB on 2026-10-20, by decision: a TypeScript and React change with a
+// catch and a manifest already filled 32 KB of the developer's skills before the API-compatibility
+// sections were added. What does not fit is still named in `dropped`.
+const SKILLS_BYTES = 40 * 1024;
 const SKILL_LINE = /^\s*-\s*`experts\/skills\/([a-z][a-z0-9-]*)\/skill\.md`\s*\((.*?)\):\s/;
 
 function globToRegExp(glob) {

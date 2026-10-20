@@ -41,7 +41,7 @@ Two research passes: the first read 40 files from 10 repositories by keyword; th
 | `caching-and-latency` | Invalidation, the delete-after-commit race, keys, the cache as optional, TTL, stampedes, the miss path, eviction policy, ElastiCache and CloudFront rules | added lines naming Redis, ElastiCache, CloudFront or cache headers | offered |
 | `aws-well-architected` | The Well-Architected practices a change can show, with IDs, and verified AWS costs and limits | infrastructure files, or added lines with AWS resources or SDK calls | offered |
 
-Order is priority: the most specific skill first. Together they are about 43 KB, so a change touching every area at once gets the first six and is told that `aws-well-architected` was left out at the 32 KB cap. A typical change selects two or three.
+Order is priority: the most specific skill first. Together they are about 43 KB, so a change touching every area at once gets the first six and is told that `aws-well-architected` was left out at the 40 KB cap. A typical change selects two or three.
 
 Each fact says where it comes from: **[G]** AWS's developer guides as published on GitHub until 2022 and 2023 (docs.aws.amazon.com was not reachable from the build session), **[R]** the maintainer's check of live pages, **[T]** a 2026 AWS or community skill not yet checked against the current guide, **[O]** our own reasoning. Where a 2023 guide and a 2026 source differ (message sizes, the REST API timeout, Lambda's burst rate), both are given: the guide may be out of date, the newer source is unconfirmed.
 

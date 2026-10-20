@@ -70,7 +70,7 @@ For each candidate skill (template B gives the research), answer in order:
 1. **Is it checkable?** Each item names what breaks it in a change and when it does not apply. A slogan is not an item.
 2. **Is it new?** Not already in another skill, the expert's references, or a neighbouring expert.
 3. **Is there a narrow trigger?** `files:` globs for file types, `added:` for constructs that show in added lines, both joined with `; `. Use `always` only when no file name or line can signal it, because it is paid on every run. A selector that matches every HTTP or queue call is `always` in disguise.
-4. **Does it fit?** Skills share a 32 KB cap per expert per stage. List the most specific skill first; check the worst case (every skill of that stage selected at once) fits.
+4. **Does it fit?** Skills share a 40 KB cap per expert per stage. List the most specific skill first; check the worst case (every skill of that stage selected at once) fits.
 
 Then write `experts/skills/<name>/skill.md` (a `# ` title, nothing that fetches or installs, at most 16 KB) and its `NOTICE.md` (sources, licences, what was ours, what was left out). Name it in each stage reference with its selector and cue. At plan there is no selector: the cue is the headline a model chooses by.
 

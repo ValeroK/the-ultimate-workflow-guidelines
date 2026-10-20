@@ -126,7 +126,7 @@ test('shipped experts/ stays under a byte budget that grows with each expert', (
   // expert directory. The contract still caps each expert at 60 KB, and the release workflow
   // still refuses a ZIP over 2 MB. The shared skills library (experts/skills/) has no total
   // budget, by the same decision: each skill is capped at 16 KB and each expert's skills at
-  // one stage at 32 KB, which bound what any one prompt pays.
+  // one stage at 40 KB, which bound what any one prompt pays.
   const root = path.join(PAYLOAD, 'experts');
   const skills = path.join(root, 'skills');
   const experts = fs.readdirSync(root, { withFileTypes: true }).filter((d) => d.isDirectory() && d.name !== 'skills');

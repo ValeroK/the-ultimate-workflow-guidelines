@@ -15,7 +15,7 @@ This applies when the change writes infrastructure code, a CI/CD workflow, a Doc
 - Build once and promote what was built and tested; do not rebuild per environment.
 - A deploy job gets a concurrency group per target environment, and never cancels a run that is applying infrastructure or migrating data.
 - In GitHub Actions, deploy what the push to the default branch built (on a pull request `github.sha` is a merge commit), pass files between jobs as artifacts, name `shell: bash` where a pipe must fail the step, and use `!cancelled()` rather than `always()` on anything that deploys.
-- A container's main process receives the stop signal: the exec form of the start command (a JSON array, so double quotes), or `exec` in a start script. A `.dockerignore` sits at the build context's root.
+- A container's main process receives the stop signal: the exec form of the start command (a JSON array, so double quotes), or `exec` in a start script.
 
 ## When not to
 

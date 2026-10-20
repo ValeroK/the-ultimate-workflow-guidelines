@@ -49,6 +49,7 @@ Not relied on: vendor headline figures such as "up to 40 percent better price pe
 |---|---|---|
 | `REL10-BP01` Multiple locations | A production database or service pinned to one Availability Zone (`multi_az = false`, one subnet) when the plan states an availability target that needs more | Development, sandbox and workloads whose stated target allows it |
 | `REL10-BP03` Bulkheads | Unrelated work sharing one queue, one connection pool or one concurrency pool, so a flood of one starves the other | Low volume where the two never compete |
+| `REL07-BP02` Replace what the load balancer sees failing | An Auto Scaling group behind a load balancer with no `health_check_type = "ELB"`: by default the group checks only EC2 status and scheduled events and ignores the load balancer's health checks (Auto Scaling guide, 2023), so an instance failing every request stays in service | Groups with no load balancer |
 | `REL11-BP04` Recover through the data plane | Failover logic that calls control-plane APIs (create, update, scale) during an outage instead of switching what is already provisioned | No automated failover in scope |
 | `REL11-BP05` Static stability | Failover that depends on scaling up from zero in the surviving zone or Region at the moment of failure | Workloads whose recovery target allows the scale-up time |
 | `REL13-BP02` Match the stated recovery tier | The plan claims warm standby, but the secondary Region has no running capacity; or it claims active-active with a single-Region database | No recovery target stated: ask for one at plan, do not invent one at review |
@@ -71,6 +72,7 @@ Not relied on: vendor headline figures such as "up to 40 percent better price pe
 | `COST08-BP02` Avoid needless cross-zone traffic | A high-volume service pair, or a single instance and its database, placed in different zones for no availability reason | Multi-AZ replication and load balancing that the availability target requires |
 | `COST04-BP05` Retention | A new log group with no `retention_in_days`, a bucket of temporary objects with no lifecycle rule, a table of expiring records with no TTL | Data the business must keep |
 | `COST05-BP05` Fit the component to the load | A REST API where an HTTP API covers the features used; a Standard Step Functions workflow for high-volume, short, idempotent steps where Express fits | When a feature of the heavier option is used (REST API keys and usage plans; Standard's exactly-once and long runs) |
+| `COST06-BP02` Size from data | T4g, T3a and T3 instances launch in unlimited credit mode by default (EC2 guide, 2023), so a busy burstable instance is billed for surplus credits; a new burstable instance for steady high load is a cost finding | Spiky, mostly idle load, which is what burstable instances are for |
 | `COST09-BP03` Supply to demand | Always-on capacity sized for the peak in front of spiky load, with no scaling policy | Steady load, or capacity reserved on purpose |
 
 ## Performance and data access

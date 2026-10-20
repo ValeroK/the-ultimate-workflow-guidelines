@@ -70,6 +70,8 @@ Check what the change touches and skip the rest.
 
 The workflow selects these in code, by the rule in parentheses, and puts their text in your prompt: `files` matches the names of the changed files, `added` matches the diff's added lines. Do not open other skill files.
 
+- `experts/skills/lambda-event-sources/skill.md` (added: EventSourceMapping|aws_lambda_event_source_mapping|SqsEventSource|KinesisEventSource|DynamoEventSource|ScalingConfig|MaximumConcurrency|maximum_concurrency|ReservedConcurrentExecutions|reserved_concurrent_executions|ProvisionedConcurrency|provisioned_concurrent_executions|BisectBatchOnFunctionError|ReportBatchItemFailures|batchItemFailures|VisibilityTimeout|visibility_timeout_seconds|FilterCriteria|filter_criteria|DeadLetterConfig|dead_letter_config|DestinationConfig): load when the diff adds or changes a queue or stream that triggers Lambda, asynchronous invocation, or concurrency settings.
+- `experts/skills/step-functions/skill.md` (files: *.asl.json, *.asl.yaml, *.asl.yml; added: AWS::StepFunctions|aws_sfn_state_machine|aws-stepfunctions|aws_stepfunctions|"States\.|StartExecution|StartSyncExecution|[Cc]ompensat): load when the diff adds or changes a Step Functions state machine or a saga with compensating steps.
 - `experts/skills/aws-well-architected/skill.md` (files: *.tf, *.tfvars, template.yaml, template.yml, template.json, serverless.yml, serverless.yaml, cdk.json, samconfig.toml; added: AWS::|resource "aws_|aws-cdk-lib|aws_cdk|@aws-cdk/|boto3|@aws-sdk/|aws-sdk-go|software.amazon.awssdk): load when the diff touches AWS infrastructure code or code that calls AWS services, for the Well-Architected practices a diff can show, their IDs, and verified AWS facts.
 
 ## Do not report

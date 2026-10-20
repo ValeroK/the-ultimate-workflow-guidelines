@@ -59,6 +59,39 @@ Claims to verify:
 10. DLQ alarm on ApproximateNumberOfMessagesVisible is the documented practice.
 ```
 
+## 1b. Architect: messaging semantics, and the facts marked unverified
+
+> Status: not run. The architect's skills defer messaging semantics, and mark some facts as coming only from AWS's 2026 agent toolkit ([T]).
+
+```
+[shared rules above]
+
+Task: verify AWS messaging and serverless facts on the current docs.aws.amazon.com pages.
+
+A. SQS: standard versus FIFO ordering and delivery; the FIFO deduplication interval; message retention default and maximum; maximum message size; FIFO throughput with and without batching and in high-throughput mode; visibility timeout default and maximum; the receive limit and redrive.
+B. SNS: delivery retry policy per endpoint type, FIFO topics, message filtering, dead-letter queues for subscriptions.
+C. EventBridge: delivery guarantee, retry policy and maximum event age for targets, dead-letter queues, archive and replay, event size limit.
+D. Kinesis Data Streams: ordering per shard, retention default and maximum, per-shard read and write limits, enhanced fan-out.
+E. Lambda event sources: the current range of ScalingConfig.MaximumConcurrency; the current scaling rate for SQS (instances added per minute and the default ceiling); provisioned mode for event source mappings; whether SnapStart can be combined with provisioned concurrency; the current minimum of MaximumRecordAgeInSeconds.
+F. Step Functions: Distributed Map limits; JitterStrategy and its default; the default TimeoutSeconds of a Task state; how execution names are deduplicated and for how long.
+```
+
+## 1c. Architect: multi-tenancy isolation
+
+> Status: not run. The architect keeps its tenancy checks in its references until then.
+
+```
+[shared rules above]
+
+Task: build the verified source list for reviewing multi-tenant SaaS designs and code.
+
+A. The AWS SaaS Lens and the AWS SaaS Factory material: the silo, pool and bridge isolation models, tier-based isolation, and what each requires of data access, compute and identity.
+B. Tenant context: binding tenant identity to the user's identity (token claims), passing it through every layer, and enforcing it where data is read (row-level security in PostgreSQL, partition keys in DynamoDB, IAM session tags and attribute-based access).
+C. Noisy neighbours: per-tenant throttling, quotas, separate queues or pools, and how each source says to detect one.
+D. Per-tenant cost attribution and metrics.
+E. What a reviewer can see in a diff: a query without a tenant filter, a shared cache key, a queue shared across tiers, a policy without a tenant condition.
+```
+
 ## 2. Developer: SOLID, clean code, KISS, design patterns, linters
 
 > Status: run. The results are in `experts/developer/NOTICE.md` ("Primary sources checked on 2026-10-20"). That record is historical now: the developer's checklist has changed since.
@@ -266,6 +299,8 @@ Also return: what a reviewer can and cannot judge from a diff, and when a change
 | Prompt | Expert | Status | Why it matters next |
 |---|---|---|---|
 | 1 | Architect (AWS Well-Architected) | done 2026-10-20 | Used in `aws-well-architected` |
+| 1b | Architect: messaging and unverified facts | not run | Unblocks a messaging skill and confirms the [T] facts |
+| 1c | Architect: multi-tenancy | not run | Unblocks a tenancy skill |
 | 2 | Developer | done | Used in the developer references and skills |
 | 3 | Software architect | not run | The expert ships with sources from search results only |
 | 4 | Quality engineer | not run | The expert ships; `test-craft` was built from upstream skills, not primary sources |

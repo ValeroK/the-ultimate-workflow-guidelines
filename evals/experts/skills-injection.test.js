@@ -338,7 +338,30 @@ test('architect review: AWS code in the added lines selects it in any file; othe
 
 test('architect plan: aws-well-architected is offered with its headline; the developer offers are unchanged', () => {
   const k = ex.planSkills(PLUGIN);
-  assert.deepEqual(k.skills.architect.map((s) => s.name), ['aws-well-architected']);
-  assert.match(k.skills.architect[0].headline, /AWS infrastructure/);
+  assert.deepEqual(k.skills.architect.map((s) => s.name), ['lambda-event-sources', 'step-functions', 'aws-well-architected']);
+  assert.match(k.skills.architect[2].headline, /AWS infrastructure/);
   assert.equal(k.skills.developer.length, 3);
+});
+
+// ---- architect: the serverless skills load only on their own constructs ---------------------
+
+test('architect review: an SQS event source mapping selects lambda-event-sources first, then aws-well-architected', () => {
+  const n = arch({ 'infra/queue.tf': ['resource "aws_lambda_event_source_mapping" "orders" {', '  batch_size = 10'] });
+  assert.deepEqual(n, ['lambda-event-sources', 'aws-well-architected']);
+});
+
+test('architect review: a Terraform change with no queue or workflow does not pull in the serverless skills', () => {
+  assert.deepEqual(arch({ 'infra/bucket.tf': ['resource "aws_s3_bucket" "logs" {'] }), ['aws-well-architected']);
+});
+
+test('architect review: a state machine file or a saga selects step-functions', () => {
+  assert.ok(arch({ 'flows/order.asl.json': ['{"StartAt": "Charge"}'] }).includes('step-functions'));
+  assert.ok(arch({ 'svc/saga.py': ['    def compensate_charge(self):'] }).includes('step-functions'));
+  assert.ok(arch({ 'flows/def.json': ['  "ErrorEquals": ["States.ALL"]'] }).includes('step-functions'));
+});
+
+test('architect review: all three AWS skills together stay under the cap', () => {
+  const sel = ex.selectSkills(PLUGIN, 'architect', 'review', ex.parseDiff(diffOf({ 'a.tf': ['resource "aws_lambda_event_source_mapping" "x" {', 'resource "aws_sfn_state_machine" "y" {'] })));
+  assert.deepEqual(names(sel), ['lambda-event-sources', 'step-functions', 'aws-well-architected']);
+  assert.deepEqual(sel.dropped, []);
 });

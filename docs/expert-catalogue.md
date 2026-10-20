@@ -22,6 +22,7 @@ An agent was placed under an expert by its name and the survey's domain notes, n
 ### 1. System architect (have: `architect`)
 - **Owns:** components and services, the flows between them, AWS service fit, failure handling at boundaries, state, cost, and the Well-Architected concerns.
 - **Stages:** plan, review.
+- **Sources compared and skills:** `docs/experts/architect.md`.
 - **Upstream agents:**
   - ECC `architect`
   - awesome-copilot `aws-principal-architect`, `aws-serverless-architect`, `se-system-architecture-reviewer`, `arch`
@@ -193,7 +194,10 @@ Taken from the `## Skills` list in each stage reference under `.cursor-plugin/ul
 | quality | tests | `test-craft` | `always` | each case can fail and has an exact expected value |
 | quality | build | `test-craft` | `always` | writing any test |
 
+| architect | review | `lambda-event-sources` | `added:` event source mapping, scaling, batch-failure, visibility and concurrency settings | queues and streams that trigger Lambda |
+| architect | review | `step-functions` | `files: *.asl.json, *.asl.yaml, *.asl.yml; added:` state machines, `States.` errors, compensation | workflows and sagas |
 | architect | review | `aws-well-architected` | `files: *.tf, *.tfvars, template.yaml, template.yml, template.json, serverless.yml, serverless.yaml, cdk.json, samconfig.toml; added: AWS::\|resource "aws_\|aws-cdk-lib\|aws_cdk\|@aws-cdk/\|boto3\|@aws-sdk/\|aws-sdk-go\|software.amazon.awssdk` | Well-Architected practices a diff can show, with IDs and verified AWS costs and limits |
+| architect | plan | `lambda-event-sources`, `step-functions` | offered | the plan adds triggered Lambdas, workflows or sagas |
 | architect | plan | `aws-well-architected` | offered | the plan adds or changes AWS infrastructure or AWS calls |
 
 No skills: `softarch` (plan, review), `security` (plan, tests, review), and `quality` at plan and review.
@@ -227,6 +231,6 @@ From the survey: DynamoDB and OpenSearch, VPC and networking depth, CloudFormati
 
 ## Status
 
-Built: experts 1 to 5 (`architect`, `softarch`, `developer`, `quality`, `security`). Skills are mapped for `developer` (eleven), `quality` (`test-craft`) and `architect` (`aws-well-architected`); `softarch` and `security` have none. Experts 6 and 8 to 14 are not built (7 is merged into 6).
+Built: experts 1 to 5 (`architect`, `softarch`, `developer`, `quality`, `security`). Skills are mapped for `developer` (eleven), `quality` (`test-craft`) and `architect` (`lambda-event-sources`, `step-functions`, `aws-well-architected`; see `docs/experts/architect.md`); `softarch` and `security` have none. Experts 6 and 8 to 14 are not built (7 is merged into 6).
 
 Next: the Generative AI engineer (6), which has the Generative AI Lens research ready and needs an AgentCore pass; then data and Postgres (8), or UI and accessibility (13).

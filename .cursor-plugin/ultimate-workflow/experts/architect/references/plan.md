@@ -36,4 +36,6 @@ Read the draft, then search the code and infrastructure files it will touch. Ans
 
 The workflow asks, in the call that chooses the experts, which of these the draft needs, using the words after the colon as the headline, and pastes the chosen ones into your prompt. Do not open skill files yourself.
 
+- `experts/skills/lambda-event-sources/skill.md`: load when the plan adds a queue, stream or event that triggers Lambda, or changes concurrency, for how these lose or repeat messages.
+- `experts/skills/step-functions/skill.md`: load when the plan adds a workflow, a saga or any multi-step process that must undo earlier steps on failure.
 - `experts/skills/aws-well-architected/skill.md`: load when the plan adds or changes AWS infrastructure or a call to an AWS service, for the recovery tiers, the practices a plan should turn into constraints, and verified AWS costs and limits.

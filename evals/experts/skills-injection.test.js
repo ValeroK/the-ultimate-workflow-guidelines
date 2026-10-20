@@ -298,3 +298,17 @@ test('build.js: test-craft reaches the test-writing prompt once, with both brief
   assert.equal((w.prompt.match(/^# Test craft$/gm) || []).length, 1);
   assert.ok(result.skillsLoaded.includes('test-craft') && result.skillsLoaded.includes('python-craft'));
 });
+
+test('record --stage tests --plan: an expert that joined because it always does is written into the plan', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'uw-always-'));
+  const plan = path.join(dir, 'PLAN-x.md');
+  fs.writeFileSync(plan, '---\nplan_confirmed: true\nexperts: [security]\n---\nbody\n');
+  const lane = { stage: 'tests', available: ex.list(PLUGIN).experts.map((e) => e.name), selected: ['security', 'quality'], ran: ['security', 'quality'], failed: [], added: ['quality'] };
+  const r = ex.record(dir, 'tests', { ok: true, expertLane: lane }, { planFile: plan, pluginRoot: PLUGIN });
+  assert.deepEqual(r.recorded, ['security', 'quality']);
+  assert.deepEqual(ex.readExperts(fs.readFileSync(plan, 'utf8')).experts, ['security', 'quality']);
+});
+
+test('commands/tests.md records with --plan, so the always-joined expert reaches the plan', () => {
+  assert.match(fs.readFileSync(path.join(PLUGIN, 'commands', 'tests.md'), 'utf8'), /record --stage tests --plan <plan file>/);
+});

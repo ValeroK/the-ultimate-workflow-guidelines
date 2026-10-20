@@ -72,7 +72,7 @@ Four of the five hand you proposals instead of applying them. That's on purpose.
 
 You don't need all five every time. A typo doesn't need a plan.
 
-There is a sixth command that is not part of the loop: **`/handoff`** writes a handoff document when a session ends with work still in flight, so the next agent inherits the state that hasn't landed in any committed file yet. You run it; it is never invoked on your behalf.
+Two more commands sit outside the loop. **`/ultimate-workflow:experts`** is the quick expert check before a commit: it asks again which experts apply to the real diff, runs them and records the evidence. **`/handoff`** writes a handoff document when a session ends with work still in flight, so the next agent inherits the state that hasn't landed in any committed file yet. You run it; it is never invoked on your behalf.
 
 ## Domain experts
 
@@ -86,14 +86,15 @@ A **domain expert** is an agent with a vetted checklist for one domain. Unlike a
            each expert chosen adds constraints, risks and questions to the plan
            YOU confirm the plan, expert input included
               |
- /tests    the same experts add the test cases their domain needs
+ /tests    the same experts, plus quality (it always joins), add the test cases
+           their domain needs
            YOU confirm the tests
               |
- /build    the implementer treats the expert input as requirements, and every
-           expert with a build brief (the developer expert has one) loads it, on every
-           build: a short list of how to write, never what to build
+ /build    the implementer treats the expert input as requirements, and gets the
+           developer and quality briefs on every build (how to write, never what to
+           build), with the shared skills the plan's files call for
               |
- commit    refused until /ultimate-workflow:experts has run:
+ commit    with the gates on, refused until /ultimate-workflow:experts has run:
              the question is asked again against the real diff (it can only ADD experts)
              each expert reviews the diff, and checks it against what it required in the plan
              a high-confidence finding stays open until it is fixed, or YOU dismiss it
@@ -104,9 +105,11 @@ What you see: ask for an order lookup route and the plan comes back with a secur
 
 **What is code and what is a model.** Code decides which experts exist (it scans the agents folder), that the answer can only add, that an expert actually ran, that the evidence matches the code being committed, and whether the commit is allowed. A model decides which experts apply, what they advise, and what the review finds. The gate guarantees the question is asked and answered. It cannot guarantee the answer is right.
 
-**Adding an expert** is one agent file, one reference file per stage it joins, and an examples file. Nothing else is edited: no registry, no router, no workflow. The recipe is **[docs/adding-an-expert.md](docs/adding-an-expert.md)**, and it is tested by following it mechanically. What a good expert looks like, and how to vet one before you trust it, is **[docs/what-a-good-expert-looks-like.md](docs/what-a-good-expert-looks-like.md)**. One expert ships today: security, which also audits dependencies with a script that checks real advisories instead of guessing.
+**Adding an expert** is one agent file, one reference file per stage it joins, and an examples file. Nothing else is edited: no registry, no router, no workflow. The recipe is **[docs/adding-an-expert.md](docs/adding-an-expert.md)**, and it is tested by following it mechanically. What a good expert looks like, and how to vet one before you trust it, is **[docs/what-a-good-expert-looks-like.md](docs/what-a-good-expert-looks-like.md)**. Five experts ship: `architect` (how services, queues, data stores and AWS resources fit together), `softarch` (module boundaries and dependency direction), `developer` (craft in new production code), `quality` (whether tests, evals and gates can fail) and `security`, which also audits dependencies with a script that checks real advisories instead of guessing. The list of experts, and of the skills each one uses, is in [docs/expert-catalogue.md](docs/expert-catalogue.md).
 
-**The honest limits.** The commit gate runs on Claude Code and is off unless you turn the gates on (see [docs/gates.md](docs/gates.md)); elsewhere the same flow is written instructions and works as far as the model follows them. Whether a model picks the right experts was measured once, on one expert: it chose security for 12 of 12 seeded security diffs and for 5 of 6 harmless look-alikes (it is told to include an expert when unsure). That is promising, not proven. Experts cost tokens: one call to choose, one per expert per stage.
+**Shared skills.** An expert's reference names the skills it may need: a language's pitfalls, failure handling, engineering principles, how to write a test. There are twelve, under `experts/skills/`. Code picks the ones that apply from the diff (review) or the plan (build, tests) and pastes them into the expert's prompt; at plan a model picks from an offered list. They are not the design-guidance skills below, which the host loads by itself. How it works: [docs/adding-an-expert.md#shared-skills](docs/adding-an-expert.md#shared-skills).
+
+**The honest limits.** The commit gate runs on Claude Code and is off unless you turn the gates on (see [docs/gates.md](docs/gates.md)); elsewhere the same flow is written instructions and works as far as the model follows them. Whether a model picks the right experts was measured once, on one expert: it chose security for 12 of 12 seeded security diffs and for 5 of 6 harmless look-alikes (it is told to include an expert when unsure). That is promising, not proven. Against a plain reviewer on frozen blind corpora the results are mixed: the developer expert found more seeded defects (6 of 6 against 4 of 6 on its held-out split), softarch shows weak evidence, and architect and quality show no gain because the plain reviewer already finds everything there ([evals/experts/results/README.md](evals/experts/results/README.md)). Skills at build, tests and plan are unmeasured. Experts cost tokens: one call to choose, one per expert per stage, and about 28 KB of briefs and skills on every build.
 
 ## Starting a brand new project?
 
@@ -207,7 +210,7 @@ Claude Code can run the five commands as real scripts, so the ordering is guaran
 | Ordering guaranteed | Yes | You hold the sequence | You hold the sequence |
 | Only the builder can write | Yes | Yes | — |
 | Optional enforcement hooks | Yes | No | Not verified |
-| Domain experts at plan, tests and review | Yes | You invoke the phases | As prose |
+| Domain experts at plan, tests and review | Yes | You invoke `uw-expert-<name>` by hand; no selection, skill injection or evidence | No |
 | Commit refused until the experts have reviewed | Yes, with the gates on | No | No |
 
 Cursor keeps most of what matters: separate jobs, clean context each time, and only one of them able to write. What it loses is the guarantee, and its rule file says so plainly rather than implying otherwise.
@@ -223,7 +226,10 @@ CLAUDE.md                         one line: @AGENTS.md
 .cursor-plugin/marketplace.json   Cursor marketplace catalog
 .cursor-plugin/ultimate-workflow/ shippable plugin (Claude + Cursor payload)
   skills/   rules/   agents/   commands/   workflows/   hooks/   memory/   experts/
-evals/                            checks that the instructions still get followed, and recorded results for the architecture skills
+  experts/<name>/references/       one reference per stage an expert joins
+  experts/skills/                  shared skills that code pastes into an expert's prompt
+docs/                             the expert recipe, catalogue, gates and design notes
+evals/                            checks that the instructions still get followed: the expert contract, blind corpora and recorded results
 research/                         background notes and claim checks (not shipped in the plugin ZIP)
 ```
 

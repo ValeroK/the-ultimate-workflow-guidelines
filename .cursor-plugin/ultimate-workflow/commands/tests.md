@@ -35,7 +35,7 @@ Present the returned Tests section and **stop**. Negotiating "how would we know 
 The section ends with "Expert test cases", one subsection per expert that took part. Say which experts joined because they always do (`expertLane.added`) and which skills each was given (`expertLane.skillsLoaded`). If `expertLane.failed` is not empty, say which expert's cases are missing. If `expertLane.skipped` is set, say that no expert was consulted, and why.
 
 Once the user has confirmed and the Tests section is in the plan file, record the evidence: build a JSON object with `"ok": true` and the `expertLane` exactly as returned, and run
-`node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" record --stage tests` with it on standard input. Skip this if `expertLane.skipped` was set.
+`node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" record --stage tests --plan <plan file>` with it on standard input. `--plan` writes any expert that joined because it always does (quality) into the plan's `experts:` line, so the review and the commit check expect it too. Skip this if `expertLane.skipped` was set.
 
 ## If the Workflow tool is unavailable
 

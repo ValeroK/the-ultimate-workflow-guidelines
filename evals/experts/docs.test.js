@@ -160,7 +160,8 @@ test('the site links to the expert docs, and they exist next to it', () => {
 });
 
 test('the site host table carries the same two expert rows as the README', () => {
-  assert.match(SITE, /Domain experts at plan, tests and review<\/td><td>Yes<\/td><td>You invoke the phases<\/td><td>As prose/);
+  assert.match(SITE, /Domain experts at plan, tests and review<\/td><td>Yes<\/td><td>You invoke <code>uw-expert-&lt;name&gt;<\/code> by hand<\/td><td>No/);
+  assert.match(README, /Domain experts at plan, tests and review \| Yes \| You invoke `uw-expert-<name>` by hand/);
   assert.match(SITE, /Commit refused until the experts have reviewed<\/td><td>Yes, with the gates on<\/td><td>No<\/td><td>No/);
 });
 

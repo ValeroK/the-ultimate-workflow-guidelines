@@ -1,6 +1,6 @@
 ---
 description: Write the confirmed tests, prove they fail, implement minimally, loop to green or escalate. The only phase that writes.
-argument-hint: "<plan file, or leave empty for the newest>"
+argument-hint: "<plan file; required if more than one PLAN-*.md exists>"
 ---
 
 # Phase: build

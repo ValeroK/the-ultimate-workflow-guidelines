@@ -149,6 +149,10 @@ For any non-trivial task, follow this loop:
    - *Applies Goal-Driven Execution.*
    - **Why:** step 6 persists what the *repo* must remember; the handoff persists what the *next agent* must know — the in-flight state that no committed doc carries.
 
+### Domain experts
+
+Where `agents/uw-expert-*.md` exist (architect, softarch, developer, quality, security ship with this plugin), the phase commands bring them in: at plan a model asks which apply and each chosen one adds constraints, at tests they add cases (quality always does), at build their standing briefs shape how code is written, and before a commit they review the diff. The plan records the decision on its `experts:` line; `experts: []` is a decision too. Shared skills from `experts/skills/` are pasted into an expert's prompt by code. On a host without the phase scripts, invoke `uw-expert-<name>` yourself at the stages its `stages` line names, and read the skills its stage reference lists. How it works: `commands/plan.md`, `commands/review.md`, `commands/experts.md`.
+
 ### Gates: an opt-in backstop for ad-hoc work
 
 The phase commands make ordering structural -- a phase you have not started cannot be skipped -- so the gates are no longer the enforcement story. What they still cover is work done outside the phases. They are **off unless you turn them on**: set `ULTIMATE_WORKFLOW_GATES=on`.
@@ -159,6 +163,7 @@ When enabled, the steps above are backed by deterministic gates. They read a sma
 - No implementation lands before `tests_confirmed: true`. Test files are exempt -- that is the point.
 - A turn cannot end while source has changed since the last green verification. Set `test_command` in the front matter so the gate can name it when it blocks.
 - Three failing verification rounds escalate to the user through the blocker protocol in step 5.
+- No source edit before the plan records which domain experts apply, and no `git commit` until they have reviewed the current changes (`/ultimate-workflow:experts`) with no high-confidence finding left open.
 
 Set `plan_confirmed` and `tests_confirmed` to `true` **only after the user has actually confirmed** that stage. Do not set them to clear a block. The gates maintain every other field themselves.
 

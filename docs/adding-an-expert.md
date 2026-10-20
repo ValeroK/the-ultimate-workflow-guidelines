@@ -27,17 +27,24 @@ An expert is **not a persona**. "You are a senior security engineer" adds almost
 
 ```
  /plan      draft the plan
-            ask (model): "which of these experts apply?"   <- the list is found in code
-            each selected expert with a plan stage adds constraints, risks, questions
+            ask (model): "which of these experts apply, and which of their offered
+            skills does this draft need?"           <- both lists are found in code
+            each selected expert with a plan stage gets its chosen skills pasted in and
+            adds constraints, risks, questions
             the input is written into the plan under "Expert input"; you confirm the plan
- /tests     the selected experts with a tests stage add cases; you confirm the tests
+ /tests     the plan's experts with a tests stage, plus any marked always: [tests]
+            (quality), add cases; each gets the skills code chose from the plan
+            you confirm the tests
  /build     the implementer is told the Expert input is binding. Experts do not write code.
-            every expert that declares a build stage also gives the implementer a short standing
-            brief, on every build, selected or not. It says how to write, never what to build.
- commit     the commit gate refuses until /ultimate-workflow:experts has run:
+            every expert that declares a build stage gives the implementer a short standing
+            brief, on every build, selected or not, plus the skills code chose from the plan.
+            It says how to write, never what to build.
+ commit     with the gates on (opt-in, G6): no source edit until the plan records which
+            experts apply (experts: [] counts), and no commit until
+            /ultimate-workflow:experts (or /review) has run:
             ask again (model) against the real diff; the answer can only ADD experts
-            every selected expert with a review stage reviews the diff, and also checks
-            it against what it required at planning time
+            every selected expert with a review stage gets the skills code chose from the
+            diff and reviews it, also against what it required at planning time
             evidence is recorded against a fingerprint of the changes; any later change
             makes it stale
             a high-confidence finding stays OPEN until it is resolved: fixed (the next
@@ -53,12 +60,42 @@ An expert added at the commit check was never consulted at planning. It reviews,
 
 ## Shared skills
 
-A skill is knowledge an expert reads only when the change needs it: a principles reference, a failure-handling checklist, a language's idioms. It is not an expert and is never selected on its own.
+A skill is knowledge an expert needs only when the change calls for it: a principles reference, a failure-handling checklist, a language's idioms, how to write a test. It is not an expert and is never selected on its own. It is also not the same thing as the payload's `skills/` folder: those are `SKILL.md` guideline skills the host loads by itself; these are `skill.md` files that code pastes into an expert's prompt.
 
-- **Where.** `.cursor-plugin/ultimate-workflow/experts/skills/<name>/skill.md`, with a `NOTICE.md` beside it. The file is `skill.md`, not `SKILL.md`, so no host loads it as a skill of its own on every turn.
-- **Who loads it: code, not the model.** In two smoke runs an expert told to "read the skill whose cue matches" read none, so at `review` and `build` the choice is made by `experts.js` and the text is pasted into the prompt. The expert's `review.md` or `build.md` lists its skills under `## Skills`, one per line, with a selector in parentheses and a cue after the colon: ``- `experts/skills/<name>/skill.md` (files: *.go, go.mod): load when ...``. Selectors: `files:` base-name globs, matched against the changed files (review) or the file names the plan mentions (build); `added:` a regular expression, matched against the diff's added lines (review) or the plan's text (build); `always`. The list order is the priority when the skills would pass the 32 KB cap; what does not fit is named, never silently dropped. `review` gets them through `experts.js prepare` (from the saved diff, so a committed range works too), `build` through `experts.js brief --plan <plan>`; a `build.md`'s Skills section is cut out of the brief, so it does not count against the 4 KB brief cap. More than one expert may name the same skill. The eval harness's expert arm uses the same selection per case; one difference remains: a batch reviews several cases in one prompt, so it carries the union of their skills (about 35 KB on the `review` held-out split, against at most 25 KB for any one change). At `plan` the draft exists only inside the workflow, so no code can match it: `experts.js skills --stage plan` lists each planning expert's skills with the words after the colon as a headline, the call that chooses the experts must also answer which skills the draft needs, and the script pastes only skills from that list. This is a model's choice, so it can miss, but it is a required structured answer rather than a hope that the expert opens a file.
-- **What the contract checks.** Every named skill exists; every mention has a cue ("when") on its line; in `review.md` and `build.md` every skill line has a selector that parses; every skill is named by at least one expert; every skill has a `NOTICE.md`, is at most 16 KB, opens with a `# ` title, and tells no one to fetch, install or visit anything.
-- **What it holds.** What the expert cannot say in one line of its checklist: exact meanings, counter-cases, language forms. A skill never adds a category of its own; the expert's checklist decides what is reported.
+**Where.** `.cursor-plugin/ultimate-workflow/experts/skills/<name>/skill.md`, with a `NOTICE.md` beside it. The file is `skill.md`, not `SKILL.md`, so no host loads it on every turn. At most 16 KB.
+
+**How an expert names a skill.** The stage reference (`review.md`, `build.md`, `tests.md`, `plan.md`) lists its skills under `## Skills`, one per line, in priority order:
+
+```
+- `experts/skills/go-craft/skill.md` (files: *.go, go.mod): load when the diff touches Go files.
+- `experts/skills/failure-handling/skill.md` (added: \bcatch\b|except): load when ...
+- `experts/skills/surgical-change/skill.md` (always): load when ...
+```
+
+The part in parentheses is the selector: `files:` base-name globs, `added:` a regular expression, or `always`. The words after the colon are the cue; at plan they are the headline a model chooses by. `plan.md` lines take no selector.
+
+**Who chooses: code, not the expert.** In two smoke runs an expert told to "read the skill whose cue matches" opened none. So the choice is made before the agent runs and the text is pasted into its prompt:
+
+| Stage | Chosen by | Matched against | Lane fields |
+|---|---|---|---|
+| review | `experts.js prepare` | the saved diff: changed file names and added lines (read with fixed `a/` `b/` prefixes, so any range and any git config work) | `skillsLoaded`, `skillsDropped` (kept in the evidence) |
+| build | `experts.js brief --plan <plan>` | file names the plan mentions (in backticks, or with a slash) and the plan's text | `skillsLoaded` |
+| tests | `experts.js skills --stage tests --plan <plan>` | the same as build | `skillsLoaded` |
+| plan | a model: the call that chooses the experts must also name the skills the draft needs, from the list `experts.js skills --stage plan` prints | the draft, by the model | `skillsLoaded`, `skillReasons`, `ignoredSkills` |
+
+Plan is the one stage without a code floor: the draft exists only inside the workflow script. A model can still miss a skill there; what it cannot do is pick one that is not on offer.
+
+**Cost.** At most 32 KB of skills per expert per stage; what does not fit is named, never silently dropped. There is no total across experts (a decision, revisit when a third expert declares `build`). An `always` skill is paid on every run of that stage: today every build carries the developer's three `always` skills, `test-craft` and both briefs, about 28 KB before any file-matched skill.
+
+**Adding a skill.** Write `skill.md` (a `# ` title, nothing that tells a reader to fetch, install or visit) and `NOTICE.md` (where the ideas came from, with licences). Name it in at least one stage reference with a selector. Prefer `files:` or `added:`; use `always` only for a skill no file name or line can signal, because it is paid every time.
+
+**What the contract checks.** Every named skill exists; every mention has a cue ("when") on its line; in `review.md`, `build.md` and `tests.md` every skill line has a selector that parses; every skill is named by at least one expert, has a `NOTICE.md`, is at most 16 KB, opens with a `# ` title and fetches nothing. Byte budgets: 60 KB per expert, 150 KB for `experts/` without skills, 200 KB for `experts/skills/`.
+
+**What it holds.** What the expert cannot say in one line of its checklist: exact meanings, counter-cases, language forms, how to write the thing well. A skill never adds a category of its own; the expert's checklist decides what is reported.
+
+**In the eval harness.** The expert arm uses the same selection per case. A batch reviews several cases in one prompt, so it carries the union of their skills: about 35 KB on the `review` held-out split, more than any single case there (25 KB).
+
+**Which expert uses which skill** is listed in `docs/expert-catalogue.md`.
 
 ## Before you start: do you need an expert at all?
 
@@ -71,7 +108,7 @@ An expert earns its place where you can name something a lens cannot give:
 - noise a checklist's "do not report" list would cut;
 - a decision that needs input a model cannot give (versions, advisories, anything from the network), supplied by a script.
 
-**Does it need more than Read, Grep and Glob?** A browser for screenshots (UI/UX), a shell, the network. **Stop.** That is a different decision: widening an expert's tools changes what an untrusted diff can make it do. It needs a threat discussion first. Only then add an entry for it to `DECLARED_TOOLS` in `evals/experts/lib/contract.js`; it is a reviewed edit, never a quiet change to the agent file. Anything that must be *exactly right* and needs the network (like the dependency audit) belongs in a script that the command runs, whose output the expert receives.
+**Does it need more than Read, Grep and Glob?** A browser for screenshots (UI/UX), a shell, the network. **Stop.** (The five shipped experts have web search and fetch at plan and review, and security has read-only shell commands, each by a recorded maintainer decision in `DECLARED_TOOLS`.) That is a different decision: widening an expert's tools changes what an untrusted diff can make it do. It needs a threat discussion first. Only then add an entry for it to `DECLARED_TOOLS` in `evals/experts/lib/contract.js`; it is a reviewed edit, never a quiet change to the agent file. Anything that must be *exactly right* and needs the network (like the dependency audit) belongs in a script that the command runs, whose output the expert receives.
 
 **Where does the knowledge come from?** Write it yourself, or vendor third-party content. If you vendor, read "Vendoring third-party content" below before copying anything.
 
@@ -127,6 +164,7 @@ The workflow prompt gives the directory that holds your references (`experts/{{n
 - At the **plan** stage, read `experts/{{name}}/references/plan.md` first.
 - At the **tests** stage, read `experts/{{name}}/references/tests.md` first.
 - At the **review** stage, read `experts/{{name}}/references/review.md` first. It defines scope, the result format, confidence, method, categories and what not to report.
+- Shared skills that apply to this change are already pasted into your prompt by the workflow. Read them first, and do not open other skill files.
 - At the **build** stage you are not run. `experts/{{name}}/references/build.md` is passed to the implementer on every build, selected or not. It is a brief, not a task: you never write code.
 
 ## Rules that do not bend
@@ -299,7 +337,7 @@ Each rule exists because the first expert showed it can be forgotten or broken s
 | The review reference passes the checklist lint | One confidence scale, a defined no-findings result, no demand for a finding, an untrusted-input section. |
 | The plan and tests references allow an empty answer, cap the output ("at most") and call what is read data | Otherwise the expert invents requirements, or the plan grows past what anyone can confirm. |
 | No `SKILL.md`, no tests or fixtures under the expert | A registered skill puts a description in the main context on every turn. Tests and fixtures belong in repo-root `evals/`, which the plugin ZIP never contains. |
-| Size budget per expert | The plugin ZIP has a ceiling. |
+| Size budget: 60 KB per expert; 150 KB for `experts/` without skills and 200 KB for `experts/skills/` (in `evals/security-expert/provenance.test.js`) | What an expert reads costs tokens on every consult, and the payload stays small. |
 | Selection examples: three that apply, three that do not | Forces you to state when it should be chosen, and seeds the recall check (below). |
 | No unfilled `FILL-IN:` or `REPLACE` note | A template note shipped as content is a defect. |
 | Every workflow parses, and the expert lane helpers are identical in `plan.js`, `tests.js` and `review.js` | Scripts cannot import, so the helpers are copied. A copy that drifts is a lane that behaves differently from its siblings. |
@@ -324,7 +362,8 @@ Claude Code takes bare tool names in `tools:`; it cannot restrict `WebFetch` to 
 **Reasoned, not yet tested.**
 
 - That the model recalls well enough *with the real repository in front of it and with more than one expert to choose between*. The check below had only the diff, and a single expert.
-- That experts taking part at plan and tests time improves the plan and the tests. No measurement; the first non-security expert is the chance to make one.
+- That experts taking part at plan and tests time improves the plan and the tests. Five experts exist and none of their plan or tests input has been measured; only review has (`evals/experts/results/README.md`).
+- That skills pasted at build, tests and plan change what gets written. Unmeasured; at review, on a saturated corpus, they caused no loss and showed no gain.
 - That a commit gate stops a forgotten check. The gate predicates are unit-tested; whether a host fires the hook reliably is measured only for Claude Code, and only for edits, not yet for `Bash`.
 - That the plan-time expert input is read and honoured by the implementer. The workflow tells it to; nothing checks the result except the experts' own review.
 
@@ -335,7 +374,7 @@ This is the part that is easy to get wrong. What we learned:
 1. **Build the measurement before the content, and freeze the corpus first.** If you write the checklist and then the test cases, the cases will use the checklist's vocabulary and flatter it. We did this in the wrong order for security and had to mitigate.
 2. **Author the corpus blind.** A separate agent that has never seen the checklist writes the cases, from a list of categories only. Include benign look-alikes that are demonstrably safe, because false positives are where a calibrated expert should win.
 3. **Make the cases hard enough to separate.** Textbook vulnerabilities (command injection through `exec`, `pickle.loads` on uploads) are found by everything. Use subtle, multi-step cases that need this repository's conventions.
-4. **Compare like with like.** Same repository context, same read-only instruction, same output contract, for each of: a generic prompt, the generic domain lens, any strong third-party prompt, and the expert. Blind the runs (opaque ids, opaque case names, detached worktrees) so a reviewer cannot tell which arm or which case it is in. The tooling is in `evals/security-expert/manual/build-prompts.js` and `evals/security-expert/manual/plan-runs.js`; they are security-specific today and should be generalised on first reuse.
+4. **Compare like with like.** Same repository context, same read-only instruction, same output contract, for each of: a generic prompt, the generic domain lens, any strong third-party prompt, and the expert. Blind the runs (opaque ids, opaque case names, detached worktrees) so a reviewer cannot tell which arm or which case it is in. The tooling is `evals/experts/eval/` (`lib/run.js`, `lib/corpus.js`, `lib/score.js`, `thresholds.json`, driven by `manual/run-eval.js`); the expert arm uses the same skill selection as the review command. The first security-only versions in `evals/security-expert/manual/` are kept as history.
 5. **Score by content, not by line number.** Our pre-registered rule matched findings to the planted bug by file and a line tolerance. The expert and the upstream prompt cited the line where the harm happens; the corpus author recorded where the flaw is introduced. Both were right, and the rule counted them as misses. Use a judge that is blind to the arm, or define the target as a region.
 6. **Count failed runs and false positives.** A crashed reviewer is a failed run, never a clean one. A higher hit rate with three times the false positives is not a win.
 7. **Report raw counts and per-case flips.** With a dozen cases, a difference smaller than one case is "not distinguishable". Say that. The maintainer decides keep or drop.
@@ -366,6 +405,6 @@ Treat it as untrusted code, because a skill is instructions your agent will foll
 ## Open points
 
 - **Overlap with the existing reviewers.** The core lenses (correctness, simplicity, scope, test coverage) and an expert can flag the same defect. Does an expert replace a core lens for its domain, or only add? Who de-duplicates? Is there a case for an expert-only run that skips the core lenses? (`expertsOnly` exists for the commit check, but nobody has decided it is right for anything else.)
-- **An architect expert against `uw-explorer` and `uw-critic`**, which already do discovery and plan critique. Replacement, addition, or a differently prompted critic?
+- **Do `architect` and `softarch` overlap `uw-explorer` and `uw-critic`**, which already do discovery and plan critique? Both experts now exist; nobody has measured the overlap.
 - **Whether an expert may block** a plan rather than only advise.
 - **Selection recall**, as above.

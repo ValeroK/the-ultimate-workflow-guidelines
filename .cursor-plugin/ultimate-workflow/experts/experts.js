@@ -101,7 +101,9 @@ function list(pluginRoot = PLUGIN_ROOT) {
 
 /**
  * The standing brief of every expert that declares the build stage: the text of its build.md,
- * loaded on every build whether or not the expert was selected at plan time. A missing, empty or
+ * loaded on every build whether or not the expert was selected at plan time, except a brief with
+ * no `always` skill, which joins only when the plan selects one of its skills (`skipped` names the
+ * rest). A missing, empty or
  * oversized brief is reported and left out; a brief that costs tokens on every build is capped.
  *
  * With `planText`, each brief also carries the skills its build.md selects for the paths and text
@@ -112,6 +114,7 @@ function briefs(pluginRoot = PLUGIN_ROOT, { planText = null } = {}) {
   const found = list(pluginRoot);
   const out = [];
   const problems = [...found.problems];
+  const skipped = [];
   for (const e of found.experts.filter((x) => x.stages.includes(BUILD))) {
     const file = path.join(pluginRoot, 'experts', e.name, 'references', 'build.md');
     let text = '';
@@ -121,19 +124,29 @@ function briefs(pluginRoot = PLUGIN_ROOT, { planText = null } = {}) {
       problems.push(`${e.name}: declares the build stage but experts/${e.name}/references/build.md cannot be read`);
       continue;
     }
+    // A brief whose build.md lists no `always` skill is for some changes only (the DevOps brief is
+    // for infrastructure, pipelines and containers): it joins a build only when the plan selects one
+    // of its skills, and never when there is no plan to select from.
+    const conditional = !skillList(text).skills.some((s) => s.selector.kind === 'always');
     text = withoutSkillsSection(text);
     if (text === '') problems.push(`${e.name}: build.md is empty`);
     else if (Buffer.byteLength(text) > BRIEF_BYTES) problems.push(`${e.name}: build.md is ${Buffer.byteLength(text)} bytes without its Skills section; a brief loaded on every build is capped at ${BRIEF_BYTES}`);
-    else if (change === null) out.push({ name: e.name, text });
-    else {
+    else if (change === null) {
+      if (conditional) skipped.push(e.name);
+      else out.push({ name: e.name, text });
+    } else {
       const sel = selectSkills(pluginRoot, e.name, BUILD, change);
       problems.push(...sel.problems);
+      if (conditional && sel.skills.length === 0 && sel.dropped.length === 0) {
+        skipped.push(e.name);
+        continue;
+      }
       if (sel.dropped.length > 0) problems.push(`${e.name}: skills left out at the ${SKILLS_BYTES}-byte cap: ${sel.dropped.join(', ')}`);
       out.push({ name: e.name, text, skills: sel.skills, dropped: sel.dropped });
     }
   }
   const note = change === null ? 'no plan given, so no skills were selected' : change.files.length === 0 ? 'the plan names no file, so only skills marked always were selected' : '';
-  return { briefs: out, problems, planPaths: change ? change.files : [], note };
+  return { briefs: out, problems, planPaths: change ? change.files : [], note, skipped };
 }
 
 // ---- skills, chosen in code ----

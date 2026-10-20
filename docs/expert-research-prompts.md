@@ -207,7 +207,7 @@ Also return: the five migration mistakes that most often cause an outage, each w
 
 ## 7. DevOps engineer, part 1: infrastructure as code (Terraform, CloudFormation, CDK)
 
-> Status: not run; the expert is not built (catalogue 9). Overlaps the architect; this one owns how infrastructure code is written and changed, the architect owns what is built.
+> Status: A to C answered from the vendors' documentation on GitHub on 2026-10-20 (`docs/research/devops-2026-10-20.md`); CloudFormation is the 2023 archive, so current quotas and change-set values still need the live guide. D and E not run (static-check rule ids; tagging; deployment roles, which are security's). Overlaps the architect; this one owns how infrastructure code is written and changed, the architect owns what is built.
 
 ```
 [shared rules above]
@@ -225,7 +225,7 @@ Also return: the changes in an IaC diff most likely to delete or replace data, e
 
 ## 8. DevOps engineer, part 2: delivery and CI/CD
 
-> Status: not run; the expert is not built (catalogue 9, the DevOps engineer, which merges the former 10).
+> Status: GitHub Actions answered from `github/docs` on 2026-10-20 (`docs/research/devops-2026-10-20.md`). Still open: GitLab CI rules, SnapStart and CodeDeploy canaries, CloudFront deploy steps. Gates that cannot fail are the quality expert's, not this one's.
 
 ```
 [shared rules above]
@@ -306,8 +306,8 @@ Also return: what a reviewer can and cannot judge from a diff, and when a change
 | 4 | Quality engineer | not run | The expert ships; `test-craft` was built from upstream skills, not primary sources |
 | 5 | Generative AI engineer | not run | Next expert to build |
 | 6 | Data and database | not run | Next after the Generative AI engineer |
-| 7 | DevOps engineer: infrastructure as code | not run | The DevOps engineer merges catalogue 9 and 10 |
-| 8 | DevOps engineer: delivery and CI/CD | not run | Same expert as 7 |
+| 7 | DevOps engineer: infrastructure as code | answered from GitHub-hosted docs, 2026-10-20 | `docs/research/devops-2026-10-20.md`; current CloudFormation quotas still need the live guide |
+| 8 | DevOps engineer: delivery and CI/CD | partly answered, 2026-10-20 | GitHub Actions done; GitLab CI, SnapStart, CodeDeploy canaries and CloudFront deploys still open |
 | 9 | Observability and operations | not run | |
 | 10 | Frontend and accessibility | not run | |
 | 11 | Privacy and compliance | not run | May fold into security |

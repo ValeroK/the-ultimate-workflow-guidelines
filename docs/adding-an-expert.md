@@ -41,7 +41,8 @@ An expert is **not a persona**. "You are a senior security engineer" adds almost
  /build     the implementer is told the Expert input is binding. Experts do not write code.
             every expert that declares a build stage gives the implementer a short standing
             brief, on every build, selected or not, plus the skills code chose from the plan.
-            It says how to write, never what to build.
+            A brief whose build.md lists no `always` skill (devops) joins only when the plan
+            selects one of its skills. It says how to write, never what to build.
  commit     with the gates on (opt-in, G6): no source edit until the plan records which
             experts apply (experts: [] counts), and no commit until
             /ultimate-workflow:experts (or /review) has run:
@@ -123,7 +124,7 @@ Paths under `agents/`, `experts/` and `workflows/` are relative to `.cursor-plug
 |---|---|---|
 | 1 | `agents/uw-expert-<name>.md` | Create from the `agent` template. `<name>` is one lowercase word. Write the `description` so that a model can tell when the expert applies, and set `stages` to the stages it joins. Add `always: [tests]` only if the expert should join the tests stage whether or not it was selected (today only `quality`, because every test plan is about tests). |
 | 2 | `experts/<name>/references/<stage>.md` | One file per stage you declared, from the `plan-reference`, `tests-reference` and `review-reference` templates. Replace every `FILL-IN:` note. Add further files for material only some work needs, and name each in the agent file with an "only if" condition. |
-| 2b | `experts/<name>/references/build.md` | Optional. Only if the domain should shape the code as it is written, on every build, not only when the expert is chosen at plan time. A short brief from the `build-reference` template, at most 4 KB, written as "when this, do that" rules including when not to add structure. Add `build` to `stages`. Nothing else is edited. |
+| 2b | `experts/<name>/references/build.md` | Optional. Only if the domain should shape the code as it is written, on every build, not only when the expert is chosen at plan time. If the brief is for some changes only (the DevOps brief is for infrastructure, pipelines and containers), list no `always` skill in its Skills section: the brief then joins a build only when the plan selects one of its skills. A short brief from the `build-reference` template, at most 4 KB, written as "when this, do that" rules including when not to add structure. Add `build` to `stages`. Nothing else is edited. |
 | 3 | `evals/experts/examples/<name>.json` | From the `examples` template: at least three situations where the expert applies and three where it does not. |
 | 4 | `experts/<name>/NOTICE.md` | Only if any content is adapted from a third party: the licence text and a pointer to `references/CHANGES.md`. |
 

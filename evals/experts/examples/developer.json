@@ -13,6 +13,7 @@
     "Adds a unit test for a date-formatting helper",
     "Changes a timeout value in a configuration file from 5 to 10 seconds",
     "Reorders the columns of a report table in the UI",
-    "Reformats a file with the project's formatter and sorts its imports"
+    "Reformats a file with the project's formatter and sorts its imports",
+    "Adds a deploy job to the GitHub Actions workflow and a Terraform module for the queue it deploys to"
   ]
 }

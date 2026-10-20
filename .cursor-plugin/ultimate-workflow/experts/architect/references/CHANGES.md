@@ -21,3 +21,8 @@ Compared 19 upstream architect, SRE, FinOps and migration agents and skills (ECC
 - Boundaries with softarch: import cycles, module contracts and data owners stay the software architect's.
 - Not taken: high availability or multi-region by default, microservice rules applied everywhere, a decision record for every choice, fixed latency or uptime numbers, diagrams as deliverables, dual writes as a migration pattern.
 - Not measured: the architect corpus is saturated.
+
+## 2026-10-20: boundary with the DevOps engineer
+
+- Operability narrowed to a design that cannot be rolled back and a component with nothing to show it is healthy. How a change is built, deployed and undone in the pipeline, and what an infrastructure change replaces or destroys, moved to the DevOps engineer.
+- "Do not report" gains deploy mechanics (the pipeline, migration order in it, image tags, IaC replacement and state); data compatibility across versions stays here.

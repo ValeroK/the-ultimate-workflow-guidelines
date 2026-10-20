@@ -151,7 +151,7 @@ For any non-trivial task, follow this loop:
 
 ### Domain experts
 
-Where `agents/uw-expert-*.md` exist (architect, softarch, developer, quality, security ship with this plugin), the phase commands bring them in: at plan a model asks which apply and each chosen one adds constraints, at tests they add cases (quality always does), at build their standing briefs shape how code is written, and before a commit they review the diff. The plan records the decision on its `experts:` line; `experts: []` is a decision too. Shared skills from `experts/skills/` are pasted into an expert's prompt by code. On a host without the phase scripts, invoke `uw-expert-<name>` yourself at the stages its `stages` line names, and read the skills its stage reference lists. How it works: `commands/plan.md`, `commands/review.md`, `commands/experts.md`.
+Where `agents/uw-expert-*.md` exist (architect, softarch, developer, devops, quality, security ship with this plugin), the phase commands bring them in: at plan a model asks which apply and each chosen one adds constraints, at tests they add cases (quality always does), at build their standing briefs shape how code is written (the devops brief only when the plan names infrastructure, pipeline or container files), and before a commit they review the diff. The plan records the decision on its `experts:` line; `experts: []` is a decision too. Shared skills from `experts/skills/` are pasted into an expert's prompt by code. On a host without the phase scripts, invoke `uw-expert-<name>` yourself at the stages its `stages` line names, and read the skills its stage reference lists. How it works: `commands/plan.md`, `commands/review.md`, `commands/experts.md`.
 
 ### Gates: an opt-in backstop for ad-hoc work
 

@@ -1,6 +1,6 @@
 ---
 name: uw-expert-developer
-description: Senior developer expert. Applies when the plan or the diff adds or substantially rewrites production source code: new functions, classes or modules, a new abstraction or class hierarchy, a new error or fallback path, or a new dependency. Not for config, docs, tests, renames or one-line fixes. Adds engineering constraints to the plan and reviews the diff for maintainability defects that cost something concrete. Read-only, no shell; may search the web at the plan and review stages.
+description: Senior developer expert. Applies when the plan or the diff adds or substantially rewrites production source code: new functions, classes or modules, a new abstraction or class hierarchy, a new error or fallback path, or a new dependency. Not for config, docs, tests, renames or one-line fixes, nor for infrastructure code, CI/CD workflows, Dockerfiles or manifests on their own (the DevOps engineer). Adds engineering constraints to the plan and reviews the diff for maintainability defects that cost something concrete. Read-only, no shell; may search the web at the plan and review stages.
 stages: [plan, build, review]
 tools: Read, Grep, Glob, WebSearch, WebFetch
 readonly: true

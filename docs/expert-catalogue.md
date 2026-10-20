@@ -113,10 +113,10 @@ An agent was placed under an expert by its name and the survey's domain notes, n
   - Research prompt: 6 in `docs/expert-research-prompts.md` (Postgres locks and migrations, transactions, connection pools, DynamoDB, data lifecycle).
 - **Boundaries:** the architect owns where state lives and how the system fails around it, and caching as a pattern; this expert owns schema, migrations, queries, indexes, transactions and the data stores' own semantics (Redis as a store included). Vector stores used for retrieval are shared with the Generative AI engineer. Data engineering (dbt, Airflow, data lakes, Redshift, Snowflake, BigQuery) is not in scope unless decided otherwise.
 
-### 9. DevOps engineer (new; merges the former 9, cloud infrastructure and IaC, and 10, delivery and CI/CD)
-- **Owns:** how infrastructure is written and changed (Terraform, CDK, CloudFormation, SAM: state, replacement and deletion, drift, pinning), containers and Kubernetes, CI/CD pipelines and their hardening, deployment and rollback, feature flags and release safety. The architect owns *what* is built and how it fails; this expert owns *how* it is built, shipped and changed. IAM policy content stays with security.
-- **Candidates routed here from the architect's research:** see "Routed to other experts" in `docs/experts/architect.md`.
-- **Stages:** plan, review.
+### 9. DevOps engineer (have: `devops`; merges the former 9, cloud infrastructure and IaC, and 10, delivery and CI/CD)
+- **Owns:** how infrastructure is written and changed (Terraform, CDK, CloudFormation, SAM: state, replacement and deletion, drift, pinning), containers and Kubernetes, CI/CD pipelines and their deploy mechanics (promotion, environments, concurrency, build once), deployment and rollback mechanics, feature flags and release safety. The architect owns *what* is built and how it fails; this expert owns *how* it is built, shipped and changed. CI workflow security (triggers, permissions, action pinning, OIDC), secrets and IAM stay with security; gates that cannot fail stay with quality.
+- **Built:** see `docs/experts/devops.md`, which also decides the items routed here from the architect's research.
+- **Stages:** plan, build (only when the plan names infrastructure, pipeline, container or manifest files), review.
 - **Upstream agents:**
   - awesome-copilot `terraform-iac-reviewer`, `terraform-aws-planning`, `terraform-aws-implement`, `aws-cloud-expert`
   - wshobson and buildwithclaude `terraform-specialist`, `cloud-architect`, `network-engineer`
@@ -127,7 +127,7 @@ An agent was placed under an expert by its name and the survey's domain notes, n
 - **Survey candidates:** Terraform (antonbabenko, 86), AWS IAM (aws/agent-toolkit, 84), CDK and CloudFormation (aws/agent-toolkit, 78), Docker (docker/skills, 80), cloud (alirezarezvani, 74), AWS ops (aws/agent-toolkit, 66), Terraform tests (hashicorp, 62).
 
 ### 10. (merged into 9, DevOps engineer; its sources below stay as candidates)
-- **Owns:** pipelines, GitHub Actions hardening, deploys and rollback, feature flags, release safety.
+- **Owns:** pipelines, deploys and rollback, feature flags, release safety (GitHub Actions hardening is security's).
 - **Stages:** plan, review.
 - **Upstream agents:**
   - awesome-copilot `github-actions-expert`, `se-gitops-ci-specialist`, `devops-expert`, `launchdarkly-flag-cleanup`
@@ -210,9 +210,17 @@ Taken from the `## Skills` list in each stage reference under `.cursor-plugin/ul
 | architect | plan | `lambda-event-sources`, `aws-messaging`, `step-functions`, `api-gateway`, `multi-tenancy`, `caching-and-latency` | offered | the plan adds triggered Lambdas, workflows or sagas |
 | architect | plan | `aws-well-architected` | offered | the plan adds or changes AWS infrastructure or AWS calls |
 
+| devops | review, build | `terraform-change-safety` | `files: *.tf, *.tf.json, *.tfvars, .terraform.lock.hcl, terragrunt.hcl` (build also: Terraform in the plan) | what an apply moves, replaces or destroys; state; pins |
+| devops | review, build | `cloudformation-and-cdk` | template and CDK config files; `added:` SAM types, deletion policies, imports, CDK imports | logical ids, replacement, deletion and replace policies |
+| devops | review, build | `kubernetes-manifests` | Helm and Kustomize files; `added:` probes, rollout fields, budgets, workload kinds | probes, requests, rollouts, disruption budgets, shutdown |
+| devops | review, build | `pipelines-and-deploys` | `files: .github/workflows/*.yml, .github/workflows/*.yaml, .gitlab-ci.yml, buildspec.yml, appspec.yml, Jenkinsfile, action.yml` and variants | promotion, environments, concurrency, limits, caches |
+| devops | review, build | `release-safety` | `added:` flag SDKs, CodeDeploy, AppConfig, canary rollouts, migration commands, image lifecycle rules | flags, canaries, migrations in the release, rollback targets |
+| devops | review, build | `containers` | Dockerfiles, Containerfiles, `.dockerignore`, compose files | stop signals, repeatable images, health and start order |
+| devops | plan | all six | offered | the plan changes infrastructure, pipelines, containers or releases |
+
 No skills: `softarch` (plan, review), `security` (plan, tests, review), and `quality` at plan and review.
 
-Fixed cost per build: the developer's three `always` skills, `test-craft` and the two briefs come to about 28 KB before any file-matched skill.
+Fixed cost per build: the developer's three `always` skills, `test-craft` and the two briefs come to about 28 KB before any file-matched skill. The DevOps brief has no `always` skill, so it joins only builds whose plan selects one of its skills.
 
 ## What is not an expert, and where it goes instead
 
@@ -229,7 +237,7 @@ Fixed cost per build: the developer's three `always` skills, `test-craft` and th
 ## Optional merges, to start smaller
 
 - 6 and 7 as one "AI systems" expert (done: 6 is the Generative AI engineer).
-- 9 and 10 as one "platform and delivery" expert.
+- 9 and 10 as one "platform and delivery" expert (done: 9 is the DevOps engineer).
 - 12 split between developer, data and frontend.
 - 14 folded into security.
 
@@ -241,6 +249,6 @@ From the survey: DynamoDB and OpenSearch, VPC and networking depth, CloudFormati
 
 ## Status
 
-Built: experts 1 to 5 (`architect`, `softarch`, `developer`, `quality`, `security`). Skills are mapped for `developer` (eleven), `quality` (`test-craft`) and `architect` (seven: `lambda-event-sources`, `aws-messaging`, `step-functions`, `api-gateway`, `multi-tenancy`, `caching-and-latency`, `aws-well-architected`; see `docs/experts/architect.md`); `softarch` and `security` have none. Experts 6 and 8 to 14 are not built (7 is merged into 6).
+Built: experts 1 to 5 (`architect`, `softarch`, `developer`, `quality`, `security`) and 9 (`devops`, six skills; see `docs/experts/devops.md`). Skills are mapped for `developer` (eleven), `quality` (`test-craft`) and `architect` (seven: `lambda-event-sources`, `aws-messaging`, `step-functions`, `api-gateway`, `multi-tenancy`, `caching-and-latency`, `aws-well-architected`; see `docs/experts/architect.md`); `softarch` and `security` have none. Experts 6, 8 and 11 to 14 are not built (7 is merged into 6, 10 into 9).
 
 Next: the Generative AI engineer (6), which has the Generative AI Lens research ready and needs an AgentCore pass; then data and Postgres (8), or UI and accessibility (13).

@@ -32,3 +32,10 @@ Read the draft, then find how this repository already builds and deploys: the CI
 ## Skills
 
 The workflow asks, in the call that chooses the experts, which of these the draft needs, using the words after the colon as the headline, and pastes the chosen ones into your prompt. Do not open skill files yourself.
+
+- `experts/skills/terraform-change-safety/skill.md`: load when the plan changes Terraform or OpenTofu code or its backend: what an apply will move, replace or destroy, state, version floors and pins.
+- `experts/skills/cloudformation-and-cdk/skill.md`: load when the plan changes CloudFormation, SAM or CDK stacks: logical ids, replacement, deletion and replace policies, cross-stack exports, Lambda package limits.
+- `experts/skills/kubernetes-manifests/skill.md`: load when the plan adds or changes Kubernetes workloads or Helm charts: probes, requests, rollout strategy, disruption budgets, shutdown.
+- `experts/skills/pipelines-and-deploys/skill.md`: load when the plan adds or changes a CI/CD workflow: promotion, environments, build once, deploy concurrency, caches and limits.
+- `experts/skills/release-safety/skill.md`: load when the plan ships behind a feature flag, a canary or traffic shifting, or changes where a migration runs in the release.
+- `experts/skills/containers/skill.md`: load when the plan adds or changes a Dockerfile or compose file: stop signals, repeatable images, health checks and start order.

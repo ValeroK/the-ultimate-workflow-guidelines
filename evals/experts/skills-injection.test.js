@@ -409,3 +409,53 @@ test('architect review: a change touching many AWS areas reports what the cap le
   assert.equal(sel.skills[0].name, 'lambda-event-sources', 'the most specific first');
   assert.ok(sel.dropped.length > 0, 'something is left out and named');
 });
+
+// ---- devops: skills by file type and construct; the build brief only for infrastructure work ----
+
+const dev = (files) => names(ex.selectSkills(PLUGIN, 'devops', 'review', ex.parseDiff(diffOf(files))));
+
+test('devops review: each skill is selected by its own files or constructs', () => {
+  assert.deepEqual(dev({ 'infra/db.tf': ['resource "aws_db_instance" "main" {'] }), ['terraform-change-safety']);
+  assert.deepEqual(dev({ 'template.yaml': ['  Type: AWS::Serverless::Function'] }), ['cloudformation-and-cdk']);
+  assert.deepEqual(dev({ 'lib/app-stack.ts': ["import * as s3 from 'aws-cdk-lib/aws-s3';"] }), ['cloudformation-and-cdk']);
+  assert.deepEqual(dev({ 'k8s/api.yaml': ['kind: Deployment', '        readinessProbe:'] }), ['kubernetes-manifests']);
+  assert.deepEqual(dev({ 'charts/api/values.yaml': ['replicaCount: 2'] }), ['kubernetes-manifests']);
+  assert.deepEqual(dev({ '.github/workflows/deploy.yml': ['    runs-on: ubuntu-latest'] }), ['pipelines-and-deploys']);
+  assert.deepEqual(dev({ 'svc/flags.ts': ["import { OpenFeature } from '@openfeature/server-sdk';"] }), ['release-safety']);
+  assert.deepEqual(dev({ 'Dockerfile': ['CMD node server.js'] }), ['containers']);
+  assert.deepEqual(dev({ 'deploy/docker-compose.prod.yml': ['services:'] }), ['containers']);
+});
+
+test('devops review: near misses select nothing', () => {
+  assert.deepEqual(dev({ 'svc/handler.py': ['def handle(event):', '    return 1'] }), [], 'plain application code');
+  assert.deepEqual(dev({ 'config/app.yaml': ['timeout: 30', 'enabled: true'] }), [], 'a plain YAML config');
+  assert.deepEqual(dev({ 'docs/ci.yml': ['runs-on: ubuntu-latest'] }), [], 'a workflow-looking file outside .github/workflows');
+  assert.deepEqual(dev({ 'svc/store.py': ["table = boto3.resource('dynamodb').Table('orders')"] }), [], 'an AWS SDK call is the architect\'s, not a stack');
+  assert.deepEqual(dev({ 'svc/log.ts': ['if (logger.isEnabled("debug")) {'] }), [], 'a boolean named enabled is not a feature flag');
+  assert.deepEqual(dev({ 'db/q.sql': ['SELECT id FROM orders'] }), [], 'SQL FROM is not a Dockerfile');
+});
+
+test('devops review: every skill selected at once fits under the cap, most specific first', () => {
+  const sel = ex.selectSkills(PLUGIN, 'devops', 'review', ex.parseDiff(diffOf({
+    'main.tf': ['x = 1'], 'template.yaml': ['x: 1'], 'values.yaml': ['x: 1'], '.github/workflows/d.yml': ['x: 1'],
+    'Dockerfile': ['FROM node:22'], 'svc/f.ts': ['LaunchDarkly'] })));
+  assert.deepEqual(names(sel), ['terraform-change-safety', 'cloudformation-and-cdk', 'kubernetes-manifests', 'pipelines-and-deploys', 'release-safety', 'containers']);
+  assert.deepEqual(sel.dropped, []);
+  assert.ok(sel.skills.reduce((n, s) => n + Buffer.byteLength(s.text), 0) <= ex.SKILLS_BYTES);
+});
+
+test('devops build: the brief joins only when the plan names infrastructure; the developer brief is always there', () => {
+  const app = ex.briefs(PLUGIN, { planText: 'Add a retry to `svc/client.go`.' });
+  assert.ok(!app.briefs.some((b) => b.name === 'devops'), 'an application-only plan does not pay for the DevOps brief');
+  assert.ok(app.skipped.includes('devops'));
+  assert.ok(app.briefs.some((b) => b.name === 'developer'));
+  const infra = ex.briefs(PLUGIN, { planText: 'Rename the queue in `infra/queue.tf` and add a deploy job in `.github/workflows/deploy.yml`.' });
+  const d = infra.briefs.find((b) => b.name === 'devops');
+  assert.ok(d, 'an infrastructure plan gets the DevOps brief');
+  assert.deepEqual(d.skills.map((s) => s.name), ['terraform-change-safety', 'pipelines-and-deploys']);
+  assert.ok(!d.text.includes('experts/skills/') && Buffer.byteLength(d.text) < ex.BRIEF_BYTES);
+  assert.ok(infra.briefs.some((b) => b.name === 'developer'), 'the developer brief stays for mixed and CDK changes');
+  const prose = ex.briefs(PLUGIN, { planText: 'Move the service into a Docker container image and ship it with GitHub Actions.' });
+  assert.ok(prose.briefs.some((b) => b.name === 'devops'), 'a plan that describes the change without file names still selects it');
+  assert.ok(!ex.briefs(PLUGIN).briefs.some((b) => b.name === 'devops'), 'with no plan there is nothing to select from');
+});

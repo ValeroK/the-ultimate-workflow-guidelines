@@ -53,7 +53,7 @@ Multi-tenancy is the architect's, not the data expert's (decided 2026-10-20), in
 
 | Expert | Items found during the architect's research |
 |---|---|
-| DevOps engineer | Choosing an IaC tool, CI/CD and staging guidance, REST API redeploy after configuration changes, canary deployments and SnapStart, package and layer limits, CloudFront deploy steps, Route 53 aliases, cache client pool settings, NAT build procedures, fault-injection logging and reports |
+| DevOps engineer (decided in `docs/experts/devops.md`) | Choosing an IaC tool, CI/CD and staging guidance, REST API redeploy after configuration changes, canary deployments and SnapStart, package and layer limits, CloudFront deploy steps, Route 53 aliases, cache client pool settings, NAT build procedures, fault-injection logging and reports |
 | Security | Confused-deputy trust conditions, `iam:PassRole`, encryption keys on queues, buses and logs, task tokens as secrets, mutual TLS, JWT key caching, cache keys without the client's identity, the fault-injection role, CloudFront origin access and WAF, ElastiCache TLS and default user, a tenant id taken from the request body as an authorisation bug |
 | Data and database | Row-level security performance and security-definer functions, `SET LOCAL` against `SET` for session context, DynamoDB and Aurora skills |
 | Observability | SLO definitions, error budgets and burn-rate alerts, latency percentiles and freshness metrics |

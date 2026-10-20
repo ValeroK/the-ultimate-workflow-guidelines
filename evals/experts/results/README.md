@@ -38,3 +38,9 @@ File: `2026-10-20-developer-heldout-expert-v1-vs-baseline.json`. Same arms, mode
 - Real but unplanted findings: A3 10, A0 8. Here the expert raised more, not fewer; on the dev split it raised fewer (1 against 11). Read the two together as noise in a small sample, not a trend.
 - Lane discipline is informational for this expert by maintainer decision (it should raise everything it finds): 8 of 12 sibling runs against 12 of 12.
 - All gated checks pass. Sample: 6 seeded cases, 3 runs, one reviewer model, judge run once per batch and not hand-checked on this run.
+
+## 2026-10-20 generation eval, harness v1 (superseded, kept)
+
+File: `2026-10-20-gen-developer-dev-harness-v1.json`. Dev split, 9 tasks, 3 runs, Sonnet implementers, no code run. **Plain and brief arms came out identical**: 8 of 9 tasks clean by majority in both, 0 of 27 traps fallen into in both, 0 over-engineered runs, correctness 23 of 27 in both, 23.4 against 23.8 added lines per run. The gate fails because the brief did not make more tasks clean.
+
+Why this run is not the answer: the harness's shared instruction told both arms "Match what the repository already does", which is the brief's most important rule. The real build prompt says only "smallest change that works, nothing beyond the plan". The plain arm was therefore stronger than the arm that ships. Found by reading the two prompts side by side after seeing the null result; the harness was then changed to mirror the real wording and the run repeated (v2). Both runs are kept. Also: task `gd6b2b81a` is 0 of 3 clean in both arms because the task's starting files omit the repository file the change must call, so its correctness check cannot be satisfied; it adds the same noise to both arms.

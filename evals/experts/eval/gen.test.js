@@ -306,3 +306,15 @@ test('an answered batch whose repository was left unchanged is a failed run, not
   assert.equal(r.correct, false, 'a failed run must not count as correct');
   assert.equal(records.filter((x) => x.failed).length, 1);
 });
+
+test('the implementer instruction mirrors the real build prompt, and gives neither arm the brief\'s main rule', () => {
+  const build = read(path.join(PLUGIN, 'workflows', 'build.js'));
+  const { plan: p } = plan();
+  for (const b of p.batches) {
+    const text = read(b.taskFile);
+    assert.match(text, /Smallest change that works\. Nothing beyond the request\./);
+    assert.match(text, /Do not improve adjacent code, reformat untouched lines, or rename anything not in scope/);
+    assert.ok(!/match what the repository already does|follow the repository's conventions|reuse/i.test(text.replace(/STANDING BRIEF[\s\S]*$/, '')), 'the shared instruction must not hand both arms the brief\'s rules');
+  }
+  assert.match(build, /Smallest change that works\. Nothing beyond the plan\. Do not improve adjacent code, reformat untouched lines, or rename anything not in scope/, 'the sentence this one mirrors has moved');
+});

@@ -2,7 +2,7 @@
 
 Use this when a change touches a CloudFormation or SAM template or a CDK app. It holds what decides whether a stack update keeps, replaces or deletes what is already running.
 
-Each fact carries its source: **[G]** AWS's CloudFormation user guide as last published on GitHub (December 2023; the current guide was not reachable, so quotas may have changed); **[D]** the AWS CDK developer guide as published on GitHub (`awsdocs/aws-cdk-guide`, current in October 2026); **[T]** AWS's agent toolkit (2026), not checked against the guide; **[O]** our own reasoning. Whether a property change requires replacement is stated per property in the resource reference ("Update requires"); cite it or an attached change set or `cdk diff`, never memory.
+Each fact carries its source: **[G]** AWS's CloudFormation user guide as last published on GitHub (December 2023; the current guide was not reachable, so quotas may have changed); **[D]** the AWS CDK developer guide as published on GitHub (`awsdocs/aws-cdk-guide`, current in October 2026); **[R]** the maintainer's check of the live AWS pages (2026-10-20), which confirmed the DeletionPolicy, UpdateReplacePolicy, stack policy, change set and replacement-label facts below; **[T]** AWS's agent toolkit (2026), not checked against the guide; **[O]** our own reasoning. Whether a property change requires replacement is stated per property in the resource reference as "Update requires: Replacement" [R]; cite it or an attached change set or `cdk diff`, never memory.
 
 ## Identity: the logical ID
 

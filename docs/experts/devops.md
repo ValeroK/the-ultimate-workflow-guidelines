@@ -54,9 +54,9 @@ Every number was checked against the vendor's own documentation as published on 
 
 Order is priority. All six together are about 27 KB, under the 32 KB cap, so nothing is dropped even when one change touches every area. Selectors can now name a path (`.github/workflows/*.yml`), which this expert needed: before, a `files:` glob matched base names only, and `*.yml` would have loaded the pipeline skill on every YAML file.
 
-Each fact says where it comes from: **[D]** the vendor's documentation as published on GitHub in October 2026, **[G]** the CloudFormation, Lambda and API Gateway guides as published until 2023, **[T]** an upstream community skill not checked against documentation, **[O]** our own reasoning. `release-safety` holds no vendor fact: every item is [T] or [O], and it states no number.
+Each fact says where it comes from: **[D]** the vendor's documentation as published on GitHub in October 2026, **[G]** the CloudFormation, Lambda and API Gateway guides as published until 2023, **[T]** an upstream community skill not checked against documentation, **[O]** our own reasoning. **[R]** marks what the maintainer's live check of the vendor pages confirmed or added on the same day (a second pass; see the research record). `release-safety` states no number; its vendor facts (ECS circuit breaker, CodeDeploy rollback, Lambda alias shifting, AppConfig alarms) are [R].
 
-**Known gaps.** A change that only deletes lines (a removed `environment:` or rollback alarm) does not trigger an `added:` selector; skills selected by file name are unaffected. GitLab CI is barely covered by any source and is marked as unchecked in `pipelines-and-deploys`. CloudFormation quotas are from 2023.
+**Known gaps.** A change that only deletes lines (a removed `environment:` or rollback alarm) does not trigger an `added:` selector; skills selected by file name are unaffected. GitLab CI is barely covered: one rule is verified (`when: manual` outside `rules:` is allowed to fail by default); the rest is marked as unchecked in `pipelines-and-deploys`. CloudFormation quotas are from 2023.
 
 ## Rejected or deferred
 

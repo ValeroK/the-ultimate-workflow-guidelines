@@ -2,7 +2,7 @@
 
 Use this when a change ships behind a feature flag, changes a canary or traffic-shifting deployment, or changes where and when a migration runs in the release. It holds what decides whether a bad release can be stopped and undone. Whether old and new versions can share the same data is the architect's ("Two versions at once"); the migration SQL is the data expert's; whether the system needs a canary or a kill switch at all is the architect's (`aws-well-architected`, OPS06 and REL05). This skill is how the mechanism already in place is used.
 
-Sources: **[T]** upstream community skills (see `NOTICE.md`), not checked against vendor documentation; **[O]** our own reasoning. Nothing here is a vendor default, so nothing here is a number to quote. Do not demand a flag platform, a canary or GitOps the system does not run.
+Sources: **[R]** the maintainer's check of the live AWS pages (2026-10-20); **[T]** upstream community skills (see `NOTICE.md`), not checked against vendor documentation; **[O]** our own reasoning. Nothing here is a vendor default to quote as a number. Do not demand a flag platform, a canary or GitOps the system does not run.
 
 ## Feature flags
 
@@ -18,7 +18,10 @@ Sources: **[T]** upstream community skills (see `NOTICE.md`), not checked agains
 - The alarm that rolls back must measure the new version, not the whole fleet: at 10 percent traffic, a broken canary hides in the average [O].
 - A canary analysis that can return no data stays inconclusive and neither promotes nor fails, unless there is a limit on inconclusive results [T].
 - A switch from canary or linear to all-at-once on a production alias or service removes the stage where a bad release is caught [O].
-- An ECS deployment circuit breaker enabled with `rollback: false` stops a bad deploy but leaves it in place [T].
+- An ECS deployment circuit breaker with rollback on returns a failed deployment to the last one that completed [R]; enabled with `rollback: false` it stops a bad deploy but leaves it in place [O]. The circuit breaker and deployment alarms work only with the ECS rolling-update controller, not with `CODE_DEPLOY` or `EXTERNAL` [R].
+- A CodeDeploy deployment group can roll back on its own when a deployment fails or a named CloudWatch alarm fires [R]. A group with automatic rollback off, or with no alarm, leaves a bad release live until someone acts [O].
+- Lambda traffic shifting works on an alias whose routing CodeDeploy changes [R]. A trigger or API pointed at `$LATEST` or at a version, rather than the alias, bypasses the shift [O].
+- AWS AppConfig watches the CloudWatch alarms tied to an environment during a deployment and rolls back to the last good configuration when one fires [R, AWS blog]. An environment with no alarm monitor rolls a bad flag out to everyone [O].
 
 ## Migrations in the release
 

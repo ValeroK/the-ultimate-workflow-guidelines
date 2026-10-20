@@ -2,7 +2,7 @@
 
 Use this when a change touches Terraform or OpenTofu code, variables, a backend or the lock file. It holds what decides whether an apply keeps, replaces or destroys what is already running, and whether the run can be repeated.
 
-Each fact carries its source: **[D]** HashiCorp's Terraform documentation as published on GitHub (`hashicorp/web-unified-docs`, v1.16 docs, read 2026-10-20); **[T]** an upstream community skill, not checked against the documentation; **[O]** our own reasoning. Treat a [T] item as a prompt to check, not as a finding on its own. Whether a given argument forces replacement depends on the provider and its version: say so from the provider's documentation or an attached plan, never from memory.
+Each fact carries its source: **[D]** HashiCorp's Terraform documentation as published on GitHub (`hashicorp/web-unified-docs`, v1.16 docs, read 2026-10-20); **[R]** the maintainer's check of the live pages on developer.hashicorp.com (2026-10-20); **[T]** an upstream community skill, not checked against the documentation; **[O]** our own reasoning. Treat a [T] item as a prompt to check, not as a finding on its own. Whether a given argument forces replacement depends on the provider and its version: say so from the provider's documentation or an attached plan, never from memory.
 
 ## Identity: what Terraform will destroy
 
@@ -13,7 +13,7 @@ Each fact carries its source: **[D]** HashiCorp's Terraform documentation as pub
 | `prevent_destroy` makes any plan that would destroy the resource fail, `terraform destroy` included [D] | The guard removed from a stateful resource in the same change that would replace it | The plan states the resource may go |
 | `count` indexes by position [O] | `count` over a list where an item other than the last can be removed, so every later instance shifts and is replaced | `count = var.enabled ? 1 : 0` |
 | `for_each` keys must be known at plan time and cannot be sensitive; `count` and `for_each` cannot share a block [D] | Keys built from IDs or ARNs computed during apply | Keys from variables or literals |
-| An argument the provider marks as forcing a new resource replaces it [O] | A changed name, engine, subnet group, encryption key or zone on a database, bucket, volume, queue or key | Ask for the plan output; without it, a suspicion |
+| An argument the provider marks as forcing a new resource replaces it; plan output marks it `# forces replacement` [R] | A changed name, engine, subnet group, encryption key or zone on a database, bucket, volume, queue or key | Ask for the plan output; without it, a suspicion |
 
 ## Lifecycle rules
 

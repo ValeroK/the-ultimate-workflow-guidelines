@@ -9,4 +9,6 @@ This skill is written in our own words. No text is copied.
 | AWS Lambda developer guide (awsdocs, 2023-10-30) quotas; Amazon API Gateway developer guide (awsdocs, 2023-06-29) | AWS documentation | Lambda package and layer limits; redeploying a REST API |
 | aws/agent-toolkit-for-aws `aws-cloudformation` (`template-safety-guidance.md`) and `aws-cdk` (`refactor-and-prevent-replacement.md`, `troubleshooting-deployment.md`) | Apache-2.0 | Retained resources left unmanaged, export deadlocks, shared Conditions, hotswap. Marked [T] |
 
+Items marked [R] were confirmed by the maintainer's check of the vendor's live pages on 2026-10-20 (developer.hashicorp.com, docs.aws.amazon.com, docs.gitlab.com).
+
 Left out: the toolkit's attribution marker and metadata rules (its own process), security group and encryption checks (the security expert), backups and immutable infrastructure (the architect's `aws-well-architected`), and "Conditional" as a change-set Replacement value, which the 2023 guide does not show.

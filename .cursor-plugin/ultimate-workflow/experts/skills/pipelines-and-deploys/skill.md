@@ -2,7 +2,7 @@
 
 Use this when a change adds or changes a CI/CD workflow: a GitHub Actions workflow, a GitLab pipeline, a CodeBuild or CodeDeploy spec, a Jenkinsfile. It holds what decides whether what reaches production is what was tested, and whether two deploys can collide. CI workflow security (triggers that run fork code with secrets, `permissions`, pinning actions to a commit, OIDC) is the security expert's; whether a check can fail is quality's.
 
-Each fact carries its source: **[D]** GitHub's documentation as published on GitHub (`github/docs`, read 2026-10-20; github.com unless marked); **[T]** an upstream community skill, not checked; **[O]** our own reasoning. GitLab rules here are [O] or [T]: check the current GitLab documentation before a finding rests on one.
+Each fact carries its source: **[D]** GitHub's documentation as published on GitHub (`github/docs`, read 2026-10-20; github.com unless marked); **[T]** an upstream community skill, not checked; **[O]** our own reasoning. **[R]** the maintainer's check of the live GitLab documentation (2026-10-20). Other GitLab rules are [O]: check the current GitLab documentation before a finding rests on one.
 
 ## What reaches production
 
@@ -33,6 +33,10 @@ Each fact carries its source: **[D]** GitHub's documentation as published on Git
 - A workflow file over 500 KB does not start [D].
 - Scheduled workflows run at most every 5 minutes, only on the default branch, may be delayed or dropped at high load, and are disabled in public repositories after 60 days without activity [D]. A deploy or backup that depends on an exact schedule is a finding [O].
 - Events caused by `GITHUB_TOKEN` do not start new runs, except `workflow_dispatch` and `repository_dispatch` (and, on github.com, pull request events, which wait for approval) [D]. A release job that pushes a tag with `GITHUB_TOKEN` and expects the tag's workflow to run gets no run at all [O].
+
+## GitLab
+
+- A job with `when: manual` defined outside `rules:` defaults to `allow_failure: true`, so the pipeline does not wait for it and passes without it; inside `rules:` it defaults to `allow_failure: false` [R]. A manual production deploy or approval job written the first way does not hold back what follows it [O]. Whether a test job may fail is quality's.
 
 ## Caches and artifacts
 

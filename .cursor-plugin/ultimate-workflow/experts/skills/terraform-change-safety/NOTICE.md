@@ -8,4 +8,6 @@ This skill is written in our own words. No text is copied.
 | antonbabenko/terraform-skill, `SKILL.md` and its references | Apache-2.0 | The checklist shape: address moves, `count` index identity, keys known at plan time, removing a provider, `check` being advisory. Its version numbers were not used; where it disagreed with itself the documentation decided |
 | github/awesome-copilot `terraform-iac-reviewer`; hashicorp/agent-skills `terraform-style-guide` | MIT; MPL-2.0 | Sorting changes by create, update, replace and destroy; committing the lock file |
 
+Items marked [R] were confirmed by the maintainer's check of the vendor's live pages on 2026-10-20 (developer.hashicorp.com, docs.aws.amazon.com, docs.gitlab.com).
+
 Left out: style and naming, test syntax (the quality expert), secrets in state and IAM (the security expert), and the stale-plan rejection claim, which the documentation read does not state.

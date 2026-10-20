@@ -10,10 +10,10 @@
   "does_not_apply": [
     "Fixes a typo in the README",
     "Renames a CSS class in a button component",
-    "Adds a unit test for a date-formatting helper",
-    "Changes a timeout value in a configuration file from 5 to 10 seconds",
-    "Reorders the columns of a report table in the UI",
     "Reformats a file with the project's formatter and sorts its imports",
-    "Adds a deploy job to the GitHub Actions workflow and a Terraform module for the queue it deploys to"
+    "Adds a unit test for a date-formatting helper (owner: quality)",
+    "Makes the orders package import the billing package's internal database models (owner: softarch)",
+    "Adds a dead-letter queue and a receive limit to the refunds consumer (owner: architect)",
+    "Adds a deploy job to the GitHub Actions workflow and a Terraform module for the queue it deploys to (owner: devops)"
   ]
 }

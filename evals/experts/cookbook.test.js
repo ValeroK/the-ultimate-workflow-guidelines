@@ -34,7 +34,7 @@ const FILL = {
     'Changes the pipeline that builds and ships the container image',
     'Edits how the service reads its environment variables at startup',
   ],
-  does_not_apply: ['Fixes a typo in the README', 'Renames a CSS class in a button component', 'Adds a unit test for a date-formatting helper'],
+  does_not_apply: ['Fixes a typo in the README', 'Adds a retry with backoff around one remote call (owner: architect)', 'Adds a unit test for a date-formatting helper (owner: quality)'],
 };
 
 test('the cookbook carries every template the recipe needs, labelled so they can be checked', () => {

@@ -10,9 +10,9 @@
   "does_not_apply": [
     "Fixes a typo in the README",
     "Renames a CSS class in a button component",
-    "Adds a retry with backoff around the billing call in the order service",
-    "Moves a table write from one module to another",
-    "Changes the text of a validation error message",
-    "Bumps a patch version of a runtime dependency"
+    "Adds a retry with backoff around the billing call in the order service (owner: developer)",
+    "Removes a field from the order event that two other services consume (owner: softarch)",
+    "Changes the deploy job so production waits for a manual approval after staging (owner: devops)",
+    "Moves the CI workflow's cloud credentials from a long-lived key to OIDC (owner: security)"
   ]
 }

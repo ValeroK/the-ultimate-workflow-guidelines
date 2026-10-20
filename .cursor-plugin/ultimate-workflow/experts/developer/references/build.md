@@ -24,6 +24,12 @@ This applies to every line you write, in tests and in code. It adds no work: if 
 - Keep a property of a thing next to the thing. Do not add a second list, keyed by its name, that the next change must remember to edit.
 - Before you remove something, find out why it is there.
 
-## When not to add structure
+## When not to
 
-The repository's current shape is the default. Matching it beats improving it. Do not refactor code you were not asked to touch. A little duplication costs less than the wrong abstraction. A class that wraps a third-party client at a boundary is already justified, and so is a closed switch over an enum.
+The repository's current shape is the default; matching it beats improving it. Do not refactor code you were not asked to touch. A little duplication costs less than the wrong abstraction. A class that wraps a third-party client at a boundary is already justified, and so is a closed switch over an enum.
+
+## When you report
+
+- Every fallback you added, and where it is visible.
+- Every place you did not follow the repository's convention, and why.
+- Every lint, format or type-check command you did not run, and why.

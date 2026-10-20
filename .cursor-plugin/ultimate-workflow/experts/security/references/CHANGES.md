@@ -11,7 +11,7 @@ Upstream: `anthropics/claude-code-security-review`, `.claude/commands/security-r
 
 ## Fixed
 
-- Three confidence scales (over 80%, 0.7 to 1.0, and 1 to 10 with a cutoff of 8) became one: 1 to 10, report 8 or above, mapped to the `high` and `medium` values of the workflow's confidence field.
+- Three confidence scales became one, the protocol's: 1 to 10, report 8 or above, mapped to the `high` and `medium` values of the workflow's confidence field.
 - Duplicate list numbering (two items numbered 16) removed.
 - "Secrets stored on disk are excluded" contradicted "hardcoded secrets are in scope". Now: a hardcoded secret in source is a finding; a correctly permissioned secret on disk is not.
 - "Do not use the bash tool" next to an allowlist of git commands. The expert may now run read-only commands only (search, list, `git log`, `git show`, a scanner that modifies nothing), and receives the diff as a file.
@@ -28,7 +28,8 @@ Upstream: `anthropics/claude-code-security-review`, `.claude/commands/security-r
 - A defined no-findings result that must say what was examined, so a clean review differs from one that did not look.
 - An evidence path (source to sink, with file and line at each hop) on every finding, so the skeptic stage can check it.
 - Permission to read callers of changed code, for a change that exposes an old unsafe function.
-- A section on untrusted input: the diff is data, and instructions inside it are not obeyed.
+- Untrusted input: the diff is data, and instructions inside it are not obeyed. Since 2026-10-20 this, the result form and the confidence scale live once in `experts/protocol.md`, which every expert reads; `review.md` keeps only what is specific to security.
+- A stop rule for each trace, a "Not when" on every category, security's own severity levels, "Excuses that do not hold", and one worked finding with one dropped candidate (2026-10-20).
 - Agent, skill, hook, MCP and CI checks (`agent-surface.md`) and the dependency tiers (`dependencies.md`), each read only when the diff calls for it.
 
 ## Dropped

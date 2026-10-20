@@ -319,16 +319,17 @@ Left out, and why: FILL-IN (what belongs to another skill or expert, what was op
 
 ---
 
-## What changes in code to support this (not yet done)
+## What changed in code to support this (done 2026-10-20)
 
-- The workflow pastes `protocol.md` into every expert prompt at plan, tests and review.
-- The findings schema gains `evidence`, `category`, `severity` and `fix`. The plan schema allows at most four constraints. The workflow prompts carry no rule the protocol already holds.
-- `experts.js` reads a skill's frontmatter (`description` as the cue and the plan headline), strips it before pasting, and reads selectors from a per-expert sidecar, so no `## Skills` list reaches a model.
-- `contract.js`:
-  - checks the protocol once;
-  - checks that every agent has Goal and Owns;
-  - checks that a reference does not restate the protocol;
-  - checks that every skill has frontmatter, a source key and "Not a finding".
+- Every expert reads `experts/protocol.md` first, the way it reads its references; the eval harness pastes it. (Planned as pasted by code; changed so no command gains an argument.)
+- The findings schema has optional `evidence`, `category`, `severity` and `fix`, sorted by severity, then confidence. The plain reviewer is unchanged.
+- `experts.js` reads a skill's frontmatter (`description` as the cue and the plan headline), strips it before pasting, and reads selectors from `experts/<name>/skills.md`, so no `## Skills` list reaches a model.
+- `contract.js` and the checklist lint:
+  - an agent names the protocol, has Goal, Responsibilities and How to judge, and does not restate the protocol;
+  - plan, tests and build references have their template sections and no return fields; no reference lists skills;
+  - a review reference has a stop rule, "Not when" on every category, Severity here and a worked finding;
+  - no two experts claim one Responsibilities area, and at least half of each expert's negative examples are owned near misses;
+  - skill checks (Goal, source key, Not a finding) wait for Phase 3.
 
 ---
 

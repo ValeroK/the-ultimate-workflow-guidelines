@@ -26,15 +26,12 @@ test('the security checklist passes the security profile', () => {
   assert.deepEqual(lintChecklist(security, SECURITY_PROFILE), []);
 });
 
-test('the generic profile still requires where and how it is shown: file, line, evidence', () => {
-  for (const word of ['file', 'line', 'evidence']) {
-    const stripped = developer.replace(new RegExp(word, 'gi'), 'xxxx');
-    const problems = lintChecklist(stripped, GENERIC_PROFILE);
-    assert.ok(problems.some((p) => p.includes(`"${word}"`)), `removing "${word}" must be caught: ${problems.join(' | ')}`);
-  }
+test('where and how a finding is shown (file, line, evidence) is the protocol\'s, not each checklist\'s', () => {
+  const protocol = fs.readFileSync(path.join(PLUGIN, 'experts', 'protocol.md'), 'utf8');
+  for (const word of ['file and line', 'evidence']) assert.ok(protocol.toLowerCase().includes(word), `protocol must say "${word}"`);
 });
 
 test('profile shape words are what the lint reads, not a fixed list', () => {
-  assert.deepEqual(GENERIC_PROFILE.shapeWords, ['file', 'line', 'evidence']);
-  assert.deepEqual(SECURITY_PROFILE.shapeWords, ['file', 'line', 'evidence', 'source', 'sink']);
+  assert.deepEqual(GENERIC_PROFILE.shapeWords, []);
+  assert.deepEqual(SECURITY_PROFILE.shapeWords, ['source', 'sink']);
 });

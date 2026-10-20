@@ -9,10 +9,10 @@
   ],
   "does_not_apply": [
     "Fixes a typo in the README",
-    "Adds an SQS queue and a consumer for refunds",
     "Replaces a loop with a comprehension inside one function",
-    "Adds a test for the discount calculation",
-    "Changes a timeout value in a configuration file",
-    "Escapes user input before it is put in an HTML page"
+    "Adds an SQS queue and a consumer for refunds, deployed before the producer (owner: architect)",
+    "Adds a contract test that checks the provider's response against the OpenAPI file (owner: quality)",
+    "Adds a parameter to a function exported by a library published to npm with no callers in this repository (owner: developer)",
+    "Exposes a gRPC reflection endpoint on the public listener (owner: security)"
   ]
 }

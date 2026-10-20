@@ -5,7 +5,11 @@
 // because of a defect found in the upstream file or named by a test-plan critic.
 // Returns a list of problem strings, empty when clean.
 
-const REQUIRED = ['Scope', 'Result', 'Confidence', 'Method', 'Categories', 'Do not report', 'Untrusted input'];
+// The rules every expert shares (the result form, the confidence scale, untrusted input) live
+// once, in experts/protocol.md. A review reference holds only what is specific to its domain,
+// and restating a protocol rule is refused, because two copies drift.
+const REQUIRED = ['Scope', 'Method', 'Categories', 'Severity here', 'Do not report'];
+const PROTOCOL_SECTIONS = ['Result', 'Confidence', 'Untrusted input'];
 
 function sections(text) {
   const out = {};
@@ -22,18 +26,17 @@ function bullets(body) {
   return body.split(/\r?\n/).filter((l) => /^\s*(?:[-*]|\d+\.)\s+\S/.test(l));
 }
 
-// Rules that hold for any expert's core checklist are unconditional. What an expert
-// must NOT exclude, and what its Scope must allow, depend on the domain, so they
-// come from a profile. The security profile is the default.
+// What an expert must NOT exclude, and what its Scope and Method must say, depend on the domain,
+// so they come from a profile. The security profile is the default.
 const SECURITY_PROFILE = {
   exclusionTerms: /prompt|markdown|outdated|third-party|dependenc|\.github|workflow|agent|skill|hook|\bmcp\b/i,
   scopeMustMention: ['callers'],
-  // Every finding is a path from something untrusted to a harmful place.
-  shapeWords: ['file', 'line', 'evidence', 'source', 'sink'],
+  // Every security finding is a path from something untrusted to a harmful place.
+  shapeWords: ['source', 'sink'],
 };
-// A domain whose findings are not source-to-sink paths (craft, architecture) still has to say
-// where, and show the evidence.
-const GENERIC_PROFILE = { exclusionTerms: null, scopeMustMention: [], shapeWords: ['file', 'line', 'evidence'] };
+// A domain whose findings are not source-to-sink paths (craft, architecture) has no extra shape
+// words: the evidence standard is the protocol's.
+const GENERIC_PROFILE = { exclusionTerms: null, scopeMustMention: [], shapeWords: [] };
 
 function lintChecklist(text, profile = SECURITY_PROFILE) {
   const problems = [];
@@ -42,24 +45,16 @@ function lintChecklist(text, profile = SECURITY_PROFILE) {
   for (const name of REQUIRED) {
     if (!(name in s)) problems.push(`missing section: ${name}`);
   }
-
-  const thresholds = text.match(/report only[^.\n]*\b8 or above/gi) || [];
-  if (thresholds.length !== 1) {
-    problems.push(`the report threshold ("report only ... 8 or above") must appear exactly once, found ${thresholds.length}`);
+  if (!Object.keys(s).some((t) => /^One finding/.test(t))) problems.push('missing section: One finding, and one candidate dropped');
+  for (const name of PROTOCOL_SECTIONS) {
+    if (name in s) problems.push(`section "${name}" restates experts/protocol.md; remove it, the protocol is its one home`);
   }
-  if (/\b0\.\d+\b/.test(text)) problems.push('a decimal confidence value appears: the checklist must use one scale');
-  if (/\d+\s*%/.test(text)) problems.push('a percentage appears: the checklist must use one confidence scale');
-  const ofTen = [...text.matchAll(/\bof 10\b|\bout of 10\b|\b1-10\b/gi)];
-  const outsideConfidence = ofTen.filter((m) => {
-    const before = text.slice(0, m.index);
-    const lastHeading = before.lastIndexOf('\n## ');
-    return !/^## Confidence/.test(text.slice(lastHeading + 1));
-  });
-  if (outsideConfidence.length > 0) problems.push('the 1-10 scale is mentioned outside the Confidence section');
-
-  const result = s.Result || '';
-  if (!/No [\w-]+ findings/.test(result)) problems.push('the Result section must define a "No <domain> findings" output');
-  if (!/Examined:/.test(result)) problems.push('the Result section must require an "Examined:" statement, so a clean result differs from "did not look"');
+  if (/\b8 or above\b/i.test(text)) problems.push('the report threshold is the protocol\'s; do not restate it');
+  for (const sentence of text.split(/(?<=[.!?])\s+/)) {
+    if (/confiden|\bsure\b|certain|cutoff|threshold/i.test(sentence) && (/\b0\.\d+\b/.test(sentence) || /\d+\s*%/.test(sentence))) {
+      problems.push(`a second confidence scale appears ("${sentence.trim().slice(0, 60)}"): the protocol has the only one`);
+    }
+  }
 
   const demanding = [
     [/at least one (finding|issue|vulnerabilit)/i, 'demands at least one finding'],
@@ -91,19 +86,18 @@ function lintChecklist(text, profile = SECURITY_PROFILE) {
     }
   }
 
-  const shapeWords = profile.shapeWords || ['file', 'line', 'evidence'];
-  const method = `${s.Result || ''}\n${s.Method || ''}`.toLowerCase();
-  for (const w of shapeWords) {
-    if (!method.includes(w)) problems.push(`the finding shape must mention "${w}"`);
+  if (!/\bstop\b/i.test(s.Method || '')) problems.push('the Method must say when to stop: a path that cannot be completed is a suspicion');
+  for (const w of profile.shapeWords || []) {
+    if (!(s.Method || '').toLowerCase().includes(w)) problems.push(`the Method must mention "${w}"`);
   }
-
   for (const word of profile.scopeMustMention) {
     if (!new RegExp(word, 'i').test(s.Scope || '')) problems.push(`the Scope section must mention ${word}`);
   }
-  const untrusted = s['Untrusted input'] || '';
-  if (!/data/i.test(untrusted) || !/instruction/i.test(untrusted)) {
-    problems.push('the Untrusted input section must say diff content is data, not instruction');
+  for (const line of (s.Categories || '').split(/\r?\n/).filter((l) => /^- \*\*/.test(l))) {
+    if (!/\bnot when\b/i.test(line)) problems.push(`a category has no counter-case on its line ("Not when ..."): "${line.slice(0, 60)}"`);
   }
+  const sev = s['Severity here'] || '';
+  for (const level of ['high', 'medium', 'low']) if (!new RegExp(`\\b${level}\\b`, 'i').test(sev)) problems.push(`the Severity here section must define ${level}`);
 
   return problems;
 }

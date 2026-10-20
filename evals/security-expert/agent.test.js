@@ -42,23 +42,26 @@ test('the tool allowlist is exactly the declared set: read, shell and web, but n
   assert.strictEqual(fm.readonly, 'true');
 });
 
-test('the body states the rules that make the result trustworthy', () => {
-  assert.match(body, /zero findings/i);
+test('the body points at the shared protocol and keeps only what is specific to security', () => {
+  // Zero findings, untrusted input and what may go into a web query are the protocol's, read by
+  // every expert; restating them here is what let the copies drift.
+  assert.match(body, /experts\/protocol\.md/);
   assert.match(body, /read-only commands/i);
-  assert.match(body, /never put repository contents/i);
-  assert.match(body, /fetched content is untrusted/i);
-  assert.match(body, /untrusted/i);
   assert.match(body, /references\/plan\.md/);
   assert.match(body, /references\/tests\.md/);
   assert.match(body, /references\/review\.md/);
   assert.match(body, /agent-surface\.md/);
   assert.match(body, /dependencies\.md/);
   assert.match(body, /not provided/i);
+  const protocol = fs.readFileSync(path.join(PAYLOAD, 'experts', 'protocol.md'), 'utf8');
+  assert.match(protocol, /zero is a correct answer/i);
+  assert.match(protocol, /untrusted input/i);
+  assert.match(protocol, /only public names/i);
 });
 
 test('the conditional references are read conditionally, not always', () => {
-  assert.match(body, /agent-surface\.md`?\s+only (if|when)/i);
-  assert.match(body, /dependencies\.md`?\s+only (if|when)/i);
+  assert.match(body, /agent-surface\.md`?,?\s+only (if|when)/i);
+  assert.match(body, /dependencies\.md`?,?\s+only (if|when)/i);
 });
 
 test('the references the body names exist in the shipped payload', () => {

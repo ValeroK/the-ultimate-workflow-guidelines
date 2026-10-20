@@ -8,11 +8,11 @@
     "Moves the database migration step from after the deploy job to before it in the release pipeline"
   ],
   "does_not_apply": [
-    "Adds a retry policy around calls from the API service to the inventory service",
-    "Adds a pull_request_target trigger to a workflow that comments on pull requests",
-    "Adds a unit test for a date-formatting helper",
-    "Renames a private helper function inside one service",
+    "Fixes a typo in the README",
     "Changes the text of a validation error message",
-    "Fixes a typo in the README"
+    "Adds a retry policy around calls from the API service to the inventory service (owner: architect)",
+    "Adds a pull_request_target trigger to a workflow that comments on pull requests (owner: security)",
+    "Makes a required CI check pass when its test step is skipped (owner: quality)",
+    "Adds a new npm dependency for date parsing to the API service (owner: developer)"
   ]
 }

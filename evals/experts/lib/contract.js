@@ -116,17 +116,24 @@ function checkExpert({ payloadDir, examplesDir, name, declaredTools = DECLARED_T
       bad(`tools are "${actual.join(', ')}" but the contract allows "${allowed.join(', ')}"; widening needs an entry in DECLARED_TOOLS in evals/experts/lib/contract.js and a reviewer's yes`);
     }
     if (fm.readonly !== 'true') bad('frontmatter must set readonly: true (the Cursor equivalent of the tool allowlist)');
-    if (!/zero (findings|constraints|cases)/i.test(body)) bad('the body must say that zero findings is a correct answer');
-    if (!/untrusted/i.test(body)) bad('the body must say that everything it reads is untrusted data');
-    if (!actual.includes('Bash') && !/no shell/i.test(body)) bad('the body must say the expert has no shell');
+    // What every expert shares (zero is correct, untrusted input, the web rules) lives in
+    // experts/protocol.md; the agent names it and says only what is its own.
+    if (!/experts\/protocol\.md/.test(body)) bad('the agent must name experts/protocol.md, the rules every expert follows, in what it reads');
+    if (!actual.includes('Bash') && !/no shell|cannot run/i.test(body)) bad('the body must say the expert cannot run anything');
     if (actual.includes('Bash') && !/read-only commands/i.test(body)) bad('the expert can run commands, so its body must say it runs read-only commands only');
-    const web = actual.includes('WebFetch') || actual.includes('WebSearch');
-    if (web && !/never (put|send|include)[^.\n]*(repository|code|secret)/i.test(body)) {
-      bad('the expert can reach the web, so its body must say never to put repository contents, secrets or code into a query or URL');
+    const goal = (/^## Goal\s*\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(body) || [])[1] || '';
+    if (!goal) bad('the agent needs a "## Goal" section: what it prevents, what done well is, what is not the goal');
+    else for (const k of ['Prevents:', 'Done well:', 'Not the goal:']) if (!goal.includes(`**${k}**`)) bad(`the Goal must state **${k}**`);
+    const resp = (/^## Responsibilities\s*\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(body) || [])[1] || '';
+    if (!resp) bad('the agent needs a "## Responsibilities" rubric: area, what it judges, what is not its own (owner), the border');
+    else {
+      if (!/\|\s*Area\s*\|\s*This expert judges\s*\|\s*Not this expert's \(owner\)\s*\|\s*At the border\s*\|/.test(resp)) bad('the Responsibilities table needs the columns Area | This expert judges | Not this expert\'s (owner) | At the border');
+      const rows = resp.split(/\r?\n/).filter((l) => /^\|/.test(l) && !/^\|\s*-/.test(l) && !/\|\s*Area\s*\|/.test(l));
+      if (rows.length < 2) bad('the Responsibilities table needs at least two rows');
     }
-    if (web && !/untrusted[^.\n]*(web|fetched|search)|fetched[^.\n]*untrusted/i.test(body)) {
-      bad('the expert can reach the web, so its body must say that fetched content is untrusted too');
-    }
+    if (!/^## How to judge/m.test(body)) bad('the agent needs a "## How to judge" section: the two to four rules that hold at every stage in this domain');
+    if (/Both hosts are covered/.test(body)) bad('the note about host keys is for maintainers; it belongs in docs/adding-an-expert.md, not in a prompt the model pays for');
+    if (/\b8 or above\b|^## Untrusted input/m.test(body)) bad('the agent restates experts/protocol.md; say it once, there');
     if (/FILL-IN/.test(body)) bad('the agent file still has a FILL-IN note from the template');
   }
 
@@ -162,10 +169,14 @@ function checkExpert({ payloadDir, examplesDir, name, declaredTools = DECLARED_T
       if (Buffer.byteLength(brief) > BRIEF_BYTES) bad(`build.md is ${Buffer.byteLength(brief)} bytes; it is loaded on every build and is capped at ${BRIEF_BYTES}`);
       if (!/\bplan\b/i.test(brief) || !/adds no work|did not ask|not ask for/i.test(brief)) bad('build.md must say that it adds no work and that the plan decides the scope: a brief says how to write, never what to build');
       if (/\bfetch\b|\bcurl\b|\bnpx?\b|https?:\/\//i.test(brief)) bad('build.md must not tell the implementer to fetch, install or visit anything');
+      for (const h of ['## Before you write', '## While you write', '## When not to', '## When you report']) if (!text.includes(h)) bad(`build.md needs a "${h}" section`);
     } else {
-      if (!/\bzero\b|\bno (constraints|cases)\b/i.test(text)) bad(`${stage}.md must say that an empty answer is correct, or the expert will invent requirements`);
-      if (!/\bdata\b/i.test(text) || !/instruction/i.test(text)) bad(`${stage}.md must say that what the expert reads is data, not instructions`);
-      if (!/at most/i.test(text)) bad(`${stage}.md must cap how much the expert returns ("at most N"), or the plan stops being readable`);
+      // Zero is correct, untrusted input and the limits on what is returned are the protocol's
+      // and the schema's; the stage reference says what a good item is in this domain.
+      if (!/\*\*Outcome of this stage:\*\*/.test(text)) bad(`${stage}.md must open with "**Outcome of this stage:**", the one thing this stage must leave in the plan`);
+      if (/^## What to return/m.test(text)) bad(`${stage}.md defines what to return; the fields and their limits belong to the workflow's schema`);
+      const need = stage === 'plan' ? ['## Questions', '## A good constraint, and a rejected one'] : ['## Families of cases', '## One worked case', '## Redundant here'];
+      for (const h of need) if (!text.includes(h)) bad(`${stage}.md needs a "${h}" section`);
     }
   }
 
@@ -197,6 +208,9 @@ function checkExpert({ payloadDir, examplesDir, name, declaredTools = DECLARED_T
       if (applies.length < MIN_EXAMPLES || doesNot.length < MIN_EXAMPLES) {
         bad(`selection examples need at least ${MIN_EXAMPLES} situations where it applies and ${MIN_EXAMPLES} where it does not`);
       }
+      // A near miss with its owner named teaches where this expert stops; a typo fix does not.
+      const owned = doesNot.filter((x) => typeof x === 'string' && /\(owner: [a-z-]+\)/.test(x)).length;
+      if (doesNot.length > 0 && owned * 2 < doesNot.length) bad(`at least half of does_not_apply must be near misses a sibling owns, written "... (owner: <expert>)"; ${owned} of ${doesNot.length} are`);
       for (const s of [...applies, ...doesNot]) {
         if (typeof s !== 'string' || s.length < 15) bad(`a selection example is not a sentence describing a change: ${JSON.stringify(s)}`);
         else if (/REPLACE|FILL-IN/.test(s)) bad(`a selection example is still a placeholder: "${s}"`);

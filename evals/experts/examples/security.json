@@ -10,7 +10,9 @@
   "does_not_apply": [
     "Renames a CSS class in a button component",
     "Fixes a typo in the README",
-    "Adds a unit test for a date-formatting helper",
-    "Reorders the columns of a report table in the UI"
+    "Adds a concurrency group so two deploys to production cannot run at once (owner: devops)",
+    "Adds a login test whose assertion runs inside a callback that is never awaited (owner: quality)",
+    "Moves one tenant's tables from the shared pool to their own database (owner: architect)",
+    "Adds a well-known date library to replace a hand-written parser (owner: developer)"
   ]
 }

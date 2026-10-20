@@ -41,14 +41,15 @@ function scaffoldExpert({ payload, examples, cookbook, name, domain, stages = ['
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, content.endsWith('\n') ? content : `${content}\n`);
   };
-  const filled = (s) => (fill ? s.replace(/FILL-IN:[^\n]*/g, 'A concrete item for this domain.') : s);
+  // A note can sit inside a table cell, so it ends at a pipe as well as at the end of the line.
+  const filled = (s) => (fill ? s.replace(/FILL-IN(?::[^|\n]*)?/g, 'A concrete item for this domain') : s);
 
   // The template names a reference for every stage; keep only the stages this expert joins.
   const agentText = filled(fillIn(t.agent, vars))
     .replace(/^stages: .*$/m, `stages: [${stages.join(', ')}]`)
     .split('\n')
     .filter((line) => {
-      const m = /^- At the \*\*(plan|tests|build|review)\*\* stage/.exec(line);
+      const m = /^\s*- At the \*\*(plan|tests|build|review)\*\* stage/.exec(line);
       return !m || stages.includes(m[1]);
     })
     .join('\n');

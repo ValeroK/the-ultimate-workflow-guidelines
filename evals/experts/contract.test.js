@@ -52,30 +52,37 @@ const MUTANTS = {
   'agent gains a write tool': (t) => edit(agentFile(t), (s) => s.replace(/^tools: .*$/m, (line) => `${line}, Write`)),
   'agent loses a declared tool': (t) => edit(agentFile(t), (s) => s.replace(', WebSearch', '')),
   'agent drops the rule to run read-only commands only': (t) => edit(agentFile(t), (s) => s.replace(/read-only commands/gi, 'commands')),
-  'agent can reach the web but drops the rule against leaking repository contents': (t) =>
-    edit(agentFile(t), (s) => s.replace(/never put repository contents/gi, 'feel free to include context')),
-  'agent can reach the web but drops the rule that fetched content is untrusted': (t) =>
-    edit(agentFile(t), (s) => s.replace(/fetched content is untrusted/gi, 'fetched content is reliable')),
+  'agent stops pointing at the shared protocol': (t) => edit(agentFile(t), (s) => s.replace(/experts\/protocol\.md/g, 'the usual rules')),
+  'agent restates the protocol threshold': (t) => edit(agentFile(t), (s) => `${s}\nReport only findings rated 8 or above.\n`),
+  'agent loses its Goal': (t) => edit(agentFile(t), (s) => s.replace(/^## Goal\s*\n[\s\S]*?(?=^## )/m, '')),
+  'agent Goal loses what it is not for': (t) => edit(agentFile(t), (s) => s.replace('**Not the goal:**', '**Also:**')),
+  'agent loses its Responsibilities rubric': (t) => edit(agentFile(t), (s) => s.replace(/^## Responsibilities\s*\n[\s\S]*?(?=^## )/m, '')),
+  'agent rubric drops the owner column': (t) => edit(agentFile(t), (s) => s.replace("Not this expert's (owner)", 'Not this expert')),
   'agent loses readonly': (t) => edit(agentFile(t), (s) => s.replace('readonly: true', 'readonly: false')),
   'agent name does not match the file': (t) => edit(agentFile(t), (s) => s.replace('name: uw-expert-security', 'name: uw-expert-secure')),
-  'agent drops the zero-findings rule': (t) => edit(agentFile(t), (s) => s.replace(/zero findings/gi, 'a quiet result').replace(/zero constraints/gi, 'a quiet result')),
-  'agent drops the untrusted-data rule': (t) => edit(agentFile(t), (s) => s.replace(/untrusted/gi, 'unusual')),
+  'agent loses How to judge': (t) => edit(agentFile(t), (s) => s.replace(/^## How to judge/m, '## Notes')),
   'agent has no description a model could choose by': (t) => edit(agentFile(t), (s) => s.replace(/^description: .*$/m, 'description: Security.')),
   'agent description is still the template note': (t) => edit(agentFile(t), (s) => s.replace(/^description: .*$/m, 'description: Security expert. Applies when FILL-IN: say when, in one or two sentences, please.')),
   'agent declares a stage that does not exist': (t) => edit(agentFile(t), (s) => s.replace(/^stages: .*$/m, 'stages: [plan, ship]')),
   'agent declares no stages line': (t) => edit(agentFile(t), (s) => s.replace(/^stages: .*\n/m, '')),
   'a declared stage has no reference file': (t) => fs.rmSync(ref(t, 'tests.md')),
   'a declared stage reference is never named by the agent': (t) =>
-    edit(agentFile(t), (s) => s.replace(/^- At the \*\*tests\*\* stage.*\n/m, '')),
+    edit(agentFile(t), (s) => s.replace(/^\s*- At the \*\*tests\*\* stage.*\n/m, '')),
   'a reference exists but the agent never names it': (t) => fs.writeFileSync(ref(t, 'orphan.md'), '# orphan\n'),
   'the agent names a reference that does not exist': (t) =>
     edit(agentFile(t), (s) => `${s}\n- Read \`experts/security/references/ghost.md\` only if the diff touches ghosts.\n`),
   'the review reference loses a required section': (t) =>
-    edit(ref(t, 'review.md'), (s) => s.replace(/^## Untrusted input[\s\S]*?(?=^## |$(?![\s\S]))/m, '')),
+    edit(ref(t, 'review.md'), (s) => s.replace(/^## Severity here[\s\S]*?(?=^## |$(?![\s\S]))/m, '')),
   'the review reference demands a finding': (t) => edit(ref(t, 'review.md'), (s) => `${s}\n## Scope note\nAlways report at least one issue.\n`),
-  'the plan reference no longer allows an empty answer': (t) => edit(ref(t, 'plan.md'), (s) => s.replace(/zero constraints/gi, 'some constraints')),
-  'the plan reference no longer caps what it returns': (t) => edit(ref(t, 'plan.md'), (s) => s.replace(/at most/gi, 'as many as needed')),
-  'the tests reference stops calling what it reads data': (t) => edit(ref(t, 'tests.md'), (s) => s.replace(/data, not instructions/gi, 'ground truth')),
+  'the review reference restates the protocol result form': (t) => edit(ref(t, 'review.md'), (s) => `${s}\n## Result\n\nReturn findings in the shape the workflow gives you.\n`),
+  'a review category has no counter-case': (t) => edit(ref(t, 'review.md'), (s) => s.replace(/^(- \*\*Injection\.\*\*.*?) Not when[^\n]*$/m, '$1')),
+  'the review method has no stop rule': (t) => edit(ref(t, 'review.md'), (s) => s.replace(/\bstop\b/gi, 'pause')),
+  'the plan reference loses its outcome line': (t) => edit(ref(t, 'plan.md'), (s) => s.replace('**Outcome of this stage:**', 'Outcome:')),
+  'the plan reference defines what to return': (t) => edit(ref(t, 'plan.md'), (s) => `${s}\n## What to return\n\n- **constraints**: at most six.\n`),
+  'the plan reference loses its good and rejected constraint': (t) => edit(ref(t, 'plan.md'), (s) => s.replace('## A good constraint, and a rejected one', '## Examples')),
+  'the tests reference loses its worked case': (t) => edit(ref(t, 'tests.md'), (s) => s.replace('## One worked case', '## A case')),
+  'a reference lists skills': (t) => edit(ref(t, 'review.md'), (s) => `${s}\n## Skills\n\n- test-craft\n`),
+  'selection negatives are not near misses': (t) => edit(path.join(t.examples, 'security.json'), (s) => s.replace(/ \(owner: [a-z-]+\)/g, '')),
   'a template guidance note was never filled in': (t) => edit(ref(t, 'review.md'), (s) => `${s}\nFILL-IN: say what this domain checks.\n`),
   'a plan reference still has a template note': (t) => edit(ref(t, 'plan.md'), (s) => `${s}\nFILL-IN: say what to look at.\n`),
   'a SKILL.md appears under the expert, putting a description in the main context': (t) =>
@@ -213,4 +220,31 @@ test('shared skills: a skill no expert names, one without a notice, an oversized
   assert.match(p, /experts\/skills\/failure-handling\/skill\.md is \d+ bytes; the cap is 16384/);
   assert.match(p, /failure-handling\/skill\.md must not tell a reader to fetch/);
   assert.match(p, /name the file skill\.md, not SKILL\.md/);
+});
+
+test('no two experts claim the same Responsibilities area, and every example owner is a sibling', () => {
+  // Two rubrics with one area is two experts judging the same item; the border column exists so
+  // that never happens. A near miss names its owner, which must be an expert that exists or is
+  // planned in some rubric's owner column.
+  const agents = fs.readdirSync(path.join(PAYLOAD, 'agents')).filter((f) => /^uw-expert-.*\.md$/.test(f));
+  const seen = new Map();
+  const names = new Set();
+  for (const f of agents) {
+    const name = f.replace(/^uw-expert-|\.md$/g, '');
+    names.add(name);
+    const text = fs.readFileSync(path.join(PAYLOAD, 'agents', f), 'utf8');
+    const resp = (/^## Responsibilities\s*\n([\s\S]*?)(?=^## )/m.exec(text) || [])[1] || '';
+    for (const row of resp.split(/\r?\n/).filter((l) => /^\|/.test(l) && !/^\|\s*-/.test(l) && !/\|\s*Area\s*\|/.test(l))) {
+      const area = row.split('|')[1].trim().toLowerCase();
+      assert.ok(!seen.has(area), `"${area}" is claimed by both ${seen.get(area)} and ${name}`);
+      seen.set(area, name);
+    }
+  }
+  for (const f of fs.readdirSync(EXAMPLES).filter((x) => x.endsWith('.json'))) {
+    const ex = JSON.parse(fs.readFileSync(path.join(EXAMPLES, f), 'utf8'));
+    for (const s of ex.does_not_apply || []) {
+      const m = /\(owner: ([a-z-]+)\)/.exec(s);
+      if (m) assert.ok(names.has(m[1]) && `${m[1]}.json` !== f, `${f}: "${s}" names ${m[1]}, which is not a sibling expert`);
+    }
+  }
 });

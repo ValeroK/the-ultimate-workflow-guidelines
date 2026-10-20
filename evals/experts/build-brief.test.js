@@ -63,11 +63,12 @@ test('build: several briefs are all loaded, in the order given', async () => {
   assert.ok(p.indexOf('Always reuse') < p.indexOf('Never log a token.'));
 });
 
-test('build: the shipped developer brief is short, concrete and tells the implementer when not to add structure', () => {
+test('build: the shipped developer brief is short, concrete and tells the implementer when not to add structure and what to report', () => {
   const b = briefs(PLUGIN).briefs.find((x) => x.name === 'developer');
   assert.ok(b, 'developer declares build');
   assert.ok(Buffer.byteLength(b.text) < 3500, 'it is paid for on every build');
-  assert.match(b.text, /When not to add structure/);
+  assert.match(b.text, /^## When not to$/m);
+  assert.match(b.text, /^## When you report$/m);
   assert.match(b.text, /second real user/);
   assert.match(b.text, /lint, format and type-check/);
   assert.match(b.text, /No empty catch/);

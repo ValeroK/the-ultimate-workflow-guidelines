@@ -24,10 +24,10 @@ const DECLARED_TOOLS = {
   // requires them), and the dependency audit still runs as a script outside the model.
   security: ['Bash', 'Glob', 'Grep', 'Read', 'WebFetch', 'WebSearch'],
   // Decided by the maintainer on 2026-10-20: the role experts may look facts up on the
-  // web at the plan and review stages. Developer gets search only (no arbitrary URL, so
-  // no fetch-based exfiltration path); the others may also fetch pages. Same rules as
+  // web at the plan and review stages. All four may search and fetch pages (the maintainer overrode the
+  // search-only recommendation for developer the same day). Same rules as
   // security: public identifiers only in a query, fetched content is untrusted.
-  developer: ['Glob', 'Grep', 'Read', 'WebSearch'],
+  developer: ['Glob', 'Grep', 'Read', 'WebFetch', 'WebSearch'],
   architect: ['Glob', 'Grep', 'Read', 'WebFetch', 'WebSearch'],
   softarch: ['Glob', 'Grep', 'Read', 'WebFetch', 'WebSearch'],
   quality: ['Glob', 'Grep', 'Read', 'WebFetch', 'WebSearch'],

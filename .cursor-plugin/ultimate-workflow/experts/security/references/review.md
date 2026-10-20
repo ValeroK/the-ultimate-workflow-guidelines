@@ -45,6 +45,7 @@ Check what the change touches and skip the rest.
 ## Excuses that do not hold
 
 - "The checked-out code is never run": install and build steps run it.
+- "`actions/checkout` refuses fork code now": only without `allow-unsafe-pr-checkout: true`, and `git fetch`, `gh pr checkout` and a downloaded artifact are not covered.
 - "It is internal only": an internal caller can be compromised, and the network boundary moves.
 - "The token is read-only": check what `permissions` actually sets, and what the token can reach.
 
@@ -67,5 +68,5 @@ These produce noise. Skip them unless the change makes one concretely exploitabl
 
 ## One finding, and one candidate dropped
 
-- Reported: `.github/workflows/preview.yml:12` runs on `pull_request_target`, checks out `github.event.pull_request.head.sha` at line 18, and runs `npm ci` at line 22 with the default write token and `secrets.DEPLOY_KEY` in the job's environment. A fork's pull request adds a `postinstall` script that prints the key; the job runs it with the secret. Category: agent, skill, hook, MCP and CI surface; severity high. Fix: run untrusted code under `pull_request` with no secrets, and move the privileged step to a separate `workflow_run` job that does not check out the fork.
+- Reported: `.github/workflows/preview.yml:12` runs on `pull_request_target`, checks out `github.event.pull_request.head.sha` with `allow-unsafe-pr-checkout: true` at line 18, and runs `npm ci` at line 22 with the default write token and `secrets.DEPLOY_KEY` in the job's environment. A fork's pull request adds a `postinstall` script that prints the key; the job runs it with the secret. Category: agent, skill, hook, MCP and CI surface; severity high. Fix: run untrusted code under `pull_request` with no secrets, and move the privileged step to a separate `workflow_run` job that does not check out the fork.
 - Dropped: `reports/query.py:40` builds SQL with an f-string. Its only input is `sort`, which line 31 maps from a fixed dict of three column names, so no outsider-controlled value reaches the query.

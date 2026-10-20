@@ -502,7 +502,7 @@ test('cli check exits 0 with ok when a commit would be allowed and 1 with the re
 test('cli with an unknown command or argument exits 2 and says what it expected', () => {
   const a = cli(process.cwd(), ['frobnicate']);
   assert.strictEqual(a.status, 2);
-  assert.match(a.stderr, /expected list, read, select/);
+  assert.match(a.stderr, /expected list, brief, read, select/);
   const b = cli(process.cwd(), ['list', '--nope']);
   assert.strictEqual(b.status, 2);
   assert.match(b.stderr, /unknown argument/);
@@ -659,4 +659,64 @@ test('cli findings lists what is open and what is dismissed, and resolve dismiss
   assert.strictEqual(ok.status, 0, ok.stderr);
   assert.strictEqual(JSON.parse(cli(dir, ['findings']).stdout).findings[0].waived, true);
   assert.strictEqual(cli(dir, ['check', '--plan', plan]).status, 0);
+});
+
+// ---- the build stage: a standing brief, loaded on every build ----
+
+test('briefs: an expert that declares the build stage contributes its build.md, others contribute nothing', () => {
+  const { payload } = (function copy() {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'uw-brief-'));
+    fs.cpSync(PLUGIN, path.join(root, 'plugin'), { recursive: true });
+    return { payload: path.join(root, 'plugin') };
+  })();
+  const { briefs } = require(path.join(payload, 'experts', 'experts.js'));
+  const names = briefs(payload).briefs.map((b) => b.name);
+  assert.ok(names.includes('developer'), 'developer declares build');
+  assert.ok(!names.includes('security'), 'security does not declare build');
+  assert.deepEqual(briefs(payload).problems, [], 'an expert that does not declare build is not asked for a brief, so nothing is reported for it');
+  const dev = briefs(payload).briefs.find((b) => b.name === 'developer');
+  assert.ok(dev.text.length > 200 && dev.text.length < 4096);
+  assert.match(dev.text, /adds no work/);
+});
+
+test('briefs: a missing, empty or oversized build.md is reported and left out, never guessed', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'uw-brief-'));
+  const payload = path.join(root, 'plugin');
+  fs.cpSync(PLUGIN, payload, { recursive: true });
+  const { briefs } = require(path.join(payload, 'experts', 'experts.js'));
+  const file = path.join(payload, 'experts', 'developer', 'references', 'build.md');
+  const original = fs.readFileSync(file, 'utf8');
+
+  fs.rmSync(file);
+  let r = briefs(payload);
+  assert.deepEqual(r.briefs.map((b) => b.name), []);
+  assert.match(r.problems.join('|'), /developer: declares the build stage but .*build\.md cannot be read/);
+
+  fs.writeFileSync(file, '   \n');
+  r = briefs(payload);
+  assert.deepEqual(r.briefs, []);
+  assert.match(r.problems.join('|'), /build\.md is empty/);
+
+  fs.writeFileSync(file, 'x'.repeat(5000));
+  r = briefs(payload);
+  assert.deepEqual(r.briefs, []);
+  assert.match(r.problems.join('|'), /capped at 4096/);
+
+  fs.writeFileSync(file, original);
+  assert.equal(briefs(payload).briefs.length, 1);
+});
+
+test('briefs: the build stage is declarable but is not a lane stage, so nothing can be recorded for it', () => {
+  const x = require(path.join(PLUGIN, 'experts', 'experts.js'));
+  assert.deepEqual(x.STAGES, ['plan', 'tests', 'review']);
+  assert.deepEqual(x.DECLARABLE, ['plan', 'tests', 'review', 'build']);
+  assert.throws(() => x.record(os.tmpdir(), 'build', { ok: true, expertLane: { stage: 'build' } }), /unknown stage "build"/);
+});
+
+test('briefs: the cli prints the briefs as JSON and says why one was left out', () => {
+  const r = spawnSync(process.execPath, [path.join(PLUGIN, 'experts', 'experts.js'), 'brief'], { encoding: 'utf8' });
+  assert.equal(r.status, 0);
+  const out = JSON.parse(r.stdout);
+  assert.deepEqual(out.map((b) => b.name), ['developer']);
+  assert.equal(typeof out[0].text, 'string');
 });

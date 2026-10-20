@@ -165,3 +165,53 @@ test('every expert-sized path the cookbook mentions exists or is a labelled plac
     assert.ok(candidates.some((c) => fs.existsSync(c)), `the cookbook points at ${ref}, which does not exist`);
   }
 });
+
+test('an expert that declares a build brief is scaffolded from the cookbook and passes the contract', () => {
+  const tree = copyTree();
+  scaffoldExpert({ ...tree, cookbook: text(), name: 'infra', domain: 'infrastructure', stages: ['plan', 'build', 'review'], fill: FILL });
+  assert.deepStrictEqual(checkAll({ payloadDir: tree.payload, examplesDir: tree.examples }), []);
+  assert.ok(fs.existsSync(path.join(tree.payload, 'experts', 'infra', 'references', 'build.md')));
+  const agent = fs.readFileSync(path.join(tree.payload, 'agents', 'uw-expert-infra.md'), 'utf8');
+  assert.match(agent, /stages: \[plan, build, review\]/);
+  assert.match(agent, /At the \*\*build\*\* stage you are not run/);
+  assert.ok(discover(tree.payload).experts.find((e) => e.name === 'infra').stages.includes('build'));
+});
+
+test('a build brief that is too big, that enlarges the task, or that fetches things is stopped by the contract', () => {
+  const tree = copyTree();
+  scaffoldExpert({ ...tree, cookbook: text(), name: 'infra', domain: 'infrastructure', stages: ['plan', 'build', 'review'], fill: FILL });
+  const file = path.join(tree.payload, 'experts', 'infra', 'references', 'build.md');
+  const good = fs.readFileSync(file, 'utf8');
+  const problems = () => checkAll({ payloadDir: tree.payload, examplesDir: tree.examples }).join(' | ');
+
+  fs.writeFileSync(file, `${good}\n${'Another rule that nobody needs. '.repeat(200)}`);
+  assert.match(problems(), /build\.md is \d+ bytes; it is loaded on every build and is capped at 4096/);
+
+  fs.writeFileSync(file, '# Brief\n\nWrite code the way the team does.\n');
+  assert.match(problems(), /must say that it adds no work and that the plan decides the scope/);
+
+  fs.writeFileSync(file, `${good}\nBefore you start, run npx something to fetch the style guide.\n`);
+  assert.match(problems(), /must not tell the implementer to fetch, install or visit anything/);
+
+  fs.writeFileSync(file, good);
+  assert.strictEqual(problems(), '');
+});
+
+test('a build stage with no build.md is caught, and so is a build.md the agent never names', () => {
+  const tree = copyTree();
+  scaffoldExpert({ ...tree, cookbook: text(), name: 'infra', domain: 'infrastructure', stages: ['plan', 'build', 'review'], fill: FILL });
+  const ref = path.join(tree.payload, 'experts', 'infra', 'references', 'build.md');
+  const agentFile = path.join(tree.payload, 'agents', 'uw-expert-infra.md');
+  const agent = fs.readFileSync(agentFile, 'utf8');
+  const problems = () => checkAll({ payloadDir: tree.payload, examplesDir: tree.examples }).join(' | ');
+
+  fs.writeFileSync(agentFile, agent.split('\n').filter((l) => !/references\/build\.md/.test(l)).join('\n'));
+  assert.match(problems(), /build\.md exists but the agent never names it/);
+  fs.writeFileSync(agentFile, agent);
+
+  const saved = fs.readFileSync(ref, 'utf8');
+  fs.rmSync(ref);
+  assert.match(problems(), /takes part at the build stage, so .*build\.md must exist|build\.md, which does not exist/);
+  fs.writeFileSync(ref, saved);
+  assert.strictEqual(problems(), '');
+});

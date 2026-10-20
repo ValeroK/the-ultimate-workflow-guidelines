@@ -89,7 +89,9 @@ A **domain expert** is an agent with a vetted checklist for one domain. Unlike a
  /tests    the same experts add the test cases their domain needs
            YOU confirm the tests
               |
- /build    the implementer treats the expert input as requirements
+ /build    the implementer treats the expert input as requirements, and every
+           expert with a build brief (the developer expert has one) loads it, on every
+           build: a short list of how to write, never what to build
               |
  commit    refused until /ultimate-workflow:experts has run:
              the question is asked again against the real diff (it can only ADD experts)

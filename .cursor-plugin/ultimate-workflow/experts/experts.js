@@ -17,6 +17,7 @@
 // Standard library only, so the install stays one command with no dependencies.
 //
 //   node experts.js list                                    available experts, as JSON
+//   node experts.js brief                                   the standing brief of every expert that declares the build stage
 //   node experts.js read    --plan P                        the plan's experts
 //   node experts.js select  --plan P --add a,b              add experts to the plan (never removes)
 //   node experts.js prepare [--range working|A..B]          save the diff, fingerprint the tree
@@ -38,6 +39,12 @@ const gates = require('../hooks/lib/gates.js');
 
 const PLUGIN_ROOT = path.join(__dirname, '..');
 const STAGES = ['plan', 'tests', 'review'];
+// `build` is declarable but is not a lane stage: no expert is consulted as an agent while code is
+// written, and nothing is recorded or gated for it. Its reference is a short brief that the build
+// command passes to the implementer. STAGES stays the lane stages so record and the lanes never see it.
+const BUILD = 'build';
+const DECLARABLE = [...STAGES, BUILD];
+const BRIEF_BYTES = 4096;
 const EVIDENCE = path.join('.ultimate-workflow', 'experts');
 const AGENT_FILE = /^uw-expert-([a-z][a-z0-9-]*)\.md$/;
 
@@ -77,10 +84,35 @@ function list(pluginRoot = PLUGIN_ROOT) {
     const stages = fm.stages === undefined ? ['review'] : inlineList(fm.stages);
     if (fm.name !== `uw-expert-${name}`) problems.push(`${f}: frontmatter name is "${fm.name || ''}", expected "uw-expert-${name}"`);
     else if (!fm.description) problems.push(`${f}: no description, so a model cannot tell when it applies`);
-    else if (stages.length === 0 || stages.some((s) => !STAGES.includes(s))) problems.push(`${f}: stages must be a list drawn from ${STAGES.join(', ')}`);
+    else if (stages.length === 0 || stages.some((s) => !DECLARABLE.includes(s))) problems.push(`${f}: stages must be a list drawn from ${DECLARABLE.join(', ')}`);
     else experts.push({ name, agent: fm.name, description: fm.description, stages });
   }
   return { experts, problems };
+}
+
+/**
+ * The standing brief of every expert that declares the build stage: the text of its build.md,
+ * loaded on every build whether or not the expert was selected at plan time. A missing, empty or
+ * oversized brief is reported and left out; a brief that costs tokens on every build is capped.
+ */
+function briefs(pluginRoot = PLUGIN_ROOT) {
+  const found = list(pluginRoot);
+  const out = [];
+  const problems = [...found.problems];
+  for (const e of found.experts.filter((x) => x.stages.includes(BUILD))) {
+    const file = path.join(pluginRoot, 'experts', e.name, 'references', 'build.md');
+    let text = '';
+    try {
+      text = fs.readFileSync(file, 'utf8');
+    } catch {
+      problems.push(`${e.name}: declares the build stage but experts/${e.name}/references/build.md cannot be read`);
+      continue;
+    }
+    if (text.trim() === '') problems.push(`${e.name}: build.md is empty`);
+    else if (Buffer.byteLength(text) > BRIEF_BYTES) problems.push(`${e.name}: build.md is ${Buffer.byteLength(text)} bytes; a brief loaded on every build is capped at ${BRIEF_BYTES}`);
+    else out.push({ name: e.name, text: text.trim() });
+  }
+  return { briefs: out, problems };
 }
 
 /** The experts that take part at a stage, in the order they were selected. */
@@ -396,6 +428,11 @@ function main(argv) {
       if (l.problems.length > 0) process.stderr.write(`experts.js: ${l.problems.join('; ')}\n`);
       return out(l.experts);
     }
+    if (o.cmd === 'brief') {
+      const b = briefs(o.pluginRoot);
+      if (b.problems.length > 0) process.stderr.write(`experts.js: ${b.problems.join('; ')}\n`);
+      return out(b.briefs);
+    }
     if (o.cmd === 'read') {
       const r = readExperts(fs.readFileSync(needPlan(), 'utf8'));
       if (r.error) fail(r.error);
@@ -432,12 +469,16 @@ function main(argv) {
   } catch (err) {
     fail(err.message);
   }
-  return fail(`unknown command: ${o.cmd || '(none)'} (expected list, read, select, prepare, record, check, findings, resolve, fingerprint)`);
+  return fail(`unknown command: ${o.cmd || '(none)'} (expected list, brief, read, select, prepare, record, check, findings, resolve, fingerprint)`);
 }
 
 module.exports = {
   STAGES,
+  BUILD,
+  DECLARABLE,
+  BRIEF_BYTES,
   list,
+  briefs,
   expertsFor,
   mergeAdd,
   readExperts,

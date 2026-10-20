@@ -29,6 +29,7 @@ const DECLARED_TOOLS = {
 const LINT_PROFILES = { security: SECURITY_PROFILE };
 
 const BYTE_BUDGET = 60 * 1024;
+const { BRIEF_BYTES } = require(path.join(__dirname, '..', '..', '..', '.cursor-plugin', 'ultimate-workflow', 'experts', 'experts.js'));
 const MIN_EXAMPLES = 3;
 const STAGES = ['plan', 'tests', 'review'];
 const LANE_WORKFLOWS = ['plan.js', 'tests.js', 'review.js'];
@@ -98,7 +99,7 @@ function checkExpert({ payloadDir, examplesDir, name, declaredTools = DECLARED_T
       bad('frontmatter needs a description of at least 40 characters: it is the line a model reads to decide whether this expert applies, so say when it applies');
     }
     if (/FILL-IN/.test(fm.description || '')) bad('the description still has a FILL-IN note from the template');
-    if (!fm.stages) bad('frontmatter needs stages, a list drawn from plan, tests, review (for example: stages: [plan, review])');
+    if (!fm.stages) bad('frontmatter needs stages, a list drawn from plan, tests, build, review (for example: stages: [plan, review])');
     const allowed = (declaredTools[name] || DEFAULT_TOOLS).slice().sort();
     const actual = String(fm.tools || '').split(',').map((t) => t.trim()).filter(Boolean).sort();
     if (JSON.stringify(allowed) !== JSON.stringify(actual)) {
@@ -143,6 +144,11 @@ function checkExpert({ payloadDir, examplesDir, name, declaredTools = DECLARED_T
     if (/FILL-IN/.test(text)) bad(`experts/${name}/references/${stage}.md still has a FILL-IN note from the template`);
     if (stage === 'review') {
       for (const p of lintChecklist(text, LINT_PROFILES[name] || GENERIC_PROFILE)) bad(`review reference: ${p}`);
+    } else if (stage === 'build') {
+      // Loaded into the implementer's prompt on every build, so it is capped, and it may only say how to write.
+      if (Buffer.byteLength(text) > BRIEF_BYTES) bad(`build.md is ${Buffer.byteLength(text)} bytes; it is loaded on every build and is capped at ${BRIEF_BYTES}`);
+      if (!/\bplan\b/i.test(text) || !/adds no work|did not ask|not ask for/i.test(text)) bad('build.md must say that it adds no work and that the plan decides the scope: a brief says how to write, never what to build');
+      if (/\bfetch\b|\bcurl\b|\bnpx?\b|https?:\/\//i.test(text)) bad('build.md must not tell the implementer to fetch, install or visit anything');
     } else {
       if (!/\bzero\b|\bno (constraints|cases)\b/i.test(text)) bad(`${stage}.md must say that an empty answer is correct, or the expert will invent requirements`);
       if (!/\bdata\b/i.test(text) || !/instruction/i.test(text)) bad(`${stage}.md must say that what the expert reads is data, not instructions`);

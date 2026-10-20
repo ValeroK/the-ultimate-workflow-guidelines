@@ -48,12 +48,13 @@ function scaffoldExpert({ payload, examples, cookbook, name, domain, stages = ['
     .replace(/^stages: .*$/m, `stages: [${stages.join(', ')}]`)
     .split('\n')
     .filter((line) => {
-      const m = /^- At the \*\*(plan|tests|review)\*\* stage/.exec(line);
+      const m = /^- At the \*\*(plan|tests|build|review)\*\* stage/.exec(line);
       return !m || stages.includes(m[1]);
     })
     .join('\n');
   write(path.join(payload, 'agents', `uw-expert-${name}.md`), agentText);
   for (const stage of stages) {
+    if (!t[`${stage}-reference`]) throw new Error(`cannot follow the cookbook: no template:${stage}-reference block`);
     write(path.join(payload, 'experts', name, 'references', `${stage}.md`), filled(fillIn(t[`${stage}-reference`], vars)));
   }
 

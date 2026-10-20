@@ -27,6 +27,10 @@ export const meta = {
 const ROUND_CAP = 3
 const planFile = (args && args.plan) || ''
 const command = (args && args.command) || ''
+// Standing briefs from the experts that declare the build stage, found by the command in code
+// (this script cannot read files) and passed in as [{ name, text }]. Anything malformed is dropped,
+// not guessed at.
+const briefs = ((args && args.briefs) || []).filter((b) => b && typeof b.name === 'string' && typeof b.text === 'string' && b.text.trim() !== '')
 
 const WROTE = {
   type: 'object',
@@ -77,6 +81,13 @@ const DIAGNOSIS = {
 const EXPERT_NOTE =
   'If the plan has an "Expert input" section, its constraints are requirements, not suggestions: meet each one, or stop and say which one you cannot meet and why. Do not drop one silently.'
 
+// A standing brief is loaded on every build. It says how to write, never what to build, so the plan
+// still decides the scope.
+const BRIEF =
+  briefs.length === 0
+    ? ''
+    : `\n\nSTANDING BRIEF, from ${briefs.map((b) => b.name).join(', ')}. It applies to every line you write, and it adds no work: do nothing the plan did not ask for.\n\n${briefs.map((b) => b.text.trim()).join('\n\n')}\n`
+
 const locate = planFile
   ? `Read ${planFile}.`
   : 'Find the active PLAN-*.md in this repository -- the most recently modified one -- and read it.'
@@ -84,7 +95,7 @@ const locate = planFile
 phase('Tests')
 
 const tests = await agent(
-  `${locate} ${EXPERT_NOTE}
+  `${locate} ${EXPERT_NOTE}${BRIEF}
 
 Write the tests from its confirmed Tests section. Only the tests. Do not write the implementation yet.
 
@@ -127,7 +138,7 @@ while (round < ROUND_CAP) {
   round += 1
 
   const attempt = await agent(
-    `${locate} ${EXPERT_NOTE}
+    `${locate} ${EXPERT_NOTE}${BRIEF}
 
 Write the minimal implementation that makes the tests pass. Run \`${testCommand}\` and report whether it is green.
 ${
@@ -159,6 +170,7 @@ When not green, include the failure output verbatim.`,
       green: true,
       rounds: round,
       testFiles: tests.filesWritten,
+      briefsLoaded: briefs.map((b) => b.name),
       filesChanged: attempt.filesChanged,
       notDone: attempt.notDone || [],
       noticed: attempt.noticed || [],

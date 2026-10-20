@@ -27,10 +27,13 @@ test('every case x arm x run appears exactly once, with a prompt file on disk', 
 });
 
 test('the blinding holds: neither the run id nor the prompt path reveals the arm or the case', async () => {
-  const { base } = setup();
+  const { dir, base } = setup();
   const index = await planRuns({ ...base, cases: ['s01', 'b01'], arms: ['generic', 'lens', 'upstream', 'expert'], runs: 1 });
   for (const r of index) {
-    const shown = `${r.runId} ${r.promptFile} ${r.resultFile}`;
+    // The id is random hex, so it can contain "b01" by chance: check its shape, then
+    // check the rest of what the reviewer can see with the id and the random temp dir removed.
+    assert.match(r.runId, /^r[0-9a-f]{10}$/, 'the run id is opaque');
+    const shown = `${r.promptFile} ${r.resultFile}`.split(r.runId).join('').split(dir).join('');
     assert.ok(!/generic|lens|upstream|expert|s01|b01|seed|benign/i.test(shown), shown);
   }
   assert.strictEqual(new Set(index.map((r) => r.runId)).size, index.length, 'run ids are unique');

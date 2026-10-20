@@ -198,3 +198,15 @@ test('selection: a failed answer is ignored even if it still lists experts', () 
   assert.equal(r.matrix['alpha:seeded'].alpha, undefined);
   assert.equal(r.matrix['alpha:seeded'].failed, 1);
 });
+
+test('compare: evidence completeness is reported and never decides pass or fail', () => {
+  const base = perfect();
+  const weak = perfect().filter((x) => x.caseId !== 's1');
+  weak.push(...runs('s1', [[{ label: 'planted', evidence: 'none' }], [{ label: 'planted', evidence: 'none' }], [{ label: 'planted', evidence: 'none' }]]));
+  const t = { ...thresholds, recallMarginCases: 0 };
+  const out = score.compare(score.summarise(cases, weak), score.summarise(cases, base), t);
+  const ev = out.checks.find((x) => /evidence/.test(x.name));
+  assert.equal(ev.informational, true);
+  assert.equal(ev.ok, false, 'the number is still computed and shown');
+  assert.equal(out.pass, true, 'but it does not fail the comparison');
+});

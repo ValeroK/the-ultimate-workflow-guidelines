@@ -121,7 +121,7 @@ function summarise(cases, records) {
  */
 function compare(candidate, baseline, t) {
   const checks = [];
-  const add = (name, ok, detail) => checks.push({ name, ok, detail });
+  const add = (name, ok, detail, informational = false) => checks.push({ name, ok, detail, informational });
   add(
     'recall beats baseline by the margin',
     candidate.seeded.casesFoundMajority >= baseline.seeded.casesFoundMajority + t.recallMarginCases,
@@ -137,13 +137,16 @@ function compare(candidate, baseline, t) {
     (candidate.sibling.leakRate ?? 0) <= t.maxLeakRate,
     `${candidate.sibling.leakRuns}/${candidate.sibling.runs} sibling runs reported another domain's defect, limit ${t.maxLeakRate}`
   );
+  // Informational: on the gold sets the judge agreed with the expected evidence rating only 61 to 92
+  // percent of the time, so this number is reported and does not decide pass or fail.
   add(
-    'evidence completeness no worse than baseline',
+    'evidence completeness (informational)',
     (candidate.findings.evidenceComplete ?? 1) >= (baseline.findings.evidenceComplete ?? 0) - t.evidenceTolerance,
-    `candidate ${candidate.findings.evidenceComplete}, baseline ${baseline.findings.evidenceComplete}`
+    `candidate ${candidate.findings.evidenceComplete}, baseline ${baseline.findings.evidenceComplete}`,
+    true
   );
   add('no failed runs', candidate.failedRuns === 0, `${candidate.failedRuns} of ${candidate.totalRuns} runs failed`);
-  return { pass: checks.every((c) => c.ok), checks };
+  return { pass: checks.filter((c) => !c.informational).every((c) => c.ok), checks };
 }
 
 module.exports = { LABELS, EVIDENCE, recordProblems, summarise, compare };

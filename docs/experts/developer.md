@@ -74,4 +74,6 @@ The principles are already in the checklist, but as checks with a cost rather th
 
 S0 adds what the checklist cannot hold in one line each: the author's own definition of each principle, the common misreading of it, the counter-case where it should not be applied, which design patterns a language makes unnecessary, and the principles the checklist does not cover yet (the Law of Demeter, tell-don't-ask, high cohesion and low coupling, the rule of three). It is loaded when a plan adds structure or when a review finding rests on a principle, so the expert can name the principle and still has to show the cost.
 
+**Built so far:** S0 (`experts/skills/engineering-principles/`) and S1 (`experts/skills/failure-handling/`), both named in the developer's plan and review references with their cues. The others are planned.
+
 Each skill is built the same way as the expert: fetch the candidates, read them, keep what adds a specific check, restate it, credit it, and measure it where the corpus can.

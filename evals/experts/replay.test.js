@@ -124,7 +124,7 @@ test('a workflow that refuses to run finishes with its refusal as the result, an
 test('an agent type with no definition in the plugin stops the run and says which', () => {
   const s = setup(planArgs());
   const plugin = tmp('replay-plugin');
-  fs.cpSync(PLUGIN, plugin, { recursive: true, filter: (p) => !/[\\/](fixtures|architecture-evals|skills)([\\/]|$)/.test(p) });
+  fs.cpSync(PLUGIN, plugin, { recursive: true, filter: (p) => !/ultimate-workflow[\\/](fixtures|architecture-evals|skills)([\\/]|$)/.test(p) });
   fs.rmSync(path.join(plugin, 'agents', 'uw-explorer.md'));
   const r = s.run('plan', 'r', { UW_PLUGIN: plugin });
   assert.strictEqual(r.status, 2);
@@ -160,7 +160,7 @@ test('a script that neither finishes nor asks for anything is called stuck, not 
   const s = setup(planArgs());
   // A copy of the plugin whose plan workflow awaits a promise that never settles.
   const plugin = tmp('replay-stuck');
-  fs.cpSync(PLUGIN, plugin, { recursive: true, filter: (p) => !/[\\/](fixtures|architecture-evals|skills)([\\/]|$)/.test(p) });
+  fs.cpSync(PLUGIN, plugin, { recursive: true, filter: (p) => !/ultimate-workflow[\\/](fixtures|architecture-evals|skills)([\\/]|$)/.test(p) });
   const file = path.join(plugin, 'workflows', 'plan.js');
   fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace("phase('Explore')", "phase('Explore')\nawait new Promise(() => {})"));
   const r = s.run('plan', 'r', { UW_PLUGIN: plugin, UW_STALL_MS: '400' });

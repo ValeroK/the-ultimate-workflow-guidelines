@@ -14,6 +14,13 @@ Read the draft, then search the code it will touch. Answer these only for the pa
 - **Dependencies.** A new dependency needs a sentence on what the standard library or the existing stack could not do.
 - **Refactor versus behaviour.** If the plan both restructures and changes behaviour, they should be separate steps.
 
+## Skills
+
+Skills are files in the `skills/` folder of the experts directory that holds your references. Load one only when its cue matches this plan.
+
+- `experts/skills/engineering-principles/skill.md`: load when the plan adds structure (a type hierarchy, an interface, a pattern, a shared helper), to check whether it has the need the structure exists for.
+- `experts/skills/failure-handling/skill.md`: load when the plan adds error paths, fallbacks, retries or multi-step writes.
+
 ## What to return
 
 - **summary**: two sentences at most.

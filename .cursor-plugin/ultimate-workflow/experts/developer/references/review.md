@@ -71,6 +71,13 @@ Check what the change adds and skip the rest.
 - **A list that must be edited in step.** A property of a thing kept in a separate list, map or set keyed by its name, in another place from where the thing is defined: an approval list of tool names, a routing table of handler names, a set of feature names. Show both places. The cost is the next addition that forgets the second edit, and fails silently.
 - **A test that cannot fail.** A test the diff adds or changes that would still pass if the change it covers were reverted, because it asserts on what its own mock returns or never reaches the changed line. Name the revert that stays green.
 
+## Skills
+
+Skills are files in the `skills/` folder of the experts directory that holds your references. Load one only when its cue matches this change; many reviews need none.
+
+- `experts/skills/failure-handling/skill.md`: load when the diff adds or changes a catch or except block, an error return, a fallback or default on error, a retry, or work that must be undone on failure.
+- `experts/skills/engineering-principles/skill.md`: load when a candidate finding rests on a design principle or pattern (single responsibility, open/closed, substitution, KISS, YAGNI, DRY, a named pattern), to check its exact meaning and its counter-case before you report the cost.
+
 ## Do not report
 
 These produce noise. Skip them unless the change makes one concretely harmful and you can state the cost.

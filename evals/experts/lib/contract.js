@@ -231,6 +231,53 @@ function laneHelperProblems(payloadDir) {
   return blocks.filter(([, b]) => b !== first).map(([f]) => `workflows/${f} has expert lane helpers that differ from workflows/${blocks[0][0]}; they must be identical`);
 }
 
+// Shared skills: knowledge an expert reads only when a cue in its own text says so.
+// They live in experts/skills/<name>/skill.md so that more than one expert can load
+// the same one. A skill no expert names is never loaded; a name with no file is a
+// silent miss at review time; a mention with no cue is loaded on every run or never.
+const SKILL_BYTES = 16 * 1024;
+const SKILL_REF = /experts\/skills\/([a-z][a-z0-9-]*)\/skill\.md/g;
+
+function skillProblems(payloadDir, expertNames) {
+  const out = [];
+  const skillsDir = path.join(payloadDir, 'experts', 'skills');
+  const present = fs.existsSync(skillsDir) ? fs.readdirSync(skillsDir).filter((d) => fs.statSync(path.join(skillsDir, d)).isDirectory()) : [];
+  const named = new Set();
+  for (const name of expertNames) {
+    const texts = [path.join(payloadDir, 'agents', `uw-expert-${name}.md`)];
+    const refDir = path.join(payloadDir, 'experts', name, 'references');
+    if (fs.existsSync(refDir)) for (const f of fs.readdirSync(refDir).filter((x) => x.endsWith('.md') && x !== 'CHANGES.md')) texts.push(path.join(refDir, f));
+    for (const file of texts.filter((f) => fs.existsSync(f))) {
+      const where = path.relative(payloadDir, file).split(path.sep).join('/');
+      for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
+        for (const m of line.matchAll(SKILL_REF)) {
+          named.add(m[1]);
+          if (!present.includes(m[1])) out.push(`${where} names experts/skills/${m[1]}/skill.md, which does not exist`);
+          if (!/\bwhen\b/i.test(line)) out.push(`${where} names experts/skills/${m[1]}/skill.md without a cue on the same line ("load when ..."), so it is loaded always or never`);
+        }
+      }
+    }
+  }
+  for (const d of present) {
+    const dir = path.join(skillsDir, d);
+    const file = path.join(dir, 'skill.md');
+    if (!/^[a-z][a-z0-9-]*$/.test(d)) out.push(`experts/skills/${d}: a skill folder name is lowercase words joined by hyphens`);
+    if (!fs.existsSync(file)) {
+      out.push(`experts/skills/${d} has no skill.md`);
+      continue;
+    }
+    if (!named.has(d)) out.push(`experts/skills/${d}/skill.md is named by no expert, so it is never loaded`);
+    if (!fs.existsSync(path.join(dir, 'NOTICE.md'))) out.push(`experts/skills/${d} has no NOTICE.md: a skill says where its ideas come from, even when the answer is "our own writing"`);
+    const text = fs.readFileSync(file, 'utf8');
+    if (Buffer.byteLength(text) > SKILL_BYTES) out.push(`experts/skills/${d}/skill.md is ${Buffer.byteLength(text)} bytes; the cap is ${SKILL_BYTES}`);
+    if (!/^# /.test(text)) out.push(`experts/skills/${d}/skill.md must open with a "# " title`);
+    if (/FILL-IN/.test(text)) out.push(`experts/skills/${d}/skill.md still has a FILL-IN note`);
+    if (/\bcurl\b|\bnpx\b|\bwget\b|https?:\/\//i.test(text)) out.push(`experts/skills/${d}/skill.md must not tell a reader to fetch, install or visit anything`);
+    if (walk(dir).some((p) => path.basename(p) === 'SKILL.md')) out.push(`experts/skills/${d}: name the file skill.md, not SKILL.md, or a host loads it as a skill of its own on every turn`);
+  }
+  return out;
+}
+
 function checkAll({ payloadDir, examplesDir, declaredTools }) {
   const problems = [...workflowParseErrors(payloadDir), ...laneHelperProblems(payloadDir)];
   const found = discover(payloadDir);
@@ -242,7 +289,8 @@ function checkAll({ payloadDir, examplesDir, declaredTools }) {
     names.add(f.replace(/^uw-expert-/, '').replace(/\.md$/, ''));
   }
   for (const name of [...names].sort()) problems.push(...checkExpert({ payloadDir, examplesDir, name, declaredTools }));
+  problems.push(...skillProblems(payloadDir, [...names].sort()));
   return problems;
 }
 
-module.exports = { checkExpert, checkAll, registeredExperts, discover, DEFAULT_TOOLS, DECLARED_TOOLS, STAGES };
+module.exports = { checkExpert, checkAll, skillProblems, registeredExperts, discover, DEFAULT_TOOLS, DECLARED_TOOLS, STAGES, SKILL_BYTES };

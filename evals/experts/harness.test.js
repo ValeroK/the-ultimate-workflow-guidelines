@@ -34,7 +34,7 @@ const git = (cwd, ...args) => {
 function pluginCopy() {
   const dir = tmp('plugin');
   const payload = path.join(dir, 'payload');
-  fs.cpSync(PAYLOAD, payload, { recursive: true, filter: (s) => !/[\\/](fixtures|architecture-evals|skills)([\\/]|$)/.test(s) });
+  fs.cpSync(PAYLOAD, payload, { recursive: true, filter: (s) => !/ultimate-workflow[\\/](fixtures|architecture-evals|skills)([\\/]|$)/.test(s) });
   const examples = path.join(dir, 'examples');
   fs.cpSync(path.join(__dirname, 'examples'), examples, { recursive: true });
   return { payload, examples };

@@ -29,3 +29,8 @@ Dropped: everything that runs a tool, fetches a page, or installs something.
 - Build brief: every changed line traces to the task; keep a property next to the thing; find out why something exists before removing it.
 - Not taken: personas, capability lists, length and nesting thresholds, praise sections, language-specific rules (they go to skills), anything that runs tools or edits code.
 - Not remeasured yet. The held-out split of the general review corpus is reserved for this change.
+
+## 2026-10-20: first shared skills
+
+- The plan and review references name two shared skills with their cues: `engineering-principles` (exact meaning, misreading, counter-case of each principle and pattern) and `failure-handling` (questions per handler, hiding patterns by language, retries, cleanup, what is not a finding).
+- Not measured yet. The held-out split of the general review corpus is still reserved.

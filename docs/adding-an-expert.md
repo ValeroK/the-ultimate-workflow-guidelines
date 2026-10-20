@@ -51,6 +51,15 @@ Everything that decides is code: what experts exist (the agents folder is scanne
 
 An expert added at the commit check was never consulted at planning. It reviews, and its output says it was not consulted at the plan stage. That is the cost of a late catch, and the reason the first question is asked at plan time.
 
+## Shared skills
+
+A skill is knowledge an expert reads only when the change needs it: a principles reference, a failure-handling checklist, a language's idioms. It is not an expert and is never selected on its own.
+
+- **Where.** `.cursor-plugin/ultimate-workflow/experts/skills/<name>/skill.md`, with a `NOTICE.md` beside it. The file is `skill.md`, not `SKILL.md`, so no host loads it as a skill of its own on every turn.
+- **Who loads it.** An expert names it in its agent file or a reference, on one line with its cue: ``- `experts/skills/<name>/skill.md`: load when ...``. More than one expert may name the same skill.
+- **What the contract checks.** Every named skill exists; every mention has a cue ("when") on its line; every skill is named by at least one expert; every skill has a `NOTICE.md`, is at most 16 KB, opens with a `# ` title, and tells no one to fetch, install or visit anything.
+- **What it holds.** What the expert cannot say in one line of its checklist: exact meanings, counter-cases, language forms. A skill never adds a category of its own; the expert's checklist decides what is reported.
+
 ## Before you start: do you need an expert at all?
 
 **An expert is the default, a plain lens is the cheap baseline.** `review` still accepts `--lenses <domain>`, which runs a generic reviewer through that one lens. In our only measurement (6 cases, one run each) a plain "find any defects" prompt, the generic security lens, Anthropic's own security-review prompt and the security expert all found every planted vulnerability. The cases were textbook, so the test could not separate them. What an expert adds that a lens cannot is **participation before the code exists**: constraints in the plan, cases in the tests, and a review that holds the code to them. If your domain only ever matters at review time on textbook problems, a lens is enough.

@@ -23,7 +23,7 @@ function copyTree() {
   const examples = path.join(dir, 'examples');
   fs.cpSync(PAYLOAD, payload, {
     recursive: true,
-    filter: (src) => !/[\\/](fixtures|architecture-evals|skills)([\\/]|$)/.test(src),
+    filter: (src) => !/ultimate-workflow[\\/](fixtures|architecture-evals|skills)([\\/]|$)/.test(src),
   });
   fs.cpSync(EXAMPLES, examples, { recursive: true });
   return { payload, examples };
@@ -145,4 +145,43 @@ test('an agent file discovery cannot read is reported with the reason, and the r
   const problems = all(t);
   assert.ok(problems.some((p) => /discovery/.test(p) && /uw-expert-stray/.test(p) && /expected "uw-expert-stray"/.test(p)), problems.join(' | '));
   assert.ok(problems.some((p) => /^stray:/.test(p)), 'the stray expert is also checked by name: ' + problems.join(' | '));
+});
+
+// Shared skills (experts/skills/<name>/skill.md). Each rule is shown to fail.
+test('shared skills: the real tree names only skills that exist, each with a cue, each with a notice', () => {
+  const t = copyTree();
+  assert.ok(fs.existsSync(path.join(t.payload, 'experts', 'skills', 'failure-handling', 'skill.md')), 'the copied tree keeps experts/skills');
+  assert.deepStrictEqual(all(t).filter((p) => /experts\/skills/.test(p)), []);
+});
+
+test('shared skills: a named skill that does not exist is reported', () => {
+  const t = copyTree();
+  fs.rmSync(path.join(t.payload, 'experts', 'skills', 'failure-handling'), { recursive: true });
+  assert.ok(all(t).some((p) => /names experts\/skills\/failure-handling\/skill\.md, which does not exist/.test(p)));
+});
+
+test('shared skills: a mention without a cue on its line is reported', () => {
+  const t = copyTree();
+  const ref = path.join(t.payload, 'experts', 'developer', 'references', 'review.md');
+  const text = fs.readFileSync(ref, 'utf8').replace('`experts/skills/failure-handling/skill.md`: load when the diff adds', '`experts/skills/failure-handling/skill.md`: for diffs that add');
+  fs.writeFileSync(ref, text);
+  assert.ok(all(t).some((p) => /without a cue on the same line/.test(p)));
+});
+
+test('shared skills: a skill no expert names, one without a notice, an oversized one, one that fetches, and a SKILL.md are each reported', () => {
+  const t = copyTree();
+  const skills = path.join(t.payload, 'experts', 'skills');
+  fs.mkdirSync(path.join(skills, 'orphan'));
+  fs.writeFileSync(path.join(skills, 'orphan', 'skill.md'), '# Orphan\n');
+  fs.writeFileSync(path.join(skills, 'orphan', 'NOTICE.md'), 'ours\n');
+  fs.rmSync(path.join(skills, 'engineering-principles', 'NOTICE.md'));
+  const fh = path.join(skills, 'failure-handling', 'skill.md');
+  fs.appendFileSync(fh, `\n${'x'.repeat(17 * 1024)}\nRun curl to get more.\n`);
+  fs.writeFileSync(path.join(skills, 'failure-handling', 'SKILL.md'), '# x\n');
+  const p = all(t).join('\n');
+  assert.match(p, /experts\/skills\/orphan\/skill\.md is named by no expert/);
+  assert.match(p, /experts\/skills\/engineering-principles has no NOTICE\.md/);
+  assert.match(p, /experts\/skills\/failure-handling\/skill\.md is \d+ bytes; the cap is 16384/);
+  assert.match(p, /failure-handling\/skill\.md must not tell a reader to fetch/);
+  assert.match(p, /name the file skill\.md, not SKILL\.md/);
 });

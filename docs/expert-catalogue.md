@@ -199,7 +199,12 @@ Taken from each expert's `.cursor-plugin/ultimate-workflow/experts/<name>/skills
 | developer | plan | `dependency-discipline` | offered | the plan adds, removes or upgrades a dependency |
 | developer | plan | `failure-handling` | offered | the plan adds error paths, fallbacks, retries or multi-step writes |
 | quality | tests | `test-craft` | `always` | each case can fail and has an exact expected value |
+| quality | tests | `eval-integrity` | `added:` judge, pass@k, eval-set or rubric wording in the plan | judges, pass@k and pass^k, held-out data |
 | quality | build | `test-craft` | `always` | writing any test |
+| quality | review | `test-craft` | test files and test directories | each changed test can fail |
+| quality | review | `test-gates` | runner configs, `conftest.py`, workflow files; `added:` zero-test, `.only`, retry and `continue-on-error` settings | a run or job that cannot fail |
+| quality | review | `eval-integrity` | `added:` judge, pass@k, eval-set or rubric wording | the eval's number means what it claims |
+| quality | plan | `eval-integrity`, `test-gates` | offered | the plan decides how behaviour is verified |
 
 | architect | review | `lambda-event-sources` | `added:` event source mapping, scaling, batch-failure, visibility and concurrency settings | queues and streams that trigger Lambda |
 | architect | review | `aws-messaging` | `added:` SQS, SNS, EventBridge and Kinesis resources and send calls | delivery, ordering, deduplication, loss |
@@ -225,7 +230,7 @@ Taken from each expert's `.cursor-plugin/ultimate-workflow/experts/<name>/skills
 | softarch | review | `module-boundaries` | boundary tool configs, `tsconfig*.json`, `module-info.java`, `project.json`; `added:` `/internal/`, `"exports":`, tag constraints | what each ecosystem's boundary tool enforces |
 | softarch | plan | all four | offered | the plan changes a contract or a module boundary |
 
-No skills: `security` (plan, tests, review), and `quality` at plan and review.
+No skills: `security` (plan, tests, review).
 
 Fixed cost per build: the developer's three `always` skills, `test-craft` and the two briefs come to about 28 KB before any file-matched skill. The DevOps brief has no `always` skill, so it joins only builds whose plan selects one of its skills.
 
@@ -256,6 +261,6 @@ From the survey: DynamoDB and OpenSearch, VPC and networking depth, CloudFormati
 
 ## Status
 
-Built: experts 1 to 5 (`architect`, `softarch`, `developer`, `quality`, `security`) and 9 (`devops`, six skills; see `docs/experts/devops.md`). `softarch` has three skills (`docs/experts/softarch.md`). Skills are mapped for `developer` (eleven), `quality` (`test-craft`) and `architect` (seven: `lambda-event-sources`, `aws-messaging`, `step-functions`, `api-gateway`, `multi-tenancy`, `caching-and-latency`, `aws-well-architected`; see `docs/experts/architect.md`); `security` has none. Experts 6, 8 and 11 to 14 are not built (7 is merged into 6, 10 into 9).
+Built: experts 1 to 5 (`architect`, `softarch`, `developer`, `quality`, `security`) and 9 (`devops`, six skills; see `docs/experts/devops.md`). `softarch` has four skills (`docs/experts/softarch.md`). Skills are mapped for `developer` (eleven), `quality` (three: `test-craft`, `test-gates`, `eval-integrity`) and `architect` (seven: `lambda-event-sources`, `aws-messaging`, `step-functions`, `api-gateway`, `multi-tenancy`, `caching-and-latency`, `aws-well-architected`; see `docs/experts/architect.md`); `security` has none. Experts 6, 8 and 11 to 14 are not built (7 is merged into 6, 10 into 9).
 
 Next: the Generative AI engineer (6), which has the Generative AI Lens research ready and needs an AgentCore pass; then data and Postgres (8), or UI and accessibility (13).

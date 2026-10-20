@@ -1,68 +1,92 @@
 ---
 name: test-craft
-description: Use when writing any test, for what makes one able to fail, its expected value, its doubles, its determinism and its shape.
+description: Use when a test is written, specified or reviewed, in any language - what makes it able to fail, its expected value, its doubles, its determinism, generated inputs and fixtures.
+verified: 2026-10-20
 ---
 
 # Test craft
 
-Use this whenever a test is written or a test case is specified, in any language. It holds what makes a single test worth having. Framework details (pytest, Jest, JUnit, Playwright) are not here. The confirmed test plan decides which cases exist; this decides how each one is written.
+## Goal
 
-## 1. A test that can fail
+- **Lets the expert catch:** a test that passes whatever the code does: an oracle copied from the implementation or from a double, a double that hides the side effect, nondeterminism that turns red and green into chance, a property test that tests nothing, a fixture that only works by accident.
+- **Applies to:** every test written at build, every case specified at tests, and every test file changed at review.
+- **Not for:** whether a gate or CI job can fail (`test-gates`); LLM judges and eval sets (`eval-integrity`); which cases exist (the confirmed test plan); framework style and layout (not a finding).
 
-1. **Name the break first.** Before writing the test, say which change to the production code would make it fail: a flipped comparison, an off-by-one, a missing check, the old behaviour. If you cannot name one, the test proves nothing.
-2. **Watch it fail, on its assertion.** Run it before the code exists, or against the old code. The failure must be the assertion you wrote, with the message you expect. An import error, a typo, a missing fixture or an unset environment variable is not red: fix the test and run it again.
-3. **A test that passes on its first run is suspect.** It is testing behaviour that already exists, or nothing at all. Find out which before moving on.
-4. **For a bug fix, three runs.** It fails on the broken code, it passes after the fix, and the failure on the broken code is the bug itself, not a setup problem.
-5. **Once the code exists, break it once.** Make one small change that matters (a boundary, a rounding, a sign), check that some test goes red, and put the code back. If nothing goes red, a case is missing.
-6. **A check that cannot run must fail, not skip.** A test that finds no input files, no rows or no cases passes while proving nothing. Assert that the thing being checked was there.
-7. **Fix the code, not the test.** Changing an expected value, loosening an assertion or skipping a test to get green is not a fix. When the test itself is wrong, say so and say why.
+Sources: **[R]** the maintainer's live check of the tool documentation (docs.pytest.org, hypothesis.readthedocs.io, fast-check.dev, MDN, RFC 2606, docs.localstack.cloud, the AWS DynamoDB guide; 2026-10-20); **[T]** an upstream community skill, not checked (see `NOTICE.md`); **[O]** our own reasoning. A [T] or [O] item is a prompt to check, not a finding on its own.
 
-## 2. The expected value
+## First, establish the target
 
-1. **Write it as a literal.** "Given 1250.00 at 18.5 percent, returns 231.25", not "calculates the tax". Work it out by hand, or take it from the spec or a known example.
-2. **Do not compute it the way the code does.** `expect(add(a, b)).toBe(a + b)` repeats the implementation and passes whatever it does. The same goes for an expected value built by calling the helper under test.
-3. **Assert the outcome, not the absence of a crash.** "Does not throw", "is not null", "returns 200" and "has three keys" pass for most wrong answers. Assert the value, or the field that matters.
-4. **Never assert what you told a double to return.** If the stub returns 42 and the test checks for 42, the code under test was never needed.
-5. **Look through the front door.** Check the result where a caller would see it, through the public interface. Reading private fields, or querying the database behind an API you are testing, ties the test to the inside.
-6. **State over interaction.** Assert what changed, not which internal methods were called. A refactor that keeps the behaviour must keep the test green; if it would not, the test is checking the implementation.
-7. **Interaction is the outcome only at a boundary.** "The charge was sent exactly once", "the retry did not send the email twice" and "the audit event was written before the reply" are behaviour. There a call count or call order is the right assertion. On your own collaborators it is not.
-8. **Exact output is fine when exact output is the contract**: a wire format, a file format, a generated prompt. Then a golden file or snapshot is the right check, and a change to it is reviewed like code. A snapshot nobody reads is not a test.
+- **How the repository tests:** its runner, helpers, fixture factories and property-testing library, if any. Follow them.
+- **The change the test is for,** so you can name the wrong implementation it must reject.
+- **What runs against a fake or an emulator,** and what that emulator cannot show (below).
+- If you cannot establish these, say which you assumed and lower your confidence by one step.
 
-## 3. Doubles
+## A test that can fail
 
-1. **Prefer the real thing.** In order: the real implementation, a fake (an in-memory store, a local server, an emulator), a stub, a mock. Move down the list only when the one above is slow, not deterministic, or has an effect you cannot allow (money, email, a third-party call).
-2. **Replace only the edge.** The network, the clock, randomness, the file system and third-party services are boundaries. Your own modules are not. Never replace the unit under test, and never replace so much that the test checks only how the mocks are wired.
-3. **Know what you are replacing.** Before stubbing a dependency, find out what it does besides returning a value (writes, caches, retries, raises). A stub that drops a side effect the code relies on lets a broken caller pass.
-4. **A double has the real shape.** It returns every field the real response has, including the ones this test does not read, with types the real one uses. Build doubles from one factory with sensible defaults so a new field is added once.
-5. **Nothing in production exists only for tests.** No `resetForTesting`, no test flag, no export used only by a test. Use a fresh instance per test, or pass the dependency in.
-6. **"I have to mock everything" is a design signal.** When a unit cannot be tested without replacing most of its collaborators, say so in your summary. Do not paper over it with more mocks, and do not redesign the code beyond what the plan asks.
+| Rule | What breaks it in a diff | When it does not apply |
+|---|---|---|
+| Name the break first: the change to the production code that would turn the test red [T] | A test whose only reachable failure is a crash | |
+| It must have failed on its own assertion, not an import error or a missing fixture; a first-run pass means it tests existing behaviour or nothing [T] | A new test reported green with no red run | A characterisation test of old behaviour, by design |
+| A bug-fix test fails on the broken code for the bug itself, passes after the fix [T] | A fix whose test uses an easier input than the reported one | |
+| Break the code once (a boundary, a rounding, a sign) and some test must go red [T] | | |
+| A check that finds no input must fail, not pass: an assertion behind `if rows:` the fixture never enters, or a loop over an empty list [T] | `if (items.length) expect(...)`, `for x in []: assert ...` | |
+| `pytest.raises(Exception)` matches every subclass, so it passes on almost any error [R] | `with pytest.raises(Exception):` or `BaseException` with no `match=` | A worker loop whose contract is to catch and wrap any exception |
 
-## 4. Determinism
+## The expected value
 
-1. **Control time.** Pass in or freeze the clock. No test reads the current date and asserts against another current-date read. Cover the edges the plan names: month ends, time zones, a daylight-saving change.
-2. **Control randomness.** Seed every generator, including fake-data libraries, and print the seed when a test fails so the run can be repeated.
-3. **Wait on a condition, never on a duration.** A fixed sleep is too short on a slow machine and wastes time on a fast one. Wait for the event, the state or the message, with a timeout that fails the test.
-4. **Each test builds its own world.** No test relies on another test's leftovers or on the order tests run in. A test that passes alone and fails in the suite, or the other way round, has shared state. Prefer a fresh instance to a reset hook.
-5. **No live network in a unit test.** A call to a real service makes the test slow and its result depend on someone else's uptime. Use the boundary double, or move the case to an integration test that says it needs the network.
-6. **Order that is not promised is not asserted.** Results from a set, a hash map, a concurrent job or a database query without `ORDER BY` come back in any order. Sort them, or compare as a set.
-7. **Same input, same output.** For code that serialises, hashes or builds keys, one cheap check is running it twice on the same input and comparing.
+| Rule | What breaks it in a diff | When it does not apply |
+|---|---|---|
+| Do not compute the expected value the way the code does [T] | `expect(add(a, b)).toBe(a + b)`, or an expected value built with the helper under test | |
+| Assert the outcome, not the absence of a crash: "does not throw", "not null", "200", "three keys" pass for most wrong answers [T] | The only assertion is one of those | The absence of an error is the contract |
+| Never assert what you told a double to return [T] | The stub returns 42 and the test checks 42 | |
+| Look through the front door: the result where a caller sees it [T] | Reading private fields, or the database behind the API under test | |
+| Interaction is the outcome only at a boundary: "charged exactly once", "email not sent twice", "audit written before the reply" [T] | Call counts or call order asserted on the repository's own collaborators | The call is to a boundary (payment, mail, queue) |
+| Exact output is right when exact output is the contract (a wire or file format, a generated prompt), and the golden file is reviewed like code [T] | A snapshot of a whole component updated in the same diff with no requirement | |
 
-## 5. Shape
+## Doubles
 
-1. **One behaviour per test.** Several assertions are fine when they describe one behaviour. If the name needs "and", split it.
-2. **The name states the behaviour.** "rejects a refund larger than the original charge", not "test refund 3" or "works".
-3. **Arrange, act, assert.** Setup, then one action, then the checks. A second action usually means a second test.
-4. **Readable on its own.** A reader understands the test without opening three helpers. Repetition between tests is acceptable; hiding the inputs that matter inside shared setup is not.
-5. **Small setup.** Build only what this behaviour needs. A huge setup is a sign the unit does too much: report it, do not grow the fixture.
-6. **The lowest level that shows it.** A unit test for logic, an integration test for a boundary, an end-to-end test only for a path no lower test can show.
-7. **Extend the table.** When the suite already has a table of inputs and outputs for this function, add a row instead of a near-copy of a test.
-8. **One case at a time.** The plan fixes which cases exist. Still take them red to green one by one, so each failure is seen on its own.
+| Rule | What breaks it in a diff | When it does not apply |
+|---|---|---|
+| Prefer the real thing, then a fake, a stub, a mock, and replace only the edge (network, clock, randomness, third parties); never the unit under test [T] | A mock of the repository's own module the test is meant to exercise | The real thing has an effect that cannot be allowed (money, mail) |
+| Know what you replace: a stub that drops a side effect the code relies on (a write, a cache, a retry) lets a broken caller pass [T] | A stubbed dependency whose real version writes or raises | |
+| A double has the real shape: every field, the real types [T] | A hand-built stub response missing fields the real one has | |
+| Nothing in production exists only for tests [T] | `resetForTesting`, a test flag, an export only a test imports | |
+| Needing to mock most collaborators is a design signal to report, not to paper over [T] | A test with more mocks than assertions | |
 
-## 6. Do not
+## Determinism
 
-- Test the framework, the language or a third-party library instead of your code.
-- Repeat a shared helper's tests in every caller.
-- Grep the source code, an import list or a log string unless that text is the declared contract.
-- Put real secrets, tokens or production records in fixtures. Use fake values of the same shape and length.
-- Leave a test skipped, disabled or marked as expected to fail without a reason and a reference to who will restore it.
-- Add a coverage target, or a test that exists only to raise one.
+| Rule | What breaks it in a diff | When it does not apply |
+|---|---|---|
+| Control the clock; never assert one current-date read against another [O] | `new Date()` or `datetime.now()` in both the code path and the expected value | The clock is injected |
+| Seed every generator, fake-data libraries included, and print the seed on failure [O] | An unseeded `faker`, `Math.random` or `random` in a test | |
+| Wait on a condition, never a duration [O] | `sleep(2)` before an assertion | |
+| Each test builds its own world; passes alone and fails in the suite means shared state [T] | Module-level state mutated by tests, or tests that rely on order | |
+| No live network in a unit test [O] | A real URL in a unit test | An integration test labelled as needing the network |
+| Order that is not promised is not asserted [O] | A list compared exactly from a set, a map, a concurrent job or a query without `ORDER BY` | |
+
+## Generated inputs and property tests
+
+| Rule | What breaks it in a diff | When it does not apply |
+|---|---|---|
+| A property that restates the implementation proves nothing [T] | The property computes the expected value with the same algorithm | |
+| Too many rejected inputs means the property barely runs: Hypothesis raises `HealthCheck.filter_too_much`, fast-check fails after too many `fc.pre()` skips [R] | `suppress_health_check=[HealthCheck.filter_too_much]`, a raised `maxSkipsPerRun`, or `assume()` over a wide input space | A rare boundary filter with acceptable speed |
+| A function-scoped pytest fixture under `@given` resets once per test, not per input; Hypothesis raises `HealthCheck.function_scoped_fixture` [R] | That health check suppressed on a test that mutates the fixture | A stateless, read-only fixture |
+| fast-check `configureGlobal()` replaces every global setting unless the previous ones are spread in [R] | `fc.configureGlobal({...})` without `...fc.readConfigureGlobal()` in a test file | The single setup file that sets them first |
+
+## Fixtures and edge values
+
+| Rule | What breaks it in a diff | When it does not apply |
+|---|---|---|
+| Use reserved names: `.test`, `.example`, `.invalid`, `.localhost` and `example.com/.net/.org` (RFC 2606) [R] | A fixture email or webhook at a real-looking domain | Parsing tests for real public suffixes, with no network |
+| JavaScript `length`, `charAt` and `slice` count UTF-16 code units, so `"😄".length === 2` [R] | Truncation or length tests with no character outside the Basic Multilingual Plane | A protocol defined in UTF-16 code units |
+| LocalStack enforces IAM only with `ENFORCE_IAM=1`, a paid feature [R] | A test claiming to verify IAM permissions against LocalStack without it | Tests that use LocalStack only as storage |
+| DynamoDB local ignores provisioned throughput and never throttles, and most reads look strongly consistent [R] | A throttling or eventual-consistency test run against DynamoDB local | Item and key-condition tests |
+| Do not test the framework, repeat a shared helper's tests in every caller, or grep source text unless that text is the contract [T] | | |
+
+## Not a finding
+
+- Several assertions in one test that describe one behaviour.
+- Test names, file layout, arrange-act-assert form, or the choice of assertion library.
+- Repetition between tests that keeps each one readable on its own.
+- A test fixture with hard-coded values.
+- A call-count assertion on a boundary (payment, mail, queue).

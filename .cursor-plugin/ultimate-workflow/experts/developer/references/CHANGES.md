@@ -37,3 +37,4 @@ Dropped: everything that runs a tool, fetches a page, or installs something.
 
 - Later the same day: the review reference also names `python-craft` and `typescript-craft`, loaded by file type.
 - Then `simplification`, `surgical-change` and `dependency-discipline` (review), and `dependency-discipline` (plan).
+- Then `go-craft`, `rust-craft`, `java-craft` and `react-craft` (review), loaded by file type. All eleven planned skills are now built; none is measured yet.

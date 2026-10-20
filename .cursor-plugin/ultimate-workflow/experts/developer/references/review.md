@@ -78,6 +78,10 @@ Skills are files in the `skills/` folder of the experts directory that holds you
 - `experts/skills/failure-handling/skill.md`: load when the diff adds or changes a catch or except block, an error return, a fallback or default on error, a retry, or work that must be undone on failure.
 - `experts/skills/python-craft/skill.md`: load when the diff touches `.py` files.
 - `experts/skills/typescript-craft/skill.md`: load when the diff touches `.ts`, `.tsx`, `.js`, `.mjs` or `.cjs` files.
+- `experts/skills/go-craft/skill.md`: load when the diff touches `.go` files.
+- `experts/skills/rust-craft/skill.md`: load when the diff touches `.rs` files.
+- `experts/skills/java-craft/skill.md`: load when the diff touches `.java` files.
+- `experts/skills/react-craft/skill.md`: load when the diff touches React components or hooks (`.tsx`, `.jsx`).
 - `experts/skills/simplification/skill.md`: load when the diff restructures existing code (extracts, inlines, moves, renames, rewrites) or says it simplifies something.
 - `experts/skills/surgical-change/skill.md`: load when the diff touches files the request or plan does not mention, mixes a refactor with a behaviour change, or looks large for its task.
 - `experts/skills/dependency-discipline/skill.md`: load when a package manifest or lockfile changes, or new imports of a third-party package appear.

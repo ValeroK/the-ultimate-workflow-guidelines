@@ -74,6 +74,6 @@ The principles are already in the checklist, but as checks with a cost rather th
 
 S0 adds what the checklist cannot hold in one line each: the author's own definition of each principle, the common misreading of it, the counter-case where it should not be applied, which design patterns a language makes unnecessary, and the principles the checklist does not cover yet (the Law of Demeter, tell-don't-ask, high cohesion and low coupling, the rule of three). It is loaded when a plan adds structure or when a review finding rests on a principle, so the expert can name the principle and still has to show the cost.
 
-**Built so far:** S0 `engineering-principles`, S1 `failure-handling`, S2 `python-craft`, S3 `typescript-craft`, S4 `simplification`, S5 `surgical-change` and S6 `dependency-discipline`, all under `.cursor-plugin/ultimate-workflow/experts/skills/` and named in the developer's references with their cues. S7 to S10 (Go, Rust, Java, React) are planned.
+**Built so far:** S0 `engineering-principles`, S1 `failure-handling`, S2 `python-craft`, S3 `typescript-craft`, S4 `simplification`, S5 `surgical-change`, S6 `dependency-discipline`, S7 `go-craft`, S8 `rust-craft`, S9 `java-craft` and S10 `react-craft`, all under `.cursor-plugin/ultimate-workflow/experts/skills/` and named in the developer's references with their cues.
 
 Each skill is built the same way as the expert: fetch the candidates, read them, keep what adds a specific check, restate it, credit it, and measure it where the corpus can.

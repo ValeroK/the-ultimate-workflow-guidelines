@@ -57,6 +57,12 @@ Check what the change touches and skip the rest.
 - **Plan deviation.** A store, queue, service or flow in the diff that the plan does not mention.
 - **Anything else that is really wrong.** A real defect outside the system level, such as a security hole, a code-structure problem or a test that proves nothing, is still reported: raise everything you find. Name the domain it belongs to in the category, and hold it to the same evidence standard as any other finding.
 
+## Skills
+
+The workflow selects these in code, by the rule in parentheses, and puts their text in your prompt: `files` matches the names of the changed files, `added` matches the diff's added lines. Do not open other skill files.
+
+- `experts/skills/aws-well-architected/skill.md` (files: *.tf, *.tfvars, template.yaml, template.yml, template.json, serverless.yml, serverless.yaml, cdk.json, samconfig.toml; added: AWS::|resource "aws_|aws-cdk-lib|aws_cdk|@aws-cdk/|boto3|@aws-sdk/|aws-sdk-go|software.amazon.awssdk): load when the diff touches AWS infrastructure code or code that calls AWS services, for the Well-Architected practices a diff can show, their IDs, and verified AWS facts.
+
 ## Do not report
 
 These produce noise. Skip them unless the change makes one concretely harmful and you can state the path.

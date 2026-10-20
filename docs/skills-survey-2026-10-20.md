@@ -200,7 +200,7 @@ Rejected for specific reasons: trailofbits/claude-code-config (no licence, force
 ## 4. What was done with it
 
 - **Nothing from these repositories is vendored.** No file was copied into this repository, no script from any of them was run, no URL they mention was fetched. They were cloned read-only into a throwaway container and read as data. The repositories themselves were not changed.
-- **Ideas were restated, not copied, into four experts** (`developer`, `architect`, `softarch`, `quality`) **and twelve shared skills** under `experts/skills/`. Each expert and each skill credits its sources and their licences in its own `NOTICE.md`; an expert's `references/CHANGES.md` says what was kept, reversed and added.
+- **Ideas were restated, not copied, into four experts** (`developer`, `architect`, `softarch`, `quality`) **and twelve shared skills** under `experts/skills/` (a thirteenth, `aws-well-architected`, came later from a research pass on the AWS pages). Each expert and each skill credits its sources and their licences in its own `NOTICE.md`; an expert's `references/CHANGES.md` says what was kept, reversed and added.
 
 | Expert | Main sources (ideas only) | Notes |
 |---|---|---|

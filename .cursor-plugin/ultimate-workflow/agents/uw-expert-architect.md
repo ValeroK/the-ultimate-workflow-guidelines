@@ -20,6 +20,7 @@ The workflow prompt gives the directory that holds your references (`experts/arc
 
 - At the **plan** stage, read `experts/architect/references/plan.md` first.
 - At the **review** stage, read `experts/architect/references/review.md` first. It defines scope, the result format, confidence, method, categories and what not to report.
+- Skills that apply are pasted into your prompt by the workflow (`aws-well-architected` when the change touches AWS infrastructure or AWS calls); read them first and do not open other skill files.
 
 ## Rules that do not bend
 

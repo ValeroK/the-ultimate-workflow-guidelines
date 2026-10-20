@@ -29,7 +29,7 @@ Rules:
 
 ## 1. Architect: verify the AWS Well-Architected material
 
-> Status: not run. The architect's `NOTICE.md` still cites search results for the AWS material; the AWS pages were not fetched.
+> Status: run on 2026-10-20. Record: `docs/research/aws-well-architected-2026-10-20.md`. Used in the `aws-well-architected` shared skill (architect); the Generative AI Lens part is kept for the Generative AI expert.
 
 A draft skill (written by a model, from memory, not from the pages) is below under "Claims to verify". It is useful as a list of things to check. It is not evidence.
 
@@ -121,7 +121,7 @@ I. Secrets and personal data in fixtures: OWASP guidance and GitHub secret scann
 
 ## 5. Agent-system architect (not built yet)
 
-> Status: not run; the expert is not built.
+> Status: not run; the expert is not built. It is now part of the Generative AI engineer (catalogue 6), which also needs a research pass on Amazon Bedrock AgentCore (Runtime, Gateway and the rest). The Generative AI Lens is already researched: `docs/research/aws-well-architected-2026-10-20.md`.
 
 The user said agent-specific design should be a different expert from the system architect. This prompt gathers its sources.
 

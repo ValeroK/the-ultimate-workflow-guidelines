@@ -312,3 +312,33 @@ test('record --stage tests --plan: an expert that joined because it always does 
 test('commands/tests.md records with --plan, so the always-joined expert reaches the plan', () => {
   assert.match(fs.readFileSync(path.join(PLUGIN, 'commands', 'tests.md'), 'utf8'), /record --stage tests --plan <plan file>/);
 });
+
+// ---- architect: aws-well-architected, chosen by file type or by AWS code in the added lines ----
+
+const arch = (files) => names(ex.selectSkills(PLUGIN, 'architect', 'review', ex.parseDiff(diffOf(files))));
+
+test('selector: "files: ...; added: ..." matches when either part does, and a bad part is reported', () => {
+  const s = ex.parseSelector('files: *.tf; added: AWS::');
+  assert.equal(s.kind, 'any');
+  assert.equal(ex.parseSelector('files: *.tf; added: [unclosed').error !== undefined, true);
+  assert.equal(ex.parseSelector('files: a/b.tf; added: x').error !== undefined, true);
+});
+
+test('architect review: Terraform, CloudFormation and SAM files select aws-well-architected', () => {
+  for (const f of ['infra/main.tf', 'envs/prod.tfvars', 'template.yaml', 'serverless.yml']) assert.deepEqual(arch({ [f]: ['x = 1'] }), ['aws-well-architected'], f);
+});
+
+test('architect review: AWS code in the added lines selects it in any file; other code does not', () => {
+  assert.deepEqual(arch({ 'stack/app.ts': ["import * as sqs from 'aws-cdk-lib/aws-sqs';"] }), ['aws-well-architected']);
+  assert.deepEqual(arch({ 'svc/store.py': ['import boto3'] }), ['aws-well-architected']);
+  assert.deepEqual(arch({ 'cfn/queue.yml': ['  Type: AWS::SQS::Queue'] }), ['aws-well-architected']);
+  assert.deepEqual(arch({ 'svc/handler.py': ['def handle(event):', '    return 1'] }), []);
+  assert.deepEqual(arch({ 'README.md': ['Deployed on AWS.'] }), []);
+});
+
+test('architect plan: aws-well-architected is offered with its headline; the developer offers are unchanged', () => {
+  const k = ex.planSkills(PLUGIN);
+  assert.deepEqual(k.skills.architect.map((s) => s.name), ['aws-well-architected']);
+  assert.match(k.skills.architect[0].headline, /AWS infrastructure/);
+  assert.equal(k.skills.developer.length, 3);
+});

@@ -162,6 +162,13 @@ function globToRegExp(glob) {
 function parseSelector(text) {
   const t = text.trim();
   if (t === 'always') return { kind: 'always' };
+  // Several selectors joined by "; " match when any one of them does: `files: *.tf; added: AWS::`.
+  const parts = t.split(/;\s*(?=(?:files|added):)/);
+  if (parts.length > 1) {
+    const any = parts.map(parseSelector);
+    const bad = any.find((p) => p.error);
+    return bad || { kind: 'any', any };
+  }
   const m = /^(files|added):\s*(.+)$/.exec(t);
   if (!m) return { error: `"${t}" is not a selector (expected "always", "files: <globs>" or "added: <regex>")` };
   if (m[1] === 'files') {
@@ -221,6 +228,7 @@ function planPaths(text) {
 
 function matches(selector, { files, text }) {
   if (selector.kind === 'always') return true;
+  if (selector.kind === 'any') return selector.any.some((s) => matches(s, { files, text }));
   if (selector.kind === 'added') return selector.re.test(text);
   return files.some((f) => selector.res.some((re) => re.test(path.posix.basename(f.replace(/\\/g, '/')))));
 }

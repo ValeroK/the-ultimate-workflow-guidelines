@@ -72,7 +72,7 @@ A skill is knowledge an expert needs only when the change calls for it: a princi
 - `experts/skills/surgical-change/skill.md` (always): load when ...
 ```
 
-The part in parentheses is the selector: `files:` base-name globs, `added:` a regular expression, or `always`. The words after the colon are the cue; at plan they are the headline a model chooses by. `plan.md` lines take no selector.
+The part in parentheses is the selector: `files:` base-name globs, `added:` a regular expression, or `always`. Join a `files:` and an `added:` part with `; ` to match when either does, as the architect does for AWS infrastructure: `(files: *.tf, template.yaml; added: AWS::|boto3)`. The words after the colon are the cue; at plan they are the headline a model chooses by. `plan.md` lines take no selector.
 
 **Who chooses: code, not the expert.** In two smoke runs an expert told to "read the skill whose cue matches" opened none. So the choice is made before the agent runs and the text is pasted into its prompt:
 

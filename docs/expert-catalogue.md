@@ -78,28 +78,22 @@ An agent was placed under an expert by its name and the survey's domain notes, n
   - agency-agents `appsec-engineer`, `security-architect`, `cloud-security-architect`, `secrets-credential-engineer`, `ai-generated-code-auditor`
 - **Survey candidates:** OWASP and ASVS (agamm, 85), RLS and tenant isolation (supabase, 82), insecure defaults (trailofbits, 78), appsec hardening (addyosmani, 74), authorisation (agency-agents, 74), threat model (tech-leads-club, 72), cloud security and secrets (cloudflare and agency-agents, 68 to 72), web security (tech-leads-club, 62).
 
-### 6. Agent-system architect (new)
-- **Owns:** agent orchestration and topology, tool design and tool contracts, context and memory, loop and budget limits, guardrails and human approval, MCP servers.
-- **Stages:** plan, review.
-- **Upstream agents:**
-  - ECC `agent-evaluator`, `harness-optimizer`, `loop-operator`
-  - agency-agents `multi-agent-systems-architect`, `agents-orchestrator`, `agentic-identity-trust`, `automation-governance-architect`
-  - awesome-copilot `context-architect`, `agent-governance-reviewer`, `declarative-agents-architect`, `custom-agent-foundry`
-  - buildwithclaude `mcp-server-architect`, `mcp-security-auditor`, `agent-expert`
-  - anthropics `agent-sdk-verifier-py`, `agent-sdk-verifier-ts`
-- **Survey candidates:** agent security (cloudflare, 82; ECC, 80), MCP server security and release QA (awesome-copilot, 82), Bedrock AgentCore (aws/agent-toolkit, 80), tool design (muratcankoylan, 76), agent context (muratcankoylan, 58), agent SDK (anthropics, 48).
-
-### 7. AI/LLM engineer (new)
-- **Owns:** prompts, model calls and their failure modes, retrieval and embeddings (RAG), token cost, model fallback, evaluation of model output.
+### 6. Generative AI engineer (new; merges the former 6, agent-system architect, and 7, AI/LLM engineer)
+- **Owns:** prompts and prompt engineering, model calls and their failure modes, agent orchestration and tool design (tool contracts, loop and budget limits, human approval), context and memory, retrieval and embeddings (RAG), guardrails, token cost, model fallback, evaluation of model output, MCP servers. On AWS: Amazon Bedrock (models, Guardrails, Knowledge Bases, Prompt Management, batch inference, prompt caching, cross-region inference) and Amazon Bedrock AgentCore (Runtime, Gateway and its other services).
 - **Stages:** plan, tests, review.
+- **Reference material ready:** the Well-Architected Generative AI Lens (November 19, 2025): its best-practice IDs (`GENOPS`, `GENSEC`, `GENREL`, `GENPERF`, `GENCOST`, `GENSUS`), titles and what a change can show, in `docs/research/aws-well-architected-2026-10-20.md`. Bedrock pricing facts there: batch inference at half the on-demand price (primary); prompt caching savings from a secondary source only. AgentCore still needs its own research pass.
 - **Upstream agents:**
-  - ECC `rag-pipeline-reviewer`, `mle-reviewer`
-  - wshobson and buildwithclaude `ai-engineer`, `prompt-engineer`
-  - wshobson `vector-database-engineer`, `eval-judge`
-  - agency-agents `ai-engineer`, `rag-pipeline-engineer`, `prompt-engineer`, `search-relevance-engineer`
-  - awesome-copilot `prompt-engineer`, `prompt-builder`, `se-responsible-ai-code`
+  - ECC `agent-evaluator`, `harness-optimizer`, `loop-operator`, `rag-pipeline-reviewer`, `mle-reviewer`
+  - agency-agents `multi-agent-systems-architect`, `agents-orchestrator`, `agentic-identity-trust`, `automation-governance-architect`, `ai-engineer`, `rag-pipeline-engineer`, `prompt-engineer`, `search-relevance-engineer`
+  - awesome-copilot `context-architect`, `agent-governance-reviewer`, `declarative-agents-architect`, `custom-agent-foundry`, `prompt-engineer`, `prompt-builder`, `se-responsible-ai-code`
+  - buildwithclaude `mcp-server-architect`, `mcp-security-auditor`, `agent-expert`, `ai-engineer`, `prompt-engineer`
+  - wshobson `ai-engineer`, `prompt-engineer`, `vector-database-engineer`, `eval-judge`
+  - anthropics `agent-sdk-verifier-py`, `agent-sdk-verifier-ts`
   - aws `llm2bedrock-prompt-evaluator`
-- **Survey candidates:** retrieval and RAG review (ECC, 82), pgvector and hybrid search (timescale, 82), Claude API pitfalls (anthropics, 74), agent evals (muratcankoylan, 72), LLM security (alirezarezvani, 63), LLM cost (ECC, 62), RAG metrics (buildwithclaude, 55).
+- **Survey candidates:** agent security (cloudflare, 82; ECC, 80), MCP server security and release QA (awesome-copilot, 82), Bedrock AgentCore (aws/agent-toolkit, 80), retrieval and RAG review (ECC, 82), pgvector and hybrid search (timescale, 82), tool design (muratcankoylan, 76), Claude API pitfalls (anthropics, 74), agent evals (muratcankoylan, 72), LLM security (alirezarezvani, 63), LLM cost (ECC, 62), agent context (muratcankoylan, 58), RAG metrics (buildwithclaude, 55), agent SDK (anthropics, 48).
+- **Likely skills:** prompt engineering, agent loop and tool design, RAG, Bedrock and AgentCore, LLM cost.
+
+### 7. (merged into 6)
 
 ### 8. Data and database (new)
 - **Owns:** Postgres and pgvector schema, migrations, queries and indexes, DynamoDB key design, tenancy and data lifecycle at the data layer.
@@ -199,7 +193,10 @@ Taken from the `## Skills` list in each stage reference under `.cursor-plugin/ul
 | quality | tests | `test-craft` | `always` | each case can fail and has an exact expected value |
 | quality | build | `test-craft` | `always` | writing any test |
 
-No skills: `architect` (plan, review), `softarch` (plan, review), `security` (plan, tests, review), and `quality` at plan and review.
+| architect | review | `aws-well-architected` | `files: *.tf, *.tfvars, template.yaml, template.yml, template.json, serverless.yml, serverless.yaml, cdk.json, samconfig.toml; added: AWS::\|resource "aws_\|aws-cdk-lib\|aws_cdk\|@aws-cdk/\|boto3\|@aws-sdk/\|aws-sdk-go\|software.amazon.awssdk` | Well-Architected practices a diff can show, with IDs and verified AWS costs and limits |
+| architect | plan | `aws-well-architected` | offered | the plan adds or changes AWS infrastructure or AWS calls |
+
+No skills: `softarch` (plan, review), `security` (plan, tests, review), and `quality` at plan and review.
 
 Fixed cost per build: the developer's three `always` skills, `test-craft` and the two briefs come to about 28 KB before any file-matched skill.
 
@@ -217,7 +214,7 @@ Fixed cost per build: the developer's three `always` skills, `test-craft` and th
 
 ## Optional merges, to start smaller
 
-- 6 and 7 as one "AI systems" expert.
+- 6 and 7 as one "AI systems" expert (done: 6 is the Generative AI engineer).
 - 9 and 10 as one "platform and delivery" expert.
 - 12 split between developer, data and frontend.
 - 14 folded into security.
@@ -230,6 +227,6 @@ From the survey: DynamoDB and OpenSearch, VPC and networking depth, CloudFormati
 
 ## Status
 
-Built: experts 1 to 5 (`architect`, `softarch`, `developer`, `quality`, `security`). Skills are mapped for `developer` (eleven) and `quality` (`test-craft`); `architect`, `softarch` and `security` have none. Experts 6 to 14 are not built.
+Built: experts 1 to 5 (`architect`, `softarch`, `developer`, `quality`, `security`). Skills are mapped for `developer` (eleven), `quality` (`test-craft`) and `architect` (`aws-well-architected`); `softarch` and `security` have none. Experts 6 and 8 to 14 are not built (7 is merged into 6).
 
-Next: choose expert 6 or later. The candidates are agent-system design (6), data and Postgres (8), and UI and accessibility (13).
+Next: the Generative AI engineer (6), which has the Generative AI Lens research ready and needs an AgentCore pass; then data and Postgres (8), or UI and accessibility (13).

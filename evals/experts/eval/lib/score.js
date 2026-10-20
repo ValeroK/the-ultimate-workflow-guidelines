@@ -132,10 +132,14 @@ function compare(candidate, baseline, t) {
     (candidate.benign.fpRate ?? 0) <= (baseline.benign.fpRate ?? 0) + t.maxFpRateDelta,
     `candidate ${candidate.benign.fpRuns}/${candidate.benign.runs} runs, baseline ${baseline.benign.fpRuns}/${baseline.benign.runs}`
   );
+  // A null limit means the maintainer decided this expert should raise everything it finds, so lane
+  // discipline is reported and does not gate (thresholds.json, overrides).
+  const leakGate = t.maxLeakRate !== null && t.maxLeakRate !== undefined;
   add(
-    'leak into sibling domains is low',
-    (candidate.sibling.leakRate ?? 0) <= t.maxLeakRate,
-    `${candidate.sibling.leakRuns}/${candidate.sibling.runs} sibling runs reported another domain's defect, limit ${t.maxLeakRate}`
+    leakGate ? 'leak into sibling domains is low' : 'leak into sibling domains (informational)',
+    !leakGate || (candidate.sibling.leakRate ?? 0) <= t.maxLeakRate,
+    `${candidate.sibling.leakRuns}/${candidate.sibling.runs} sibling runs reported another domain's defect${leakGate ? `, limit ${t.maxLeakRate}` : ', no limit for this expert'}`,
+    !leakGate
   );
   // Informational: on the gold sets the judge agreed with the expected evidence rating only 61 to 92
   // percent of the time, so this number is reported and does not decide pass or fail.

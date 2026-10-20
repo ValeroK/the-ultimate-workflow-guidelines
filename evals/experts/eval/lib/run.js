@@ -302,13 +302,15 @@ function collectRecords(dir) {
 /** Summaries per arm and, if a baseline arm is named, the comparison for each other arm. */
 function scoreRun(dir, thresholds, baselineArm) {
   const { plan, records } = collectRecords(dir);
+  // Per-expert decisions by the maintainer (thresholds.json, overrides) replace the defaults.
+  const t = { ...thresholds, ...((thresholds.overrides || {})[plan.expert] || {}) };
   const c = corpus.load(plan.expert);
   const cases = c.cases.filter((x) => plan.cases.includes(x.id)).map((x) => ({ id: x.id, kind: x.kind }));
   const arms = {};
   for (const a of plan.arms) arms[a.label] = score.summarise(cases, records.filter((r) => r.arm === a.label));
   const comparisons = {};
   if (baselineArm) {
-    for (const a of plan.arms) if (a.label !== baselineArm) comparisons[a.label] = score.compare(arms[a.label], arms[baselineArm], thresholds);
+    for (const a of plan.arms) if (a.label !== baselineArm) comparisons[a.label] = score.compare(arms[a.label], arms[baselineArm], t);
   }
   // Per case, which arms found the planted defect by majority; flips between arms are visible.
   const perCase = {};

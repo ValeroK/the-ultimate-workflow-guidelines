@@ -251,3 +251,29 @@ test('gold scoring applies the same quote rule: a planted label with no quote is
   assert.equal(without.label.agree, gold.items.length - needQuote);
   assert.ok(without.label.wrong.every((w) => w.got === 'unverified'));
 });
+
+test('scoreRun applies a per-expert threshold override: the same leak fails by default and passes with a null limit', () => {
+  const work = tmp();
+  const { plan: p, dir } = plan(work);
+  const c = corpus.load('quality');
+  const kinds = new Map(c.cases.map((x) => [x.id, x.kind]));
+  for (const b of p.batches) {
+    const results = p.cases.map((id) => ({ caseId: id, findings: kinds.get(id) === 'seeded' || kinds.get(id) === 'sibling' ? [finding()] : [], verdict: 'v' }));
+    fs.writeFileSync(b.resultFile, JSON.stringify({ results }));
+  }
+  const tasks = run.buildJudgeTasks(dir);
+  for (const t of tasks) {
+    const text = read(t.taskFile);
+    const ids = [...text.matchAll(/^caseId (c[0-9a-f]{8})$/gm)].map((m) => m[1]);
+    fs.writeFileSync(t.resultFile, JSON.stringify({ results: ids.map((caseId) => ({ caseId, labels: [{ findingIndex: 0, label: kinds.get(caseId) === 'sibling' ? 'out-of-domain' : 'planted', evidence: 'complete', reason: 'r', quote: kinds.get(caseId) === 'sibling' ? '' : 'a finding' }] })) }));
+  }
+  const leakCheck = (r) => r.comparisons.ArmPlain.checks.find((x) => /leak/.test(x.name));
+  const byDefault = run.scoreRun(dir, { ...thresholds, recallMarginCases: 0 }, 'ArmLens');
+  assert.equal(leakCheck(byDefault).ok, false);
+  assert.equal(leakCheck(byDefault).informational, false);
+  const overridden = run.scoreRun(dir, { ...thresholds, recallMarginCases: 0, overrides: { quality: { maxLeakRate: null } } }, 'ArmLens');
+  assert.equal(leakCheck(overridden).ok, true);
+  assert.equal(leakCheck(overridden).informational, true);
+  const otherExpert = run.scoreRun(dir, { ...thresholds, recallMarginCases: 0, overrides: { developer: { maxLeakRate: null } } }, 'ArmLens');
+  assert.equal(leakCheck(otherExpert).ok, false, 'an override for another expert changes nothing');
+});

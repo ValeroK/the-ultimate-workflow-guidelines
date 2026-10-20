@@ -7,5 +7,11 @@
   "minSelectionRecall": 0.9,
   "maxCofireRate": 0.1,
   "judgeAgreementMin": 0.9,
-  "runsPerCase": 3
+  "runsPerCase": 3,
+  "overrides": {
+    "developer": {
+      "maxLeakRate": null
+    }
+  },
+  "_overridesNote": "2026-10-20, maintainer: the developer expert should raise everything it finds, including defects that belong to other domains. Lane discipline (leak) is reported for it and does not gate. Other experts keep the default limit."
 }

@@ -210,3 +210,26 @@ test('compare: evidence completeness is reported and never decides pass or fail'
   assert.equal(ev.ok, false, 'the number is still computed and shown');
   assert.equal(out.pass, true, 'but it does not fail the comparison');
 });
+
+test('compare: a null leak limit makes lane discipline informational, a number still gates', () => {
+  const base = score.summarise(cases, perfect());
+  const leaky = perfect().filter((x) => x.caseId !== 'x1');
+  leaky.push(...runs('x1', [['out-of-domain'], ['out-of-domain'], ['out-of-domain']]));
+  const c = score.summarise(cases, leaky);
+  const gated = score.compare(c, base, { ...thresholds, recallMarginCases: 0 });
+  assert.equal(gated.pass, false);
+  const free = score.compare(c, base, { ...thresholds, recallMarginCases: 0, maxLeakRate: null });
+  const leak = free.checks.find((x) => /leak/.test(x.name));
+  assert.equal(leak.informational, true);
+  assert.match(leak.name, /informational/);
+  assert.match(leak.detail, /no limit for this expert/);
+  assert.match(leak.detail, /3\/6|3\/3|\d+\/\d+ sibling runs/);
+  assert.equal(free.pass, true);
+});
+
+test('thresholds: the developer override is recorded with its reason and the default limit is unchanged', () => {
+  assert.equal(thresholds.overrides.developer.maxLeakRate, null);
+  assert.match(thresholds._overridesNote, /developer/);
+  assert.equal(thresholds.maxLeakRate, 0.1);
+  assert.deepEqual(Object.keys(thresholds.overrides), ['developer']);
+});

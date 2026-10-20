@@ -15,5 +15,9 @@
   "quality": {
     "name": "test and evaluation quality",
     "scope": "Whether tests, evals and CI gates can be trusted: assertions that cannot fail, flaky patterns, weakened gates, contract tests, and how LLM-agent outputs are evaluated (repeats, judge calibration, trajectory). Not production-code design, not security vulnerabilities, not system topology."
+  },
+  "review": {
+    "name": "code review",
+    "scope": "Any defect a careful reviewer can show from the diff: wrong results on normal or boundary inputs, concurrency, security vulnerabilities, performance at realistic load, failure handling, tests that cannot fail, and maintainability with a concrete cost. Not product rules, user-facing wording or documentation, and not style that a linter or formatter catches."
   }
 }

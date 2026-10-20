@@ -28,3 +28,13 @@ File: `2026-10-20-developer-dev-expert-v1-vs-baseline.json`. `A0` plain reviewer
 - Lane discipline (a real defect of another domain reported on a sibling case): A3 12 of 24 runs, A0 18 of 24. **This fails the pre-set limit of 10 percent.** Test-quality siblings no longer leak (0, against 10 for A0). What remains is string-built SQL and a swallowing catch, which the expert reports as deviation from the repository's convention and as a swallowed failure. Those are categories of its own checklist that overlap security and reliability.
 - Not yet run: the heldout split. It is untouched; running it once is the unbiased figure.
 - Nothing has been tuned against these results. Any change to the expert after this point makes the dev numbers a development number, not a test.
+
+## 2026-10-20 developer expert v1, held-out split (run once, expert unchanged since the dev run)
+
+File: `2026-10-20-developer-heldout-expert-v1-vs-baseline.json`. Same arms, model and judge as the dev run. The expert was not changed between the dev run and this one, so this is the unbiased figure for v1.
+
+- Seeded defects found by majority: A3 6 of 6, A0 4 of 6; runs 18/18 against 12/18. Two cases that A0 missed in all three runs are found by A3 in every run.
+- Benign false positives: 2 of 12 runs for both. No improvement on this split.
+- Real but unplanted findings: A3 10, A0 8. Here the expert raised more, not fewer; on the dev split it raised fewer (1 against 11). Read the two together as noise in a small sample, not a trend.
+- Lane discipline is informational for this expert by maintainer decision (it should raise everything it finds): 8 of 12 sibling runs against 12 of 12.
+- All gated checks pass. Sample: 6 seeded cases, 3 runs, one reviewer model, judge run once per batch and not hand-checked on this run.

@@ -4,14 +4,14 @@ Every block below is self-contained: paste one into a session with open web acce
 
 | Block | What it unlocks | Claims |
 |---|---|---|
-| A. Architect, items 35 on | The architect's other 5 skills: `step-functions`, `api-gateway`, `caching-and-latency`, `multi-tenancy`, `aws-well-architected`. | 47 |
+| A. Architect, items 35 on | Answered 2026-10-21 (`architect-items-35-on-2026-10-21.md`). The architect's other 5 skills: `step-functions`, `api-gateway`, `caching-and-latency`, `multi-tenancy`, `aws-well-architected`. | 47 |
 | B. DevOps, round 2 | All 6 DevOps skills, and the 4 review lines held back (StatefulSet rollback, StorageClass reclaim default, `.dockerignore` location, deployment-branch rule). | 27 |
 | C. Research prompt 5: GenAI sources | Answered 2026-10-21 with search snippets only (`docs/research/genai-research-2026-10-21.md`): leads, not facts. D is still needed, run in a session that can open pages. | research questions |
-| D. GenAI fact-check | The same 4 skills; answer overlaps with C once. | 39 |
-| E. Research prompt 6: data sources | The data expert's skills (with F). | research questions |
-| F. Data fact-check | The same skills; answer overlaps with E once. | 49 |
+| D. GenAI fact-check | Answered 2026-10-21, snippet only (`snippet-replies-2026-10-21.md`); waits on the snippet decision. The same 4 skills; answer overlaps with C once. | 39 |
+| E. Research prompt 6: data sources | Answered 2026-10-21, snippet only; waits on the snippet decision. The data expert's skills (with F). | research questions |
+| F. Data fact-check | Answered 2026-10-21, snippet only; waits on the snippet decision. The same skills; answer overlaps with E once. | 49 |
 | G. Frontend fact-check | The frontend expert's 4 skills, and any WCAG number in its references. | 25 |
-| H. Observability fact-check | The two observability skills: `alarms-and-slos` (architect) and `telemetry-in-code` (developer). | 25 |
+| H. Observability fact-check | Came back empty (no web tool); run again. The two observability skills: `alarms-and-slos` (architect) and `telemetry-in-code` (developer). | 25 |
 | I. Web performance fact-check | The `web-performance` skill (frontend). | 46 |
 | J. Privacy fact-check | `personal-data-exposure` (security) and `erasure-and-retention` (data). | 37 |
 

@@ -13,16 +13,16 @@ Sweep: the case-insensitive regular expression `perf|latency|throughput|bundle|w
 | S1 | addyosmani/agent-skills | `agents/web-performance-auditor.md` | MIT | **Best method rule:** a reviewer reading source cannot measure LCP, INP or CLS, so every static finding is "potential impact" and no metric is stated. Checklist mostly overlaps S2 and S3. Tells the reader to run `npx lighthouse`, Chrome DevTools MCP tools and to ask the user to run a CLI: **noted, not followed** |
 | S2 | addyosmani/agent-skills | `skills/performance-optimization/SKILL.md`, `references/optimization-patterns.md` | MIT | **Best community skill.** Measure, keep or revert; CWV table; backend items (N+1, pagination, index, pool, cache) that are data's and the architect's; frontend items (dimensions, LCP image, memo restraint, splitting). Says modern bundlers tree-shake ESM with `sideEffects: false` (contradicts S13) |
 | S3 | addyosmani/agent-skills | `references/performance-checklist.md` | MIT | Checklist: images, scripts, fonts, bfcache, `content-visibility`, yielding, layout thrashing. Fixed budgets throughout (rejected) |
-| S4 | affaan-m/ECC | `agents/performance-optimizer.md` | MIT | Persona and capability list with fixed budgets; "lazy load images" as an LCP fix (wrong direction for the LCP image) and `useCallback` for every inline handler (contradicts S1, S2). "Use PROACTIVELY", Write, Edit and Bash tools, `npx` commands: **noted, not followed** |
+| S4 | affaan-m/ECC | `agents/performance-optimizer.md` | MIT | Persona and capability list with fixed budgets; "lazy load images" as an LCP fix (wrong direction for the LCP image) and `useCallback` for every inline handler (contradicts S1, S2). Grants itself Write, Edit and Bash tools and lists `npx` and `node --prof` commands to run: **noted, not followed** |
 | S5 | affaan-m/ECC | `skills/react-performance/SKILL.md` | MIT | Adapted from S13 (says so); merged with S13 row by row, only its additions are listed |
 | S6 | affaan-m/ECC | `skills/latency-critical-systems/SKILL.md`, `skills/data-throughput-accelerator/SKILL.md` | MIT | Runtime and pipeline procedure (percentiles, freshness, accounting blocks); two guardrails worth noting, nothing checkable in a diff |
 | S7 | affaan-m/ECC | `skills/benchmark-methodology/SKILL.md` | MIT | Noise: scores marketing competitors, not code. The name lied |
 | S8 | wshobson/agents | `plugins/application-performance/agents/performance-engineer.md`, `plugins/python-development/skills/python-performance-optimization/SKILL.md` | MIT | Capability catalogue; Python skill is profiling how-to plus generic advice. Four more copies of the agent under other plugins were not read |
 | S9 | davepoon/buildwithclaude | `plugins/all-agents/agents/performance-engineer.md`, `react-performance-optimization.md` | MIT | Short personas; nothing checkable |
 | S10 | github/awesome-copilot | `agents/frontend-performance-investigator.agent.md`, `agents/mongodb-performance-advisor.agent.md` | MIT | Runtime investigation with DevTools (runCommands, fetch tools) and a MongoDB MCP procedure ("You must run `atlas-get-performance-advisor`"): **noted, not followed**. Method rule: separate symptom from cause |
-| S11 | github/awesome-copilot | `instructions/performance-optimization.instructions.md` | MIT | **Densest checklist** (about 60 anti-patterns with a detection regex each). Many detection regexes are far too broad (`.map(` "over 100 items", `onClick={() =>`); facts need checking (scheduler.yield support, Next 16 `"use cache"`) |
+| S11 | github/awesome-copilot | `instructions/performance-optimization.instructions.md` | MIT | **Densest checklist** (about 60 anti-patterns with a detection regex each). Many detection regexes are far too broad (`.map(` "over 100 items", `onClick={() =>`); facts need checking (scheduler.yield support, Next 16 `"use cache"`). Its `applyTo: '**'` front matter applies it to every file a coding assistant touches: **noted, not followed** |
 | S12 | ziniman/ai-instruct | `skills/web-performance/SKILL.md` (55 KB) | Apache-2.0 | Long practical guide, strongest on loading (LCP element type first, preload scanner, scripts, fonts, third-party scope). **At least three statements look wrong** (lazy loading "default in modern browsers", `swap` described as invisible text, `no-store` on HTML) and go to section 4. Addresses "AI assistant: ... Run PageSpeed Insights first": **noted, not followed** |
-| S13 | vercel-labs/agent-skills | `skills/react-best-practices/SKILL.md` and 12 rule files (`bundle-*` six, `rendering-content-visibility`, `rerender-memo`, `async-parallel`, `server-serialization`, `js-index-maps`) | not found at the repository root; the frontmatter says MIT and S5 attributes it as MIT; ideas only, as in the frontend ledger | Seventy rules by prefix; bundle and waterfall rules are the useful part; JS micro-rules fail the value test. Vendor figures throughout (rejected). The remaining 55 rule files were not fetched; their titles are in the SKILL.md index and were judged from it |
+| S13 | vercel-labs/agent-skills | `skills/react-best-practices/SKILL.md` and 11 rule files (`bundle-*` six, `rendering-content-visibility`, `rerender-memo`, `async-parallel`, `server-serialization`, `js-index-maps`) | not found at the repository root; the frontmatter says MIT and S5 attributes it as MIT; ideas only, as in the frontend ledger | Seventy rules by prefix; bundle and waterfall rules are the useful part; JS micro-rules fail the value test. Vendor figures throughout (rejected). The remaining 59 rule files were not fetched; their titles are in the SKILL.md index and were judged from it |
 | S14 | tech-leads-club/agent-skills | `(performance)/core-web-vitals/SKILL.md` and `references/LCP.md`, `perf-web-optimization/SKILL.md` and `references/bundle-optimization.md`, `perf-lighthouse/SKILL.md` | MIT | CWV explainer with debugging snippets; Lighthouse CLI and CI recipe (install, run, `temporaryPublicStorage`: **noted, not followed**). Its `react-best-practices` is a copy of S13's rule set (same rule file names) and was not read |
 | S15 | emilkowalski/skills | `skills/animation-performance/SKILL.md` | MIT | **Best animation source.** Property tiers, main thread against compositor, two traps (inherited CSS variables, Motion `x`/`y`), `will-change` last. Forced "Initial Response" greeting: **noted, not followed** |
 | S16 | ibelick/ui-skills | `skills/fixing-motion-performance/SKILL.md` | MIT | Overlaps S15; adds scroll-driven animation and an off-screen pause rule. "Apply these constraints to any UI animation work in this conversation": **noted, not followed** |
@@ -32,7 +32,9 @@ Sweep: the case-insensitive regular expression `perf|latency|throughput|bundle|w
 | S20 | this repository | inbound "performance (planned)" routings in `docs/experts/ledgers/developer.md`, `frontend.md`, `data.md`, `genai.md`, `quality.md`, `observability.md`, and the skills `react-craft`, `typescript-craft`, `python-craft`, `go-craft`, `rust-craft`, `java-craft` | ours | Items other ledgers parked for a performance expert; each now gets a home |
 | S21 | this repository | `experts/skills/{python,typescript,rust,java,go}-craft`, `caching-and-latency`, `aws-well-architected`, `experts/architect/references/review.md`, `experts/data/references/review.md` | ours | What already covers the backend half of the proposal |
 
-Twenty-seven upstream files from twelve repositories were read (S1 to S19), plus our own files (S20, S21). Not read: the antigravity copies (`performance-engineer`, `application-performance-performance-optimization`, `performance-testing-review-*`, `python-performance-optimization`; copies of wshobson), awesome-copilot `qdrant-*` (vector search; data's `vector-storage`), `spark-performance`, `power-bi-*`, `dataverse-python-performance-optimization` (out of scope), tech-leads `perf-astro` (one framework), Jeffallan's game, pandas and Shopify `performance-optimization` references (one domain each), ollygarden `otel-profiles` (observability signal), and S14's `references/core-web-vitals.md` and `image-optimization.md` (duplicates of what was read).
+Thirty-nine upstream content files (plus eleven LICENSE files) from twelve repositories were read (S1 to S19), plus our own files (S20, S21).
+
+**Which files count as "noted, not followed".** A file is marked when it addresses the agent reading it and tells it to run a command or script, call or fetch through a tool, grant itself tools, answer in a fixed form, or apply itself beyond the file (to a whole conversation or every file). A persona opening ("You are ...") or a "Use PROACTIVELY" trigger in a description is how agent files are written and is not counted by itself; that is why S8 and S9 are not marked. Commands shown as an example for a human's CI (S2, S3) are not counted either. Not read: the antigravity copies (`performance-engineer`, `application-performance-performance-optimization`, `performance-testing-review-*`, `python-performance-optimization`; copies of wshobson), awesome-copilot `qdrant-*` (vector search; data's `vector-storage`), `spark-performance`, `power-bi-*`, `dataverse-python-performance-optimization` (out of scope), tech-leads `perf-astro` (one framework), Jeffallan's game, pandas and Shopify `performance-optimization` references (one domain each), ollygarden `otel-profiles` (observability signal), and S14's `references/core-web-vitals.md` and `image-optimization.md` (duplicates of what was read).
 
 ## 2. Items, per source
 
@@ -45,7 +47,8 @@ Owners when routed: architect, softarch, developer, quality, security, devops, g
 | Static reading cannot measure LCP, INP or CLS; every finding is "potential impact", no scorecard value without an artifact | taken | `web-performance` opening rule; frontend has no browser, so this is its only honest mode |
 | Field and lab data are not interchangeable; label each value's source | rejected | no metric reaches a diff review |
 | Identify the framework and rendering model before framework advice | taken | `web-performance` "First, establish the target" |
-| LCP image with `fetchpriority="high"` and not lazy-loaded | taken | `web-performance` (fact 8, 10) |
+| LCP image not lazy-loaded | taken | `web-performance` (fact 8) |
+| LCP image with `fetchpriority="high"` | rejected | tuning, not a defect (as S11 L4 and L7); fact 10 only words the remedy |
 | Explicit `width` and `height` on images, `<source>`, iframes and embeds | taken | `web-performance` (fact 13) |
 | Long tasks over 50 ms delay INP; heavy synchronous work in event handlers | taken | `web-performance` (fact 17) |
 | `scheduler.yield()` inside long loops | missing | fact 18 (support varies) |
@@ -56,14 +59,14 @@ Owners when routed: architect, softarch, developer, quality, security, devops, g
 | Fonts self-hosted, preloaded, `font-display`, subsetted | taken | `web-performance` (font row, facts 14, 15) |
 | Images in WebP or AVIF with `srcset` and `sizes` | rejected | asset pipeline choice; vendor percentages |
 | Initial JavaScript under 200 KB gzipped | rejected | fixed threshold; bytes are not visible in a diff |
-| Code splitting for routes and heavy features | taken | `web-performance` (heavy component imported statically) |
+| Code splitting for routes and heavy features | taken | `web-performance` (heavy component imported statically; fact 34) |
 | Blocking scripts in `<head>` without `defer` or `async` | taken | `web-performance` (fact 26) |
 | Third-party scripts with `async`/`defer`, behind a facade when heavy | taken | `web-performance` (third-party in the root layout) |
 | Unnecessary full-page re-renders, state lifted wrongly | routed | developer (`react-craft` state rows); cost without a profile is not a finding |
 | Long lists virtualised | taken | `web-performance` (unbounded list) |
 | Animations on `transform` and `opacity` | taken | `web-performance` (fact 22) |
 | Layout thrashing in a loop | taken | `web-performance` (fact 20) |
-| `content-visibility: auto` off-screen | missing | fact 24; a suggestion, never a finding by itself |
+| `content-visibility: auto` off-screen | rejected | enhancement, never a finding by itself; fact 24 only if a row is ever written |
 | View Transitions to avoid perceived CLS | rejected | enhancement |
 | bfcache: no `unload` handler, no `no-store` on HTML | missing | fact 28; `unload` to `web-performance`, the header to `caching-and-latency` |
 | "AI patterns": memo everywhere is a cost | taken | merged with `react-craft` Not a finding (no memo rows in `web-performance`) |
@@ -94,7 +97,7 @@ Owners when routed: architect, softarch, developer, quality, security, devops, g
 | Never cache what must be fresh (balances, permissions) | routed | architect (`caching-and-latency` TTL row) |
 | Image dimensions; LCP image priority; lazy below the fold | taken | `web-performance` (merged with S1) |
 | Object or function created in render re-renders children; reserve memo for measured cost | routed | developer (`react-craft` Not a finding) |
-| Modern bundlers tree-shake ESM named imports given `sideEffects: false`; gains come from splitting | missing | fact 29, 31 (contradicts S13) |
+| Modern bundlers tree-shake ESM named imports given `sideEffects: false`; gains come from splitting | missing | facts 29, 30, 31 (contradicts S13) |
 | Route-level splitting and `lazy` behind `Suspense` | taken | `web-performance` (merged with S1) |
 | Budgets (200 KB JS, 50 KB CSS, 100 KB fonts, 200 ms p95, TTI 3.5 s, Lighthouse 90) | rejected | fixed thresholds |
 | Synthetic CI gate plus field monitoring; repeat runs, compare a median | routed | quality (`test-gates`: whether the budget gate can fail and is not flaky) |
@@ -120,7 +123,7 @@ Owners when routed: architect, softarch, developer, quality, security, devops, g
 | Fallback metrics `size-adjust`, `ascent-override`, `descent-override` | missing | fact 16 |
 | `fetchpriority` on non-image resources | rejected | tuning |
 | Long lists virtualised (`react-window`) | taken | `web-performance` (merged with S1) |
-| `content-visibility: auto` with `contain-intrinsic-size` | missing | fact 24 |
+| `content-visibility: auto` with `contain-intrinsic-size` | rejected | enhancement (merged with S1); fact 24 |
 | No `unload` handlers; no `no-store` on HTML | missing | fact 28 (merged with S1) |
 | Backend checklist: N+1, indexes, pagination, pooling, slow query log | routed | data (merged with S2) |
 | Query-plan and index-strategy checklists | routed | data |
@@ -231,7 +234,7 @@ Owners when routed: architect, softarch, developer, quality, security, devops, g
 | L4 LCP resource not preloaded | rejected | tuning; the lazy-loaded main image is the checkable half |
 | L5 client-side fetch for main content in `useEffect` | taken | `web-performance` (LCP waits on hydration and a second round trip); the race is `react-craft`'s |
 | L6 redirect chains ("each adds 200 to 300 ms", "maximum one") | routed | devops (hosting rules); the figure is rejected |
-| L7 missing `fetchpriority`/`priority` on the hero | taken | merged with S1 |
+| L7 missing `fetchpriority`/`priority` on the hero | rejected | tuning (merged with L4 and S1's `fetchpriority` row) |
 | L8 third-party script in `<head>` without `async`/`defer` | taken | merged with L2 |
 | L9 initial HTML over 14 KB | rejected | fixed threshold |
 | L10 missing compression ("Brotli 15 to 25 percent better") | routed | devops; figure rejected |
@@ -247,10 +250,10 @@ Owners when routed: architect, softarch, developer, quality, security, devops, g
 | J2 layout thrashing (`offsetHeight`, `getBoundingClientRect` in loops) | taken | merged with S1 |
 | J3, J4, J8 timers, listeners and effects without cleanup | routed | developer (already in `react-craft`) |
 | J5 detached DOM references | rejected | rarely visible in a diff |
-| J6 synchronous XHR | taken | `web-performance` (one line in the input-handler row; obvious but cheap) |
+| J6 synchronous XHR | rejected | obvious to a strong reviewer; fails the value test |
 | J7 heavy computation in component code | taken | merged with J1 |
 | C1 animating `top`, `left`, `width`, `height`, `margin`, `padding` | taken | `web-performance` (merged with S15) |
-| C2 `content-visibility` | missing | fact 24 (merged with S3) |
+| C2 `content-visibility` | rejected | enhancement (merged with S1); fact 24 |
 | C3 `will-change` applied permanently | taken | `web-performance` ([T], low; fact 23) |
 | C4 more than 50 percent unused CSS | rejected | needs coverage tooling; fixed threshold |
 | C5 universal selector; C6 `contain` | rejected | micro-optimisation with no evidence |
@@ -272,7 +275,7 @@ Owners when routed: architect, softarch, developer, quality, security, devops, g
 | NX3 `"use client"` on a component with no hooks or browser APIs | taken | merged with R1 |
 | NX4 data fetching in `useEffect` in App Router pages | taken | merged with L5 |
 | NX5 Google Fonts by URL instead of `next/font` | taken | `web-performance` font row (third-party font CSS) |
-| NG1 to NG6 Angular change detection, `NgOptimizedImage`, `@defer`, signals, zoneless | rejected | no served repository uses Angular; revisit if one does |
+| NG1 to NG6 Angular change detection, `NgOptimizedImage`, `@defer`, signals, zoneless | rejected | Angular not assessed; revisit if a served repository uses it |
 | RX1 adopt React Compiler | rejected | adoption advice; the compiler's presence is taken as a target fact (S5) |
 | RX2 `useTransition`, RX3 `useDeferredValue` for expensive updates | taken | `web-performance` (input-handler row remedies; fact 40) |
 | RX4 `React.lazy` for routes | taken | merged with B4 |
@@ -291,9 +294,9 @@ Owners when routed: architect, softarch, developer, quality, security, devops, g
 | Inlined critical CSS silently blocked by a CSP `style-src` without nonce or hash | routed | security (CSP), with frontend tests for the unstyled-page case |
 | Next 15 `experimental.inlineCss` and CSS chunking | rejected | experimental framework flag; version-bound |
 | Server Components awaiting slow queries block the shell; stream behind Suspense | rejected | design choice (merged with S11 R2) |
-| Preload only the LCP image; several preloads compete | missing | fact 10 |
+| Preload only the LCP image; several preloads compete | rejected | tuning (merged with S11 L4) |
 | `next/image` `priority` generates the preload and disables lazy | missing | fact 36 |
-| `loading="eager"` against `fetchpriority="high"` | missing | fact 10 |
+| `loading="eager"` against `fetchpriority="high"` | missing | fact 10, only to word the lazy-loading row's remedy |
 | Preload scanner reads hints only in `<head>` | missing | fact 11 |
 | An LCP image inside a `'use client'` component that renders after hydration | taken | `web-performance` (main image rendered by client code) |
 | TTFB above 200 ms defeats preload | rejected | figure; server latency is the architect's |
@@ -321,14 +324,14 @@ Owners when routed: architect, softarch, developer, quality, security, devops, g
 | `defer` keeps order after parsing; `async` runs on arrival | missing | fact 26 |
 | Partytown; self-host third-party scripts | rejected | enhancement |
 | DNS, TCP, TLS costs; `preconnect` within 2 s; `crossorigin` on font preconnects; over-hinting | missing | fact 46 for `crossorigin`; the timings and the 2-second rule are rejected |
-| Dynamic class name assembly defeats CSS purging | taken | `web-performance` ([T]; a class built from string parts in a Tailwind project is missing from the CSS; really a correctness bug, low) |
+| Dynamic class name assembly defeats CSS purging | routed | frontend (design system use): a class built from string parts in a Tailwind project is missing from the CSS, a correctness bug, not performance ([T]) |
 | Tailwind v4 `@layer components` against `@utility`; `@apply` duplicates | rejected | framework-version detail; style |
 | Redirect chains add TTFB; one redirect maximum | routed | devops (merged with S11 L6) |
 | Cache headers per asset type, HTML `no-cache, no-store, must-revalidate` | routed | architect (`caching-and-latency`), with fact 28 (conflicts with S1 on bfcache) |
 | Amplify and Vercel cache defaults; SSE unsupported in Amplify route handlers | rejected | vendor platform detail, version-bound |
 | PageSpeed, WebPageTest, Search Console, `curl` checks | rejected | runtime tools |
 
-### S13 vercel `react-best-practices` (index plus 12 rule files)
+### S13 vercel `react-best-practices` (index plus 11 rule files)
 
 | Item | Outcome | Home or owner |
 |---|---|---|
@@ -352,7 +355,7 @@ Owners when routed: architect, softarch, developer, quality, security, devops, g
 | `client-localstorage-schema` (version and keep small; synchronous API) | rejected | the version half is a correctness habit with no failure named; the size half has no threshold |
 | `rerender-*` fifteen rules (defer reads, memo, default props, primitive deps, derived booleans, functional setState, lazy init, split hooks, transitions, deferred value, refs for transient values, no inline components) | rejected | memoisation and re-render tuning with no measured cost (`react-craft` Not a finding); `rerender-derived-state-no-effect` and `rerender-no-inline-components` already in `react-craft` as correctness; `rerender-transitions` and `rerender-use-deferred-value` merged with the input-handler row |
 | `rerender-memo` note: with React Compiler, manual memo is unnecessary | taken | merged with S5 (target fact 39) |
-| `rendering-content-visibility` ("10 times faster" for 1,000 rows) | missing | fact 24; figure rejected |
+| `rendering-content-visibility` ("10 times faster" for 1,000 rows) | rejected | enhancement (merged with S1); figure rejected; fact 24 |
 | `rendering-animate-svg-wrapper`, `rendering-svg-precision`, `rendering-hoist-jsx` | rejected | micro |
 | `rendering-hydration-no-flicker`, `rendering-hydration-suppress-warning` | routed | developer (`react-craft`: hydration correctness) |
 | `rendering-activity` (`<Activity>` for show and hide) | rejected | enhancement; fact 41 if ever used |
@@ -381,7 +384,7 @@ Owners when routed: architect, softarch, developer, quality, security, devops, g
 | Fallback font metric overrides | missing | fact 16 (merged with S3) |
 | Animations on height and width | taken | merged with S15 |
 | `PerformanceObserver` snippets for LCP, INP, CLS | rejected | instrumentation |
-| TTFB bands (800 ms, 1.8 s) | missing | fact 1 (TTFB is not a Core Web Vital; check whether web.dev publishes bands) |
+| TTFB bands (800 ms, 1.8 s) | missing | fact 1 (whether TTFB is a Core Web Vital and whether web.dev publishes bands for it are part of that check) |
 | Hero with `loading="eager"` and `decoding="async"` | rejected | `decoding` is tuning; eager is the default to check in fact 9 |
 | Google Fonts stylesheet with `media="print" onload` | routed | security (inline handler under CSP, merged with S11 L1) |
 | Third-party loader on first scroll, click or touch, or after 5 s | rejected | enhancement |
@@ -602,7 +605,7 @@ Text that would change if this is built (not edited here):
 
 | Skill | Rows (value test passed) | Host | Selector |
 |---|---|---|---|
-| `web-performance` | **Loading:** a dependency or whole library imported into a file every route loads (root layout, `_app`, the client entry); `"use client"` added at a layout or page root; a large component shown only conditionally (modal, tab, editor, chart, map) imported statically where the repository already splits similar ones; a classic `<script src>` in `<head>` with no `defer`, `async` or `type="module"`; a third-party script mounted in the root layout for every route; a server component awaiting independent fetches one after another ([T], low); a dynamic `import()` with a variable path (after fact 33); barrel imports (only after fact 31). **Main content:** `loading="lazy"` on the page's main or first above-the-fold image; the main image or text rendered by client code after hydration, or fetched in `useEffect` where the framework renders on the server; `img`, `iframe`, `video` or an embed with no dimensions, `aspect-ratio` or reserved box; content inserted above existing content after load; fonts by CSS `@import` or a third-party stylesheet, `@font-face` with no `font-display`. **Input and animation:** synchronous work over a whole data set in an input or keystroke handler with no deferral; synchronous XHR; layout reads interleaved with style writes in a loop; React state set every frame in a `pointermove`, `scroll` or rAF handler; scroll-driven motion from scroll events, or a non-passive scroll listener; a list rendering a collection whose size the server does not bound, with no virtualisation; animating layout properties or `transition: all`; an animated inherited CSS variable ([T], low); permanent `will-change` ([T], low); an `unload` handler (after fact 28). **Not a finding:** missing memoisation (`react-craft`); JS micro-optimisations; fixed budgets or a Lighthouse score; image format or `srcset` tuning; any measured number the expert did not measure | frontend (review and plan) | `files: next.config.*, vite.config.*, webpack.config.*, rollup.config.*, index.html, **/app/layout.*, **/pages/_app.*, **/pages/_document.*, src/main.*`; `added: loading=\|fetchpriority\|<img\b\|<Image\b\|<iframe\|<video\|<script\|<link rel=\|@font-face\|font-display\|@import url\|transition:\|transition-property\|animation:\|will-change\|content-visibility\|import\(\|React\.lazy\|\blazy\(\|dynamic\(\|["']use client["']\|getBoundingClientRect\|offsetHeight\|offsetWidth\|onScroll\|onPointerMove\|requestAnimationFrame\|addEventListener\(["'](scroll\|wheel\|touchmove\|pointermove\|unload)` |
+| `web-performance` | **Opening:** every finding is "potential impact", never a measured number, and names the cause it addresses; first establish the framework and rendering model and its version, whether React Compiler is on, which element is each changed page's main content, and the repository's own bundle or Lighthouse gate if any. **Loading:** a dependency or whole library imported into a file every route loads (root layout, `_app`, the client entry); `"use client"` added at a layout or page root; a large component shown only conditionally (modal, tab, editor, chart, map) imported statically where the repository already splits similar ones; a classic `<script src>` in `<head>` with no `defer`, `async` or `type="module"`; a third-party script mounted in the root layout for every route; a server component awaiting independent fetches one after another ([T], low); a dynamic `import()` with a variable path (after fact 33); barrel imports (only after fact 31). **Main content:** `loading="lazy"` on the page's main or first above-the-fold image; the main image or text rendered by client code after hydration, or fetched in `useEffect` where the framework renders on the server; `img`, `iframe`, `video` or an embed with no dimensions, `aspect-ratio` or reserved box; content inserted above existing content after load; fonts by CSS `@import` or a third-party stylesheet, `@font-face` with no `font-display`. **Input and animation:** synchronous work over a whole data set in an input or keystroke handler with no deferral; layout reads interleaved with style writes in a loop; React state set every frame in a `pointermove`, `scroll` or rAF handler; a `requestAnimationFrame` loop with no stop condition ([T], low); scroll-driven motion from scroll events, or a non-passive scroll listener; a list rendering a collection whose size the server does not bound, with no virtualisation; animating layout properties or `transition: all`; an animated inherited CSS variable ([T], low); permanent `will-change` ([T], low); an `unload` handler (after fact 28). **Not a finding:** missing memoisation (`react-craft`); JS micro-optimisations; fixed budgets or a Lighthouse score; image format or `srcset` tuning; any measured number the expert did not measure | frontend (review and plan) | `files: next.config.*, vite.config.*, webpack.config.*, rollup.config.*, index.html, **/app/layout.*, **/pages/_app.*, **/pages/_document.*, src/main.*`; `added: loading=\|<img\b\|<Image\b\|<iframe\|<video\|<script\|<link rel=\|@font-face\|font-display\|@import url\|transition:\|transition-property\|animation:\|will-change\|import\(\|React\.lazy\|\blazy\(\|dynamic\(\|["']use client["']\|getBoundingClientRect\|offsetHeight\|offsetWidth\|onScroll\|onPointerMove\|requestAnimationFrame\|addEventListener\(["'](scroll\|wheel\|touchmove\|pointermove\|unload)` |
 | (no skill) "Work that grows faster than its input" | one review category: a `.find`, `.filter`, `includes` or sort inside a loop over a collection whose size a caller or upstream controls, on a request path; Not when the size is fixed and small by construction | developer (`experts/developer/references/review.md`) | none (a review category is always in the developer's prompt) |
 
 Rejected: **`hot-path-performance`** under the developer. Of its three proposed items, sync I/O in async code is already a row in four language skills, work that grows with input is already the architect's "A remote call per item" and "No bound" and data's "A query that grows with the table", and allocation in hot loops is "Not a finding" in two language skills and cannot be seen without a profile. It fails the playbook's second question ("Is it new?"). The one residue needs no sourced fact, so it is a review category, not a skill.
@@ -628,6 +631,6 @@ Borders:
 
 Two host problems to settle first:
 1. The frontend agent's Goal says render performance is "Not the goal", and its Responsibilities table has no row for it. Both change (section 6).
-2. Frontend's description triggers on UI changes. A diff that touches only `next.config.*`, a root layout or a new import may never select the expert, so the skill's selector would never run. Check this against `evals/experts/` selection examples before wiring.
+2. Frontend's description triggers on UI changes. A diff that touches only `next.config.*`, a root layout or a new import may never select the expert, so the skill's selector would never run. Check this against the `description` and selection examples in `.cursor-plugin/ultimate-workflow/agents/uw-expert-frontend.md`, and add a case to `evals/experts/skills-injection.test.js`, before wiring.
 
 **Tools needed:** read, search and the web (frontend's existing grant). No browser, no shell, no bundler.

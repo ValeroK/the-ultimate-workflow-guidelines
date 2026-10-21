@@ -3,7 +3,7 @@
 The plugin does two things:
 
 1. **The ADLC workflow.** Plan, tests, build, review and harvest, with confirmation points and gates. This exists.
-2. **The expert catalogue.** Experts that any phase can bring in. This document lists them. Nine are built: `architect`, `softarch`, `developer`, `quality`, `security`, `devops`, and, with no skills yet, `genai`, `frontend` and `data`. All but `security` have shared skills (see "Skills by expert and stage"). Experts 6, 8 and 11 to 14 are not built.
+2. **The expert catalogue.** Experts that any phase can bring in. This document lists them. Nine are built: `architect`, `softarch`, `developer`, `quality`, `security`, `devops`, and, with no skills yet, `genai`, `frontend` and `data`. The first six have shared skills (see "Skills by expert and stage"). Experts 6, 8 and 11 to 14 are not built.
 
 Skills are chosen in code at review, build and tests, and by a model question at plan; the chosen text is pasted into the expert's prompt. How it works: [Shared skills](adding-an-expert.md#shared-skills).
 
@@ -223,6 +223,8 @@ Taken from each expert's `.cursor-plugin/ultimate-workflow/experts/<name>/skills
 | devops | review, build | `release-safety` | `added:` flag SDKs, CodeDeploy, AppConfig, canary rollouts, migration commands, image lifecycle rules | flags, canaries, migrations in the release, rollback targets |
 | devops | review, build | `containers` | Dockerfiles, Containerfiles, `.dockerignore`, compose files | stop signals, repeatable images, health and start order |
 | devops | plan | all six | offered | the plan changes infrastructure, pipelines, containers or releases |
+
+| security | review | `ci-workflow-security` | `files: .github/workflows/*.yml, .github/workflows/*.yaml, .github/workflows/actions.lock, **/action.yml, **/action.yaml` | fork-code triggers, event text in steps, token and secrets, caches, pinning, OIDC |
 
 | softarch | review | `protobuf-compat` | `files: *.proto, buf.yaml, buf.gen.yaml, buf.lock` | wire, ProtoJSON and generated-code compatibility |
 | softarch | review | `schema-evolution` | API description and GraphQL files; `added:` an `openapi:` line, `type Query {`, a JSON Schema `$schema` | what breaks callers or readers; versions |

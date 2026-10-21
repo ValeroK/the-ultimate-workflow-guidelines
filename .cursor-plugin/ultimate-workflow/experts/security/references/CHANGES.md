@@ -44,3 +44,4 @@ Upstream: `anthropics/claude-code-security-review`, `.claude/commands/security-r
 - At least half of the negative selection examples are near misses with their owner named.
 - Review: a "Not when" on every category, memory safety only when the diff adds `unsafe` or native code, "Excuses that do not hold", and a worked finding that goes through `allow-unsafe-pr-checkout` (round 2, item 1). Plan asks where identity comes from and gains the one-way-choice rule; tests gains a worked case.
 - Not measured since the restructure.
+- New skill `ci-workflow-security` (GitHub Actions: fork-code triggers, event text in steps, token and secrets, caches, pinning, OIDC), from round 2 items 1 to 11 and the DevOps E1, E2 and E5; pasted at review when a workflow, action or the actions lockfile changes. `agent-surface.md`'s CI section now points to it.

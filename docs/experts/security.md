@@ -26,7 +26,7 @@ The core review checklist is adapted from `anthropics/claude-code-security-revie
 
 ## Skills
 
-None yet. The round-2 check (`docs/research/security-2026-10-20.md`) confirmed the CI facts (`allow-unsafe-pr-checkout`, `actions.lock`, the 2026-11-02 `pull_request_target` policy, OIDC subject forms, cache modes), IAM, JWT, CORS, deserialisation and MCP facts that the ledger proposed for skills. Turning `agent-surface.md`'s CI section into a `ci-workflow-security` skill, with those rows, is the next step; it was kept as a reference in the restructure.
+`ci-workflow-security` at review, selected by a workflow file, a composite action or `actions.lock` (maintainer decision 2026-10-21). It holds the GitHub Actions rows from round-2 items 1 to 11 and the DevOps facts E1, E2 and E5, each tagged; `agent-surface.md`'s CI section now points to it and keeps only the general questions for other CI systems. Item 10 (newline injection through `GITHUB_ENV`) and organisation-wide OIDC trust stay [T]: only secondary pages state them. The IAM, JWT, CORS, deserialisation and MCP facts from the same round are confirmed and wait for their proposed skills (ledger section 2). Security has no `review-when-skills`: it joins a workflow change through the plan or the recheck, as before.
 
 ## Not measured
 

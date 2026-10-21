@@ -22,11 +22,7 @@ Read this when the diff touches instructions or configuration that steer an agen
 
 ## CI workflows
 
-- `pull_request_target` or `workflow_run` that checks out and runs code from the pull request's head.
-- Event data such as titles, branch names or comment bodies interpolated into a `run:` step.
-- Secrets reachable by workflows triggered from forks, or `permissions` broader than the job needs.
-- Third-party actions pinned to a tag or a branch rather than a commit.
-- Caches or artifacts produced at a low privilege level and trusted at a higher one.
+For GitHub Actions, the `ci-workflow-security` skill holds the rules and is pasted into your prompt when the diff touches a workflow, an action or the actions lockfile. For another CI system, apply the same questions: does an event an outsider can cause run their code or text with secrets or a write token, is the token wider than the job needs, is a third-party step pinned, and is a cache or artifact made at low privilege trusted at a higher one.
 
 ## Install and update paths
 

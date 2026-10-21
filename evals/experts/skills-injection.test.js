@@ -553,3 +553,20 @@ test('quality review: all three skills at once fit under the cap', () => {
   assert.deepEqual(names(sel), ['test-craft', 'test-gates', 'eval-integrity']);
   assert.ok(sel.skills.reduce((n, s) => n + Buffer.byteLength(s.text), 0) <= ex.SKILLS_BYTES);
 });
+
+// ---- security: CI workflows ----
+
+const se = (files) => names(ex.selectSkills(PLUGIN, 'security', 'review', ex.parseDiff(diffOf(files))));
+
+test('security review: workflows, composite actions and the actions lockfile select ci-workflow-security', () => {
+  assert.deepEqual(se({ '.github/workflows/ci.yml': ['on: pull_request_target'] }), ['ci-workflow-security']);
+  assert.deepEqual(se({ '.github/workflows/release.yaml': ['permissions: write-all'] }), ['ci-workflow-security']);
+  assert.deepEqual(se({ '.github/actions/setup/action.yml': ['    - run: echo "${{ inputs.ref }}"'] }), ['ci-workflow-security']);
+  assert.deepEqual(se({ '.github/workflows/actions.lock': ['actions/checkout: 0123abcd'] }), ['ci-workflow-security']);
+});
+
+test('security review: near misses select nothing', () => {
+  assert.deepEqual(se({ 'src/auth.py': ['token = request.headers["Authorization"]'] }), [], 'source code is the review reference, not this skill');
+  assert.deepEqual(se({ 'docs/ci.md': ['We use pull_request_target for labels.'] }), [], 'prose about CI');
+  assert.deepEqual(se({ '.gitlab-ci.yml': ['script: make test'] }), [], 'GitLab is not covered by this skill');
+});

@@ -16,8 +16,9 @@ const CORPUS_DIR = path.join(__dirname, '..', '..', 'corpus');
 const KINDS = ['seeded', 'benign', 'sibling'];
 const SPLITS = ['dev', 'heldout'];
 // Seeded cases of a hard set say what makes them hard: a fact the reviewer may not know (often
-// newer than its training), or reasoning across files and hunks.
-const HARD = ['knowledge', 'reasoning'];
+// newer than its training), or reasoning across files and hunks; `real` marks a defect mined from
+// a public project's fix history (docs/experts/real-defects-2026-10-21.md).
+const HARD = ['knowledge', 'reasoning', 'real'];
 
 const sha256 = (text) => crypto.createHash('sha256').update(text).digest('hex');
 
@@ -153,6 +154,8 @@ function freeze(key, rawCases) {
       c.siblingDomain = raw.siblingDomain;
       if (raw.whyOk) c.whyOk = raw.whyOk;
     }
+    // Where a mined case came from (repository and commits); never shown to a reviewer (blindView).
+    if (raw.provenance !== undefined) c.provenance = raw.provenance;
     return c;
   });
   assignSplits(cases);

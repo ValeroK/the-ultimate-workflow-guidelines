@@ -162,3 +162,13 @@ test('the blind view of a hard case does not show what makes it hard', () => {
   const c = { id: 'c00000000', kind: 'seeded', summary: 'x'.repeat(12), diff: '@@ -1 +1 @@\n', planted: 'y'.repeat(20), hard: 'knowledge', split: 'dev' };
   assert.deepEqual(Object.keys(corpus.blindView(c)).sort(), ['diff', 'id', 'summary']);
 });
+
+test('a mined case keeps hard: real and its provenance, and the reviewer never sees the provenance', () => {
+  const diff = ['diff --git a/a.go b/a.go', '--- a/a.go', '+++ b/a.go', '@@ -1,1 +1,2 @@', ' package a', '+var x = 1', ''].join('\n');
+  const frozen = corpus.freeze('developer-real', [{ kind: 'seeded', hard: 'real', summary: 'Add x to package a', diff, planted: 'x is set but the caller reads y instead', provenance: { repo: 'o/r', introduced: 'abc', fixed: 'def' } }]);
+  const c = frozen.cases[0];
+  assert.equal(c.hard, 'real');
+  assert.deepEqual(c.provenance, { repo: 'o/r', introduced: 'abc', fixed: 'def' });
+  assert.ok(!corpus.validate(frozen).some((p) => /hard/.test(p)));
+  assert.ok(!('provenance' in corpus.blindView(c)));
+});

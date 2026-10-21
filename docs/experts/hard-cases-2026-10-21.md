@@ -66,3 +66,11 @@ The maintainer asked for a harder set before the architect and DevOps runs. Thes
 - **Sibling (8):** as before, with the defect owned by another built expert.
 - **Who writes them:** a general-purpose agent per expert, with the same reading rules as the first sets, plus the first set's `summary` fields so no defect repeats. A second agent checks validity before freezing.
 - **Which:** `architect-harder` from architect items 1 to 74 and the Well-Architected record; `devops-harder` from the DevOps record. Both run when their skills are converted. Security, genai, frontend and data get none yet.
+
+### Second-set validity
+
+| Corpus | Passed as written | Fixed | Replaced | Criterion not met | Harm outside the diff | Frozen |
+|---|---|---|---|---|---|---|
+| devops-harder | 20 of 28 | 3 (two benign, one sibling) | 2 knowledge | 3 knowledge cases rest on long-standing facts: the DevOps record has too few new ones left | 12 of 12 seeded | 2026-10-21 |
+
+The three cases that miss the "new in 2025-2026" criterion are kept and frozen rather than dropped, because freezing waits for nothing and editing later would follow the skills; their results are reported apart from the other knowledge cases.

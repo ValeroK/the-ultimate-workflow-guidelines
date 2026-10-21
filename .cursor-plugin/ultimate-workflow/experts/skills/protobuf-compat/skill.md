@@ -56,7 +56,7 @@ Sources: **[R]** the maintainer's live check of protobuf.dev, buf.build, aip.dev
 | Adding a member to a `oneof`, removing one, or moving fields into an existing `oneof` is unsafe: `NOT_SET` cannot tell "unset" from a member another version knows, and tag reuse can clear the set member [R]; AIP-180 and Buf `FILE` and `PACKAGE` refuse any move into or out of a `oneof` [R] | A field added to, removed from or moved into a `oneof` | One existing field moved into a new `oneof` is wire-safe (not source-safe) [R] |
 | `required` (proto2, or `LEGACY_REQUIRED` under Editions) is never added, and an existing one is permanent; Buf's cardinality rules refuse a change to or from it [R] | `required` added, or removed from an existing field | |
 | A request field newly marked `google.api.field_behavior = REQUIRED` breaks callers that do not send it (AIP-180) [R] | The annotation added to an existing request field | A field in a request type no caller sends yet |
-| Adding or removing proto3 `optional` on an existing field changes the generated API, so it is incompatible (AIP-149) [R] | `optional` added to or removed from an existing proto3 field | The target is `WIRE` or `WIRE_JSON` |
+| Adding or removing proto3 `optional` on an existing field changes the generated API, so it is incompatible (AIP-149) [R] | `optional` added to or removed from an existing proto3 field | The target is `WIRE` or `WIRE_JSON`, set in a `buf.yaml` you can read; with none in view the default `FILE` applies and this is a finding |
 | Changing a default value or an existing behaviour, or tightening a length limit, is breaking under AIP-180 [R] | A changed default, documented behaviour or limit | |
 
 ## Enums

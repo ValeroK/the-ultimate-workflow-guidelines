@@ -20,7 +20,7 @@ Sources: **[R]** the maintainer's live check of the Confluent schema-evolution d
 - **The registry and its mode.** Confluent modes are `BACKWARD` (the default), `BACKWARD_TRANSITIVE`, `FORWARD`, `FORWARD_TRANSITIVE`, `FULL`, `FULL_TRANSITIVE` and `NONE`; Kafka Streams supports only `BACKWARD` [R]. AWS Glue Schema Registry defaults to `BACKWARD`; `DISABLED` blocks new versions, `NONE` allows them unchecked [R]. Read the subject's configured mode, not the default.
 - **Transitive or not.** A non-transitive mode checks against the latest version only, a transitive one against all; a diff alone cannot show a transitive violation [R], so say what you could not check.
 - **Versions.** Avro before or after 1.9 (enum defaults); AsyncAPI 2.x or 3.x; whether Confluent data contracts (`compatibilityGroup`) are in use.
-- **For a JSON Schema payload,** whether the model is open or closed (`additionalProperties`), which `schema-evolution` holds.
+- **For a JSON Schema payload,** whether the content model is open or closed (`additionalProperties`); the registry rule is under Registry modes below.
 - If you cannot establish these, say which you assumed and lower your confidence by one step.
 
 ## Registry modes
@@ -29,6 +29,7 @@ Sources: **[R]** the maintainer's live check of the Confluent schema-evolution d
 |---|---|---|
 | `BACKWARD`: a new consumer reads old data, so fields may be deleted and optional fields added, and consumers upgrade first [R] | A required field added, or a type changed, under `BACKWARD` | A consumer that rewinds past the previous version needs the transitive mode [R] |
 | `FORWARD`: an old consumer reads new data, so fields may be added and optional fields deleted, and producers upgrade first [R] | A required field deleted under `FORWARD` | |
+| A JSON Schema subject's compatibility depends on whether the content model is open or closed: under a closed model, adding an optional property is not forward-compatible and removing one is not backward-compatible [R] | An optional property added to a closed schema under `BACKWARD`: the registry accepts it and consumers still on the old schema reject the new messages; or one removed under `FORWARD` | An open content model, or every consumer upgraded in the same change |
 | For protobuf in a registry, `BACKWARD_TRANSITIVE` is the recommended mode [R] | A protobuf subject moved to a weaker mode | Field rules themselves are `protobuf-compat`'s |
 | A mode weakened (`NONE`, `DISABLED`, a non-transitive mode) in the same change as the schema edit it would have refused hides the break [O] | The subject's compatibility setting changed beside a schema change | The plan records it as the user's decision |
 

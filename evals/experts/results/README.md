@@ -253,6 +253,19 @@ File: `2026-10-21-quality-hard-dev-expert-vs-baseline.json`. Same arms, models a
 
 - **Ceiling again.** Every planted case was found in every run by both arms. The expert's only measurable difference is staying in its lane (half the sibling reports) and fewer findings per run.
 
+## 2026-10-21 softarch on its hard set, held-out split (after the dev-split fixes)
+
+File: `2026-10-21-softarch-hard-heldout-expert-v2-vs-baseline.json`. The held-out cases were checked first: none rests on the two facts the fixes added.
+
+| | A0 | A3 |
+|---|---|---|
+| seeded cases found by majority (of 4) | 4 | 4 |
+| seeded runs found | 12/12 | 12/12 |
+| benign false-positive runs | 0/6 | 0/6 |
+| findings per run / evidence complete | 0.96 / 0.83 | 0.71 / 0.94 |
+
+- **Ceiling.** Both arms found every held-out case in every run. The fixes neither helped nor hurt here; with four cases this split could not show either.
+
 ## What the three hard runs say together
 
 - **No recall gain for any expert.** softarch 6 of 8 each, developer and quality 8 of 8 each.

@@ -266,6 +266,21 @@ File: `2026-10-21-softarch-hard-heldout-expert-v2-vs-baseline.json`. The held-ou
 
 - **Ceiling.** Both arms found every held-out case in every run. The fixes neither helped nor hurt here; with four cases this split could not show either.
 
+## 2026-10-21 architect on its first hard set, dev split
+
+File: `2026-10-21-architect-hard-dev-expert-vs-baseline.json`. Corpus `architect-hard` (first-set criteria, frozen before the architect's skills were converted); the architect had all seven skills converted.
+
+| | A0 | A3 |
+|---|---|---|
+| seeded cases found by majority (of 8) | 7 | 8 |
+| knowledge (of 5) / reasoning (of 3) | 4 / 3 | 5 / 3 |
+| seeded runs found | 22/24 | 24/24 |
+| benign false-positive runs | 0/18 | 1/18 |
+| findings per run / evidence complete | 0.72 / 0.81 | 0.58 / 0.97 |
+
+- **The first recall difference on any hard set:** one knowledge case, found by the plain reviewer in 1 of 3 runs and by the expert in 3 of 3, with `aws-messaging` pasted. The recall check passes by its one-case margin.
+- **The gate still fails** on one benign false-positive run against none. Both the gain and the loss are one case or one run: at this size neither is distinguishable from noise, so this is a lead, not a result. The held-out split (four seeded cases) is the next test.
+
 ## 2026-10-21 architect on its second, harder set, dev split
 
 File: `2026-10-21-architect-harder-dev-expert-vs-baseline.json`. Corpus `architect-harder`, written to the second-set criteria (knowledge facts new or changed in 2025-2026, harm outside the diff, longer diffs with decoys); the architect had all seven skills converted.
@@ -283,6 +298,7 @@ File: `2026-10-21-architect-harder-dev-expert-vs-baseline.json`. Corpus `archite
 
 ## What the three hard runs say together
 
+- **Update after the architect runs:** one recall difference in seven hard dev runs (architect's first set, one knowledge case, `aws-messaging`); the architect's harder set, built to remove the ceiling, still hit it.
 - **No recall gain for any expert.** softarch 6 of 8 each, developer and quality 8 of 8 each.
 - **No false-positive difference beyond noise:** softarch 0/18 against 2/18 (one case, two runs), quality 1/18 each, developer 0/18 each. The developer entry of 2026-10-20 treats a one-run difference as noise at this size; so does this one.
 - **Fewer sibling reports is not a gain here.** The maintainer's override (`thresholds.json`) asks role experts to raise everything they find, other domains included, so the lower leak rates of softarch and quality are neutral at best.

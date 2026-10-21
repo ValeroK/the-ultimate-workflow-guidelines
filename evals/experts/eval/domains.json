@@ -19,5 +19,13 @@
   "review": {
     "name": "code review",
     "scope": "Any defect a careful reviewer can show from the diff: wrong results on normal or boundary inputs, concurrency, security vulnerabilities, performance at realistic load, failure handling, tests that cannot fail, and maintainability with a concrete cost. Not product rules, user-facing wording or documentation, and not style that a linter or formatter catches."
+  },
+  "security": {
+    "name": "application and supply-chain security",
+    "scope": "Vulnerabilities an attacker can reach: injection and unsafe sinks, authentication and authorisation, secrets and credentials, cryptography, unsafe deserialisation and archive handling, dependencies and install scripts, and the configuration that steers agents, hooks, MCP servers and CI workflows (triggers that run outside code, token permissions, secrets, action pinning, OIDC trust). Not deploy order or release safety, not test quality, not code craft, not system topology."
+  },
+  "devops": {
+    "name": "delivery and infrastructure",
+    "scope": "How a change is built and shipped: infrastructure as code and what an apply or stack update replaces or destroys, state, pipelines (promotion, environments, deploy concurrency, caches and artifacts as release inputs), container images, Kubernetes manifests, and release safety (flags, canaries, migrations in the release, rollback). Not CI workflow security (triggers, permissions, secrets), not whether a test gate can fail, not system design."
   }
 }

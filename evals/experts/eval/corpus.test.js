@@ -129,3 +129,29 @@ test('freeze refuses to overwrite a corpus that exists', () => {
     fs.rmSync(raw, { force: true });
   }
 });
+
+test('a second corpus for an expert is a set: its own key and ids, and each seeded case says what makes it hard', () => {
+  const raws = [];
+  for (let i = 0; i < 8; i += 1) raws.push(rawCase({ summary: `Seeded change number ${i}`, hard: i % 2 ? 'knowledge' : 'reasoning' }));
+  for (let i = 0; i < 6; i += 1) raws.push({ kind: 'benign', summary: `Benign change number ${i}`, diff: rawCase().diff, whyOk: 'The guard is in the diff itself.' });
+  for (let i = 0; i < 6; i += 1) raws.push({ kind: 'sibling', summary: `Sibling change number ${i}`, diff: rawCase().diff, siblingDomain: 'security: SQL injection through a request parameter' });
+  const set = corpus.freeze('demo-hard', raws);
+  assert.equal(set.expert, 'demo');
+  assert.equal(set.set, 'hard');
+  assert.equal(corpus.keyOf(set), 'demo-hard');
+  assert.deepEqual(corpus.validate(set), []);
+  const plain = validCorpus();
+  assert.ok(!set.cases.some((c) => plain.cases.some((p) => p.id === c.id)), 'a set does not reuse the plain corpus ids');
+
+  const unlabelled = JSON.parse(JSON.stringify(set));
+  delete unlabelled.cases.find((c) => c.kind === 'seeded').hard;
+  assert.ok(corpus.validate(unlabelled).some((p) => /says what makes it hard/.test(p)));
+  const onBenign = JSON.parse(JSON.stringify(set));
+  onBenign.cases.find((c) => c.kind === 'benign').hard = 'knowledge';
+  assert.ok(corpus.validate(onBenign).some((p) => /on seeded cases only/.test(p)));
+});
+
+test('the blind view of a hard case does not show what makes it hard', () => {
+  const c = { id: 'c00000000', kind: 'seeded', summary: 'x'.repeat(12), diff: '@@ -1 +1 @@\n', planted: 'y'.repeat(20), hard: 'knowledge', split: 'dev' };
+  assert.deepEqual(Object.keys(corpus.blindView(c)).sort(), ['diff', 'id', 'summary']);
+});

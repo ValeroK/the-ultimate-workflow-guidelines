@@ -253,7 +253,10 @@ test('no shipped reference or skill quotes an eval corpus case, which would leak
   // A worked example taken from a held-out case biases every later run in the expert's favour.
   const corpusDir = path.join(__dirname, 'corpus');
   const needles = [];
-  for (const f of fs.readdirSync(corpusDir).filter((x) => x.endsWith('.json') && x !== 'MANIFEST.json')) {
+  const files = fs.readdirSync(corpusDir).filter((x) => x.endsWith('.json') && x !== 'MANIFEST.json');
+  // Every corpus the eval can run, hard sets included, is in what this guard reads.
+  for (const key of require('./eval/lib/corpus.js').listCorpora()) assert.ok(files.includes(`${key}.json`), `the leak guard does not read corpus ${key}`);
+  for (const f of files) {
     const c = JSON.parse(fs.readFileSync(path.join(corpusDir, f), 'utf8'));
     for (const x of Array.isArray(c) ? c : c.cases || []) {
       if (x.id) needles.push(x.id);

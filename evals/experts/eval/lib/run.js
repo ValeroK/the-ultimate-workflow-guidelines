@@ -205,8 +205,8 @@ function buildPlan({ expert, split, arms, runs, work, plugin }) {
   const problems = corpus.validate(c);
   if (problems.length > 0) throw new Error(`run: corpus ${expert} is not valid: ${problems.join('; ')}`);
   const domains = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'domains.json'), 'utf8'));
-  const domain = domains[expert];
-  if (!domain) throw new Error(`run: no domain entry for ${expert} in domains.json`);
+  const domain = domains[c.expert];
+  if (!domain) throw new Error(`run: no domain entry for ${c.expert} in domains.json`);
   const cases = c.cases.filter((x) => split === 'all' || x.split === split);
   if (cases.length === 0) throw new Error(`run: no cases in split ${split}`);
   const dir = path.join(work, `${expert}-${split}`);
@@ -225,7 +225,7 @@ function buildPlan({ expert, split, arms, runs, work, plugin }) {
       batches.push({ id, arm: arm.label, run, taskFile, resultFile });
     }
   }
-  const plan = { expert, split, runs, domain, cases: cases.map((x) => x.id), arms: arms.map((a) => ({ label: a.label, kind: a.kind })), batches };
+  const plan = { expert, corpusExpert: c.expert, split, runs, domain, cases: cases.map((x) => x.id), arms: arms.map((a) => ({ label: a.label, kind: a.kind })), batches };
   fs.writeFileSync(path.join(dir, 'plan.json'), JSON.stringify(plan, null, 2));
   return { plan, dir, diffDir };
 }
@@ -333,7 +333,7 @@ function collectRecords(dir) {
 function scoreRun(dir, thresholds, baselineArm) {
   const { plan, records } = collectRecords(dir);
   // Per-expert decisions by the maintainer (thresholds.json, overrides) replace the defaults.
-  const t = { ...thresholds, ...((thresholds.overrides || {})[plan.expert] || {}) };
+  const t = { ...thresholds, ...((thresholds.overrides || {})[plan.corpusExpert || plan.expert] || {}) };
   const c = corpus.load(plan.expert);
   const cases = c.cases.filter((x) => plan.cases.includes(x.id)).map((x) => ({ id: x.id, kind: x.kind }));
   const arms = {};
@@ -351,7 +351,23 @@ function scoreRun(dir, thresholds, baselineArm) {
       perCase[x.id][a.label] = `${rs.filter((r) => !r.failed && r.labels.some((l) => l.label === 'planted')).length}/${rs.length}`;
     }
   }
-  return { expert: plan.expert, split: plan.split, runsPerCase: plan.runs, arms, comparisons, perCase };
+  // A hard set: seeded cases found by majority, per arm, split by what makes each case hard, so a
+  // gain from knowing a newer fact is not reported as better reasoning.
+  const hardOf = new Map(c.cases.filter((x) => x.hard).map((x) => [x.id, x.hard]));
+  const byHard = {};
+  if (hardOf.size > 0) {
+    for (const h of corpus.HARD) {
+      const ids = Object.keys(perCase).filter((id) => hardOf.get(id) === h);
+      byHard[h] = { cases: ids.length };
+      for (const a of plan.arms) {
+        byHard[h][a.label] = ids.filter((id) => {
+          const [found, total] = perCase[id][a.label].split('/').map(Number);
+          return total > 0 && found * 2 > total;
+        }).length;
+      }
+    }
+  }
+  return { expert: plan.expert, split: plan.split, runsPerCase: plan.runs, arms, comparisons, perCase, ...(hardOf.size > 0 ? { byHard } : {}) };
 }
 
 /** Agreement of the judge with a gold set. gold: [{ key, expected }]; labelled: Map key to label. */

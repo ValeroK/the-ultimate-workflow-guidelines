@@ -15,6 +15,9 @@ const crypto = require('node:crypto');
 const CORPUS_DIR = path.join(__dirname, '..', '..', 'corpus');
 const KINDS = ['seeded', 'benign', 'sibling'];
 const SPLITS = ['dev', 'heldout'];
+// Seeded cases of a hard set say what makes them hard: a fact the reviewer may not know (often
+// newer than its training), or reasoning across files and hunks.
+const HARD = ['knowledge', 'reasoning'];
 
 const sha256 = (text) => crypto.createHash('sha256').update(text).digest('hex');
 
@@ -80,11 +83,18 @@ function assignSplits(cases) {
   return cases;
 }
 
+/**
+ * A corpus is named by its expert, or by its expert and a set (`security-hard`): a second corpus
+ * for the same expert, frozen separately, so an existing corpus never has to change.
+ */
+const keyOf = (c) => (c && c.set ? `${c.expert}-${c.set}` : c && c.expert);
+
 /** Problems with a corpus object; an empty list means it is usable. */
 function validate(corpus) {
   const problems = [];
   if (!corpus || typeof corpus !== 'object') return ['corpus is not an object'];
   if (!/^[a-z]+$/.test(corpus.expert || '')) problems.push('expert must be one lowercase word');
+  if ('set' in corpus && !/^[a-z]+$/.test(corpus.set || '')) problems.push('set must be one lowercase word');
   if (!Array.isArray(corpus.cases) || corpus.cases.length === 0) return [...problems, 'no cases'];
   const ids = new Set();
   const summaries = new Set();
@@ -101,7 +111,7 @@ function validate(corpus) {
     ids.add(c.id);
     if (summaries.has(c.summary)) problems.push(`${where}: duplicate summary`);
     summaries.add(c.summary);
-    if (c.id !== caseId(corpus.expert, c.kind, c.summary)) problems.push(`${where}: id does not match kind and summary`);
+    if (c.id !== caseId(keyOf(corpus), c.kind, c.summary)) problems.push(`${where}: id does not match kind and summary`);
     if (!SPLITS.includes(c.split)) problems.push(`${where}: split must be dev or heldout`);
     if (typeof c.summary !== 'string' || c.summary.length < 10) problems.push(`${where}: summary missing`);
     if (typeof c.diff !== 'string' || !/^@@ /m.test(c.diff)) problems.push(`${where}: diff has no hunk`);
@@ -110,6 +120,8 @@ function validate(corpus) {
     if (c.kind === 'benign' && !(typeof c.whyOk === 'string' && c.whyOk.length >= 10)) problems.push(`${where}: benign case needs whyOk`);
     if (c.kind === 'sibling' && !(typeof c.siblingDomain === 'string' && c.siblingDomain.length >= 3)) problems.push(`${where}: sibling case needs a siblingDomain that names the other domain`);
     if (c.kind !== 'seeded' && 'planted' in c) problems.push(`${where}: only seeded cases carry a planted description`);
+    if (corpus.set && c.kind === 'seeded' && !HARD.includes(c.hard)) problems.push(`${where}: a seeded case of a set says what makes it hard (${HARD.join(' or ')})`);
+    if ('hard' in c && (c.kind !== 'seeded' || !HARD.includes(c.hard))) problems.push(`${where}: hard is ${HARD.join(' or ')}, on seeded cases only`);
     // A giveaway in the diff defeats a blind test.
     if (/\b(BUG|VULN(?:ERABLE)?|FIXME|PLANTED|DEFECT|INTENTIONAL(?:LY)?)\b/.test(c.diff || '')) problems.push(`${where}: diff contains a giveaway word`);
   }
@@ -125,15 +137,17 @@ function validate(corpus) {
 }
 
 /** Raw agent output (kind, summary, diff, planted, whyOk, siblingDomain) into a frozen corpus. */
-function freeze(expert, rawCases) {
+function freeze(key, rawCases) {
+  const [expert, set] = String(key).split('-');
   const cases = rawCases.map((raw) => {
     const c = {
-      id: caseId(expert, raw.kind, raw.summary),
+      id: caseId(key, raw.kind, raw.summary),
       kind: raw.kind,
       summary: raw.summary,
       diff: normaliseHunks(raw.diff),
     };
     if (raw.kind === 'seeded') c.planted = raw.planted;
+    if (raw.kind === 'seeded' && raw.hard !== undefined) c.hard = raw.hard;
     if (raw.kind === 'benign') c.whyOk = raw.whyOk;
     if (raw.kind === 'sibling') {
       c.siblingDomain = raw.siblingDomain;
@@ -143,21 +157,21 @@ function freeze(expert, rawCases) {
   });
   assignSplits(cases);
   cases.sort((a, b) => a.id.localeCompare(b.id));
-  return { expert, cases };
+  return set ? { expert, set, cases } : { expert, cases };
 }
 
-function corpusFile(expert) {
-  return path.join(CORPUS_DIR, `${expert}.json`);
+function corpusFile(key) {
+  return path.join(CORPUS_DIR, `${key}.json`);
 }
 
-function load(expert) {
-  return JSON.parse(fs.readFileSync(corpusFile(expert), 'utf8'));
+function load(key) {
+  return JSON.parse(fs.readFileSync(corpusFile(key), 'utf8'));
 }
 
-/** Experts that have a corpus on disk. */
+/** The review corpora on disk, by key: `<expert>` or `<expert>-<set>`. `gen-*` is the generation corpus (gen.js). */
 function listCorpora() {
   if (!fs.existsSync(CORPUS_DIR)) return [];
-  return fs.readdirSync(CORPUS_DIR).filter((f) => /^[a-z]+\.json$/.test(f)).map((f) => f.replace(/\.json$/, '')).sort();
+  return fs.readdirSync(CORPUS_DIR).filter((f) => /^[a-z]+(?:-[a-z]+)?\.json$/.test(f) && !f.startsWith('gen-')).map((f) => f.replace(/\.json$/, '')).sort();
 }
 
 function manifest() {
@@ -171,4 +185,4 @@ function blindView(c) {
   return { id: c.id, summary: c.summary, diff: c.diff };
 }
 
-module.exports = { CORPUS_DIR, KINDS, SPLITS, sha256, caseId, normaliseHunks, hunksConsistent, assignSplits, validate, freeze, corpusFile, load, listCorpora, manifest, blindView };
+module.exports = { CORPUS_DIR, KINDS, SPLITS, HARD, keyOf, sha256, caseId, normaliseHunks, hunksConsistent, assignSplits, validate, freeze, corpusFile, load, listCorpora, manifest, blindView };

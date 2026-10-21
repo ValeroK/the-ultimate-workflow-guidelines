@@ -266,6 +266,21 @@ File: `2026-10-21-softarch-hard-heldout-expert-v2-vs-baseline.json`. The held-ou
 
 - **Ceiling.** Both arms found every held-out case in every run. The fixes neither helped nor hurt here; with four cases this split could not show either.
 
+## 2026-10-21 architect on its second, harder set, dev split
+
+File: `2026-10-21-architect-harder-dev-expert-vs-baseline.json`. Corpus `architect-harder`, written to the second-set criteria (knowledge facts new or changed in 2025-2026, harm outside the diff, longer diffs with decoys); the architect had all seven skills converted.
+
+| | A0 | A3 |
+|---|---|---|
+| seeded cases found by majority (of 8) | 8 | 8 |
+| knowledge (of 6) / reasoning (of 2) | 6 / 2 | 6 / 2 |
+| seeded runs found | 24/24 | 24/24 |
+| benign false-positive runs | 0/18 | 1/18 |
+| findings per run / evidence complete | 0.83 / 0.96 | 0.63 / 0.95 |
+
+- **Ceiling, on the set built to avoid one.** Facts new in 2025-2026, harm outside the diff and decoys did not stop the plain reviewer: it found every case in every run.
+- The gate fails on both checks: no recall margin, and one more false-positive run than the baseline (noise at this size).
+
 ## What the three hard runs say together
 
 - **No recall gain for any expert.** softarch 6 of 8 each, developer and quality 8 of 8 each.

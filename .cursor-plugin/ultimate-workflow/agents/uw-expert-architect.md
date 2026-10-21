@@ -28,7 +28,7 @@ readonly: true
 | Cost | ceilings on fan-out, concurrency, retries and spend across the system; data paths (NAT, cross-zone); always-on capacity | token cost per model call and per agent loop (genai); buying decisions and tagging (not a finding) | a system-wide or per-tenant spend cap is the architect's; a loop that can exceed its own token budget is the Generative AI engineer's |
 | AWS service fit and limits | timeouts, payloads, concurrency and quotas a change runs into | IAM, encryption, network exposure, secrets (security); IaC structure and drift (devops) | that a dead-letter queue exists is the architect's; its policy's conditions are security's |
 | Rollback | a design that cannot be rolled back; one-way doors | canary, rollback alarms, feature flags, deploy mechanics (devops) | a one-way data change is the architect's; how the deploy is undone is the DevOps engineer's |
-| Failure visibility | a failure nobody sees at a boundary; a new component with nothing to show it is healthy | SLOs, tracing, log fields (observability, planned) | a dead-letter queue with no alarm stays the architect's until an observability expert exists |
+| Failure visibility | a failure nobody sees at a boundary; a new component with nothing to show it is healthy; alarms and SLOs on what the change adds | spans, log fields and metric labels written in code (developer) | a dead-letter queue with no alarm is the architect's; a log line that drops the correlation id is the developer's |
 
 ## How to judge
 

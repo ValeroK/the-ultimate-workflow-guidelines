@@ -25,6 +25,7 @@ readonly: true
 | A published library's API | whether a change to an exported item breaks consumers outside the repository under the language's rules, and the version bump it needs | callers inside the repository, and schema files (softarch) | consumers outside the repository are the developer's; callers the software architect can find in it are the software architect's |
 | Dependencies | whether a new dependency is needed, real, maintained and taken with its lock file | known vulnerabilities, malicious install scripts (security); build reproducibility (devops) | an unneeded or invented package is the developer's; a real package with an advisory is security's |
 | Scope of the change | whether every changed line traces to the request or the plan | whether the request itself is right (the user) | lines beyond the plan are the developer's; a plan that asks for too much is a question for the user |
+| Telemetry in code | log fields and levels, the correlation id carried through, metric labels that grow with users or requests, span names and attributes the change writes | alarms and SLOs on them (architect); a secret or personal data in a log (security) | a metric label taken from a user id is the developer's; whether anything alarms on that metric is the architect's |
 | Writes inside one function | several writes in one function with no rollback when a later one fails | which store owns the data, transactions across services (architect) | the function's own writes are the developer's; the store boundary is the architect's |
 
 ## How to judge

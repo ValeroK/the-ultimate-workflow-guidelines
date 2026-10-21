@@ -77,7 +77,7 @@ Optional steps (playbook): both the upstream comparison and the upstream skill p
 | Choosing an IaC tool | Rejected: a design decision, the architect's |
 | SnapStart, CloudFront deploy steps, Route 53 aliases, NAT build procedures | Deferred: no verified source read; research prompt 8 |
 | Cache client pool settings | Rejected here: the developer's or the architect's |
-| Fault-injection logging and reports | Routed to the observability expert |
+| Fault-injection logging and reports | Routed to observability, now skills: alarms with the architect, telemetry in code with the developer (maintainer decision 2026-10-21) |
 
 ## Routed to other experts
 

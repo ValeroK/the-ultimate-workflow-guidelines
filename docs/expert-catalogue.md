@@ -137,7 +137,8 @@ An agent was placed under an expert by its name and the survey's domain notes, n
   - alirezarezvani `devops-engineer`
 - **Survey candidates:** GitHub Actions hardening (awesome-copilot, 85), agentic actions (trailofbits, 80), CI/CD (addyosmani, 52), deploy defaults (awslabs, 50).
 
-### 11. Observability and operations (new)
+### 11. Observability and operations (skills, not an expert: maintainer decision 2026-10-21)
+- **Now:** alarms, SLOs and runbooks with the architect (proposed skill `alarms-and-slos`); log fields, correlation ids, metric labels and spans in code with the developer (proposed skill `telemetry-in-code`). Both wait for fact-check block H. Ledger: `docs/experts/ledgers/observability.md`.
 - **Owns:** logs, metrics, traces, alerts, SLOs, runbooks, incident readiness.
 - **Stages:** plan, review.
 - **Upstream agents:**
@@ -148,7 +149,7 @@ An agent was placed under an expert by its name and the survey's domain notes, n
   - ECC `observer`
 - **Survey candidates:** observability and instrumentation (addyosmani, 72), OpenTelemetry (ollygarden, 64 to 68), our `operability-guidelines` skill.
 
-### 12. Performance (new)
+### 12. Performance (skills, not an expert: maintainer decision 2026-10-21; source review in progress)
 - **Owns:** latency and throughput at realistic load, N+1 and unbounded work, caching, web vitals.
 - **Stages:** plan, review.
 - **Upstream agents:**
@@ -169,7 +170,7 @@ An agent was placed under an expert by its name and the survey's domain notes, n
   - Community-Access accessibility agents
 - **Survey candidates:** a11y (Community-Access 78, ziniman 78), worst-case UI cases (emilkowalski, 72), React (vercel, 66), UI drift (ibelick, 62), RTL and localisation (skills-il, 55).
 
-### 14. Privacy and compliance (new)
+### 14. Privacy and compliance (skills, not an expert: maintainer decision 2026-10-21; source review in progress)
 - **Owns:** personal data, retention and deletion, consent, audit trails, LLM data handling.
 - **Stages:** plan, review.
 - **Upstream agents:**

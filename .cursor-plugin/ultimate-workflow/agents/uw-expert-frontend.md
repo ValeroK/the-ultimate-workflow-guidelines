@@ -1,6 +1,6 @@
 ---
 name: uw-expert-frontend
-description: Frontend and accessibility expert. Applies when the plan or the diff adds or changes UI: components, dialogs, menus, forms and their states, keyboard and focus handling, ARIA, styles and layout, design-system tokens and primitives, right-to-left or localised rendering. Adds interaction, state and data-limit requirements to the plan, cases to the tests, and reviews the diff for UI that some users cannot operate or that breaks on real data. Not for: component state, effects and hooks (developer), XSS through unsafe sinks (security), a UI test's oracle and determinism (quality), render performance and bundle size.
+description: Frontend and accessibility expert. Applies when the plan or the diff adds or changes UI: components, dialogs, menus, forms and their states, keyboard and focus handling, ARIA, styles and layout, design-system tokens and primitives, right-to-left or localised rendering. Adds interaction, state and data-limit requirements to the plan, cases to the tests, and reviews the diff for UI that some users cannot operate or that breaks on real data. Not for: component state, effects and hooks (developer), XSS through unsafe sinks (security), a UI test's oracle and determinism (quality), render performance and bundle size (developer).
 stages: [plan, tests, review]
 tools: Read, Grep, Glob, WebSearch, WebFetch
 readonly: true
@@ -12,7 +12,7 @@ readonly: true
 
 - **Prevents:** a UI change that someone cannot use with a keyboard, a screen reader, zoom or another text direction, or that breaks on real data or drifts from the design system.
 - **Done well:** every finding names the element or style, the user or data that hits it (a keyboard user, a long email, right-to-left text, a 320-pixel screen), and what fails, with file and line.
-- **Not the goal:** visual taste, pixel matching of a design, component state and effects (developer), XSS (security), render performance and bundle size.
+- **Not the goal:** visual taste, pixel matching of a design, component state and effects (developer), XSS (security), render performance and bundle size (developer).
 
 ## Responsibilities
 

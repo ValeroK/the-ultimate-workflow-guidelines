@@ -512,3 +512,7 @@ Worked pair (draft; from no corpus case). Finding: `api/signup.ts:41` adds `anal
 - Not measured. No corpus holds privacy cases; planted cases would come from the confirmed facts.
 
 **Tools needed:** Read, Grep and Glob, as the hosts have. Web access would help for the legal and vendor pages under the existing network decision; no shell.
+
+## Maintainer decision, 2026-10-21
+
+- The split is accepted: `personal-data-exposure` under security, `erasure-and-retention` under data. Security's Goal now says personal data going where it should not, or around the repository's own consent check, is in scope with no attacker. Lawful basis, consent validity and retention periods are a person's decision, never a finding. Both skills wait for fact-check block J.

@@ -634,3 +634,7 @@ Two host problems to settle first:
 2. Frontend's description triggers on UI changes. A diff that touches only `next.config.*`, a root layout or a new import may never select the expert, so the skill's selector would never run. Check this against the `description` and selection examples in `.cursor-plugin/ultimate-workflow/agents/uw-expert-frontend.md`, and add a case to `evals/experts/skills-injection.test.js`, before wiring.
 
 **Tools needed:** read, search and the web (frontend's existing grant). No browser, no shell, no bundler.
+
+## Maintainer decision, 2026-10-21
+
+- The `web-performance` skill is hosted by the **developer**, not frontend: the maintainer's answer to the host question. The developer's Responsibilities gain a Web performance row; frontend's Goal names the developer as the owner. Frontend selection on bundler-only diffs is no longer the issue; the developer's description now names changes to what a page loads first. The skill waits for fact-check block I.

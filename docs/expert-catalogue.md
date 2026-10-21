@@ -149,7 +149,8 @@ An agent was placed under an expert by its name and the survey's domain notes, n
   - ECC `observer`
 - **Survey candidates:** observability and instrumentation (addyosmani, 72), OpenTelemetry (ollygarden, 64 to 68), our `operability-guidelines` skill.
 
-### 12. Performance (skills, not an expert: maintainer decision 2026-10-21; source review in progress)
+### 12. Performance (skills, not an expert: maintainer decision 2026-10-21)
+- **Now:** `web-performance` under the developer (maintainer's choice of host), waiting for fact-check block I; backend work that grows faster than its input becomes one category in the developer's review reference. Ledger: `docs/experts/ledgers/performance.md`.
 - **Owns:** latency and throughput at realistic load, N+1 and unbounded work, caching, web vitals.
 - **Stages:** plan, review.
 - **Upstream agents:**
@@ -170,7 +171,8 @@ An agent was placed under an expert by its name and the survey's domain notes, n
   - Community-Access accessibility agents
 - **Survey candidates:** a11y (Community-Access 78, ziniman 78), worst-case UI cases (emilkowalski, 72), React (vercel, 66), UI drift (ibelick, 62), RTL and localisation (skills-il, 55).
 
-### 14. Privacy and compliance (skills, not an expert: maintainer decision 2026-10-21; source review in progress)
+### 14. Privacy and compliance (skills, not an expert: maintainer decision 2026-10-21)
+- **Now:** `personal-data-exposure` under security and `erasure-and-retention` under data (split accepted), both waiting for fact-check block J. Lawful basis, consent and retention periods are a person's decision. Ledger: `docs/experts/ledgers/privacy.md`.
 - **Owns:** personal data, retention and deletion, consent, audit trails, LLM data handling.
 - **Stages:** plan, review.
 - **Upstream agents:**

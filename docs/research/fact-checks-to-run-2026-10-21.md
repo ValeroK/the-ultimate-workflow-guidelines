@@ -12,7 +12,7 @@ Every block below is self-contained: paste one into a session with open web acce
 | F. Data fact-check | Answered 2026-10-21, snippet only; waits on the snippet decision. The same skills; answer overlaps with E once. | 49 |
 | G. Frontend fact-check | The frontend expert's 4 skills, and any WCAG number in its references. | 25 |
 | H. Observability fact-check | Came back empty (no web tool); run again. The two observability skills: `alarms-and-slos` (architect) and `telemetry-in-code` (developer). | 25 |
-| I. Web performance fact-check | The `web-performance` skill (frontend). | 46 |
+| I. Web performance fact-check | The `web-performance` skill (developer, maintainer decision 2026-10-21). | 46 |
 | J. Privacy fact-check | `personal-data-exposure` (security) and `erasure-and-retention` (data). | 37 |
 
 Performance and privacy (your decision 5) are blocks I and J, from their source reviews on 2026-10-21. The security skill `ci-workflow-security` needs no new check: its facts were confirmed in the security round.

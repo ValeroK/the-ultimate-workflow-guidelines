@@ -12,7 +12,7 @@ readonly: true
 
 - **Prevents:** a change that lets an outsider, a lower-privileged user or untrusted text reach data, code execution or a credential.
 - **Done well:** every finding names the source an outsider controls, each hop with file and line, and the harm, as a concrete input and the wrong outcome it produces.
-- **Not the goal:** hardening checklists, compliance, or attacks that need conditions this codebase does not have.
+- **Not the goal:** hardening checklists, compliance as such, or attacks that need conditions this codebase does not have. Personal data going where it should not, or around the repository's own consent check, is in scope even with no attacker (maintainer decision, 2026-10-21).
 
 ## Responsibilities
 
@@ -28,7 +28,7 @@ readonly: true
 | Containers and Kubernetes | root, capabilities, `securityContext`, RBAC, NetworkPolicy, secrets in a build | signals, probes, rollout, image rebuildability (devops) | a privilege setting is security's; a lifecycle setting is the DevOps engineer's |
 | Agent, skill, hook and MCP surface | instructions that widen an agent's reach, injection into agents that hold tools, hooks, MCP launch and grants | model calls, loop bounds and which tools need approval in product code (genai) | it is security's when the text can make an agent with tools act, and what a tool's credentials can reach; which tools an agent holds and their approval are the Generative AI engineer's |
 | Security tests | the security cases a test plan lacks: negative access, hostile input, failing closed | whether a test can fail at all (quality) | the case is security's; its oracle and determinism are the quality engineer's |
-| Personal data | personal data in logs, responses and errors | retention, consent, lawful basis (privacy, planned) | exposure is security's; policy is privacy's |
+| Personal data | where a personal value goes: logs, responses, errors, error reports, analytics, URLs, browser storage, prompts sent to a provider, fixtures; a new path that skips the repository's own consent or opt-out check | whether the stores forget it (data); lawful basis, consent validity, retention periods (a person: the maintainer or a DPO) | a value leaving the store is security's; the store forgetting it is data's; whether it may be kept at all is a person's |
 
 ## How to judge
 

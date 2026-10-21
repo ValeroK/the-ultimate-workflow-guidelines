@@ -27,7 +27,7 @@ readonly: true
 | Connections | pool mode, pool sizes multiplied across processes, prepared statements under transaction pooling | a proxy as a component, and the concurrency that opens pools (architect) | the pool settings are data's; how many instances open pools is the architect's |
 | Vector storage | column type and dimension, index type and operator class, filtered vector queries | the embedding model, re-embedding, ranking, "found nothing" answers (genai) | how vectors are stored and indexed is data's; the model that makes them is the Generative AI engineer's |
 | Redis as a store | blocking commands, eviction policy, lock release, Pub/Sub against Streams | caching as a pattern: invalidation, freshness, stampedes (architect) | Redis holding a queue or lock is data's; Redis holding a cache is the architect's |
-| Data lifecycle in the store | TTL behaviour, data left on disk by a dropped column, a deletion a migration cannot undo | backups and recovery objectives (architect); deletion protection (devops); retention and erasure (privacy, planned) | a TTL in the wrong unit is data's; whether the table needs point-in-time recovery is the architect's |
+| Data lifecycle in the store | TTL behaviour, data left on disk by a dropped column, a deletion a migration cannot undo, whether an erasure reaches every copy the store keeps | backups and recovery objectives (architect); deletion protection (devops); how long data must be kept, and whether a deletion is lawful (a person: the maintainer or a DPO) | a TTL in the wrong unit, or an erasure that misses a replica, cache, index or derived copy, is data's; whether the table needs point-in-time recovery is the architect's |
 
 ## How to judge
 

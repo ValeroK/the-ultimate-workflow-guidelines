@@ -6,7 +6,7 @@ Every block below is self-contained: paste one into a session with open web acce
 |---|---|---|
 | A. Architect, items 35 on | The architect's other 5 skills: `step-functions`, `api-gateway`, `caching-and-latency`, `multi-tenancy`, `aws-well-architected`. | 47 |
 | B. DevOps, round 2 | All 6 DevOps skills, and the 4 review lines held back (StatefulSet rollback, StorageClass reclaim default, `.dockerignore` location, deployment-branch rule). | 27 |
-| C. Research prompt 5: GenAI sources | The GenAI expert's 4 skills (with D). | research questions |
+| C. Research prompt 5: GenAI sources | Answered 2026-10-21 with search snippets only (`docs/research/genai-research-2026-10-21.md`): leads, not facts. D is still needed, run in a session that can open pages. | research questions |
 | D. GenAI fact-check | The same 4 skills; answer overlaps with C once. | 39 |
 | E. Research prompt 6: data sources | The data expert's skills (with F). | research questions |
 | F. Data fact-check | The same skills; answer overlaps with E once. | 49 |

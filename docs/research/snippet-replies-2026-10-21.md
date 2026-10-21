@@ -46,3 +46,16 @@ Confirmed by quote: 1 (assistant prefill returns 400 on Claude 4.6 and later and
 - **The quotes look specific and current** (model names, 2026 dates, recent features). Nothing in them contradicts a fact we hold from an [R] source; item 33 agrees with the security round.
 - **The risk is concentrated in model-specific API rules** (D items 2, 4 and the extras). These change with each model release, and a snippet cannot show which models a page covers. If they are used at all, each row must name the models it applies to and the date.
 - **H must be run again.** **D, E and F wait for the maintainer's decision** on snippet-only sources.
+
+## Re-read from the documentation's own repositories (2026-10-21)
+
+Where a source's text is kept in a public repository, it was read there in full, at the branch the claim is about (PostgreSQL `REL_18_STABLE`, pgvector, PgBouncer, Redis docs, the Supabase guide, the MCP specification). Those items are [R] now; the table with line references is `doc-repo-verdicts-2026-10-21.md`.
+
+- **Confirmed, now [R]:** F 1 to 20, 46, 47, 49, three extras (PgBouncer `DISCARD ALL` needs 1.22, Pub/Sub ignores database numbers, savepoint rollback releases later locks), D 35.
+- **Changed by the full text:**
+  - F 3: `DROP COLUMN` space is reclaimed over time as rows are updated, or at once by a rewriting `ALTER TABLE`; "until rewritten" overstated it.
+  - F 15: the passage gives `idle_in_transaction_session_timeout` (default 0, off) and that an open transaction blocks vacuum of recently dead rows; nothing about "every table".
+  - F 19: PgBouncer prepared statements in transaction mode need `max_prepared_statements` from 1.21, and are **on by default (200) from 1.24**; SQL-level `PREPARE` is not tracked.
+  - F 48: Redis 8.4 adds `DELEX key IFEQ value`; the Lua release script is needed only before 8.4.
+  - D 33: agrees with the snippet's "different": the latest MCP specification is 2026-07-28, previous 2025-11-25.
+- **Still snippet only:** F 21 to 45 and the other F extras (MySQL, DynamoDB, Aurora DSQL, Prisma, Django, Rails, Alembic) and D 1 to 32, 34, 36 to 40 (Anthropic API, Bedrock, AgentCore, Node, Docker, Anthropic posts, OWASP). Their pages are not in a public repository; they wait on the maintainer's choice (allowed domains, or [S]).

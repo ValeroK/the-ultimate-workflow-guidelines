@@ -11,6 +11,7 @@ const corpus = require('./lib/corpus.js');
 // Changing a frozen corpus means editing both on purpose, with a reason in the commit.
 const PINNED = {
   architect: '0152cdc2597e5a381c170953e5451ad91d9eb96e1e0d21c41a6979a452741197',
+  'architect-hard': 'cf394272a890208df20a5b93383b93dee8792a3202c2c25f4808b0f1f0e04f21',
   'devops-hard': 'a97314ef5a8785c6e506d0433719f2387952c11a86de8d95b60090221667f01d',
   developer: '829c83bf9dbafc6da5905461a4ad3812a0a84832a811314c3e8deaa0c654e211',
   'developer-hard': 'b19444242fedfd2fda0c9985c554d369ba11e6ecdb6313f6491e74b6692cf996',

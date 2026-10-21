@@ -46,6 +46,7 @@ Counts from the second agent's check, before freezing. The reasons are in genera
 
 | Corpus | Passed as written | Fixed | Replaced | Frozen |
 |---|---|---|---|---|
+| architect-hard | 23 of 28 | 5: one knowledge and one reasoning seeded case, three siblings; all 8 siblings' `siblingDomain` expanded | none | 2026-10-21 |
 | softarch-hard | 23 of 28 | 4: three malformed or misleading noise hunks in reasoning cases; one benign case that was not safe | 1 sibling whose defect was also a contract break; then all 8 siblings' `siblingDomain` expanded from a bare domain name, which also appeared in the diff | 2026-10-21 |
 | developer-hard | 20 of 28 | 8: six seeded and two benign cases; all 8 siblings' `siblingDomain` expanded | none | 2026-10-21 |
 | quality-hard | 21 of 28 | 7: five seeded, two siblings | none | 2026-10-21 |

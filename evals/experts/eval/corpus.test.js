@@ -17,6 +17,7 @@ const PINNED = {
   'devops-harder': 'ad25955e812f93feeaec6cff8086aadcb389e0cc1c018104f26014c5fc259aa8',
   developer: '829c83bf9dbafc6da5905461a4ad3812a0a84832a811314c3e8deaa0c654e211',
   'developer-hard': 'b19444242fedfd2fda0c9985c554d369ba11e6ecdb6313f6491e74b6692cf996',
+  'developer-real': '522aab3b2bc7aa3a37f99d043e5addcb5ab564c7278d205a5e408d18bde9af14',
   quality: '7832c12fecb5af8dc081e68101725397b875abdea3a2b3f518f3b8b5a5c7e53f',
   'quality-hard': '8a1328c0fdfeda301dfeb78048413532fe916c72d3e97382003911b52ebe2a88',
   review: 'b85c22651f523e0de25e0a4163495e7c80b3f1087897abae6961cbb1e2c7aacc',

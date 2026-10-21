@@ -48,3 +48,16 @@ Real fix-mined defects from the same or similar repositories that another built 
 - **Blame is not proof of origin.** A fix can change lines that were correct when written and broke because of a later change elsewhere; the validity check drops such cases.
 - **Real defects are uneven.** Some will be trivial and some invisible from any diff; the criteria drop the second kind and keep the first, so this set measures realistic difficulty, not maximum difficulty.
 - **Training data:** a reviewer may have seen the introducing commit, but not its fix, given the date rule.
+
+## developer-real as frozen (2026-10-21)
+
+| | Mined | Passed as written | Fixed | Dropped and replaced | Frozen |
+|---|---|---|---|---|---|
+| Seeded (12) | 1,961 fixes since 2026-06-01 in 30 repositories; 245 had one introducing commit; about 55 read by hand | 11 | 1 (`planted` used a later method name) | 0 | Go 4, TypeScript 4, Python 3, Java 1 |
+| Benign (8) | | 4 | 0 | 4 (each had a later correction or led into a seeded defect) | |
+| Sibling (8) | | 8 | 0 | 0 | security 3, quality 3, softarch 2 |
+
+- **No Rust case:** every single-commit Rust fix read by hand failed blame, needed code outside the diff, or was a design decision.
+- **Concentration:** three seeded cases come from one Go repository (resty).
+- The miner's notes are `developer-real-mining-2026-10-21.md`.
+

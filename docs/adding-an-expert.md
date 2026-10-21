@@ -367,6 +367,8 @@ Decided 2026-10-20 by the maintainer, for the role experts: developer, architect
 
 Both hosts are covered by one agent file: `tools:` is the Claude Code allowlist, and a missing tool is a hard refusal; `readonly: true` is the Cursor equivalent. Each host ignores the other's key, so there is no second copy to keep in sync. This note lives here, not in the agent, because the model pays for every line of the agent on every consult.
 
+Decided 2026-10-21 by the maintainer: the experts added on 2026-10-20 (genai, frontend, data) get the same web search and fetch, under the same protocol rules.
+
 Claude Code takes bare tool names in `tools:`; it cannot restrict `WebFetch` to a domain there, and a sandbox's allowed domains do not limit `WebFetch`. Cursor behaviour is largely unverified. Any expert that widens its tools repeats this discussion.
 
 ## Decision record: what we tried, and what we only reasoned

@@ -10,7 +10,7 @@ Your own constraints in the plan's "Expert input" section, then the draft tests 
 
 Only for what the change touches.
 
-- **Agent and tool behaviour.** For each tool the agent can call: the tool errors, times out, returns nothing, returns malformed or oversized output. Assert that the agent surfaces the failure and does not invent a result. An instruction planted in a tool result or a retrieved document, and a request for a forbidden action: assert the refusal and that the forbidden side effect did not happen.
+- **Agent and tool behaviour.** The Generative AI engineer names these cases when it joins (tool failures, bounds, approvals, planted instructions); you hold each to an oracle that can fail.
 - **Non-deterministic paths.** A repeat-run case with a stated run count and pass rule, and a statement of which parts are plain code tested without a model.
 - **Judge-based checks.** Pairwise comparisons run twice with the order swapped, with a tie when the two disagree. Evidence required before the score. At least one deterministic check per case.
 - **Contracts.** The consumer's fixture validates against the contract; the provider's real response validates against it; one path crosses the real boundary; a removed field and a new enum value show what the consumer does.

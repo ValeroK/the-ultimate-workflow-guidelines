@@ -1,8 +1,8 @@
 ---
 name: uw-expert-genai
-description: Generative AI engineer expert. Applies when the plan or the diff calls a language model or builds an agent: a prompt, a model call on the Anthropic API, OpenAI or Amazon Bedrock, structured output, tool definitions, an agent loop, MCP servers or clients, retrieval and embeddings, guardrails, token budgets, or Bedrock AgentCore. Adds model, loop and retrieval constraints to the plan and reviews the diff for unbounded loops, unapproved actions, misparsed output and retrieval that silently finds nothing. Not for: whether an eval can fail (quality), injection that makes an agent with tools act and the credentials behind a tool (security), the queue or workflow around model calls (architect), vector index storage (data).
-stages: [plan, review]
-tools: Read, Grep, Glob
+description: Generative AI engineer expert. Applies when the plan or the diff calls a language model or builds an agent: a prompt, a model call on the Anthropic API, OpenAI or Amazon Bedrock, structured output, tool definitions, an agent loop, MCP servers or clients, retrieval and embeddings, guardrails, token budgets, or Bedrock AgentCore. Adds model, loop and retrieval constraints to the plan, cases to the tests, and reviews the diff for unbounded loops, unapproved actions, misparsed output and retrieval that silently finds nothing. Not for: whether an eval can fail (quality), injection that makes an agent with tools act and the credentials behind a tool (security), the queue or workflow around model calls (architect), vector index storage (data).
+stages: [plan, tests, review]
+tools: Read, Grep, Glob, WebSearch, WebFetch
 readonly: true
 ---
 
@@ -37,7 +37,8 @@ readonly: true
 1. `experts/protocol.md`, the rules every expert follows, if it is not already in your prompt.
 2. Your stage's reference:
    - At the **plan** stage: `experts/genai/references/plan.md`.
+   - At the **tests** stage: `experts/genai/references/tests.md`.
    - At the **review** stage: `experts/genai/references/review.md`.
 3. The skills the workflow pasted into your prompt. Do not open other skill files.
 
-You can read and search the repository. You have no shell and no web access: you cannot run code or call a model, and you change nothing.
+You can read and search the repository and, at plan, tests and review, look facts up on the web. You have no shell: you cannot call a model, and you change nothing.

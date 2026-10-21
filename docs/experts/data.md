@@ -1,12 +1,12 @@
 # Data and database expert: sources, borders and status
 
-The data and database expert owns what a statement or query does inside the database: the lock and rewrite each schema change causes, backfills, indexes and query shape, transactions under concurrency, the constraints the database enforces, DynamoDB key and index design, connection pooling, vector storage, and Redis used as a queue, lock or bus. It joins at plan and review.
+The data and database expert owns what a statement or query does inside the database: the lock and rewrite each schema change causes, backfills, indexes and query shape, transactions under concurrency, the constraints the database enforces, DynamoDB key and index design, connection pooling, vector storage, and Redis used as a queue, lock or bus. It joins at plan, tests and review.
 
 ## Status
 
-- **Built:** agent file (Goal, ten-area Responsibilities, How to judge), plan and review references, selection examples, `NOTICE.md`. Tools: read and search only.
+- **Built:** agent file (Goal, ten-area Responsibilities, How to judge), plan and review references, selection examples, `NOTICE.md`. Tools: read, search and the web (maintainer decision, 2026-10-21).
 - **Waiting:** research prompt 6 and fact-check prompt 10 (`docs/research/fact-check-round-2-prompts.md`), sent 2026-10-20. Locks and rewrites change by engine version, and one upstream claim was already wrong against the PostgreSQL manual, so the references name no version-specific rule and no migration-tool flag until the reply. Skills drafted in the ledger: `postgres-schema-changes`, `queries-and-transactions`, `dynamodb-design`, `vector-storage`, possibly `orm-and-migration-tools` and `redis-as-a-store`; `mysql-schema-changes` only if a served repository uses MySQL.
-- **Plan and review only:** a tests stage would duplicate quality's.
+- **Tests stage** added by the maintainer on 2026-10-21: database-specific cases (concurrent writers, retries, constraints, migrations on realistic data, resumable backfills, query bounds, the real engine); quality keeps the oracle.
 - **Not measured.**
 
 ## Boundaries

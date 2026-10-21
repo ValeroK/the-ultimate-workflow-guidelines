@@ -33,6 +33,11 @@ const DECLARED_TOOLS = {
   quality: ['Glob', 'Grep', 'Read', 'WebFetch', 'WebSearch'],
   // 2026-10-20: the DevOps expert follows the same rule as the role experts above.
   devops: ['Glob', 'Grep', 'Read', 'WebFetch', 'WebSearch'],
+  // Decided by the maintainer on 2026-10-21 ("yes for all"): the experts added on
+  // 2026-10-20 get the same web access, under the same protocol rules.
+  genai: ['Glob', 'Grep', 'Read', 'WebFetch', 'WebSearch'],
+  frontend: ['Glob', 'Grep', 'Read', 'WebFetch', 'WebSearch'],
+  data: ['Glob', 'Grep', 'Read', 'WebFetch', 'WebSearch'],
 };
 
 // What a domain's checklist must not exclude and must mention depends on the domain.

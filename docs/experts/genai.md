@@ -1,16 +1,16 @@
 # Generative AI engineer expert: sources, borders and status
 
-The Generative AI engineer owns the code around model calls and agents: what bounds every loop and call, which tools change state and how they are approved, how model output is checked before it is used, how retrieval answers when it finds nothing, prompt caching and token cost, and the Bedrock and AgentCore settings that sit on the call path. It joins at plan and review.
+The Generative AI engineer owns the code around model calls and agents: what bounds every loop and call, which tools change state and how they are approved, how model output is checked before it is used, how retrieval answers when it finds nothing, prompt caching and token cost, and the Bedrock and AgentCore settings that sit on the call path. It joins at plan, tests and review.
 
 ## Status
 
-- **Built:** agent file (Goal, Responsibilities, How to judge), plan and review references, selection examples, `NOTICE.md`. Tools: read and search only, until the maintainer decides whether the 2026-10-20 network decision covers new experts.
+- **Built:** agent file (Goal, Responsibilities, How to judge), plan and review references, selection examples, `NOTICE.md`. Tools: read, search and the web (maintainer decision, 2026-10-21).
 - **Waiting:** research prompt 5 and fact-check prompt 7 (`docs/research/fact-check-round-2-prompts.md`), sent to the maintainer 2026-10-20. The four skills below are drafted in the ledger and not written until the reply is in (playbook step 6b). The references hold no model-specific number or parameter rule for the same reason.
 - **Not measured.** No corpus exists for this domain; planted cases come from the skills' facts once they are confirmed.
 
-## Stages: plan and review, not tests
+## Stages: plan, tests and review
 
-The catalogue planned plan, tests and review. Quality's tests reference already holds the agent-and-tool case family (a tool that errors, times out or returns malformed output, a planted instruction, a forbidden action), so a tests stage here would duplicate it. The expert joins plan and review; the maintainer may reverse this, in which case the family moves here and quality keeps the oracle.
+The maintainer added the tests stage on 2026-10-21. The agent-and-tool case family (tool failures, bounds, approvals bound to arguments, truncated or refused output, planted instructions, retrieval that finds nothing) moved here from quality's tests reference; quality keeps the oracle and determinism of each case.
 
 ## Boundaries
 

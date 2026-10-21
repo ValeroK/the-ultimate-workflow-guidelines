@@ -4,7 +4,7 @@ The frontend and accessibility expert owns whether a UI change can be operated a
 
 ## Status
 
-- **Built:** agent file (Goal, Responsibilities, How to judge), plan, tests and review references, selection examples, `NOTICE.md`. Tools: read and search only. What only a browser shows becomes a test case, not a finding; a screenshot browser would widen the tools and is a later, measured decision.
+- **Built:** agent file (Goal, Responsibilities, How to judge), plan, tests and review references, selection examples, `NOTICE.md`. Tools: read, search and the web (maintainer decision, 2026-10-21); no browser. What only a browser shows becomes a test case, not a finding; a screenshot browser would widen the tools and is a later, measured decision.
 - **Waiting:** fact-check prompt 8 (`docs/research/fact-check-round-2-prompts.md`), sent 2026-10-20. Three upstream sources had WCAG facts wrong (large-text size, 2.4.11 against 2.4.13, 44 against 24 pixel targets), so the references hold no WCAG number or criterion level until the reply. The four skills (`semantics-and-aria`, `visual-accessibility`, `ui-on-real-data`, `rtl-and-direction`) are drafted in the ledger.
 - **Not measured.** No corpus exists for this domain.
 

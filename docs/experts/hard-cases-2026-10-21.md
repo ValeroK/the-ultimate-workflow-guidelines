@@ -53,3 +53,16 @@ Counts from the second agent's check, before freezing. The reasons are in genera
 | devops-hard | 22 of 28 | 3: two seeded reasoning, one benign | 3: two seeded reasoning, one benign | 2026-10-21 |
 
 Security has no hard corpus: a safety check stopped its author before it wrote any case. Not retried; it waits for the maintainer.
+
+## Second sets (`<expert>-harder`), criteria set 2026-10-21 before any case is written
+
+The maintainer asked for a harder set before the architect and DevOps runs. These criteria come from what the first sets showed, not from any case's result: reasoning cases never separated the arms, and the only misses were facts reviewers saw and then talked themselves out of reporting. The rule that keeps it honest is unchanged: no case is kept or dropped by how an arm did on it.
+
+- **Seeded (12): 8 knowledge, 4 reasoning.**
+  - Each knowledge case rests on a fact the maintainer confirmed that is **new or changed in 2025 or 2026**, or that the record marks as different from what was commonly believed (a default, a limit, a product that changed), with the version or setting visible in the diff. The `planted` text names the record and item.
+  - In at least half the seeded cases, **the harm lands outside the diff**: an account quota, a later deploy, a consumer or another account the diff does not show. The reviewer must report it from the rule alone.
+- **Diffs are longer and noisier:** roughly 120 to 300 lines, at least four hunks, and at least one decoy per seeded case: a line that looks risky and is correct, with the reason visible.
+- **Benign (8):** each a twin of a seeded case where the confirmed fact makes it safe (the newer limit allows it, the setting is the documented default that is fine, the version is past the change).
+- **Sibling (8):** as before, with the defect owned by another built expert.
+- **Who writes them:** a general-purpose agent per expert, with the same reading rules as the first sets, plus the first set's `summary` fields so no defect repeats. A second agent checks validity before freezing.
+- **Which:** `architect-harder` from architect items 1 to 74 and the Well-Architected record; `devops-harder` from the DevOps record. Both run when their skills are converted. Security, genai, frontend and data get none yet.

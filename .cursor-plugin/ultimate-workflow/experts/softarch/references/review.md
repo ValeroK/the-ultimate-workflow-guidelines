@@ -11,7 +11,7 @@ Report structure problems this change introduces or makes worse. This is not a r
 - A problem that was already there and is untouched is out of scope, unless the change makes it newly reachable.
 - Read the importers and callers of the changed code, and the code it imports: that is how you find the repository's own boundaries and the consumers of any contract the diff changes.
 - If the plan has an "Expert input" section, check the diff against what you required there, and report any requirement the diff does not honour.
-- A consumer outside the repository is something you cannot see. Say so, and do not report a break you cannot show. The exception is a contract the diff shows is published for outside consumers (a registry subject with a compatibility mode, a published generated module, a versioned public API): there, a change its own declared rule refuses is the finding, with no consumer in view; say that the consumer is assumed, and keep it at medium confidence.
+- A consumer outside the repository is something you cannot see. Say so, and do not report a break you cannot show. The exception is a contract whose compatibility rule is visible in the diff: a registry subject's compatibility mode, a `buf.yaml` breaking configuration (or its default when the repository publishes generated code), or a semver promise on a published package. There, a change that rule refuses is the finding with no consumer in view; say that the consumer is assumed, and keep it at medium confidence. A version string alone (an OpenAPI `info.version`) is not such a rule.
 
 ## Method
 

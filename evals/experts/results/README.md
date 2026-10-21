@@ -255,7 +255,9 @@ File: `2026-10-21-quality-hard-dev-expert-vs-baseline.json`. Same arms, models a
 
 ## What the three hard runs say together
 
-- **Two of three hard sets have no headroom** (developer, quality), and softarch's only misses were two knowledge cases. Cases written by a model to "hard" criteria are mostly cases a model of the reviewer's class already catches: the author can only plant what it can see.
-- **The one place the reviewer fell short is a fact it did not apply, not reasoning it could not do.** Both softarch misses were caught in one of three runs; reviewers saw the change and talked themselves out of reporting it. That is what the softarch fixes of 2026-10-21 address, and it is untested until a rerun.
-- **What the experts reliably add on these sets is precision,** not recall: fewer false positives (softarch), fewer findings per run, fewer reports in other domains (softarch, quality). The thresholds do not reward that; whether they should is the maintainer's call, not changed here.
+- **No recall gain for any expert.** softarch 6 of 8 each, developer and quality 8 of 8 each.
+- **No false-positive difference beyond noise:** softarch 0/18 against 2/18 (one case, two runs), quality 1/18 each, developer 0/18 each. The developer entry of 2026-10-20 treats a one-run difference as noise at this size; so does this one.
+- **Fewer sibling reports is not a gain here.** The maintainer's override (`thresholds.json`) asks role experts to raise everything they find, other domains included, so the lower leak rates of softarch and quality are neutral at best.
+- **Two of three sets are at ceiling.** Cases written by a model to "hard" criteria are mostly cases a model of the reviewer's class already catches. The only misses were softarch knowledge cases where reviewers saw the change and talked themselves out of reporting it; reasoning-hard cases never separated the arms.
+- **The softarch dev split is now tuned.** The fixes of 2026-10-21 were written from a diagnosis of two dev cases, and the new `event-schema-evolution` row mirrors one of them. A rerun on the dev split is not evidence. The held-out split (about four seeded cases, so the one-case margin is nearly the whole gate) is checked for the same facts before it runs.
 - Not measured: security (two authoring attempts stopped by a safety check), architect and devops (wait for their skills), genai, frontend and data (no skills yet).

@@ -382,12 +382,12 @@ GDPR (Regulation (EU) 2016/679, EUR-Lex CELEX 32016R0679, consolidated text):
 1. Quote Article 5(1)(c) (data minimisation) and 5(1)(e) (storage limitation), including the exception 5(1)(e) allows for archiving, research or statistics, and 5(2) (accountability). (Article 5)
 2. Quote Article 17(1) ("without undue delay" and the grounds), 17(2) (informing other controllers where data was made public) and 17(3) (the exceptions). Does Article 17 itself state any number of days? S4 says "within 30 days". (Article 17)
 3. Article 12(3): the period to act on a request and its extension. S5 and S8 say one month, extendable by two further months; S4, S11 and S14 say 30 days. (Article 12)
-4. Article 19: the controller communicates an erasure to each recipient unless impossible or disproportionate. (Article 19)
-5. Quote Article 25(1) (by design, naming pseudonymisation) and 25(2) (by default: amount collected, extent of processing, storage period, accessibility, and not accessible to an indefinite number of people without the individual's intervention). (Article 25)
+4. Does the GDPR oblige a controller to pass an erasure on to the recipients it disclosed the data to, and with what exceptions? S1 and S11 say the erasure must reach third parties and sub-processors; S5 says the workflow "covers backups + processors". Quote the article that holds it, if any (Article 19 is the [O] candidate to check first). (EUR-Lex)
+5. Quote Article 25(1) and 25(2). S5 says by design names pseudonymisation and by default limits the data processed, the collection scope, the storage period and accessibility; S11 says optional collection must default to off. Does 25(2) say that? (Article 25)
 6. Quote Article 32(1)(a) to (d), the measures listed. (Article 32)
 7. Quote Article 35(1), 35(2) (seek the DPO's advice), 35(3)(a) to (c) and 35(7) (contents); and Article 36(1) (prior consultation). (Articles 35, 36)
 8. The criteria in the EDPB-endorsed WP29 guidelines on DPIA (WP248 rev.01): how many, which, and whether "two or more" is stated as the rule of thumb. S5 lists ten including "data transfer outside the EU"; S2 lists eight triggers; S11 lists six. (EDPB, endorsed WP29 guidelines)
-9. Article 4(1) and Recital 30 on online identifiers (IP addresses, cookie identifiers); Article 4(5) on pseudonymisation; Recital 26 on pseudonymised data remaining personal data and anonymous data falling outside. (Articles 4, Recitals 26, 30)
+9. S8 says personal data includes IP addresses, device ids and cookie identifiers (citing Article 4(1) and Recital 30); S1 and S11 say pseudonymised data is still personal data and anonymised data falls outside the Regulation. Quote Article 4(1), Article 4(5), Recital 26 and Recital 30. (EUR-Lex)
 10. Article 7(1) (the controller must be able to demonstrate consent) and 7(3) (withdrawing as easy as giving). (Article 7)
 11. Article 30(1)(f): the envisaged time limits for erasure in the record. (Article 30) [plan reference only]
 12. What EDPB Guidelines 05/2020 on consent say about scrolling, continued browsing or closing a banner as consent. S16 says Escape or close must count as reject, under Article 4(11) and EDPB guidance. (EDPB Guidelines 05/2020)
@@ -396,13 +396,13 @@ GDPR (Regulation (EU) 2016/679, EUR-Lex CELEX 32016R0679, consolidated text):
 15. The CJEU judgment in EDPS v SRB (S8 cites it) on whether pseudonymised data is personal data for a recipient that cannot re-identify it: case number, date, holding. (CJEU, curia.europa.eu)
 
 CCPA/CPRA (Cal. Civ. Code Title 1.81.5 on leginfo.legislature.ca.gov; CCPA Regulations, 11 CCR section 7000 and following, on cppa.ca.gov):
-16. Section 1798.105(c): on a verifiable deletion request the business deletes, notifies service providers and contractors to delete, and notifies third parties to whom it sold or shared the information, unless impossible or disproportionate. (Civ. Code 1798.105)
+16. S9 says that on a deletion request the business must delete the information and direct its service providers and contractors to delete it (citing section 1798.105). Quote the subsection, and say whether it also reaches third parties to whom the information was sold or shared, and with what exceptions. (Civ. Code 1798.105)
 17. Section 1798.130(a)(2): the response period and its extension; S2 and S9 say 45 days plus 45. (Civ. Code 1798.130)
 18. 11 CCR 7025: how a business must treat an opt-out preference signal, whether GPC is one, and what it must do for a browser and for a known consumer. Also, from the GPC specification, the request header name and value and the DOM property. (11 CCR 7025; W3C Global Privacy Control specification)
 19. The regulation section and period for passing an opt-out to service providers, contractors and third parties; S9 says 15 business days. (11 CCR 7026)
 20. The regulation section stating that an unverifiable deletion request is treated as an opt-out of sale or sharing; S9 cites 7022(f). (11 CCR 7022)
 21. The regulation section stating that a provider of cross-context behavioural advertising is a third party, not a service provider; S9 cites 7050(c). (11 CCR 7050)
-22. Section 1798.140: the definitions of "personal information" (unique and probabilistic identifiers, IP addresses) and "share" (cross-context behavioural advertising, whether or not for money). (Civ. Code 1798.140)
+22. S9 says cookie ids, device fingerprints, hashed emails and IP addresses passed to ad tech for cross-context behavioural advertising are "sharing" even with no payment. Quote the section 1798.140 definitions of "personal information" and "share", and say whether hashed identifiers are covered. (Civ. Code 1798.140)
 23. Status and text of the two 2026 California bills S9 cites that a row would rest on: AB 2561 (no silent reversion of privacy settings after an update) and SB 923 (deletion of data collected "from or about" a consumer; suppression lists). (leginfo.legislature.ca.gov bill pages)
 
 HIPAA (eCFR, 45 CFR Part 164; HHS guidance pages):

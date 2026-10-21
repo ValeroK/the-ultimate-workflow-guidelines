@@ -238,3 +238,24 @@ File: `2026-10-21-developer-hard-dev-expert-vs-baseline.json`. Same arms, models
 - **Ceiling: the set is not hard for this reviewer.** Both arms found every planted case in every run, knowledge and reasoning alike, and neither flagged a safe twin. The gate fails only because there was no room to beat the baseline; this measures nothing about the expert in either direction.
 - **No case is dropped or swapped for this,** per the criteria. A harder set would be a new corpus written to stricter criteria and frozen before it runs, not this one edited.
 - The held-out split of this set is not worth running for the same reason.
+
+## 2026-10-21 quality on its hard set, dev split
+
+File: `2026-10-21-quality-hard-dev-expert-vs-baseline.json`. Same arms, models and procedure.
+
+| | A0 | A3 |
+|---|---|---|
+| seeded cases found by majority (of 8) | 8 | 8 |
+| seeded runs found | 24/24 | 24/24 |
+| benign false-positive runs | 1/18 | 1/18 |
+| sibling runs reporting the other domain's defect | 12/18 | 6/18 |
+| findings per run / evidence complete | 0.70 / 0.95 | 0.53 / 1.00 |
+
+- **Ceiling again.** Every planted case was found in every run by both arms. The expert's only measurable difference is staying in its lane (half the sibling reports) and fewer findings per run.
+
+## What the three hard runs say together
+
+- **Two of three hard sets have no headroom** (developer, quality), and softarch's only misses were two knowledge cases. Cases written by a model to "hard" criteria are mostly cases a model of the reviewer's class already catches: the author can only plant what it can see.
+- **The one place the reviewer fell short is a fact it did not apply, not reasoning it could not do.** Both softarch misses were caught in one of three runs; reviewers saw the change and talked themselves out of reporting it. That is what the softarch fixes of 2026-10-21 address, and it is untested until a rerun.
+- **What the experts reliably add on these sets is precision,** not recall: fewer false positives (softarch), fewer findings per run, fewer reports in other domains (softarch, quality). The thresholds do not reward that; whether they should is the maintainer's call, not changed here.
+- Not measured: security (two authoring attempts stopped by a safety check), architect and devops (wait for their skills), genai, frontend and data (no skills yet).

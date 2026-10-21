@@ -48,7 +48,7 @@ The maintainer's live check of round-2 prompt 2 (`docs/research/fact-check-round
 | 32b | Redis Pub/Sub is at most once; Streams persist and support at least once | confirmed | redis.io |
 | 33 | Distributed Map is Standard-only and runs 10,000 children by default | confirmed; children may be Express | Step Functions |
 | 34 | Retriers support `JitterStrategy` `FULL` | confirmed; the default (`NONE`) was not shown | Step Functions |
-| 35 | (cut off) The reply began: Task state `TimeoutSeconds` and `HeartbeatSeconds` default to 99,999,999 s, longer than a Standard execution's one year; HTTP tasks cap at 60 s | **different**, per the fragment; to confirm with the rest of the reply | Step Functions |
+| 35 to 74 | The rest of the reply, 2026-10-21 | see `architect-items-35-on-2026-10-21.md` | |
 
 ## Our assessment of the reply
 

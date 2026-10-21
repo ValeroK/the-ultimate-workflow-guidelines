@@ -71,6 +71,7 @@ The maintainer asked for a harder set before the architect and DevOps runs. Thes
 
 | Corpus | Passed as written | Fixed | Replaced | Criterion not met | Harm outside the diff | Frozen |
 |---|---|---|---|---|---|---|
+| architect-harder | 18 of 28 | 6 (four seeded, one benign, one sibling), including one knowledge case re-based on a qualifying fact | 4 (two seeded, two benign) | none left | 11 of 12 seeded | 2026-10-21 |
 | devops-harder | 20 of 28 | 3 (two benign, one sibling) | 2 knowledge | 3 knowledge cases rest on long-standing facts: the DevOps record has too few new ones left | 12 of 12 seeded | 2026-10-21 |
 
 The three cases that miss the "new in 2025-2026" criterion are kept and frozen rather than dropped, because freezing waits for nothing and editing later would follow the skills; their results are reported apart from the other knowledge cases.

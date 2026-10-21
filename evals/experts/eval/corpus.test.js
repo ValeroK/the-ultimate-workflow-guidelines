@@ -12,6 +12,7 @@ const corpus = require('./lib/corpus.js');
 const PINNED = {
   architect: '0152cdc2597e5a381c170953e5451ad91d9eb96e1e0d21c41a6979a452741197',
   'architect-hard': 'cf394272a890208df20a5b93383b93dee8792a3202c2c25f4808b0f1f0e04f21',
+  'architect-harder': '52ef3bdad5d52f61c002fd28da8415ef4b88f1b57774166f7c5f8e5e1d2e089f',
   'devops-hard': 'a97314ef5a8785c6e506d0433719f2387952c11a86de8d95b60090221667f01d',
   'devops-harder': 'ad25955e812f93feeaec6cff8086aadcb389e0cc1c018104f26014c5fc259aa8',
   developer: '829c83bf9dbafc6da5905461a4ad3812a0a84832a811314c3e8deaa0c654e211',

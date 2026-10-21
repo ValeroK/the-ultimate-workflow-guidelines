@@ -305,3 +305,15 @@ File: `2026-10-21-architect-harder-dev-expert-vs-baseline.json`. Corpus `archite
 - **Two of three sets are at ceiling.** Cases written by a model to "hard" criteria are mostly cases a model of the reviewer's class already catches. The only misses were softarch knowledge cases where reviewers saw the change and talked themselves out of reporting it; reasoning-hard cases never separated the arms.
 - **The softarch dev split is now tuned.** The fixes of 2026-10-21 were written from a diagnosis of two dev cases, and the new `event-schema-evolution` row mirrors one of them. A rerun on the dev split is not evidence. The held-out split (about four seeded cases, so the one-case margin is nearly the whole gate) is checked for the same facts before it runs.
 - Not measured: security (two authoring attempts stopped by a safety check), architect and devops (wait for their skills), genai, frontend and data (no skills yet).
+
+## Pre-registered: the hard sets with a weaker reviewer (written 2026-10-21, before any run)
+
+Every hard dev run so far hit the ceiling with Sonnet as the reviewer. This run asks whether the experts lift a reviewer that does miss things.
+
+- **What changes:** only the reviewer model, Sonnet to Haiku, for both arms (A0 plain, A3 expert). Judges, judge prompts, corpora, splits and the scorer stay as they were. Result files carry `haiku` in their name, because `run-eval.js` does not record the model.
+- **Sets:** the dev split of `architect-hard`, `architect-harder`, `developer-hard`, `quality-hard` and `softarch-hard`, 40 seeded cases in all. Devops is left out until its skills are converted. Held-out splits wait until dev shows a direction.
+- **Pilot first:** `architect-hard` alone. If the Haiku plain reviewer still finds 8 of 8, the cases are too easy for any current model; that is reported and the other sets are not run.
+- **Headline:** seeded cases found by majority, pooled across the five sets.
+- **A lift:** the expert finds at least 4 more of the 40 pooled cases than the plain reviewer, with no set going the other way by more than 1.
+- **Acceptable cost:** no more than 3 extra benign false-positive runs pooled (of about 90 per arm).
+- **Anything smaller** is reported as no measurable lift, whichever way it points.

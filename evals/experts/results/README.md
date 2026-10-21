@@ -204,3 +204,21 @@ File: `2026-10-20-developer-heldout-expert-v2-vs-baseline.json`. Same split, arm
 - **Read it as no clear change from v1, not a gain.** v2 dropped from 18/18 to 16/18 seeded runs: `c42610081` (token budget per tenant) and `c72516a95` (a service that validates, stores, formats and sends) were each found in 2 of 3 runs. Benign false positives fell from 2 to 1 of 12. The fresh A0 matches the earlier A0 on recall and differs by one false-positive run, which shows the run-to-run noise at this size.
 - **Contamination, found after the run.** v2's `review.md` used case `c72516a95` as its worked finding (the ledger had suggested it). That leaks a held-out case into the reference, biased in the expert's favour, and it was still found in only 2 of 3 runs. The worked pair was replaced the same day with an example far from every corpus case; the held-out split is no longer clean for the developer, so the next unbiased figure needs new cases.
 - Not measured: plan and tests stages; any other expert since the restructure.
+
+## 2026-10-21 softarch on its hard set, dev split
+
+File: `2026-10-21-softarch-hard-dev-expert-vs-baseline.json`. Corpus `softarch-hard` (criteria in `docs/experts/hard-cases-2026-10-21.md`: written blind from the research records, checked by a second agent, frozen before any run). Arms A0 (plain reviewer told the domain) and A3 (softarch with its skills pasted by `selectSkills`); neither had the web. Sonnet subagents review, session-default judges, three runs per case.
+
+| | A0 | A3 |
+|---|---|---|
+| seeded cases found by majority (of 8) | 6 | 6 |
+| knowledge cases (of 4) / reasoning cases (of 4) | 2 / 4 | 2 / 4 |
+| seeded runs found | 19/24 | 19/24 |
+| benign false-positive runs | 2/18 | 0/18 |
+| sibling runs reporting the other domain's defect | 12/18 | 7/18 |
+| evidence complete | 0.80 | 0.96 |
+
+- **The gate fails: no recall gain.** Both arms found the same six cases and missed the same two, both knowledge cases. The expert was given the relevant skill on each (`schema-evolution` on one, `protobuf-compat` on the other) and still missed them.
+- **What the expert changed is precision:** no benign false positives against two, fewer findings per run (0.43 against 0.73), more complete evidence. The thresholds do not count that as a pass, and this run does not change them.
+- **Reasoning cases did not separate the arms:** the plain reviewer found all four. "Needs two files joined" was not hard enough for this domain at this reviewer strength.
+- Next: find out whether the two missed facts are in the skills at all (an agent that reads the cases answers yes or no per skill, so the skills' author stays blind). The held-out split stays unrun until then.

@@ -590,3 +590,10 @@ test('architect review: tenant session settings, BYPASSRLS and session tags alon
   assert.ok(ar({ 'db/roles.sql': ['ALTER ROLE app_user BYPASSRLS;'] }).includes('multi-tenancy'));
   assert.ok(ar({ 'iam/trust.json': ['        "sts:TagSession"'] }).includes('multi-tenancy'));
 });
+
+test('architect review: Temporal workflow code selects step-functions', () => {
+  const ar = (files) => names(ex.selectSkills(PLUGIN, 'architect', 'review', ex.parseDiff(diffOf(files))));
+  assert.ok(ar({ 'worker/workflows.py': ['from temporalio import workflow'] }).includes('step-functions'));
+  assert.ok(ar({ 'src/workflows.ts': ["import { proxyActivities } from '@temporalio/workflow';"] }).includes('step-functions'));
+  assert.ok(ar({ 'worker/main.go': ['\t"go.temporal.io/sdk/workflow"'] }).includes('step-functions'));
+});

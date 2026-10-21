@@ -332,3 +332,21 @@ File: `2026-10-21-architect-hard-dev-haiku-expert-vs-baseline.json`. Reviewer Ha
 - **The pre-registered stop rule fired:** the plain Haiku reviewer found every case by majority, including the knowledge case the plain Sonnet reviewer found in only 1 of 3 runs. The other four sets were not run.
 - **What it says:** these written cases are within reach of the smallest current model without an expert. The two extra runs the expert found are the same size as its one extra false-positive run, so nothing here is a lift.
 - **What is left to measure with:** the real-defects set (`docs/experts/real-defects-2026-10-21.md`), whose cases no model wrote.
+
+## 2026-10-21 developer on real defects (`developer-real`), dev split
+
+File: `2026-10-21-developer-real-dev-expert-vs-baseline.json`. The first set no model wrote: defects traced by blame to one introducing commit in public repositories, fixed after 2026-06-01 (`docs/experts/real-defects-2026-10-21.md`). Reviewer Sonnet for both arms; the usual judge. The judges stopped once on the account's usage limit and were resumed; no answer file changed in between.
+
+| | A0 | A3 |
+|---|---|---|
+| seeded cases found by majority (of 8) | 4 | 4 |
+| seeded runs found | 12/24 | 13/24 |
+| benign false-positive runs | 0/18 | 3/18 |
+| findings per run / evidence complete | 0.42 / 0.92 | 0.67 / 0.80 |
+
+Per case (A0 / A3 runs of 3): three found by both in every run; one missed by both; the expert found two in 1 of 3 runs that the plain reviewer never found, and one in 2 of 3 against 1 of 3; the plain reviewer found one in 2 of 3 that the expert never found.
+
+- **The ceiling is gone:** the plain reviewer finds half the real defects, against all of every written set. This set can tell arms apart.
+- **The expert does not find more:** the same 4 cases by majority. Its small run-level gains are matched by a case it lost.
+- **It costs precision:** 3 false-positive runs on real commits that no fix touched, against none, and it reports more findings per run with less evidence. The gate fails on both recall and false positives.
+- **What this says about the expert:** on real code its rules add noise rather than catches. The next step is to read the three false positives and the two cases only it found, to see which rules or skills fired, before changing anything; and to mine a larger set, since 8 cases cannot show a gain of one or two.

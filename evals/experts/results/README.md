@@ -317,3 +317,18 @@ Every hard dev run so far hit the ceiling with Sonnet as the reviewer. This run 
 - **A lift:** the expert finds at least 4 more of the 40 pooled cases than the plain reviewer, with no set going the other way by more than 1.
 - **Acceptable cost:** no more than 3 extra benign false-positive runs pooled (of about 90 per arm).
 - **Anything smaller** is reported as no measurable lift, whichever way it points.
+
+## 2026-10-21 the weaker-reviewer pilot: Haiku on architect-hard, dev split
+
+File: `2026-10-21-architect-hard-dev-haiku-expert-vs-baseline.json`. Reviewer Haiku for both arms; judges, corpus and scorer as in the Sonnet run above. One judge was run again because its task had been built from the reviewer's answer before the reviewer finished rewriting it; the stale result was discarded unscored.
+
+| | A0 (Haiku) | A3 (Haiku) |
+|---|---|---|
+| seeded cases found by majority (of 8) | 8 | 8 |
+| seeded runs found | 21/24 | 23/24 |
+| benign false-positive runs | 1/18 | 2/18 |
+| findings per run / evidence complete | 0.70 / 0.69 | 0.72 / 0.70 |
+
+- **The pre-registered stop rule fired:** the plain Haiku reviewer found every case by majority, including the knowledge case the plain Sonnet reviewer found in only 1 of 3 runs. The other four sets were not run.
+- **What it says:** these written cases are within reach of the smallest current model without an expert. The two extra runs the expert found are the same size as its one extra false-positive run, so nothing here is a lift.
+- **What is left to measure with:** the real-defects set (`docs/experts/real-defects-2026-10-21.md`), whose cases no model wrote.

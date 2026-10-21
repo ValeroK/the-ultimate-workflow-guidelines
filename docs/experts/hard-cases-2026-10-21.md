@@ -46,6 +46,6 @@ Counts from the second agent's check, before freezing. The reasons are in genera
 
 | Corpus | Passed as written | Fixed | Replaced | Frozen |
 |---|---|---|---|---|
-| softarch-hard | 23 of 28 | 4: three malformed or misleading noise hunks in reasoning cases; one benign case that was not safe | 1 sibling whose defect was also a contract break | 2026-10-21 |
+| softarch-hard | 23 of 28 | 4: three malformed or misleading noise hunks in reasoning cases; one benign case that was not safe | 1 sibling whose defect was also a contract break; then all 8 siblings' `siblingDomain` expanded from a bare domain name, which also appeared in the diff | 2026-10-21 |
 
 Security has no hard corpus: a safety check stopped its author before it wrote any case. Not retried; it waits for the maintainer.

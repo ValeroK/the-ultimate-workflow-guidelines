@@ -39,3 +39,13 @@ Each corpus is `evals/experts/corpus/<expert>-hard.json`: 12 seeded, 8 benign, 8
 | genai, frontend, data | after their skills are written | then |
 
 The developer's first held-out split is spent (see `evals/experts/results/README.md`); its hard set gives it a new one.
+
+## Validity results
+
+Counts from the second agent's check, before freezing. The reasons are in general terms so that this file does not leak a case.
+
+| Corpus | Passed as written | Fixed | Replaced | Frozen |
+|---|---|---|---|---|
+| softarch-hard | 23 of 28 | 4: three malformed or misleading noise hunks in reasoning cases; one benign case that was not safe | 1 sibling whose defect was also a contract break | 2026-10-21 |
+
+Security has no hard corpus: a safety check stopped its author before it wrote any case. Not retried; it waits for the maintainer.

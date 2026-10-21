@@ -570,3 +570,16 @@ test('security review: near misses select nothing', () => {
   assert.deepEqual(se({ 'docs/ci.md': ['We use pull_request_target for labels.'] }), [], 'prose about CI');
   assert.deepEqual(se({ '.gitlab-ci.yml': ['script: make test'] }), [], 'GitLab is not covered by this skill');
 });
+
+test('architect review: an origin request policy or a function association alone selects caching-and-latency', () => {
+  const ar = (files) => names(ex.selectSkills(PLUGIN, 'architect', 'review', ex.parseDiff(diffOf(files))));
+  assert.ok(ar({ 'infra/cdn.tf': ['  origin_request_policy_id = aws_cloudfront_origin_request_policy.api.id'] }).includes('caching-and-latency'));
+  assert.ok(ar({ 'template.yaml': ['        FunctionAssociations:'] }).includes('caching-and-latency'));
+});
+
+test('architect review: endpoint type, stage cache and WebSocket settings alone select api-gateway', () => {
+  const ar = (files) => names(ex.selectSkills(PLUGIN, 'architect', 'review', ex.parseDiff(diffOf(files))));
+  assert.ok(ar({ 'template.yaml': ['      EndpointConfiguration:', '        Types: [EDGE]'] }).includes('api-gateway'));
+  assert.ok(ar({ 'infra/ws.tf': ['  protocol_type = "WEBSOCKET"'] }).includes('api-gateway'));
+  assert.ok(ar({ 'template.yaml': ['      CacheClusterEnabled: true'] }).includes('api-gateway'));
+});

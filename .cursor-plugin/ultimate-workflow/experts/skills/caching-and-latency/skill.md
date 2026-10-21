@@ -47,9 +47,9 @@ Sources: **[D]** the Amazon CloudFront developer guide as published in the awsdo
 
 | Rule | What breaks it in a diff | When it does not apply |
 |---|---|---|
-| ElastiCache's default `maxmemory-policy` is `volatile-lru`, node-based parameter groups included [R]; it evicts only keys that have a TTL [T] | Cache keys written with no TTL on the default policy: nothing is evictable once memory fills, and writes fail | A cache whose every key has a TTL, or a parameter group set to an `allkeys-` policy for a pure cache |
+| ElastiCache's default `maxmemory-policy` is `volatile-lru`, node-based parameter groups included; it evicts only keys that have a TTL [R] | Cache keys written with no TTL on the default policy: nothing is evictable once memory fills, and writes fail | A cache whose every key has a TTL, or a parameter group set to an `allkeys-` policy for a pure cache |
 | ElastiCache refuses `CONFIG`, `SAVE`, `BGSAVE`, `BGREWRITEAOF`, `DEBUG`, `MIGRATE`, `REPLICAOF` and `SLAVEOF` [R] | Code or a startup script that calls `CONFIG SET` (for example to set the eviction policy) or `BGSAVE` against a managed endpoint | Self-run Redis or Valkey |
-| In cluster mode a multi-key command across slots fails with `CROSSSLOT`; a hash tag puts the keys in one slot [R], so a whole hash-tagged group lands on one shard [O] | An `MGET`, a pipeline in a transaction or a Lua script across keys with no shared hash tag; one large tenant's keys hash-tagged onto a single shard | Single-key access, or cluster mode off |
+| In cluster mode a multi-key command across slots fails with `CROSSSLOT`; a hash tag puts the keys in one slot [R], so a whole hash-tagged group lands on one shard [O] | An `MGET` or a transaction across keys with no shared hash tag; one large tenant's keys hash-tagged onto a single shard | Single-key access, or cluster mode off |
 | Serverless takes `CacheUsageLimits` for data storage and ECPU per second [R]; without them nothing bounds its size or cost [O] | A new `AWS::ElastiCache::ServerlessCache` or `aws_elasticache_serverless_cache` with no usage limits | A plan that accepts unbounded spend |
 | Global Datastore failover to another Region is a manual promotion; Multi-AZ failover within a Region is automatic [R] | A plan or runbook that counts on a Global Datastore failing over to another Region by itself | Single-Region recovery |
 
@@ -60,7 +60,7 @@ Sources: **[D]** the Amazon CloudFront developer guide as published in the awsdo
 | A minimum TTL above zero overrides the origin's `no-cache`, `no-store` and `private` [D] | A behaviour with a minimum TTL above zero in front of per-user or must-be-fresh responses | Purely static origins |
 | Only what the cache policy names is in the cache key; other headers, cookies and query strings reach the origin through an origin request policy [R] | A header or cookie the origin varies its response on (`Authorization`, a session or locale cookie) forwarded by the origin request policy but absent from the cache policy, so one viewer's response is cached for all [O] | Responses that do not vary on what is forwarded |
 | The default behaviour is matched last [R] | A new API or per-user path with no behaviour of its own, so it falls into the default behaviour and its long TTL | A default behaviour that does not cache |
-| CloudFront Functions run on viewer request, viewer response and, as connection functions, the TLS handshake [R]; not on origin events | A CloudFront Function associated with an `origin-request` or `origin-response` event, or a plan that expects one to run only on a cache miss | |
+| CloudFront Functions run on viewer request, viewer response and, as connection functions, the TLS handshake [R]; not on origin events | A CloudFront Function associated with an `origin-request` or `origin-response` event | |
 | A CDN does not protect an origin from requests it never caches [T] | A plan that counts on CloudFront to absorb load on an uncached API with no throttling at the origin | |
 
 ## Excuses that do not hold
@@ -72,5 +72,5 @@ Sources: **[D]** the Amazon CloudFront developer guide as published in the awsdo
 
 - A cache with no invalidation for data the plan says may be stale for up to the TTL.
 - A reader endpoint used by a path that never reads its own writes.
-- Keys without a TTL on a parameter group whose policy is `allkeys-lru` or `allkeys-lfu` and that holds only cache data.
+- Keys without a TTL on a parameter group whose policy is an `allkeys-` one and that holds only cache data.
 - A minimum TTL above zero on a behaviour that serves only static assets.

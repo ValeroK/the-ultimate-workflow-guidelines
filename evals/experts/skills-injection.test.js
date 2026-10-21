@@ -583,3 +583,10 @@ test('architect review: endpoint type, stage cache and WebSocket settings alone 
   assert.ok(ar({ 'infra/ws.tf': ['  protocol_type = "WEBSOCKET"'] }).includes('api-gateway'));
   assert.ok(ar({ 'template.yaml': ['      CacheClusterEnabled: true'] }).includes('api-gateway'));
 });
+
+test('architect review: tenant session settings, BYPASSRLS and session tags alone select multi-tenancy', () => {
+  const ar = (files) => names(ex.selectSkills(PLUGIN, 'architect', 'review', ex.parseDiff(diffOf(files))));
+  assert.ok(ar({ 'db/pool.ts': ["  await client.query(\"select set_config('app.org', $1, false)\", [org]);"] }).includes('multi-tenancy'));
+  assert.ok(ar({ 'db/roles.sql': ['ALTER ROLE app_user BYPASSRLS;'] }).includes('multi-tenancy'));
+  assert.ok(ar({ 'iam/trust.json': ['        "sts:TagSession"'] }).includes('multi-tenancy'));
+});

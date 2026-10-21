@@ -503,7 +503,7 @@ Owners when routed: architect, softarch, developer, quality, security, devops, g
 | Work that grows with input: in-memory work super-linear in a caller-controlled size (a `.find` or `.filter` per element, a sort inside a loop, a nested scan) | taken | developer review: one new category, no skill (no sourced fact needed) |
 | Allocation in hot loops | rejected | already "Not a finding" in `go-craft` and `python-craft`; invisible without a profile |
 
-**Count:** 357 items. Taken 99, routed 95, rejected 116, missing 47. Counted by script over the first word of the Outcome column. 45 of the taken rows are "merged with" an earlier row, so the distinct rules are far fewer (section 7 lists them); 15 of the routed rows go to an owner whose file already holds the item. Rows marked "taken" whose rule waits on a fact count as taken, and the facts they wait on are in section 4. Each of the 47 missing rows names its fact in section 4; several rows share one fact, and some facts serve routed or taken rows instead.
+**Count:** 358 items. Taken 96, routed 96, rejected 124, missing 42. Counted by script over the first word of the Outcome column; the same script checked that every missing row names a fact and every fact in section 4 is cited by at least one row. 44 of the taken rows are "merged with" an earlier row, so the distinct rules are far fewer (section 7 lists them); 15 of the routed rows go to an owner whose file already holds the item. Rows marked "taken" whose rule waits on a fact count as taken, and the facts they wait on are in section 4. Each of the 42 missing rows names its fact in section 4; several rows share one fact, and some facts serve routed or taken rows instead.
 
 ## 4. Facts that need the maintainer's live check
 

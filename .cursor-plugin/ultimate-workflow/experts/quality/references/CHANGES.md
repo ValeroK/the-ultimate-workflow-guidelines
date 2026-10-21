@@ -28,3 +28,4 @@ Dropped: everything that runs a tool, fetches a page, or installs something.
 - Skills: `test-craft` follows the skill template, every row tagged; new `test-gates` (a run or job that cannot fail) and `eval-integrity` (judges, pass@k and pass^k, held-out data), both from the maintainer's round-2 check. `test-craft` also loads at review for test files.
 - "A test that cannot fail" moved here from the developer's checklist. The judge rule no longer claims self-enhancement bias as established (round 2, item 26); calibration carries it.
 - Not measured since the restructure.
+- Joins review whenever a test file changes (`review-when-skills: [test-craft]` in the agent file), selected or not. A workflow file alone, which selects only `test-gates`, does not bring it in.

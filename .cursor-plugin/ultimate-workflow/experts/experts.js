@@ -90,11 +90,16 @@ function list(pluginRoot = PLUGIN_ROOT) {
     const fm = parseAgentFile(fs.readFileSync(path.join(dir, f), 'utf8'));
     const stages = fm.stages === undefined ? ['review'] : inlineList(fm.stages);
     const always = fm.always === undefined ? [] : inlineList(fm.always);
+    const whenSkills = fm['review-when-skills'] === undefined ? [] : inlineList(fm['review-when-skills']);
     if (fm.name !== `uw-expert-${name}`) problems.push(`${f}: frontmatter name is "${fm.name || ''}", expected "uw-expert-${name}"`);
     else if (!fm.description) problems.push(`${f}: no description, so a model cannot tell when it applies`);
     else if (stages.length === 0 || stages.some((s) => !DECLARABLE.includes(s))) problems.push(`${f}: stages must be a list drawn from ${DECLARABLE.join(', ')}`);
     else if (always.some((s) => !ALWAYS_STAGES.includes(s) || !stages.includes(s))) problems.push(`${f}: always may name only ${ALWAYS_STAGES.join(', ')}, and only a stage the expert declares`);
-    else experts.push({ name, agent: fm.name, description: fm.description, stages, ...(always.length > 0 ? { always } : {}) });
+    else if (whenSkills.length > 0 && !stages.includes('review')) problems.push(`${f}: review-when-skills needs the review stage`);
+    else if (whenSkills.some((s) => !skillsAt(pluginRoot, name, 'review').skills.some((k) => k.name === s))) problems.push(`${f}: review-when-skills may name only skills in the review section of experts/${name}/skills.md`);
+    // `review-when-skills: [a, b]`: the expert joins review whenever the diff selects one of these review
+    // skills, planned or not (quality and test-craft: a changed test is quality's business, whoever planned the work).
+    else experts.push({ name, agent: fm.name, description: fm.description, stages, ...(always.length > 0 ? { always } : {}), ...(whenSkills.length > 0 ? { reviewWhenSkills: whenSkills } : {}) });
   }
   return { experts, problems };
 }

@@ -1,6 +1,6 @@
 # Quality engineer expert: sources, borders and skills
 
-The quality engineer owns whether a change's tests, evals and gates can fail when the code is wrong: the oracle of each test, its doubles and determinism, how LLM and agent behaviour is judged, that contracts are checked on both sides in tests, and that CI test jobs and runner settings can go red. It joins at plan, tests (always, whether or not the plan selected it) and review, and gives the implementer a test brief at build.
+The quality engineer owns whether a change's tests, evals and gates can fail when the code is wrong: the oracle of each test, its doubles and determinism, how LLM and agent behaviour is judged, that contracts are checked on both sides in tests, and that CI test jobs and runner settings can go red. It joins at plan, tests (always, whether or not the plan selected it) and review, and gives the implementer a test brief at build. At review it also joins unselected whenever the diff selects `test-craft`, that is, whenever a test file changes (`review-when-skills: [test-craft]`, maintainer decision 2026-10-21: quality designs and judges the cases, the developer writes them). A CI workflow edit alone does not bring it in.
 
 ## Boundaries
 

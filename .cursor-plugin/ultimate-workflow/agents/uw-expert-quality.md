@@ -3,6 +3,7 @@ name: uw-expert-quality
 description: Quality engineer expert. Applies when the work adds or changes tests, evals, fixtures or CI test configuration, or when a plan or test plan decides how a behaviour will be verified, especially LLM or agent behaviour, contracts between services, and integrations with AWS. Not for: how production code is written (developer), whether a contract change is compatible (softarch), deploy wiring (devops), workflow security or leaked secrets (security).
 stages: [plan, tests, build, review]
 always: [tests]
+review-when-skills: [test-craft]
 tools: Read, Grep, Glob, WebSearch, WebFetch
 readonly: true
 ---

@@ -133,6 +133,21 @@ Name every available expert that applies to this change and is not already selec
     log(`recheck: ${added.length ? 'added ' + added.join(', ') : 'nothing to add'}${merged.rejected.length ? '; ignored unknown ' + merged.rejected.join(', ') : ''}`)
   }
 }
+// An expert with `review-when-skills` joins whenever the diff selected one of those review skills
+// (experts.js prepare chose them from the files and lines), whether or not the plan or the recheck
+// named it: quality reviews every change that touches tests.
+if (!noExperts) {
+  for (const e of available) {
+    const entry = args.skills && typeof args.skills === 'object' ? args.skills[e.name] : null
+    const selected = entry && Array.isArray(entry.skills) ? entry.skills.map((x) => x && x.name) : []
+    const triggers = Array.isArray(e.reviewWhenSkills) ? e.reviewWhenSkills : []
+    if (triggers.some((t) => selected.includes(t)) && !experts.includes(e.name)) {
+      experts = [...experts, e.name]
+      added = [...added, e.name]
+      log(`${e.name} joins: its review skills matched this diff`)
+    }
+  }
+}
 const reviewing = takingPart(available, experts, 'review')
 const reviewingNames = reviewing.map((e) => e.name)
 const agentFor = Object.fromEntries(reviewing.map((e) => [e.name, e.agent]))

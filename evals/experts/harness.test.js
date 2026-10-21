@@ -79,7 +79,7 @@ async function review(payload, dir, plan, { recheck = [], expertsArg } = {}) {
   const planned = JSON.parse(experts(payload, dir, ['read', '--plan', plan]).stdout).experts;
   const run = loadWorkflow(path.join(payload, 'workflows', 'review.js'));
   const { result } = await run(
-    { range: 'working', available: prep.available, experts: expertsArg || planned, diffFile: prep.diffFile, expertsDir: path.join(payload, 'experts'), plan, expertsOnly: true },
+    { range: 'working', available: prep.available, experts: expertsArg || planned, diffFile: prep.diffFile, expertsDir: path.join(payload, 'experts'), plan, skills: prep.skills, expertsOnly: true },
     (call) => (call.label === 'recheck' ? { experts: recheck.map((name) => ({ name, why: 'x' })) } : { findings: [], lensVerdict: `clean through ${call.label}` })
   );
   const rec = experts(payload, dir, ['record', '--stage', 'review', '--plan', plan], JSON.stringify({ ok: result.ok, expertLane: result.expertLane }));
@@ -141,6 +141,21 @@ test('a hook payload that cannot be parsed fails open, commit command or not', (
   const { payload } = pluginCopy();
   const r = spawnSync(process.execPath, [path.join(payload, 'hooks', 'gate.js')], { input: '{not json git commit', encoding: 'utf8', env: { ...process.env, ULTIMATE_WORKFLOW_GATES: 'on' } });
   assert.strictEqual(r.status, 0);
+});
+
+test('a changed test file brings quality into review even when nobody selected it; a source-only change does not', async () => {
+  const { payload } = pluginCopy();
+  const { dir, plan } = project('plan_confirmed: true\ntests_confirmed: true\nexperts: [security]');
+  write(path.join(dir, 'src', 'a.js'), 'module.exports = 2;\n');
+  let out = await review(payload, dir, plan);
+  assert.ok(!out.result.expertLane.ran.includes('quality'), 'no test file changed, so quality stays out');
+
+  write(path.join(dir, 'src', 'a.test.js'), "require('node:assert').strictEqual(require('./a.js'), 2);\n");
+  out = await review(payload, dir, plan);
+  assert.strictEqual(out.rec.status, 0, out.rec.stderr);
+  assert.ok(out.result.expertLane.added.includes('quality'), JSON.stringify(out.result.expertLane));
+  assert.deepStrictEqual(out.result.expertLane.ran.sort(), ['quality', 'security']);
+  assert.ok(out.result.expertLane.skillsLoaded.quality.includes('test-craft'));
 });
 
 test('the recheck can add an expert at commit time, and the commit then waits for that expert too', async () => {

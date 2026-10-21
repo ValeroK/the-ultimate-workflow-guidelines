@@ -47,7 +47,8 @@ An expert is **not a persona**. "You are a senior security engineer" adds almost
             experts apply (experts: [] counts), and no commit until
             /ultimate-workflow:experts (or /review) has run:
             ask again (model) against the real diff; the answer can only ADD experts
-            every selected expert with a review stage gets the skills code chose from the
+            every selected expert with a review stage, plus quality whenever a test file
+            changed (review-when-skills), gets the skills code chose from the
             diff and reviews it, also against what it required at planning time
             evidence is recorded against a fingerprint of the changes; any later change
             makes it stale
@@ -133,7 +134,7 @@ Paths under `agents/`, `experts/` and `workflows/` are relative to `.cursor-plug
 
 | # | File | What you do |
 |---|---|---|
-| 1 | `agents/uw-expert-<name>.md` | Create from the `agent` template. `<name>` is one lowercase word. Write the `description` so that a model can tell when the expert applies, and set `stages` to the stages it joins. Add `always: [tests]` only if the expert should join the tests stage whether or not it was selected (today only `quality`, because every test plan is about tests). |
+| 1 | `agents/uw-expert-<name>.md` | Create from the `agent` template. `<name>` is one lowercase word. Write the `description` so that a model can tell when the expert applies, and set `stages` to the stages it joins. Add `always: [tests]` only if the expert should join the tests stage whether or not it was selected (today only `quality`, because every test plan is about tests). Add `review-when-skills: [<skill>, ...]` only if the expert should join review whenever the diff selects one of those review skills, selected or not (today only `quality`, with `test-craft`: a changed test). Name only skills in the review section of its `skills.md`; `list` reports anything else as a problem. |
 | 2 | `experts/<name>/references/<stage>.md` | One file per stage you declared, from the `plan-reference`, `tests-reference` and `review-reference` templates. Replace every `FILL-IN:` note. Add further files for material only some work needs, and name each in the agent file with an "only if" condition. |
 | 2b | `experts/<name>/references/build.md` | Optional. Only if the domain should shape the code as it is written, on every build, not only when the expert is chosen at plan time. If the brief is for some changes only (the DevOps brief is for infrastructure, pipelines and containers), list no `always` skill for it under `## build` in `experts/<name>/skills.md`: the brief then joins a build only when the plan selects one of its skills. A short brief from the `build-reference` template, at most 4 KB, written as "when this, do that" rules including when not to add structure. Add `build` to `stages`. Nothing else is edited. |
 | 3 | `evals/experts/examples/<name>.json` | From the `examples` template: at least three situations where the expert applies and three where it does not. |

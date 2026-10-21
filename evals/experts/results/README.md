@@ -222,3 +222,19 @@ File: `2026-10-21-softarch-hard-dev-expert-vs-baseline.json`. Corpus `softarch-h
 - **What the expert changed is precision:** no benign false positives against two, fewer findings per run (0.43 against 0.73), more complete evidence. The thresholds do not count that as a pass, and this run does not change them.
 - **Reasoning cases did not separate the arms:** the plain reviewer found all four. "Needs two files joined" was not hard enough for this domain at this reviewer strength.
 - Next: find out whether the two missed facts are in the skills at all (an agent that reads the cases answers yes or no per skill, so the skills' author stays blind). The held-out split stays unrun until then.
+
+## 2026-10-21 developer on its hard set, dev split
+
+File: `2026-10-21-developer-hard-dev-expert-vs-baseline.json`. Same arms, models and procedure as softarch above.
+
+| | A0 | A3 |
+|---|---|---|
+| seeded cases found by majority (of 8) | 8 | 8 |
+| seeded runs found | 24/24 | 24/24 |
+| benign false-positive runs | 0/18 | 0/18 |
+| sibling runs reporting the other domain's defect | 15/18 | 15/18 |
+| findings per run / evidence complete | 0.68 / 1.00 | 0.72 / 0.91 |
+
+- **Ceiling: the set is not hard for this reviewer.** Both arms found every planted case in every run, knowledge and reasoning alike, and neither flagged a safe twin. The gate fails only because there was no room to beat the baseline; this measures nothing about the expert in either direction.
+- **No case is dropped or swapped for this,** per the criteria. A harder set would be a new corpus written to stricter criteria and frozen before it runs, not this one edited.
+- The held-out split of this set is not worth running for the same reason.

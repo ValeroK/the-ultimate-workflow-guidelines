@@ -3,6 +3,20 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
+// Every temporary directory this file creates is removed when it exits (node --test runs each
+// file in its own process); without this, each run left hundreds behind in the system temp folder.
+{
+  const made = [];
+  const mkdtemp = fs.mkdtempSync;
+  fs.mkdtempSync = (...args) => {
+    const dir = mkdtemp(...args);
+    made.push(dir);
+    return dir;
+  };
+  process.on('exit', () => {
+    for (const dir of made) fs.rmSync(dir, { recursive: true, force: true });
+  });
+}
 const os = require('node:os');
 const path = require('node:path');
 

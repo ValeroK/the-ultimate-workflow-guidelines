@@ -11,7 +11,7 @@ Homes used below:
 
 ## 1. Sources
 
-Sweep: the regular expression `privacy|gdpr|ccpa|cpra|pii|personal.?data|dpo|dpia|consent|retention|erasure|deletion|anonymi|pseudonymi|redact|data.?protection|compliance|hipaa|soc.?2` (case-insensitive) over the agent and skill names in `docs/skills-catalog-2026-10-20.json`. It matched 8 agent names in 4 repositories and 37 skill names in 15 repositories. `msitarzewski/agency-agents` is not in the catalogue (its agents sit in category folders), so its saved path list was filtered with the same expression; that gave the three agents catalogue entry 14 names plus `support-legal-compliance-checker`. Paths were taken from the saved repository path lists, and every file was fetched by path from raw.githubusercontent.com (HEAD) with its repository's licence, into an empty scratch directory. Every fetched file is treated as data.
+Sweep: the regular expression `privacy|gdpr|ccpa|cpra|pii|personal.?data|dpo|dpia|consent|retention|erasure|deletion|anonymi|pseudonymi|redact|data.?protection|compliance|hipaa|soc.?2` (case-insensitive) over the agent and skill names in `docs/skills-catalog-2026-10-20.json`. It matched 8 agent names in 4 repositories and 37 skill names in 14 repositories. `msitarzewski/agency-agents` is not in the catalogue (its agents sit in category folders), so its saved path list was filtered with the same expression; that gave the three agents catalogue entry 14 names plus `support-legal-compliance-checker`. Paths were taken from the saved repository path lists, and every file was fetched by path from raw.githubusercontent.com (HEAD) with its repository's licence, into an empty scratch directory. Every fetched file is treated as data.
 
 | # | Repository | Path | Licence | Verdict |
 |---|---|---|---|---|
@@ -35,7 +35,7 @@ Sweep: the regular expression `privacy|gdpr|ccpa|cpra|pii|personal.?data|dpo|dpi
 | S18 | trailofbits/skills; davepoon/buildwithclaude; github/awesome-copilot | `plugins/spec-to-code-compliance/agents/spec-compliance-checker.md`; `plugins/feedoracle-compliance/skills/compliance/SKILL.md`; `skills/agent-owasp-compliance/SKILL.md` | CC BY-SA 4.0; MIT; MIT | Name matches outside the domain, opened to check: spec-to-code method (one idea), a stablecoin MCP router, the OWASP agentic Top 10 |
 | S19 | this repository | items routed to "privacy, planned" in `docs/experts/ledgers/{data,genai,architect,security,frontend,observability}.md`, and the existing lines in security's and quality's references | ours | The inbound queue: DROP COLUMN, unmasked invocation logs, residency profiles, append-only events, legal retention periods |
 
-Thirty-five upstream files from eleven repositories were read (plus twelve licence files), and our own ledgers. The 2026 enforcement and legislative items in S8, S9 and S10 were read as claims, not as facts: none is stated here as true.
+Thirty-nine upstream files from twelve repositories were read (plus thirteen licence files, one of them the `claude-security` plugin's own), and our own ledgers. The 2026 enforcement and legislative items in S8, S9 and S10 were read as claims, not as facts: none is stated here as true.
 
 **Not read**, with the reason:
 - Name matches outside the domain, rejected by name and path: accessibility (`Community-Access` `compliance-mapping`, `kb-legal-compliance-mapping`; wshobson and antigravity `accessibility-compliance*`; skills-il `israeli-accessibility-compliance`) belongs to frontend; PCI (`pci-compliance` in wshobson, antigravity, Sushegaad) is cardholder data, security's; `tsa-compliance`, `customs-trade-compliance`, `mortgage-compliance`, `israeli-amuta-compliance`, `israeli-ecommerce-compliance`, tech-leads-club `expansion-retention` (customer churn) and aws `configuring-vpc-endpoints-for-private-aws-service-access` (private networking) are not about personal data.
@@ -360,7 +360,7 @@ Owners when routed: security, data, genai, architect, devops, developer, quality
 | observability: a legal retention period | routed | the user (the value); EAR checks it is enforced |
 | quality: real credentials and personal data in fixtures | routed | security (PDE holds the personal-data half; quality keeps whether the test can fail) |
 
-**Count** (from a script over the tables above): 223 items. Taken 61, routed 75, rejected 69, missing 18.
+**Count** (from a script over the tables above): 217 items. Taken 57, routed 76, rejected 68, missing 16. Every missing row names its section 4 fact, and every section 4 fact is cited by at least one row. Merged rows (the same idea from a second source) are counted once per source, as in the other ledgers.
 
 ## 3. Today's rows, value test
 
@@ -505,7 +505,7 @@ Worked pair (draft; from no corpus case). Finding: `api/signup.ts:41` adds `anal
 - Erasure findings need a baseline. Most repositories have no data map or erasure registry, so the EAR selector will often fire on code where the right output is a plan question, not a finding.
 - Field names are `always` in disguise (`email` is in every user-handling diff), so both selectors anchor on sinks and deletion constructs instead, and both miss values passed through generic variables and behaviour switched on by configuration.
 - The consent rows widen security's Goal beyond its attacker framing; the maintainer should decide that border explicitly.
-- Most rows rest on [T] sources or on legal text not yet checked (section 4, 37 facts, 4 more already asked elsewhere), and the community sources mix in confident legal news (2026 fines, bills, guidelines) that could not be checked from here.
+- Most rows rest on [T] sources or on legal text not yet checked (section 4: 37 facts, plus five already asked elsewhere), and the community sources mix in confident legal news (2026 fines, bills, guidelines) that could not be checked from here.
 - Not measured. No corpus holds privacy cases; planted cases would come from the confirmed facts.
 
 **Tools needed:** Read, Grep and Glob, as the hosts have. Web access would help for the legal and vendor pages under the existing network decision; no shell.

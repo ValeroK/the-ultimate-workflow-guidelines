@@ -72,7 +72,7 @@ Four of the five hand you proposals instead of applying them. That's on purpose.
 
 You don't need all five every time. A typo doesn't need a plan.
 
-Two more commands sit outside the loop. **`/ultimate-workflow:experts`** is the quick expert check before a commit: it asks again which experts apply to the real diff, runs them and records the evidence. **`/handoff`** writes a handoff document when a session ends with work still in flight, so the next agent inherits the state that hasn't landed in any committed file yet. You run it; it is never invoked on your behalf.
+Three more commands sit outside the loop. **`/ultimate-workflow:experts`** is the quick expert check before a commit: it asks again which experts apply to the real diff, runs them and records the evidence. **`/ultimate-workflow:expert-attribution`** reports, from that evidence, which skills each expert had at each stage and where its findings say they came from (a skill, its reference, or the model's own knowledge), with any citation that does not check out. **`/handoff`** writes a handoff document when a session ends with work still in flight, so the next agent inherits the state that hasn't landed in any committed file yet. You run it; it is never invoked on your behalf.
 
 ## Domain experts
 

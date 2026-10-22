@@ -120,3 +120,51 @@ Full pages, exact URLs. Verdicts as returned; "different" means the claim's sour
 **Not reached:** the browser-level lazy-loading article and the WHATWG HTML pages; the reply used MDN and web.dev companions instead.
 
 Block I is complete: 46 items, 8 different, 1 not found, 1 weak (43).
+
+## J. Privacy (37 items and 10 extras)
+
+Mostly full pages (EUR-Lex HTML and PDF, EDPB, ICO, the CPPA's statute and regulation PDFs, eCFR, W3C GPC, vendor docs). The reply itself notes snippets for parts of items 2 and 6 and secondary pages for item 23. Spot check: item 35 matches the PostgreSQL 18 manual (`maintenance.sgml` line 164) and item 29's `REDACTED:REDACTED` rule is in the OpenTelemetry URL registry.
+
+| # | Verdict | Fact as returned | Source |
+|---|---|---|---|
+| 1 | Confirmed | Art. 5(1)(c) minimisation; 5(1)(e) storage limitation, with the Art. 89(1) archiving, research and statistics exception; 5(2) accountability. | EUR-Lex GDPR |
+| 2 | Different | Art. 17(1) says "without undue delay", no day count; 17(2) duty to inform other controllers when the data were made public; 17(3)(a) to (e) exceptions. Parts of the text came from snippets. | EUR-Lex GDPR |
+| 3 | Different | Art. 12(3): one month, extendable by two further months. Not 30 days. | EUR-Lex GDPR |
+| 4 | Confirmed | Art. 19: communicate erasure to each recipient, unless impossible or disproportionate. | EUR-Lex GDPR |
+| 5 | Different | Art. 25(1) names pseudonymisation; 25(2): by default only data necessary for each purpose (amount, extent, storage, accessibility). It does not say "optional collection defaults to off". | EUR-Lex (CJEU case quoting Art. 25) |
+| 6 | Confirmed | Art. 32(1)(a) to (d): pseudonymisation and encryption; confidentiality, integrity, availability, resilience; timely restore; regular testing. (b) and (c) partly from snippets. | EUR-Lex GDPR |
+| 7 | Confirmed | Art. 35(1), (2), (3)(a) to (c), (7); Art. 36(1) prior consultation. | EUR-Lex GDPR |
+| 8 | Different | WP248 rev.01 lists nine criteria, not ten, eight or six; transfer outside the EU is not one; two criteria is the rule of thumb. | European Commission (WP248) |
+| 9 | Confirmed | Art. 4(1), 4(5); Recital 26 (pseudonymised data is personal data, anonymous is out); Recital 30 (IP addresses, cookie ids). | EUR-Lex GDPR |
+| 10 | Different | Art. 7(1): be able to demonstrate consent; 7(3): withdrawal as easy as giving. Neither requires an immutable record or a policy version. | EUR-Lex GDPR |
+| 11 | Confirmed | Art. 30(1)(f): envisaged time limits for erasure, where possible. | EUR-Lex GDPR |
+| 12 | Confirmed in part | EDPB 05/2020 para. 86: scrolling or swiping is never consent. Escape or close as reject is not in it. | EDPB (quoted in Guidelines 8/2020; a gov.cy mirror of 05/2020) |
+| 13 | Confirmed | EDPB Opinion 28/2024: models trained on personal data cannot in all cases be considered anonymous; case by case. | EDPB |
+| 14 | Confirmed | ICO: backup data must be put "beyond use" until overwritten. | ico.org.uk right to erasure |
+| 15 | Confirmed | CJEU C-413/23 P, EDPS v SRB, 2025-09-04: pseudonymised data is not personal data for a recipient with no means reasonably likely to re-identify; still personal data for the controller holding the key. | EUR-Lex judgment |
+| 16 | Confirmed | Civ. Code 1798.105(c)(1): delete, notify service providers and contractors, and notify third parties sold or shared to, unless impossible or disproportionate. | CPPA statute PDF |
+| 17 | Confirmed | 45 days, extendable once by 45 with notice. | CPPA FAQ (statute page not reached) |
+| 18 | Confirmed | 11 CCR 7025: treat an opt-out preference signal (GPC) as an opt-out for the browser and a known consumer. GPC: header `Sec-GPC: 1`, `navigator.globalPrivacyControl`. | CPPA regulations; W3C GPC |
+| 19 | Confirmed | 11 CCR 7026: comply and notify third parties within 15 business days. | CPPA regulations |
+| 20 | Confirmed | 11 CCR 7022(f): an unverifiable deletion request is followed by an offer to opt out. | CPPA regulations |
+| 21 | Confirmed | 11 CCR 7050(c): a cross-context behavioural advertising provider is a third party. | CPPA regulations |
+| 22 | Confirmed | 1798.140(v) personal information includes unique identifiers, IP addresses, cookies; (ah) "share" means for cross-context advertising, paid or not. Hashed identifiers covered as unique identifiers. | CPPA statute PDF |
+| 23 | Secondary only | AB 2561 and SB 923 signed 2026-09-27, effective 2027-01-01 (privacy settings not silently reverted; deletion "from or about" a consumer, suppression list). | a law firm alert; leginfo not reached |
+| 24 | Confirmed | 45 CFR 164.514(b)(2): 18 identifiers (A to R) and the no-actual-knowledge condition. | eCFR |
+| 25 | Different | 164.312(b) audit controls state no retention; 164.316(b)(2) six years applies to the required policies and documentation, not raw audit logs. | eCFR |
+| 26 | Confirmed | Breach notice only for unsecured PHI (encryption per HHS guidance is the safe harbour); individuals within 60 calendar days of discovery. | eCFR 164.404 |
+| 27 | Confirmed | Sentry: `sendDefaultPii` false by default (deprecated in newer SDKs for `dataCollection`); `beforeSend`/`beforeBreadcrumb` scrub client side; server-side scrubbing on by default; Replay `maskAllText` and `maskAllInputs` true by default. | docs.sentry.io |
+| 28 | Confirmed | CloudWatch Logs data protection policies, account-wide or per log group, mask at ingestion (not earlier events); `logs:Unmask` reveals. | CloudWatch Logs guide |
+| 29 | Confirmed | `url.full` and `url.query`; credentials in a URL SHOULD be redacted as `REDACTED:REDACTED`. | OpenTelemetry URL registry |
+| 30 | Confirmed | GA forbids sending PII; GA4 does not log or store EU, UK and Swiss IP addresses. | support.google.com |
+| 31 | Confirmed | Bedrock invocation logging (off by default) can write full input and output to S3 and CloudWatch Logs. | Bedrock user guide |
+| 32 | Confirmed | Versioned S3: DELETE without a version id adds a delete marker; `NoncurrentVersionExpiration` removes old versions, asynchronously. | S3 user guide |
+| 33 | Confirmed, weak source | Deleted documents stay until segment merges; snapshots keep old segments. Cited page is a JavaScript client reference. | elastic.co |
+| 34 | Confirmed | Kafka: tombstones kept `delete.retention.ms` (1 day default); `retention.ms` 7 days default. | kafka.apache.org 3.8 topic configs |
+| 35 | Confirmed | DELETE leaves bytes until VACUUM; WAL archives and base backups keep them. | PostgreSQL manual |
+| 36 | Confirmed | TTL deletes replicate to global table replicas; PITR up to 35 days. | DynamoDB guide |
+| 37 | Confirmed | Global tables copy only to configured replicas; S3 replication does not copy delete markers by default; SCPs restrict Regions with `aws:RequestedRegion` and a `NotAction` list for global services. | S3 and Organizations guides |
+
+**Extras:** CloudWatch log groups never expire by default (answers H item 11 too); Sentry derives location from IP even with IP storage off; Sentry does not scrub AI agent span attributes (`input.messages`, `tool.call.arguments`, ...) by default; Sentry Python, PHP and Node SDKs capture stack local variables by default; S3 delete markers made by lifecycle rules are never replicated; GA4 redaction does not cover Measurement Protocol or Data Import; GA4 "reset on new activity" restarts user-data retention; async OpenSearch `_delete_by_query` leaves a task document holding the query; Kafka `local.retention.ms` must not exceed `retention.ms`; CCPA 11 CCR 7004 forbids "Yes/No" next to "Do Not Sell or Share" (double negative).
+
+**Not reached:** leginfo.legislature.ca.gov (statute read from the CPPA's PDF instead), GA answer 6366371, the EDPB 05/2020 PDF on edpb.europa.eu (read from a government mirror).

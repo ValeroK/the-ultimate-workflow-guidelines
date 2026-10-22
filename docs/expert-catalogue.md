@@ -172,7 +172,7 @@ An agent was placed under an expert by its name and the survey's domain notes, n
 - **Survey candidates:** a11y (Community-Access 78, ziniman 78), worst-case UI cases (emilkowalski, 72), React (vercel, 66), UI drift (ibelick, 62), RTL and localisation (skills-il, 55).
 
 ### 14. Privacy and compliance (skills, not an expert: maintainer decision 2026-10-21)
-- **Now:** `personal-data-exposure` under security and `erasure-and-retention` under data (split accepted), both waiting for fact-check block J. Lawful basis, consent and retention periods are a person's decision. Ledger: `docs/experts/ledgers/privacy.md`.
+- **Now:** `personal-data-exposure` under security and `erasure-and-retention` under data (split accepted), both written 2026-10-22 from fact-check block J. Lawful basis, consent and retention periods are a person's decision. Ledger: `docs/experts/ledgers/privacy.md`.
 - **Owns:** personal data, retention and deletion, consent, audit trails, LLM data handling.
 - **Stages:** plan, review.
 - **Upstream agents:**
@@ -245,6 +245,10 @@ Taken from each expert's `.cursor-plugin/ultimate-workflow/experts/<name>/skills
 | genai | review | `rag-retrieval` | `added:` embeddings, vector stores, rerank, Knowledge Bases | one embedding model, re-embedding, found-nothing answers, context order |
 | genai | plan | all four | offered | the plan calls a model or builds an agent |
 
+| security | review | `personal-data-exposure` | `added:` logs of request bodies and user objects, Sentry and replay settings, analytics and ad calls, browser storage, invocation logging, data protection policies, GPC, restores | where a personal value goes, and consent or opt-out gates the change skips |
+| security | plan | `personal-data-exposure` | offered | the plan collects, logs or shares personal data |
+| data | review | `erasure-and-retention` | `added:` deletes, soft deletes, retention and expiry settings, lifecycle and TTL rules, tombstones, new personal-named columns | copies the delete path misses, retention nothing enforces |
+| data | plan | `erasure-and-retention` | offered | the plan adds or deletes personal data |
 | security | review | `ci-workflow-security` | `files: .github/workflows/*.yml, .github/workflows/*.yaml, .github/workflows/actions.lock, **/action.yml, **/action.yaml` | fork-code triggers, event text in steps, token and secrets, caches, pinning, OIDC |
 
 | softarch | review | `protobuf-compat` | `files: *.proto, buf.yaml, buf.gen.yaml, buf.lock` | wire, ProtoJSON and generated-code compatibility |

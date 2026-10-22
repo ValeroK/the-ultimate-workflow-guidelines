@@ -1,5 +1,11 @@
 # Changes
 
+## 2026-10-22: erasure-and-retention
+
+- First data skill, `erasure-and-retention`, at plan and review, from fact-check block J: soft deletes, copies the delete path misses, recipients (GDPR Article 19, CCPA 1798.105), audit rows, topics, restores, store mechanics (S3 versions, PostgreSQL VACUUM, search segments, Kafka tombstones, DynamoDB global tables and PITR), retention that nothing enforces. Needs a deletion baseline; without one it asks in the plan.
+- Plan: erasure and retention.
+- Not measured.
+
 ## 2026-10-20: first version
 
 - Written to the expert templates from the sources in `../NOTICE.md`; no text copied.

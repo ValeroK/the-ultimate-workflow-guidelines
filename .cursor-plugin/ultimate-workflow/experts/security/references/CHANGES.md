@@ -2,6 +2,12 @@
 
 Upstream: `anthropics/claude-code-security-review`, `.claude/commands/security-review.md`, commit `0c6a49f1fa56a1d472575da86a94dbc1edb78eda` (MIT). The pristine copy is in the source repository under `vendor/anthropic-security-review/`, outside the shipped plugin.
 
+## 2026-10-22: personal-data-exposure
+
+- New skill `personal-data-exposure` at plan and review, from fact-check block J: what counts as personal (IPs, cookie ids, hashed identifiers, pseudonymised data), logs and error reports (whole objects, URLs, Sentry defaults, session replay, CloudWatch data protection), analytics and ad calls (GA's ban, CCPA sharing, consent gates, GPC), browser storage, invocation logs, fixtures from production.
+- Plan: the decisions only a person makes about personal data.
+- Not measured.
+
 ## Kept
 
 - Scope discipline: only issues the change introduces, only high-confidence ones.

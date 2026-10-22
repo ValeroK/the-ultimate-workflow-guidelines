@@ -12,6 +12,7 @@ Read the draft, then the migrations, models and queries it will touch. Answer on
 - **Access patterns** (DynamoDB). Each read the feature needs, the key or index that serves it, and why the partition key spreads writes.
 - **Consistency per read.** Which reads must see their own write, and which may lag.
 - **Concurrency.** Two writers on the same row: the isolation level, the lock or version check, and the retry on a serialization failure or deadlock.
+- **Erasure and retention.** For new personal data: where it is deleted (the job, registry or data map that will list it), every copy the delete path must reach (replicas, caches, indexes, archives, topics, backups), and the retention period, which is the user's to set. With no deletion path in the repository, this is a question for the user.
 - **Constraints the database enforces,** against those left to code, and why.
 - **Vector storage** (with the Generative AI engineer): the column type and dimension, the operator class, and how filtered queries return enough rows.
 

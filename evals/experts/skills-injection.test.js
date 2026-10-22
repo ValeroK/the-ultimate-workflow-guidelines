@@ -245,7 +245,7 @@ test('skills --stage plan: each planning expert offers the skills its plan.md li
     assert.equal(s.headline, ex.readSkill(PLUGIN, s.name).meta.description, 'the headline is the skill\'s own description');
     assert.ok(s.text.startsWith('# ') && !s.text.includes('\ndescription: '));
   }
-  assert.equal(k.skills.security, undefined, 'an expert with no skills offers none');
+  assert.deepEqual(k.skills.security.map((s) => s.name), ['personal-data-exposure']);
 });
 
 const PLAN_MD = '---\nplan_confirmed: false\n---\n# Plan\n\nAdd a retry around the payment call.\n';
@@ -720,4 +720,23 @@ test('developer review: on a React diff with a catch, web-performance is the ski
   const sel = review({ 'app/page.tsx': ['try { load() } catch (e) { throw e }', '<img src={hero} loading="lazy" />'] });
   assert.deepEqual(sel.dropped, ['web-performance']);
   assert.ok(names(sel).includes('react-craft') && names(sel).includes('failure-handling'));
+});
+
+// ---- privacy (2026-10-22) -----------------------------------------------------------
+
+const sec = (files) => names(ex.selectSkills(PLUGIN, 'security', 'review', ex.parseDiff(diffOf(files))));
+const dat = (files) => names(ex.selectSkills(PLUGIN, 'data', 'review', ex.parseDiff(diffOf(files))));
+
+test('security review: a personal value reaching a sink selects personal-data-exposure; plain logging does not', () => {
+  assert.ok(sec({ 'api/signup.ts': ['analytics.identify(user.email, { plan })'] }).includes('personal-data-exposure'));
+  assert.ok(sec({ 'api/log.py': ['logger.info("signup", req.body)'] }).includes('personal-data-exposure'));
+  assert.ok(sec({ 'web/sentry.ts': ['Sentry.init({ dsn, sendDefaultPii: true })'] }).includes('personal-data-exposure'));
+  assert.deepEqual(sec({ 'svc/jobs.py': ['logger.info("job finished in %s", elapsed)'] }), []);
+});
+
+test('data review: soft deletes, lifecycle rules and a new personal column select erasure-and-retention; a plain column does not', () => {
+  assert.ok(dat({ 'db/migrate/1.sql': ['ALTER TABLE users ADD COLUMN deleted_at timestamptz;'] }).includes('erasure-and-retention'));
+  assert.ok(dat({ 'infra/bucket.tf': ['    noncurrent_version_expiration {'] }).includes('erasure-and-retention'));
+  assert.ok(dat({ 'db/migrate/2.sql': ['ALTER TABLE users ADD COLUMN phone text;'] }).includes('erasure-and-retention'));
+  assert.deepEqual(dat({ 'db/migrate/3.sql': ['ALTER TABLE orders ADD COLUMN total_cents integer;'] }), []);
 });

@@ -38,6 +38,17 @@ The same verdicts as the first snippet reply (`snippet-replies-2026-10-21.md`) f
 - **Item 21 and 26 rest only on secondary pages** in this reply (the MySQL manual's own paragraph was not in the snippet).
 - **Ten added facts** (MySQL XA metadata locks across restarts, `DROP PRIMARY KEY` alone is `COPY` only, `BatchWriteItem` overwrites whole items, `GetItem` cannot read a GSI, GSI storage overhead 100 bytes per item, Aurora DSQL key size 1 KiB and row 2 MiB, DSQL index functions must be immutable, Prisma `shadowDatabaseUrl` equal to `url` can wipe data, Django `RunSQL` and `BEGIN`/`COMMIT`). All snippet only; leads.
 
+## Spot check of H against the sources' own repositories
+
+| # | Result | Where |
+|---|---|---|
+| 16 | Matches word for word | `open-telemetry/opentelemetry.io`, `content/en/docs/languages/sdk-configuration/general.md` |
+| 17 | Both sentences match | `open-telemetry/semantic-conventions`, `docs/http/http-spans.md` |
+| 20 | Matches; also answers the open half | `open-telemetry/opentelemetry-specification`, `specification/metrics/sdk.md`: past the limit, measurements go to one overflow series with the attribute `otel.metric.overflow=true`, and cumulative instruments keep exporting the series seen before |
+| 15 | Not checked | `aws-observability/aws-otel.github.io` was not reachable |
+
+Three of three checkable quotes match, so H's reader opened the pages. Its 14 rows are [R]; item 20 is now whole, and H2 need not ask it.
+
 ## What follows
 
 - H's 14 rows can be used once the OpenTelemetry quotes check out against their repositories; the 11 missing items go out again.

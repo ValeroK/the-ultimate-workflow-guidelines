@@ -4,7 +4,7 @@ Two replies to the prompts in `fact-check-prompts-open-2026-10-21/`, pasted back
 
 | Block | Reply | Returned | Usable as |
 |---|---|---|---|
-| H. Observability | Full pages: exact URLs, no snippet note | 14 of 25 | [R] once the quotes are spot-checked (OpenTelemetry quotes checked against their repositories) |
+| H. Observability | Full pages: exact URLs, no snippet note | 14 of 25, and the other 11 in H2 | [R] once the quotes are spot-checked (OpenTelemetry quotes checked against their repositories) |
 | F. Data | Snippet only: the chat said it had `google:search` and no page reader, and marked every claim | 25 items, 8 extras, 10 added | still snippet only; a second, independent snippet reading |
 
 ## H. Observability (14 of 25)
@@ -27,6 +27,29 @@ Two replies to the prompts in `fact-check-prompts-open-2026-10-21/`, pasted back
 | 24 | Confirmed in part | Lambda `LoggingConfig` sets the log format (text or JSON). The application log level is not in the quote. | `API_LoggingConfig` |
 
 **Not returned (11):** 2 (`missing` evaluation example), 3 (evaluation range and hourly evaluation), 5 (actions on state change only), 6 (metric math alarms and EC2 actions), 7 (composite alarm limits), 11 (log group retention never expires), 13 (default sampling rule), 18 (ADOT Collector W3C trace ids version), 22 (Prometheus histograms and labels), 23 (log alarms, mute rules, warm-up), 25 (`X-Amzn-Trace-Id` sampling decision). Re-sent as a short follow-up prompt.
+
+## H2. Observability, the items H missed (14 returned)
+
+Full pages (docs.aws.amazon.com, prometheus.io, aws.amazon.com what's new), one item secondary only. The reply also completed items 1, 10 and 24, which H had confirmed only in part.
+
+| # | Verdict | Fact as returned | Page |
+|---|---|---|---|
+| 1 | Confirmed (now whole) | With no `TreatMissingData`, an alarm treats missing data as `missing`, except alarms on `AWS/DynamoDB` metrics, which default to `ignore`. | Alarms and missing data |
+| 2 | Confirmed | Under `missing`, the alarm goes to ALARM when the oldest breaching point in the evaluation range is at least as old as `DatapointsToAlarm` and the newer points are breaching or missing. | Alarms and missing data |
+| 3 | Confirmed | The evaluation range is wider than `EvaluationPeriods`; an alarm whose periods times length exceed one day is evaluated once per hour; the total is capped at 7 days for periods of an hour or more and 1 day for shorter ones (3 hours for `DB_PERF_INSIGHTS`). | Alarm evaluation; AlarmThatSendsEmail |
+| 5 | Confirmed | Actions run only on a state change, except Auto Scaling actions, which repeat every minute while the state holds. | AlarmThatSendsEmail |
+| 6 | Confirmed | Alarms on metric math expressions cannot perform EC2 actions. | Alarm data queries |
+| 7 | Confirmed | Composite alarms cannot perform EC2 or Auto Scaling actions, and their child alarms must be in the same account and Region. | Combining alarms |
+| 10 | Confirmed (now whole) | EMF's `_aws` object must contain `CloudWatchMetrics` and a numeric `Timestamp`. | EMF specification |
+| 11 | Confirmed | A new log group keeps events indefinitely until a retention policy is set. | Working with log groups |
+| 13 | Confirmed, with a caveat | The SDK's default records the first request each second and 5 percent of the rest. The same page's example "Default rule" shows reservoir 0 and rate 5 percent; the reply marked this "different", but the example shows that the rule's values can be edited, not a different default. | X-Ray console sampling |
+| 18 | Secondary only | From ADOT Collector 0.34.0, X-Ray accepts W3C-format trace ids without the X-Ray id generator. The release notes were not reachable. | two engineering blogs |
+| 22 | Confirmed | Prometheus: no labels for high-cardinality or unbounded values (user ids, emails); histograms or summaries for latency. The histograms page warns against summaries when aggregating across instances and favours native histograms. | prometheus.io naming; histograms |
+| 23 | Confirmed | Log alarms (`PutLogAlarm`, 2026-07-01), alarm mute rules (`PutAlarmMuteRule`, 2026-02-10), warm-up periods (`WarmUpConfiguration` on `PutMetricAlarm` and `PutLogAlarm`). The reply dates the warm-up launch 2026-09-01, but its what's-new link is in the 2026/08 folder; treat the month as unsettled. | CloudWatch user guide and API reference; what's new |
+| 24 | Confirmed (now whole) | Lambda `LoggingConfig`: `ApplicationLogLevel` and `SystemLogLevel` filter logs, with `LogFormat` JSON. | `API_LoggingConfig` |
+| 25 | Confirmed | A client's `X-Amzn-Trace-Id` header can carry a trace id and a sampling decision; the page suggests removing it from incoming requests. | X-Ray concepts |
+
+**Block H is now complete:** 25 items, 24 confirmed from the vendor pages (1 with a caveat), 1 secondary only (18). The two proposed observability skills (`alarms-and-slos` with the architect, `telemetry-in-code` with the developer) can be written.
 
 ## F. Data (snippet only, second reading)
 

@@ -397,7 +397,7 @@ Claude Code takes bare tool names in `tools:`; it cannot restrict `WebFetch` to 
 - **Where each finding came from.** At review every expert finding carries `basis`: `skill:<name>` with `basisQuote` (the skill row's words, copied), `reference:<category>`, or `general` for the model's own knowledge. `record` checks a skill basis: the skill exists, it was loaded for that expert in that run, and the quote is in its text (case, markdown and source tags ignored). A failed check is kept on the finding as `basisCheck` and listed in `basisProblems`; it does not block the commit.
 - **The report.** `node experts/experts.js attribution` gives, per expert: the skills loaded at each stage, the findings by basis, the findings each skill led to, the skills loaded and never cited, and every basis that failed its check.
 
-A basis is the model's own account, so it shows where a finding claims to come from, not that the model would have missed it without the skill. That needs an ablation: the same change reviewed by the plain reviewer (A0), the expert without skills (A2) and with them (A3), through `evals/experts/eval/run-eval.js`.
+A basis is the model's own account, so it shows where a finding claims to come from, not that the model would have missed it without the skill. That needs an ablation: the same change reviewed by the plain reviewer (A0), the expert without skills (A2) and with them (A3), through `evals/experts/eval/manual/run-eval.js`.
 
 This is the part that is easy to get wrong. What we learned:
 

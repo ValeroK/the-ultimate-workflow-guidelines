@@ -9,6 +9,10 @@ Prepared 2026-10-22 on branch `ccr-65eb9df4-gqc0c9` (PR #17).
 - `CHANGELOG.md`: the section above 3.1.0 says why this is a major version (Gate G6 with the gates on), lists the nine experts, the fifty skills, what was measured and what it shows (no gain on real defects yet), and the known gaps.
 - `README.md` and `docs/index.html`: nine experts, fifty skills, the honest measurement summary, `/ultimate-workflow:expert-attribution`.
 
+## Decided 2026-10-22
+
+Release without waiting for prompt L, block F or a real-session gate test (maintainer). They follow in a later release; the changelog's Known gaps says so.
+
 ## Left, in order
 
 1. **Apply prompt L and block F** when their replies come back: record them in `docs/research/fact-check-replies-2026-10-22.md` (or a new dated file), retag or correct the rows they cover, and write the data expert's other skills if F is read from full pages. Add one changelog line for each.

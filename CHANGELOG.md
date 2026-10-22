@@ -4,9 +4,9 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [4.0.0] - 2026-10-22
 
-The planned version is 4.0.0. **Breaking, with the gates on:** a `git commit` is refused until the domain experts have reviewed the current changes (Gate G6, below), and a source edit until the plan records which experts apply. With the gates off, nothing that worked in 3.1 changes.
+**Breaking, with the gates on:** a `git commit` is refused until the domain experts have reviewed the current changes (Gate G6, below), and a source edit until the plan records which experts apply. With the gates off, nothing that worked in 3.1 changes.
 
 ### Added
 
@@ -49,6 +49,7 @@ Against a plain reviewer, same model, blind judge (`evals/experts/results/README
 ### Known gaps
 
 - Selection by a model has been measured once, on one expert. The gate has not been exercised in a real Claude Code session: hook firing on `Bash`, and whether the model follows the command text, are untested there. Overlap between experts and the core reviewers, and between the architect and softarch experts and the explorer and critic agents, is undecided. Skills at build, tests and plan, and expert input at plan and tests, are unmeasured. There is no total cap on what all build briefs and their skills add to a build (about 28 KB today).
+- Gate G6 has been tested by its unit and contract tests only; its first real Claude Code session is still to come.
 - Facts still being checked: block F (the data expert's other skills wait on it) and prompt L (rows in shipped skills that rest on a community source or our own reasoning). Rows not yet checked are tagged [T] or [O] in each skill and are prompts to check, not findings on their own.
 
 ## [3.1.0] - 2026-10-06

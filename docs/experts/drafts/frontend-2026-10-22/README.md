@@ -33,7 +33,12 @@ Source: `emilkowalski/skills` at commit 2d22863 (2026-10-11), MIT, read as data.
 | Missing reduced motion blocks a change | G 12: 2.3.3 is AAA | severity lowered |
 | 44 by 44 pt targets | G 3: web AA is 24 by 24 CSS px | native guidance only |
 
-## Two decisions for the maintainer
+## Decisions (maintainer, 2026-10-22)
+
+1. **Cap raised for frontend** to 56 KB per stage, so all six review skills fit together.
+2. **No build stage.** The frontend expert brings `motion-craft` and `interface-design` at plan, where its advice shapes the work; they are not loaded at build.
+
+## The two questions as they were put
 
 1. **The review stage is over the 40 KB cap.** With the four planned skills, all six review skills selected at once come to about 48.5 KB; with the proposed trims, about 40.7 KB. Below the cap, the lowest-priority skills (`rtl-and-direction`, `motion`) are dropped on the rare diff that matches all six.
 2. **The frontend expert has no build stage.** Taste guidance (`motion-craft`, `interface-design`) needs either a build stage with a short brief, or plan only.

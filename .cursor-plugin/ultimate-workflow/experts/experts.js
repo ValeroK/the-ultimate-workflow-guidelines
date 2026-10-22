@@ -146,7 +146,7 @@ function briefs(pluginRoot = PLUGIN_ROOT, { planText = null } = {}) {
         skipped.push(e.name);
         continue;
       }
-      if (sel.dropped.length > 0) problems.push(`${e.name}: skills left out at the ${SKILLS_BYTES}-byte cap: ${sel.dropped.join(', ')}`);
+      if (sel.dropped.length > 0) problems.push(`${e.name}: skills left out at the ${skillsCap(e.name)}-byte cap: ${sel.dropped.join(', ')}`);
       out.push({ name: e.name, text, skills: sel.skills, dropped: sel.dropped });
     }
   }
@@ -176,6 +176,11 @@ const SKILL_STAGES = ['review', 'build', 'tests'];
 // catch and a manifest already filled 32 KB of the developer's skills before the API-compatibility
 // sections were added. What does not fit is still named in `dropped`.
 const SKILLS_BYTES = 40 * 1024;
+// Experts whose stage can legitimately need more, by decision. Frontend, 2026-10-22: its six review
+// skills (semantics, visual accessibility, real data, devices, direction, motion) come to about
+// 48.5 KB when one change matches them all.
+const SKILLS_BYTES_BY_EXPERT = { frontend: 56 * 1024 };
+const skillsCap = (expert) => SKILLS_BYTES_BY_EXPERT[expert] || SKILLS_BYTES;
 const SKILLS_FILE_LINE = /^\s*-\s*([a-z][a-z0-9-]*)(?:\s+\((.*)\))?\s*$/;
 
 function globToRegExp(glob) {
@@ -315,7 +320,7 @@ function matches(selector, { files, text }) {
  * selector matches, in list order, up to the cap. What did not fit is returned in `dropped`, by
  * name, so the result says it rather than the prompt silently shrinking.
  */
-function selectSkills(pluginRoot, expert, stage, change, cap = SKILLS_BYTES) {
+function selectSkills(pluginRoot, expert, stage, change, cap = skillsCap(expert)) {
   const out = { skills: [], dropped: [], problems: [] };
   const listed = skillsAt(pluginRoot, expert, stage);
   out.problems.push(...listed.problems);
@@ -376,7 +381,7 @@ function testsSkills(pluginRoot, planText) {
   for (const e of list(pluginRoot).experts.filter((x) => x.stages.includes('tests'))) {
     const sel = selectSkills(pluginRoot, e.name, 'tests', change);
     problems.push(...sel.problems);
-    if (sel.dropped.length > 0) problems.push(`${e.name}: skills left out at the ${SKILLS_BYTES}-byte cap: ${sel.dropped.join(', ')}`);
+    if (sel.dropped.length > 0) problems.push(`${e.name}: skills left out at the ${skillsCap(e.name)}-byte cap: ${sel.dropped.join(', ')}`);
     if (sel.skills.length > 0 || sel.dropped.length > 0) out[e.name] = { skills: sel.skills, dropped: sel.dropped };
   }
   return { skills: out, problems };
@@ -590,7 +595,7 @@ function prepare(cwd, range = 'working', pluginRoot = PLUGIN_ROOT) {
   for (const e of available.filter((x) => x.stages.includes('review'))) {
     const sel = selectSkills(pluginRoot, e.name, 'review', change);
     skillProblems.push(...sel.problems);
-    if (sel.dropped.length > 0) skillProblems.push(`${e.name}: skills left out at the ${SKILLS_BYTES}-byte cap: ${sel.dropped.join(', ')}`);
+    if (sel.dropped.length > 0) skillProblems.push(`${e.name}: skills left out at the ${skillsCap(e.name)}-byte cap: ${sel.dropped.join(', ')}`);
     if (sel.skills.length > 0 || sel.dropped.length > 0) skills[e.name] = { skills: sel.skills, dropped: sel.dropped };
   }
   // The shared rules ride with the skills, because the workflow cannot read files (see protocolText).
@@ -779,6 +784,7 @@ module.exports = {
   briefs,
   SKILL_STAGES,
   SKILLS_BYTES,
+  skillsCap,
   parseSelector,
   matches,
   parseSkillsFile,

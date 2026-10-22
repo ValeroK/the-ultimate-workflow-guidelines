@@ -611,3 +611,9 @@ test('architect review: Temporal workflow code selects step-functions', () => {
   assert.ok(ar({ 'src/workflows.ts': ["import { proxyActivities } from '@temporalio/workflow';"] }).includes('step-functions'));
   assert.ok(ar({ 'worker/main.go': ['\t"go.temporal.io/sdk/workflow"'] }).includes('step-functions'));
 });
+
+test('the skills cap is 40 KB by default and raised for frontend only', () => {
+  assert.equal(ex.skillsCap('developer'), ex.SKILLS_BYTES);
+  assert.equal(ex.skillsCap('architect'), 40 * 1024);
+  assert.equal(ex.skillsCap('frontend'), 56 * 1024);
+});

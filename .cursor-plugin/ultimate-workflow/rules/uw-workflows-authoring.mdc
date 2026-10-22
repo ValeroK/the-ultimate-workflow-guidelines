@@ -1,6 +1,6 @@
 ---
-description: Read before writing or editing a phase script under workflows/, or an agent definition under agents/. Also when adding a phase, choosing between parallel and pipeline, or when a fan-out returns nothing and you need to know whether that means failure or an empty result.
-globs: workflows/**,agents/**
+description: Read before writing or editing a phase script under workflows/, an agent definition under agents/, or the expert code and skills under experts/ (experts.js, a stage reference, a skill selector). Also when adding a phase, choosing between parallel and pipeline, or when a fan-out returns nothing and you need to know whether that means failure or an empty result.
+globs: workflows/**,agents/**,experts/**
 alwaysApply: false
 ---
 

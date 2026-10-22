@@ -1,0 +1,18 @@
+{
+  "applies": [
+    "Adds an agent loop that calls the model and runs every tool call it returns",
+    "Adds a refund tool the support agent can call",
+    "Parses the model's JSON answer and writes it to the orders table",
+    "Switches the document embeddings to a new embedding model",
+    "Adds retrieval over the help centre and answers questions from the top results",
+    "Moves model calls to Amazon Bedrock with a guardrail and a cross-region inference profile"
+  ],
+  "does_not_apply": [
+    "Fixes a typo in the README",
+    "Adds a judge prompt to the eval suite that compares two answers (owner: quality)",
+    "Puts the agent's API key into the tool's environment so it can call the CRM (owner: security)",
+    "Adds a deploy job that ships the agent container image to production (owner: devops)",
+    "Wraps the model calls in an SQS queue with a dead-letter queue (owner: architect)",
+    "Renames a CSS class in a button component"
+  ]
+}

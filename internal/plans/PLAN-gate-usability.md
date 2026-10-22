@@ -12,8 +12,10 @@ gate_violation:
 
 # PLAN: gate-usability
 
+> Historical: shipped (see CHANGELOG). Kept because code comments cite it.
+
 > Dogfood cycle, running **under the gates**, to answer open question O3 in
-> [PRD-graph-orchestration.md](PRD-graph-orchestration.md).
+> [PRD-graph-orchestration.md](../../PRD-graph-orchestration.md).
 >
 > **Revised twice.** See *Blockers hit* and *Decisions*.
 

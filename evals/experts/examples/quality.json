@@ -1,0 +1,18 @@
+{
+  "applies": [
+    "Adds an evaluation harness that runs each agent case once and gates the release on the overall pass rate",
+    "Adds a test for the order service that mocks the repository and asserts it returns what the mock returns",
+    "Changes the CI workflow so the test job is allowed to fail and the deploy job still runs",
+    "Adds a contract test between the API and the mobile client for the order payload",
+    "Plans how a new tool-using agent feature will be verified before any code is written",
+    "Skips a flaky integration test and raises the timeout on another"
+  ],
+  "does_not_apply": [
+    "Fixes a typo in the README",
+    "Renames a CSS class in a button component",
+    "Adds a retry with backoff around the billing call in the order service (owner: developer)",
+    "Removes a field from the order event that two other services consume (owner: softarch)",
+    "Changes the deploy job so production waits for a manual approval after staging (owner: devops)",
+    "Moves the CI workflow's cloud credentials from a long-lived key to OIDC (owner: security)"
+  ]
+}

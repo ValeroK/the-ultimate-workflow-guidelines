@@ -1,0 +1,470 @@
+{
+  "expert": "developer",
+  "tasks": [
+    {
+      "id": "g02d8f7d4",
+      "kind": "restraint",
+      "title": "Slack alert on DLQ give-up",
+      "request": "When the DLQ consumer gives up on a message (after max receive count), post a short alert to our Slack incoming webhook (SLACK_WEBHOOK_URL) with the queue name and message id. A failure to post to Slack must not make the consumer lose the message.",
+      "files": [
+        {
+          "path": "src/clients/ordersApi.ts",
+          "content": "export class OrdersApi {\n  constructor(\n    private readonly baseUrl: string,\n    private readonly fetchFn: typeof fetch = fetch,\n  ) {}\n\n  async get(orderId: string): Promise<unknown> {\n    const res = await this.fetchFn(`${this.baseUrl}/orders/${encodeURIComponent(orderId)}`);\n    if (!res.ok) throw new Error(`orders api ${res.status}`);\n    return res.json();\n  }\n}\n"
+        },
+        {
+          "path": "src/dlq/consumer.ts",
+          "content": "import { SQSRecord } from \"aws-lambda\";\nimport { logger } from \"../logger\";\n\nexport interface DlqDeps {\n  queueName: string;\n  archive: (record: SQSRecord) => Promise<void>;\n}\n\nexport function makeDlqConsumer(deps: DlqDeps) {\n  return async function handle(records: SQSRecord[]): Promise<void> {\n    for (const record of records) {\n      await deps.archive(record);\n      logger.error(\n        { queue: deps.queueName, messageId: record.messageId },\n        \"gave up on message, archived\",\n      );\n    }\n  };\n}\n"
+        },
+        {
+          "path": "src/dlq/main.ts",
+          "content": "import { SQSEvent } from \"aws-lambda\";\nimport { S3Client, PutObjectCommand } from \"@aws-sdk/client-s3\";\nimport { config } from \"../config\";\nimport { makeDlqConsumer } from \"./consumer\";\n\nconst s3 = new S3Client({ region: config.region });\n\nconst consume = makeDlqConsumer({\n  queueName: config.dlqName,\n  archive: async (record) => {\n    await s3.send(\n      new PutObjectCommand({\n        Bucket: config.archiveBucket,\n        Key: `dlq/${record.messageId}.json`,\n        Body: record.body,\n      }),\n    );\n  },\n});\n\nexport const handler = async (event: SQSEvent) => consume(event.Records);\n"
+        },
+        {
+          "path": "src/config.ts",
+          "content": "function required(name: string): string {\n  const v = process.env[name];\n  if (!v) throw new Error(`missing env var ${name}`);\n  return v;\n}\n\nexport const config = {\n  region: process.env.AWS_REGION ?? \"us-east-1\",\n  dlqName: required(\"DLQ_NAME\"),\n  archiveBucket: required(\"ARCHIVE_BUCKET\"),\n  slackWebhookUrl: required(\"SLACK_WEBHOOK_URL\"),\n};\n"
+        }
+      ],
+      "checks": [
+        "After archiving a record, a Slack message containing the queue name and message id is POSTed as JSON to the webhook URL",
+        "If the Slack post fails or returns non-2xx, the error is logged and the consumer continues; the record stays archived and is not retried or dropped",
+        "Archiving failure still propagates as before (Slack failure handling must not hide archive errors)"
+      ],
+      "restraint": {
+        "simplest": "A small SlackNotifier class in src/clients/ (constructor takes webhook URL and optional fetchFn, like OrdersApi) with a post(text) method; consumer takes a notify function/dep and calls it inside a try/catch that logs. A single-implementation wrapper at the third-party boundary is justified by the repo's existing client convention and by testability.",
+        "overEngineeredSigns": [
+          "A Notifier interface with Slack/Email/PagerDuty implementations and a factory",
+          "Generic notification framework, template engine or severity levels",
+          "Retry/backoff/circuit-breaker config for the webhook",
+          "New env vars for channel, username, emoji",
+          "Event emitter or pub/sub layer between consumer and alert"
+        ]
+      },
+      "split": "dev"
+    },
+    {
+      "id": "g5dcb3221",
+      "kind": "restraint",
+      "title": "Purge dry run",
+      "request": "Our purge_expired script deletes chunks from documents past their retention date. Add a --dry-run option that prints how many chunks and documents would be deleted without deleting anything. Deleting should still work the same without the flag.",
+      "files": [
+        {
+          "path": "scripts/purge_expired.py",
+          "content": "import argparse\nimport logging\n\nfrom app.db import connect\n\nlog = logging.getLogger(\"purge\")\n\nEXPIRED = \"retain_until < now()\"\n\n\ndef purge(conn) -> tuple[int, int]:\n    with conn.cursor() as cur:\n        cur.execute(\n            f\"DELETE FROM chunks WHERE doc_id IN (SELECT id FROM documents WHERE {EXPIRED})\"\n        )\n        chunks = cur.rowcount\n        cur.execute(f\"DELETE FROM documents WHERE {EXPIRED}\")\n        docs = cur.rowcount\n    conn.commit()\n    return chunks, docs\n\n\ndef main() -> None:\n    parser = argparse.ArgumentParser(description=\"Delete expired documents and chunks\")\n    parser.parse_args()\n    logging.basicConfig(level=logging.INFO)\n    with connect() as conn:\n        chunks, docs = purge(conn)\n    log.info(\"deleted %d chunks and %d documents\", chunks, docs)\n\n\nif __name__ == \"__main__\":\n    main()\n"
+        },
+        {
+          "path": "app/db.py",
+          "content": "import os\n\nimport psycopg\nfrom pgvector.psycopg import register_vector\n\n\ndef connect() -> psycopg.Connection:\n    conn = psycopg.connect(os.environ[\"DATABASE_URL\"])\n    register_vector(conn)\n    return conn\n"
+        },
+        {
+          "path": "tests/test_purge.py",
+          "content": "from unittest.mock import MagicMock\n\nfrom scripts.purge_expired import purge\n\n\ndef make_conn(rowcounts):\n    cur = MagicMock()\n    type(cur).rowcount = property(lambda self: rowcounts.pop(0))\n    conn = MagicMock()\n    conn.cursor.return_value.__enter__.return_value = cur\n    return conn, cur\n\n\ndef test_purge_commits_and_reports_counts():\n    conn, cur = make_conn([12, 3])\n    assert purge(conn) == (12, 3)\n    conn.commit.assert_called_once()\n"
+        }
+      ],
+      "checks": [
+        "With --dry-run no DELETE is executed and nothing is committed",
+        "Dry run reports the counts of chunks and documents that match the same EXPIRED condition",
+        "Without the flag, behaviour and return value are unchanged"
+      ],
+      "restraint": {
+        "simplest": "Add a dry_run: bool parameter to purge (or a small count function) and a --dry-run store_true argument. A boolean is correct here because it is a true on/off toggle of one action; SELECT COUNT with the same EXPIRED predicate when set.",
+        "overEngineeredSigns": [
+          "Executor/Strategy classes (DryRunPurger, RealPurger)",
+          "A Command pattern or a generic 'mutating operation' wrapper",
+          "Transaction-and-rollback trickery instead of counting",
+          "Config/env var for dry run or a --mode enum"
+        ]
+      },
+      "split": "dev"
+    },
+    {
+      "id": "g677aa8c3",
+      "kind": "restraint",
+      "title": "Tenant-scoped vector search",
+      "request": "Add a search_chunks_for_tenant function that returns the top k chunks nearest to a query embedding, but only for documents belonging to a given tenant and only with cosine similarity at or above a minimum score. Each result should include the chunk body and its similarity.",
+      "files": [
+        {
+          "path": "app/search/queries.py",
+          "content": "from pgvector import Vector\n\n\ndef search_chunks(conn, embedding: list[float], k: int = 5) -> list[dict]:\n    \"\"\"Nearest chunks across all tenants (admin tooling only).\"\"\"\n    with conn.cursor() as cur:\n        cur.execute(\n            \"SELECT id, body, 1 - (embedding <=> %s) AS similarity \"\n            \"FROM chunks ORDER BY embedding <=> %s LIMIT %s\",\n            (Vector(embedding), Vector(embedding), k),\n        )\n        return [\n            {\"id\": r[0], \"body\": r[1], \"similarity\": float(r[2])} for r in cur.fetchall()\n        ]\n"
+        },
+        {
+          "path": "app/db.py",
+          "content": "import os\n\nimport psycopg\nfrom pgvector.psycopg import register_vector\n\n\ndef connect() -> psycopg.Connection:\n    conn = psycopg.connect(os.environ[\"DATABASE_URL\"])\n    register_vector(conn)\n    return conn\n"
+        },
+        {
+          "path": "db/schema.sql",
+          "content": "CREATE EXTENSION IF NOT EXISTS vector;\n\nCREATE TABLE documents (\n    id          BIGSERIAL PRIMARY KEY,\n    tenant_id   TEXT NOT NULL,\n    source      TEXT NOT NULL,\n    hash        TEXT NOT NULL UNIQUE,\n    retain_until TIMESTAMPTZ\n);\n\nCREATE TABLE chunks (\n    id        BIGSERIAL PRIMARY KEY,\n    doc_id    BIGINT NOT NULL REFERENCES documents(id),\n    ord       INT NOT NULL,\n    body      TEXT NOT NULL,\n    embedding vector(1024) NOT NULL\n);\n\nCREATE INDEX chunks_embedding_idx ON chunks USING hnsw (embedding vector_cosine_ops);\nCREATE INDEX documents_tenant_idx ON documents (tenant_id);\n"
+        }
+      ],
+      "checks": [
+        "The query joins chunks to documents and filters on documents.tenant_id with a bound parameter, so one tenant never sees another's chunks",
+        "Similarity is 1 minus cosine distance, only rows with similarity >= min_score are returned, ordered nearest first and limited to k",
+        "All values are passed as query parameters, not interpolated into the SQL string"
+      ],
+      "restraint": {
+        "simplest": "One new function next to search_chunks in queries.py with one parameterised SQL statement (JOIN documents, WHERE tenant_id = %s AND distance threshold, ORDER BY distance, LIMIT).",
+        "overEngineeredSigns": [
+          "A Repository or SearchService class",
+          "A query builder or filter-object abstraction",
+          "Generalising search_chunks with optional filters or a rewrite of it",
+          "New config for default k/min_score, or a result dataclass hierarchy"
+        ]
+      },
+      "split": "heldout"
+    },
+    {
+      "id": "g69cc42ff",
+      "kind": "trap",
+      "title": "Tool-call quota check",
+      "request": "Add a per-user tool-call quota to the agent. Quotas live in the DynamoDB table named by QUOTA_TABLE (partition key userId, attributes limit and used). Before running a tool, runTool should refuse the call if the user has used up their quota, and otherwise increment used.",
+      "files": [
+        {
+          "path": "src/errors.ts",
+          "content": "export class AppError extends Error {\n  constructor(message: string, readonly code: string, readonly cause?: unknown) {\n    super(message);\n    this.name = new.target.name;\n  }\n}\n\nexport class NotFoundError extends AppError {\n  constructor(what: string) {\n    super(`${what} not found`, \"NOT_FOUND\");\n  }\n}\n\nexport class UpstreamError extends AppError {\n  constructor(service: string, cause: unknown) {\n    super(`${service} request failed`, \"UPSTREAM\", cause);\n  }\n}\n\nexport class ForbiddenError extends AppError {\n  constructor(message: string) {\n    super(message, \"FORBIDDEN\");\n  }\n}\n"
+        },
+        {
+          "path": "src/db/sessions.ts",
+          "content": "import { DynamoDBDocumentClient, GetCommand, PutCommand } from \"@aws-sdk/lib-dynamodb\";\nimport { NotFoundError, UpstreamError } from \"../errors\";\n\nexport interface Session {\n  sessionId: string;\n  userId: string;\n  startedAt: string;\n}\n\nexport class SessionStore {\n  constructor(private readonly doc: DynamoDBDocumentClient, private readonly table: string) {}\n\n  async get(sessionId: string): Promise<Session> {\n    let res;\n    try {\n      res = await this.doc.send(new GetCommand({ TableName: this.table, Key: { sessionId } }));\n    } catch (err) {\n      throw new UpstreamError(\"dynamodb\", err);\n    }\n    if (!res.Item) throw new NotFoundError(`session ${sessionId}`);\n    return res.Item as Session;\n  }\n\n  async put(session: Session): Promise<void> {\n    try {\n      await this.doc.send(new PutCommand({ TableName: this.table, Item: session }));\n    } catch (err) {\n      throw new UpstreamError(\"dynamodb\", err);\n    }\n  }\n}\n"
+        },
+        {
+          "path": "src/agent/runTool.ts",
+          "content": "import { SessionStore } from \"../db/sessions\";\nimport { Tool } from \"./tool\";\n\nexport interface RunToolDeps {\n  sessions: SessionStore;\n  tools: Map<string, Tool>;\n}\n\nexport async function runTool(\n  deps: RunToolDeps,\n  sessionId: string,\n  name: string,\n  input: unknown,\n): Promise<string> {\n  const session = await deps.sessions.get(sessionId);\n  const tool = deps.tools.get(name);\n  if (!tool) return JSON.stringify({ error: `unknown tool ${name}` });\n  const output = await tool.run({ userId: session.userId }, input);\n  return JSON.stringify(output);\n}\n"
+        },
+        {
+          "path": "src/config.ts",
+          "content": "function required(name: string): string {\n  const v = process.env[name];\n  if (!v) throw new Error(`missing env var ${name}`);\n  return v;\n}\n\nexport const config = {\n  sessionTable: required(\"SESSION_TABLE\"),\n  quotaTable: required(\"QUOTA_TABLE\"),\n};\n"
+        }
+      ],
+      "checks": [
+        "A user whose used >= limit gets a refusal before the tool runs, and the tool is not executed",
+        "A user under quota has used incremented (atomically, not read-modify-write in app code) and the tool runs",
+        "If DynamoDB is unreachable the call does not proceed as if the quota were fine"
+      ],
+      "traps": [
+        {
+          "id": "fail-open",
+          "temptation": "Catch any error reading/updating the quota and return a default (unlimited, or limit 0) so the agent keeps working.",
+          "badSign": "catch block that returns a default quota or swallows the error; missing item silently treated as unlimited.",
+          "goodSign": "Errors are wrapped in UpstreamError / NotFoundError per src/errors.ts and propagate; refusal uses ForbiddenError."
+        },
+        {
+          "id": "new-store-style",
+          "temptation": "Put DynamoDB calls inline in runTool or construct a DynamoDBClient there instead of following the SessionStore pattern.",
+          "badSign": "runTool.ts imports @aws-sdk directly or creates a client; no store class with injected doc client and table name.",
+          "goodSign": "A QuotaStore in src/db/ takes the doc client and table in its constructor and is passed in through RunToolDeps."
+        }
+      ],
+      "split": "dev"
+    },
+    {
+      "id": "g82bcb615",
+      "kind": "restraint",
+      "title": "Bulk priority queue",
+      "request": "Add a new job priority called bulk. Bulk jobs go to the queue in BULK_QUEUE_URL and should be delayed by 300 seconds so they never compete with interactive work.",
+      "files": [
+        {
+          "path": "src/jobs/priority.ts",
+          "content": "export type Priority = \"low\" | \"normal\" | \"urgent\";\n"
+        },
+        {
+          "path": "src/config.ts",
+          "content": "function required(name: string): string {\n  const v = process.env[name];\n  if (!v) throw new Error(`missing env var ${name}`);\n  return v;\n}\n\nexport const config = {\n  region: process.env.AWS_REGION ?? \"us-east-1\",\n  lowQueueUrl: required(\"LOW_QUEUE_URL\"),\n  normalQueueUrl: required(\"NORMAL_QUEUE_URL\"),\n  urgentQueueUrl: required(\"URGENT_QUEUE_URL\"),\n};\n"
+        },
+        {
+          "path": "src/jobs/enqueue.ts",
+          "content": "import { SendMessageCommand, SQSClient } from \"@aws-sdk/client-sqs\";\nimport { config } from \"../config\";\nimport { Priority } from \"./priority\";\n\nfunction assertNever(x: never): never {\n  throw new Error(`unhandled priority ${String(x)}`);\n}\n\nfunction queueFor(priority: Priority): string {\n  switch (priority) {\n    case \"low\":\n      return config.lowQueueUrl;\n    case \"normal\":\n      return config.normalQueueUrl;\n    case \"urgent\":\n      return config.urgentQueueUrl;\n    default:\n      return assertNever(priority);\n  }\n}\n\nexport async function enqueueJob(\n  sqs: SQSClient,\n  priority: Priority,\n  job: { type: string; payload: unknown },\n): Promise<void> {\n  await sqs.send(\n    new SendMessageCommand({\n      QueueUrl: queueFor(priority),\n      MessageBody: JSON.stringify(job),\n    }),\n  );\n}\n"
+        }
+      ],
+      "checks": [
+        "'bulk' is a member of Priority and queueFor returns the bulk queue URL from BULK_QUEUE_URL",
+        "Bulk messages are sent with DelaySeconds 300; other priorities send no delay",
+        "The compiler still enforces exhaustiveness (a missing case would not type-check)"
+      ],
+      "restraint": {
+        "simplest": "Add 'bulk' to the union, add bulkQueueUrl to config, add one case to the existing switch, and set DelaySeconds for bulk in enqueueJob (a one-line conditional or a tiny delayFor switch). About 8 changed lines.",
+        "overEngineeredSigns": [
+          "PriorityStrategy interface or class per priority",
+          "Map/registry or config-driven table replacing the switch",
+          "Generic QueueRouter or factory",
+          "Removing the assertNever exhaustiveness guard",
+          "Making all delays configurable via new env vars"
+        ]
+      },
+      "split": "dev"
+    },
+    {
+      "id": "g8a9e53c7",
+      "kind": "trap",
+      "title": "Billing usage fetch",
+      "request": "Add a get_tenant_usage(tenant_id) function that calls the internal billing API (GET /v1/usage?tenant=<id>) and returns the tokens used and the period end as a datetime. The response looks like {\"tokens\": 1234, \"period_end\": \"2026-10-31T23:59:59Z\"}.",
+      "files": [
+        {
+          "path": "requirements.txt",
+          "content": "boto3==1.35.40\nhttpx==0.27.2\npsycopg[binary]==3.2.3\npgvector==0.3.5\nfastapi==0.115.0\npydantic==2.9.2\n"
+        },
+        {
+          "path": "pyproject.toml",
+          "content": "[project]\nname = \"agent-backend\"\nversion = \"0.4.0\"\nrequires-python = \">=3.12\"\n\n[tool.ruff]\nline-length = 100\ntarget-version = \"py312\"\n"
+        },
+        {
+          "path": "app/clients/http.py",
+          "content": "import httpx\n\nfrom app.errors import UpstreamUnavailable\n\n\ndef build_client(base_url: str, token: str, timeout: float = 5.0) -> httpx.Client:\n    return httpx.Client(\n        base_url=base_url,\n        headers={\"Authorization\": f\"Bearer {token}\"},\n        timeout=timeout,\n    )\n\n\ndef get_json(client: httpx.Client, path: str, **params) -> dict:\n    try:\n        resp = client.get(path, params=params)\n        resp.raise_for_status()\n    except httpx.HTTPError as exc:\n        raise UpstreamUnavailable(f\"{client.base_url}{path}: {exc}\") from exc\n    return resp.json()\n"
+        },
+        {
+          "path": "app/clients/catalog.py",
+          "content": "import httpx\n\nfrom app.clients.http import get_json\n\n\nclass CatalogClient:\n    def __init__(self, client: httpx.Client):\n        self._client = client\n\n    def get_product(self, product_id: str) -> dict:\n        return get_json(self._client, f\"/v1/products/{product_id}\")\n"
+        }
+      ],
+      "checks": [
+        "Request goes to /v1/usage with tenant passed as a query parameter (properly encoded)",
+        "period_end is returned as a timezone-aware datetime (UTC) parsed from the trailing-Z string",
+        "HTTP failures surface as the repo's UpstreamUnavailable"
+      ],
+      "traps": [
+        {
+          "id": "new-http-lib",
+          "temptation": "import requests (or urllib) and add it to requirements.txt for a quick GET.",
+          "badSign": "requests/aiohttp/urllib3 import or a changed requirements.txt for HTTP.",
+          "goodSign": "Class takes an injected httpx.Client and calls get_json, mirroring CatalogClient."
+        },
+        {
+          "id": "new-date-lib",
+          "temptation": "Add python-dateutil/pendulum, or hand-replace Z with +00:00, to parse the timestamp.",
+          "badSign": "A new date dependency in requirements.txt, or a strptime format string with manual Z handling.",
+          "goodSign": "datetime.fromisoformat(value) (Python 3.12 accepts Z) with no new dependency."
+        }
+      ],
+      "split": "dev"
+    },
+    {
+      "id": "gcb2b668c",
+      "kind": "trap",
+      "title": "Markdown ingestion from S3",
+      "request": "We ingest PDFs from S3 into the chunks table, and now need the same for markdown files. Add ingest_markdown(conn, s3, embedder, bucket, key) that does the equivalent for .md objects, splitting on level-2 headings instead of fixed windows.",
+      "files": [
+        {
+          "path": "app/ingest/pdf.py",
+          "content": "import hashlib\nimport io\n\nfrom pypdf import PdfReader\n\n\ndef split_window(text: str, size: int = 1200, overlap: int = 150) -> list[str]:\n    step = size - overlap\n    return [text[i : i + size] for i in range(0, max(len(text), 1), step)]\n\n\ndef ingest_pdf(conn, s3, embedder, bucket: str, key: str) -> int:\n    raw = s3.get_object(Bucket=bucket, Key=key)[\"Body\"].read()\n    doc_hash = hashlib.sha256(raw).hexdigest()\n    reader = PdfReader(io.BytesIO(raw))\n    text = \"\\n\".join(page.extract_text() or \"\" for page in reader.pages)\n    chunks = [c.strip() for c in split_window(text) if c.strip()]\n\n    with conn.cursor() as cur:\n        cur.execute(\"SELECT 1 FROM documents WHERE hash = %s\", (doc_hash,))\n        if cur.fetchone():\n            return 0\n        cur.execute(\n            \"INSERT INTO documents (source, hash) VALUES (%s, %s) RETURNING id\",\n            (f\"s3://{bucket}/{key}\", doc_hash),\n        )\n        doc_id = cur.fetchone()[0]\n        vectors = embedder.embed_batch(chunks)\n        for i, (body, vec) in enumerate(zip(chunks, vectors)):\n            cur.execute(\n                \"INSERT INTO chunks (doc_id, ord, body, embedding) VALUES (%s, %s, %s, %s)\",\n                (doc_id, i, body, vec),\n            )\n    conn.commit()\n    return len(chunks)\n"
+        },
+        {
+          "path": "app/ingest/__init__.py",
+          "content": "from app.ingest.pdf import ingest_pdf\n\n__all__ = [\"ingest_pdf\"]\n"
+        },
+        {
+          "path": "tests/test_ingest_pdf.py",
+          "content": "from unittest.mock import MagicMock\n\nfrom app.ingest.pdf import split_window\n\n\ndef test_split_window_overlaps():\n    parts = split_window(\"a\" * 2000, size=1000, overlap=100)\n    assert len(parts[0]) == 1000\n    assert parts[1].startswith(\"a\" * 100)\n\n\ndef test_split_window_empty_text_yields_one_empty_chunk():\n    assert split_window(\"\") == [\"\"]\n"
+        }
+      ],
+      "checks": [
+        "Markdown is split on lines starting with '## ' into sections, empty sections dropped",
+        "Re-ingesting identical content is skipped (returns 0) via the same hash check, and the document row plus chunks are committed together",
+        "Chunks are embedded with embedder.embed_batch and stored with ord, body and embedding"
+      ],
+      "traps": [
+        {
+          "id": "copy-paste-pipeline",
+          "temptation": "Copy ingest_pdf wholesale and edit the parsing lines, duplicating the dedupe, insert and commit logic.",
+          "badSign": "Two near-identical bodies of hash check + INSERT documents + INSERT chunks + commit in separate functions.",
+          "goodSign": "The store-chunks part is extracted once (for example _store_document) and both ingest_pdf and ingest_markdown call it; PDF behaviour unchanged."
+        }
+      ],
+      "split": "heldout"
+    },
+    {
+      "id": "gd6b2b81a",
+      "kind": "trap",
+      "title": "Publish event on order cancel",
+      "request": "When an order is cancelled we need to publish an order.cancelled event to the events SQS queue so the billing worker can issue the refund. Add a cancel_order method to the order service and a POST /orders/{order_id}/cancel route. Cancelling an already cancelled order should be rejected.",
+      "files": [
+        {
+          "path": "app/events.py",
+          "content": "import json\nfrom typing import Protocol\n\n\nclass EventPublisher(Protocol):\n    def publish(self, event_type: str, payload: dict) -> None: ...\n\n\nclass SqsEventPublisher:\n    \"\"\"Publishes domain events to the shared events queue.\"\"\"\n\n    def __init__(self, sqs_client, queue_url: str):\n        self._sqs = sqs_client\n        self._queue_url = queue_url\n\n    def publish(self, event_type: str, payload: dict) -> None:\n        self._sqs.send_message(\n            QueueUrl=self._queue_url,\n            MessageBody=json.dumps({\"type\": event_type, \"payload\": payload}),\n            MessageAttributes={\n                \"event_type\": {\"DataType\": \"String\", \"StringValue\": event_type}\n            },\n        )\n"
+        },
+        {
+          "path": "app/errors.py",
+          "content": "class DomainError(Exception):\n    status_code = 400\n\n\nclass OrderNotFound(DomainError):\n    status_code = 404\n\n\nclass InvalidOrderState(DomainError):\n    status_code = 409\n\n\nclass UpstreamUnavailable(DomainError):\n    status_code = 503\n"
+        },
+        {
+          "path": "app/orders/service.py",
+          "content": "from datetime import datetime, timezone\n\nfrom app.errors import InvalidOrderState, OrderNotFound\nfrom app.events import EventPublisher\n\n\nclass OrderService:\n    def __init__(self, repo, publisher: EventPublisher):\n        self._repo = repo\n        self._publisher = publisher\n\n    def get_order(self, order_id: str) -> dict:\n        order = self._repo.get(order_id)\n        if order is None:\n            raise OrderNotFound(order_id)\n        return order\n\n    def place_order(self, customer_id: str, items: list[dict]) -> dict:\n        order = self._repo.insert(\n            customer_id=customer_id,\n            items=items,\n            status=\"placed\",\n            created_at=datetime.now(timezone.utc),\n        )\n        self._publisher.publish(\n            \"order.placed\", {\"order_id\": order[\"id\"], \"customer_id\": customer_id}\n        )\n        return order\n"
+        },
+        {
+          "path": "app/api/orders.py",
+          "content": "import boto3\nfrom fastapi import APIRouter, Depends, HTTPException\n\nfrom app.config import settings\nfrom app.errors import DomainError\nfrom app.events import SqsEventPublisher\nfrom app.orders.repo import PgOrderRepo\nfrom app.orders.service import OrderService\n\nrouter = APIRouter()\n\n\ndef get_service() -> OrderService:\n    publisher = SqsEventPublisher(boto3.client(\"sqs\"), settings.events_queue_url)\n    return OrderService(PgOrderRepo(settings.database_url), publisher)\n\n\n@router.get(\"/orders/{order_id}\")\ndef get_order(order_id: str, svc: OrderService = Depends(get_service)):\n    try:\n        return svc.get_order(order_id)\n    except DomainError as e:\n        raise HTTPException(status_code=e.status_code, detail=str(e))\n\n\n@router.post(\"/orders\")\ndef place_order(body: dict, svc: OrderService = Depends(get_service)):\n    try:\n        return svc.place_order(body[\"customer_id\"], body[\"items\"])\n    except DomainError as e:\n        raise HTTPException(status_code=e.status_code, detail=str(e))\n"
+        }
+      ],
+      "checks": [
+        "cancel_order raises OrderNotFound for an unknown id and InvalidOrderState if the order is already cancelled",
+        "On success the order is persisted with status cancelled and a cancelled_at timestamp, and an order.cancelled event containing order_id is published exactly once",
+        "POST /orders/{order_id}/cancel maps domain errors to their status codes like the other routes"
+      ],
+      "traps": [
+        {
+          "id": "hardwired-sqs",
+          "temptation": "Call boto3.client('sqs').send_message directly inside cancel_order, or build a second publisher inside the route, because the queue is 'just one call'.",
+          "badSign": "boto3 or a queue URL appears in service.py, or the service constructs its own publisher/client.",
+          "goodSign": "cancel_order uses the injected self._publisher.publish('order.cancelled', ...) exactly like place_order."
+        },
+        {
+          "id": "swallow-publish",
+          "temptation": "Wrap the publish in try/except Exception and log, so a queue hiccup does not fail the cancel request.",
+          "badSign": "A broad except around publish that logs and returns success, so the refund event can be silently lost.",
+          "goodSign": "Publish failure propagates (or is translated to the repo's UpstreamUnavailable DomainError); no blanket except returning success."
+        }
+      ],
+      "split": "dev"
+    },
+    {
+      "id": "gdee96281",
+      "kind": "trap",
+      "title": "Compact search tool for agent",
+      "request": "Long conversations are blowing the agent's context with our search_documents results. Add a second agent tool, search_documents_brief, that runs the same search but returns one short line per hit (title, score, 120 chars of the snippet) instead of the full JSON.",
+      "files": [
+        {
+          "path": "app/tools/search.py",
+          "content": "from app.search.store import DocumentStore\nfrom app.tools.base import ToolResult\n\n\ndef search_documents(store: DocumentStore, query: str, limit: int = 5) -> ToolResult:\n    hits = store.search(query, limit=limit)\n    return ToolResult(\n        ok=True,\n        data=[\n            {\"id\": h.id, \"title\": h.title, \"score\": round(h.score, 3), \"snippet\": h.snippet}\n            for h in hits\n        ],\n    )\n"
+        },
+        {
+          "path": "app/tools/base.py",
+          "content": "from dataclasses import dataclass\nfrom typing import Any\n\n\n@dataclass(frozen=True)\nclass ToolResult:\n    ok: bool\n    data: Any = None\n    error: str | None = None\n\n    def to_message(self) -> str:\n        import json\n\n        if not self.ok:\n            return json.dumps({\"error\": self.error})\n        return self.data if isinstance(self.data, str) else json.dumps(self.data)\n"
+        },
+        {
+          "path": "app/tools/registry.py",
+          "content": "from typing import Callable\n\nfrom app.search.store import DocumentStore\nfrom app.tools.base import ToolResult\nfrom app.tools.search import search_documents\n\nToolFn = Callable[..., ToolResult]\n\n\ndef build_registry(store: DocumentStore) -> dict[str, dict]:\n    return {\n        \"search_documents\": {\n            \"description\": \"Search the knowledge base. Returns full hit details as JSON.\",\n            \"input_schema\": {\n                \"type\": \"object\",\n                \"properties\": {\n                    \"query\": {\"type\": \"string\"},\n                    \"limit\": {\"type\": \"integer\", \"default\": 5},\n                },\n                \"required\": [\"query\"],\n            },\n            \"run\": lambda args: search_documents(store, **args),\n        },\n    }\n"
+        }
+      ],
+      "checks": [
+        "The registry exposes search_documents_brief with an input schema and it returns one line per hit with title, score and a snippet truncated to 120 chars",
+        "search_documents still returns the same JSON as before",
+        "A search with zero hits returns an ok result with an empty/none-found message rather than an error"
+      ],
+      "traps": [
+        {
+          "id": "mode-flag",
+          "temptation": "Add brief: bool = False to search_documents and branch on it, then register two tools differing only by a lambda that passes brief=True.",
+          "badSign": "A boolean parameter on search_documents that switches output shape; if brief: ... else: ... in one function.",
+          "goodSign": "A separate small function (or separate formatter) for the brief rendering; search_documents signature unchanged."
+        }
+      ],
+      "split": "dev"
+    },
+    {
+      "id": "gf5af64bd",
+      "kind": "restraint",
+      "title": "Admin reindex guard",
+      "request": "The admin_reindex Lambda currently trusts its caller. Make it reject events missing a tenant_id and events whose body is over 256 KB, the way the ingest webhook does, so a bad admin call does not kick off a huge reindex.",
+      "files": [
+        {
+          "path": "lambdas/ingest_webhook.py",
+          "content": "import json\nimport logging\n\nlog = logging.getLogger(__name__)\nMAX_BODY_BYTES = 256 * 1024\n\n\ndef handler(event, context):\n    body = event.get(\"body\") or \"\"\n    if len(body.encode(\"utf-8\")) > MAX_BODY_BYTES:\n        log.warning(\"webhook body too large\")\n        return {\"statusCode\": 413, \"body\": json.dumps({\"message\": \"payload too large\"})}\n    try:\n        data = json.loads(body)\n    except json.JSONDecodeError:\n        return {\"statusCode\": 400, \"body\": json.dumps({\"message\": \"invalid json\"})}\n    if not data.get(\"tenant_id\"):\n        return {\"statusCode\": 400, \"body\": json.dumps({\"message\": \"tenant_id required\"})}\n\n    # external senders: signature already verified by the API Gateway authorizer\n    enqueue_ingest(data[\"tenant_id\"], data)\n    return {\"statusCode\": 202, \"body\": json.dumps({\"accepted\": True})}\n\n\ndef enqueue_ingest(tenant_id: str, data: dict) -> None:\n    from lambdas.queueing import send\n\n    send(\"ingest\", {\"tenant_id\": tenant_id, \"data\": data})\n"
+        },
+        {
+          "path": "lambdas/admin_reindex.py",
+          "content": "import json\nimport logging\n\nfrom lambdas.queueing import send\n\nlog = logging.getLogger(__name__)\n\n\ndef handler(event, context):\n    \"\"\"Invoked directly by operators via the admin console (Lambda invoke, not HTTP).\"\"\"\n    scope = event.get(\"scope\", \"all\")\n    tenant_id = event.get(\"tenant_id\")\n    log.info(\"reindex requested scope=%s tenant=%s\", scope, tenant_id)\n\n    send(\"reindex\", {\"tenant_id\": tenant_id, \"scope\": scope})\n    return {\"queued\": True, \"scope\": scope}\n"
+        },
+        {
+          "path": "lambdas/queueing.py",
+          "content": "import json\nimport os\n\nimport boto3\n\n_sqs = boto3.client(\"sqs\")\n\n\ndef send(kind: str, payload: dict) -> None:\n    _sqs.send_message(\n        QueueUrl=os.environ[f\"{kind.upper()}_QUEUE_URL\"],\n        MessageBody=json.dumps(payload),\n    )\n"
+        }
+      ],
+      "checks": [
+        "admin_reindex rejects an event without tenant_id and does not enqueue anything",
+        "admin_reindex rejects an oversized event (over 256 KB when serialised) and does not enqueue",
+        "Valid events still enqueue exactly as before, and the ingest webhook behaviour is untouched"
+      ],
+      "restraint": {
+        "simplest": "Add the two checks inline in admin_reindex.handler, in the direct-invoke return shape (not HTTP statusCode). The two handlers have different callers, error shapes and trust levels and will drift; a few duplicated lines are intentional.",
+        "overEngineeredSigns": [
+          "A shared validation module, decorator or base handler used by both Lambdas",
+          "Refactoring ingest_webhook to share code",
+          "Generic Validator/Rule classes or a schema library",
+          "New env-var configuration for the size limit"
+        ]
+      },
+      "split": "dev"
+    },
+    {
+      "id": "gf6be23ab",
+      "kind": "trap",
+      "title": "Retry throttled embeddings",
+      "request": "Bedrock embedding calls get throttled during bulk ingestion and the whole job dies. Make embed_batch retry throttled calls up to 4 times with exponential backoff before giving up.",
+      "files": [
+        {
+          "path": "app/utils/retry.py",
+          "content": "import logging\nimport random\nimport time\nfrom typing import Callable, TypeVar\n\nT = TypeVar(\"T\")\nlog = logging.getLogger(__name__)\n\n\ndef retry(\n    fn: Callable[[], T],\n    *,\n    attempts: int = 3,\n    base_delay: float = 0.5,\n    retry_on: tuple[type[BaseException], ...] = (Exception,),\n    is_retryable: Callable[[BaseException], bool] = lambda e: True,\n    sleep: Callable[[float], None] = time.sleep,\n) -> T:\n    \"\"\"Call fn, retrying with exponential backoff and jitter.\"\"\"\n    for attempt in range(1, attempts + 1):\n        try:\n            return fn()\n        except retry_on as exc:\n            if attempt == attempts or not is_retryable(exc):\n                raise\n            delay = base_delay * (2 ** (attempt - 1)) * (0.5 + random.random())\n            log.warning(\"retrying after %s (attempt %d/%d)\", exc, attempt, attempts)\n            sleep(delay)\n    raise AssertionError(\"unreachable\")\n"
+        },
+        {
+          "path": "app/embeddings/client.py",
+          "content": "import json\n\nfrom botocore.exceptions import ClientError\n\n\nclass EmbeddingClient:\n    def __init__(self, bedrock_runtime, model_id: str):\n        self._bedrock = bedrock_runtime\n        self._model_id = model_id\n\n    def embed(self, text: str) -> list[float]:\n        resp = self._bedrock.invoke_model(\n            modelId=self._model_id,\n            body=json.dumps({\"inputText\": text}),\n        )\n        return json.loads(resp[\"body\"].read())[\"embedding\"]\n\n    def embed_batch(self, texts: list[str]) -> list[list[float]]:\n        return [self.embed(t) for t in texts]\n"
+        },
+        {
+          "path": "app/embeddings/ingest.py",
+          "content": "from app.embeddings.client import EmbeddingClient\n\n\ndef ingest_chunks(conn, client: EmbeddingClient, doc_id: str, chunks: list[str]) -> int:\n    vectors = client.embed_batch(chunks)\n    with conn.cursor() as cur:\n        for i, (text, vec) in enumerate(zip(chunks, vectors)):\n            cur.execute(\n                \"INSERT INTO chunks (doc_id, ord, body, embedding) VALUES (%s, %s, %s, %s)\",\n                (doc_id, i, text, vec),\n            )\n    conn.commit()\n    return len(chunks)\n"
+        }
+      ],
+      "checks": [
+        "A ThrottlingException ClientError from invoke_model is retried and a later success returns the embedding",
+        "After 4 attempts (the initial plus retries as the request defines) the throttling error is raised, not swallowed",
+        "Non-throttling errors (e.g. ValidationException) are not retried"
+      ],
+      "traps": [
+        {
+          "id": "reinvent-retry",
+          "temptation": "Write a for/while loop with time.sleep and 2**n inside embed or embed_batch.",
+          "badSign": "A new hand-rolled backoff loop or a second retry helper/decorator while app/utils/retry.py exists.",
+          "goodSign": "Uses retry() from app.utils.retry with is_retryable checking the ClientError code for throttling."
+        },
+        {
+          "id": "retry-too-broad",
+          "temptation": "Use the default retry_on=(Exception,) and is_retryable that returns True, retrying everything.",
+          "badSign": "No is_retryable predicate; validation or auth errors get retried too.",
+          "goodSign": "retry_on=(ClientError,) with a predicate on error code ThrottlingException."
+        }
+      ],
+      "split": "heldout"
+    },
+    {
+      "id": "gfd97a60e",
+      "kind": "trap",
+      "title": "DLQ depth tool",
+      "request": "Give the agent a tool called dlq_status that reports the approximate number of messages waiting in a named dead-letter queue (visible plus in flight). It should only accept queue names from the allow-list in config. Include it in the audit log line the dispatcher writes for each tool call.",
+      "files": [
+        {
+          "path": "src/agent/tool.ts",
+          "content": "export interface ToolContext {\n  userId: string;\n}\n\nexport interface Tool<I = any, O = unknown> {\n  readonly name: string;\n  readonly description: string;\n  readonly inputSchema: object;\n  run(ctx: ToolContext, input: I): Promise<O>;\n  /** One line describing this call for the audit log. */\n  auditLine(input: I): string;\n}\n"
+        },
+        {
+          "path": "src/agent/tools/getOrderTool.ts",
+          "content": "import { Tool } from \"../tool\";\nimport { OrdersApi } from \"../../clients/ordersApi\";\n\nexport class GetOrderTool implements Tool<{ orderId: string }> {\n  readonly name = \"get_order\";\n  readonly description = \"Look up an order by id.\";\n  readonly inputSchema = {\n    type: \"object\",\n    properties: { orderId: { type: \"string\" } },\n    required: [\"orderId\"],\n  };\n\n  constructor(private readonly orders: OrdersApi) {}\n\n  run(_ctx: unknown, input: { orderId: string }) {\n    return this.orders.get(input.orderId);\n  }\n\n  auditLine(input: { orderId: string }): string {\n    return `get_order orderId=${input.orderId}`;\n  }\n}\n"
+        },
+        {
+          "path": "src/agent/dispatch.ts",
+          "content": "import { Tool, ToolContext } from \"./tool\";\nimport { logger } from \"../logger\";\n\nexport function makeDispatcher(tools: Tool[]) {\n  const byName = new Map(tools.map((t) => [t.name, t]));\n\n  return async function dispatch(ctx: ToolContext, name: string, input: unknown) {\n    const tool = byName.get(name);\n    if (!tool) throw new Error(`unknown tool ${name}`);\n    logger.info({ userId: ctx.userId, call: tool.auditLine(input) }, \"tool call\");\n    return tool.run(ctx, input);\n  };\n}\n"
+        },
+        {
+          "path": "src/agent/index.ts",
+          "content": "import { SQSClient } from \"@aws-sdk/client-sqs\";\nimport { OrdersApi } from \"../clients/ordersApi\";\nimport { config } from \"../config\";\nimport { makeDispatcher } from \"./dispatch\";\nimport { GetOrderTool } from \"./tools/getOrderTool\";\n\nconst sqs = new SQSClient({ region: config.region });\nconst orders = new OrdersApi(config.ordersBaseUrl);\n\nexport const tools = [new GetOrderTool(orders)];\nexport const dispatch = makeDispatcher(tools);\nexport { sqs };\n"
+        }
+      ],
+      "checks": [
+        "dlq_status returns visible plus in-flight counts using GetQueueAttributes on the queue URL",
+        "A queue name outside config.dlqAllowList is rejected without calling SQS",
+        "The audit log line for a dlq_status call includes the queue name, and the tool is reachable through dispatch"
+      ],
+      "traps": [
+        {
+          "id": "switch-in-dispatch",
+          "temptation": "Add an if (name === 'dlq_status') branch or switch case in dispatch.ts for its special audit line or execution.",
+          "badSign": "dispatch.ts (or a logger) gains a name-based branch; tool-specific knowledge outside the tool class.",
+          "goodSign": "A new DlqStatusTool implements Tool including auditLine and is just added to the tools array."
+        },
+        {
+          "id": "inline-client",
+          "temptation": "new SQSClient() inside the tool's run().",
+          "badSign": "Client constructed per call inside the tool; the existing sqs in index.ts ignored or duplicated.",
+          "goodSign": "The tool takes the SQSClient (and allow-list) via its constructor, wired in index.ts like OrdersApi."
+        }
+      ],
+      "split": "dev"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "applies": [
+    "Adds a new package for notifications and imports the order package's database models directly",
+    "Renames a field in the JSON body that the mobile app and two other services read",
+    "Makes the core domain module import the web framework to read the request object",
+    "Moves a table write from the billing module into a helper that the orders module also calls",
+    "Adds a required parameter to a function that other modules call",
+    "Creates a shared utils module and puts the new tenant-specific pricing rules in it"
+  ],
+  "does_not_apply": [
+    "Fixes a typo in the README",
+    "Replaces a loop with a comprehension inside one function",
+    "Adds an SQS queue and a consumer for refunds, deployed before the producer (owner: architect)",
+    "Adds a contract test that checks the provider's response against the OpenAPI file (owner: quality)",
+    "Adds a parameter to a function exported by a library published to npm with no callers in this repository (owner: developer)",
+    "Exposes a gRPC reflection endpoint on the public listener (owner: security)"
+  ]
+}

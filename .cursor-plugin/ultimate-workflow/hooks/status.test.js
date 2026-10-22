@@ -3,6 +3,20 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
+// Every temporary directory this file creates is removed when it exits (node --test runs each
+// file in its own process); without this, each run left hundreds behind in the system temp folder.
+{
+  const made = [];
+  const mkdtemp = fs.mkdtempSync;
+  fs.mkdtempSync = (...args) => {
+    const dir = mkdtemp(...args);
+    made.push(dir);
+    return dir;
+  };
+  process.on('exit', () => {
+    for (const dir of made) fs.rmSync(dir, { recursive: true, force: true });
+  });
+}
 const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
@@ -112,7 +126,7 @@ test('a fully confirmed plan reports nothing blocking', () => {
   const dir = tmpdir();
   fs.writeFileSync(
     path.join(dir, 'PLAN-x.md'),
-    '---\nplan_confirmed: true\ntests_confirmed: true\ndirty: false\n---\n'
+    '---\nplan_confirmed: true\ntests_confirmed: true\nexperts: []\ndirty: false\n---\n'
   );
   assert.match(runStatus(dir).stdout, /nothing blocking/i);
 });
@@ -166,7 +180,8 @@ test('status writes nothing at all', () => {
 // Shape pinned by PLAN-status-json.md, "The shape, pinned". Renaming a key is
 // allowed only by editing that plan and the key-set test below in one commit.
 
-const JSON_KEYS = ['blocking', 'file', 'g3Active', 'liveness', 'stage', 'state'];
+// `experts` was added with the G6 commit gate: additive, null outside a feature.
+const JSON_KEYS = ['blocking', 'experts', 'file', 'g3Active', 'liveness', 'stage', 'state'];
 
 function frontMatter(lines) {
   return `---\n${lines.join('\n')}\n---\n`;
@@ -552,4 +567,31 @@ test('an unrelated argument does not switch on JSON output', () => {
   assert.equal(r.exit, 0);
   assert.ok(r.stdout.startsWith('ultimate-workflow status'), 'only --json switches the output');
   assert.throws(() => JSON.parse(r.stdout));
+});
+
+test('--json reports the experts state for a feature, and null where there is no feature', () => {
+  const none = runJson(tmpdir()).json;
+  assert.equal(none.experts, null);
+
+  const dir = tmpdir();
+  writePlan(dir, ['plan_confirmed: true', 'tests_confirmed: true']);
+  const undecided = runJson(dir).json.experts;
+  assert.equal(undecided.decided, false);
+  assert.deepEqual(undecided.selected, []);
+  assert.ok(undecided.available.includes('security'));
+
+  const decided = tmpdir();
+  writePlan(decided, ['plan_confirmed: true', 'tests_confirmed: true', 'experts: [security]']);
+  const e = runJson(decided).json.experts;
+  assert.equal(e.decided, true);
+  assert.deepEqual(e.selected, ['security']);
+  assert.equal(typeof e.commit.allowed, 'boolean');
+});
+
+test('the human report says when the experts decision is missing, because that is what blocks the next edit', () => {
+  const dir = tmpdir();
+  writePlan(dir, ['plan_confirmed: true', 'tests_confirmed: true']);
+  const out = runStatus(dir).stdout;
+  assert.match(out, /Experts:/);
+  assert.match(out, /NO DECISION/);
 });

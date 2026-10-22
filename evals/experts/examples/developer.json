@@ -1,0 +1,19 @@
+{
+  "applies": [
+    "Adds a NotificationService class that validates a ticket, writes it to the database, formats the email and sends it",
+    "Introduces a RepositoryFactory and a Repository interface although only one repository class exists",
+    "Adds a retry wrapper around the billing client that returns a default invoice when all attempts fail",
+    "Adds a base Handler class with three subclasses, one of which overrides a method to raise NotImplementedError",
+    "Adds a function with a mode flag that switches between exporting CSV and exporting JSON, and a new dependency to parse dates",
+    "Rewrites the document ingestion module into new classes and helper functions"
+  ],
+  "does_not_apply": [
+    "Fixes a typo in the README",
+    "Renames a CSS class in a button component",
+    "Reformats a file with the project's formatter and sorts its imports",
+    "Adds a unit test for a date-formatting helper (owner: quality)",
+    "Makes the orders package import the billing package's internal database models (owner: softarch)",
+    "Adds a dead-letter queue and a receive limit to the refunds consumer (owner: architect)",
+    "Adds a deploy job to the GitHub Actions workflow and a Terraform module for the queue it deploys to (owner: devops)"
+  ]
+}

@@ -17,7 +17,7 @@ Full text, with the reasoning behind each: `.cursor-plugin/ultimate-workflow/ski
 
 Understand → **plan** (confirm) → **test plan** (confirm) → **implement** → blocker protocol → **harvest** → **hand off**.
 
-Phase commands: `/ultimate-workflow:plan`, `:tests`, `:build`, `:review`, `:harvest`. Each runs in a fresh context and stops; only `build` writes. `/handoff` writes a session handoff document and is user-triggered only.
+Phase commands: `/ultimate-workflow:plan`, `:tests`, `:build`, `:review`, `:harvest`; `:experts` is the pre-commit expert check. Each runs in a fresh context and stops; only `build` writes. `/handoff` writes a session handoff document and is user-triggered only.
 
 Both confirmation points are real stops. The plan lives on disk as `PLAN-<feature>.md`, which survives a trimmed conversation in a way chat history does not. Favour concision over polish in it.
 
@@ -34,11 +34,16 @@ Equally, do not bog down on a trivial reversible decision: decide, flag it, move
 | Deciding what belongs in always-on context; editing this file, `memory.md`, `SKILL.md`, or `rules/*.mdc` | `.cursor-plugin/ultimate-workflow/memory/context-boundary.md` |
 | Touching `hooks/**`, adapters, the heartbeat, `status.js`; a gate is not firing; adding a host | `.cursor-plugin/ultimate-workflow/memory/hooks-and-gates.md` |
 | Touching `workflows/*.js` or `agents/uw-*.md`; adding a phase; `parallel()` returned nothing | `.cursor-plugin/ultimate-workflow/memory/workflows-authoring.md` |
+| Building a new expert or its skills end to end (scope, sources, research, compare, skills, verify, measure) | `docs/expert-playbook.md` |
+| Adding a domain expert (an `agents/uw-expert-*` agent and one reference per stage), changing how experts are offered, consulted or gated, or deciding whether a domain deserves one | `docs/adding-an-expert.md` |
+| Touching `experts/experts.js`, `experts/skills/**`, an expert's `skills.md` or a selector; which expert uses which skill | `docs/adding-an-expert.md` (Shared skills), `docs/expert-catalogue.md` |
+| Judging or vetting an expert, ours or someone else's | `docs/what-a-good-expert-looks-like.md` |
+| Expert eval runs and their results | `evals/experts/results/README.md` |
 | Editing `SKILL.md`, `rules/*.mdc`, `references/`, or `agents/` | `.cursor-plugin/ultimate-workflow/memory/mirrors.md` |
 | Marketplace sources, `/add-plugin`, release ZIP, empty Cursor install | `.cursor-plugin/ultimate-workflow/memory/cursor-install.md` |
 | A feature has landed and its lessons need a home | `.cursor-plugin/ultimate-workflow/skills/the-ultimate-workflow-guidelines/references/memory-protocol.md` |
 | Designing agent orchestration; arguing model versus harness | `research/new-sdlc-with-vibe-coding.md` |
-| What the project is and why the architecture is what it is | `PRD-graph-orchestration.md` |
+| What the project is and why the architecture is what it is (the PRD predates the experts; for those see the catalogue) | `PRD-graph-orchestration.md`, `docs/expert-catalogue.md` |
 
 Plugin `memory.md` is the full index inside the payload. Read it at the start of any non-trivial task and open whatever its cues match.
 

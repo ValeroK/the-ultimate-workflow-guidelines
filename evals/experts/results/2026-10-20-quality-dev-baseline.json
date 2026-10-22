@@ -1,0 +1,153 @@
+{
+  "expert": "quality",
+  "split": "dev",
+  "runsPerCase": 3,
+  "arms": {
+    "A0": {
+      "runsPerCase": 3,
+      "cases": {
+        "seeded": 6,
+        "benign": 4,
+        "sibling": 4
+      },
+      "seeded": {
+        "runsFound": 18,
+        "runs": 18,
+        "recall": 1,
+        "casesFoundMajority": 6,
+        "casesFoundAllRuns": 6
+      },
+      "benign": {
+        "fpRuns": 0,
+        "runs": 12,
+        "fpRate": 0
+      },
+      "sibling": {
+        "leakRuns": 12,
+        "fpRuns": 0,
+        "runs": 12,
+        "leakRate": 1,
+        "fpRate": 0
+      },
+      "findings": {
+        "total": 40,
+        "perRun": 0.9523809523809523,
+        "validOtherRuns": 2,
+        "evidenceComplete": 0.975
+      },
+      "failedRuns": 0,
+      "totalRuns": 42
+    },
+    "A1": {
+      "runsPerCase": 3,
+      "cases": {
+        "seeded": 6,
+        "benign": 4,
+        "sibling": 4
+      },
+      "seeded": {
+        "runsFound": 18,
+        "runs": 18,
+        "recall": 1,
+        "casesFoundMajority": 6,
+        "casesFoundAllRuns": 6
+      },
+      "benign": {
+        "fpRuns": 0,
+        "runs": 12,
+        "fpRate": 0
+      },
+      "sibling": {
+        "leakRuns": 0,
+        "fpRuns": 0,
+        "runs": 12,
+        "leakRate": 0,
+        "fpRate": 0
+      },
+      "findings": {
+        "total": 28,
+        "perRun": 0.6666666666666666,
+        "validOtherRuns": 4,
+        "evidenceComplete": 0.9642857142857143
+      },
+      "failedRuns": 0,
+      "totalRuns": 42
+    }
+  },
+  "comparisons": {
+    "A1": {
+      "pass": false,
+      "checks": [
+        {
+          "name": "recall beats baseline by the margin",
+          "ok": false,
+          "detail": "candidate 6 of 6 cases, baseline 6, margin 1",
+          "informational": false
+        },
+        {
+          "name": "false positives on benign cases no worse than baseline",
+          "ok": true,
+          "detail": "candidate 0/12 runs, baseline 0/12",
+          "informational": false
+        },
+        {
+          "name": "leak into sibling domains is low",
+          "ok": true,
+          "detail": "0/12 sibling runs reported another domain's defect, limit 0.1",
+          "informational": false
+        },
+        {
+          "name": "evidence completeness (informational)",
+          "ok": true,
+          "detail": "candidate 0.9642857142857143, baseline 0.975",
+          "informational": true
+        },
+        {
+          "name": "no failed runs",
+          "ok": true,
+          "detail": "0 of 42 runs failed",
+          "informational": false
+        }
+      ]
+    }
+  },
+  "perCase": {
+    "c1c317b52": {
+      "A0": "3/3",
+      "A1": "3/3"
+    },
+    "c2900f47d": {
+      "A0": "3/3",
+      "A1": "3/3"
+    },
+    "c50738b3a": {
+      "A0": "3/3",
+      "A1": "3/3"
+    },
+    "c7cab689b": {
+      "A0": "3/3",
+      "A1": "3/3"
+    },
+    "caabfbcd1": {
+      "A0": "3/3",
+      "A1": "3/3"
+    },
+    "cfbb9b726": {
+      "A0": "3/3",
+      "A1": "3/3"
+    }
+  },
+  "baseline": "A0",
+  "thresholds": {
+    "_comment": "Set before the first run and not tuned afterwards. These are our own choices, not an external standard. Differences under one case are not distinguishable at this sample size, so recall is compared in cases.",
+    "recallMarginCases": 1,
+    "maxFpRateDelta": 0,
+    "maxLeakRate": 0.1,
+    "evidenceTolerance": 0.05,
+    "minSelectionRecall": 0.9,
+    "maxCofireRate": 0.1,
+    "judgeAgreementMin": 0.9,
+    "runsPerCase": 3
+  },
+  "date": "2026-10-20"
+}

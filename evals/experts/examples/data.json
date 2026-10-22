@@ -1,0 +1,18 @@
+{
+  "applies": [
+    "Adds an index to the orders table in a new migration",
+    "Adds a NOT NULL column with a default to a large table",
+    "Changes the order history endpoint to load each order's items in a loop",
+    "Adds a DynamoDB table and a global secondary index for the new feed",
+    "Adds a Redis-based lock around the nightly export",
+    "Adds a pgvector column and an HNSW index for document search"
+  ],
+  "does_not_apply": [
+    "Fixes a typo in the README",
+    "Moves the migration step before the deploy step in the release workflow (owner: devops)",
+    "Adds a cache in front of the product catalogue with a five-minute TTL (owner: architect)",
+    "Lets the billing module write directly to the orders module's table (owner: softarch)",
+    "Switches the document embeddings to a new embedding model (owner: genai)",
+    "Builds a SQL query by concatenating the search term from the request (owner: security)"
+  ]
+}

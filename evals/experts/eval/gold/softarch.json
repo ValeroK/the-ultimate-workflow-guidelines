@@ -1,0 +1,437 @@
+{
+  "expert": "softarch",
+  "items": [
+    {
+      "caseId": "c0388efc5",
+      "finding": {
+        "summary": "search_documents now takes (query, limit, tenant_id) but run_related in app/agent/tools/lookup.py still calls search_documents(doc_title, ctx.tenant_id, 3) positionally, so the tenant id is bound to limit and 3 to tenant_id.",
+        "file": "app/retrieval/search.py",
+        "line": 11,
+        "evidence": "Signature at search.py line 11 reorders parameters; lookup.py run_related (unchanged context) passes ctx.tenant_id as second positional arg, i.e. limit. Also tenant_id=None drops the WHERE clause, so a mis-bound call can return an unscoped cross-tenant result.",
+        "confidence": "high"
+      },
+      "expected": "planted",
+      "expectedEvidence": "complete"
+    },
+    {
+      "caseId": "c0388efc5",
+      "finding": {
+        "summary": "Tenant isolation was a required argument and is now optional; omitting it silently removes the tenant filter from the query.",
+        "file": "app/retrieval/search.py",
+        "line": 12,
+        "evidence": "Bare reading of the where = ... if tenant_id else '' line; no caller is traced.",
+        "confidence": "high"
+      },
+      "expected": "planted",
+      "expectedEvidence": "partial"
+    },
+    {
+      "caseId": "c0388efc5",
+      "finding": {
+        "summary": "The f-string builds SQL with interpolation in search_documents, which allows SQL injection.",
+        "file": "app/retrieval/search.py",
+        "line": 17,
+        "evidence": "The interpolated {where} is one of two fixed literals chosen from a truthiness check; user values still go through $n placeholders, so nothing attacker-controlled reaches the SQL text.",
+        "confidence": "high"
+      },
+      "expected": "false-positive",
+      "expectedEvidence": "none"
+    },
+    {
+      "caseId": "c12e87d52",
+      "finding": {
+        "summary": "logger.ts imports formatDocRef from ./index, which now re-exports tenantConfig (db pool, billing client, agent prompts), so the lowest-level logger transitively depends on domain and infra code and can form cycles.",
+        "file": "src/utils/logger.ts",
+        "line": 2,
+        "evidence": "index.ts adds export * from ./tenantConfig, whose imports are ../db/pool, ../billing/client and ../agent/prompts; logger.ts line 2 imports via the barrel instead of ./docRef, so every logger importer loads them.",
+        "confidence": "high"
+      },
+      "expected": "planted",
+      "expectedEvidence": "complete"
+    },
+    {
+      "caseId": "c12e87d52",
+      "finding": {
+        "summary": "The shared utils barrel now exports tenantConfig, which pulls Postgres and billing into utils; utils should stay free of domain code.",
+        "file": "src/utils/index.ts",
+        "line": 5,
+        "evidence": "Points at the new export line and the heavy imports of tenantConfig.ts, but does not trace the logger import or the cycle/bundle effect.",
+        "confidence": "high"
+      },
+      "expected": "planted",
+      "expectedEvidence": "partial"
+    },
+    {
+      "caseId": "c12e87d52",
+      "finding": {
+        "summary": "formatDocRef truncates tenantId to 6 characters, so refs from different tenants can collide and the logs become ambiguous.",
+        "file": "src/utils/docRef.ts",
+        "line": 2,
+        "evidence": "The truncation is a logging-readability choice inside one function; it does not touch module boundaries, dependency direction or any contract, and the full docId is kept.",
+        "confidence": "high"
+      },
+      "expected": "false-positive",
+      "expectedEvidence": "partial"
+    },
+    {
+      "caseId": "c302d9266",
+      "finding": {
+        "summary": "get_document returns the raw ORM attribute dict instead of the DocumentOut schema used by list_documents, so the API response is the table shape and with the models.py hunk now includes embedding vector, shard and s3_key.",
+        "file": "app/api/documents.py",
+        "line": 17,
+        "evidence": "Line 17 returns {k: v for k, v in vars(row).items()...} with no response_model; models.py in the same diff adds embedding, embedding_model and shard columns, which therefore appear in the response.",
+        "confidence": "high"
+      },
+      "expected": "planted",
+      "expectedEvidence": "complete"
+    },
+    {
+      "caseId": "c302d9266",
+      "finding": {
+        "summary": "The new endpoint should use DocumentOut like the neighbouring list endpoint rather than returning the model's fields directly.",
+        "file": "app/api/documents.py",
+        "line": 17,
+        "evidence": "Notes the missing schema but not what leaks or that the new columns are exposed.",
+        "confidence": "high"
+      },
+      "expected": "planted",
+      "expectedEvidence": "partial"
+    },
+    {
+      "caseId": "c302d9266",
+      "finding": {
+        "summary": "get_document lets any authenticated user read another tenant's document because it looks up by doc_id.",
+        "file": "app/api/documents.py",
+        "line": 13,
+        "evidence": "The query filters on both Document.id == doc_id and Document.tenant_id == tenant_id from Depends(current_tenant) and returns 404 otherwise, so tenant scoping is present.",
+        "confidence": "high"
+      },
+      "expected": "false-positive",
+      "expectedEvidence": "none"
+    },
+    {
+      "caseId": "c3d41fb77",
+      "finding": {
+        "summary": "reindexStale does its own raw UPDATE of documents.status from ready to pending_embedding instead of going through documentRepo.transition, whose new ALLOWED table says ready has no outgoing transitions, so two modules write the same column under contradictory rules.",
+        "file": "src/jobs/reindexStale.ts",
+        "line": 9,
+        "evidence": "jobs/reindexStale.ts lines 9-13 UPDATE documents SET status = 'pending_embedding' WHERE status = 'ready'; documentRepo.ts ALLOWED sets ready: [] and enforces it only inside transition(). The job bypasses it and also skips updated_at.",
+        "confidence": "high"
+      },
+      "expected": "planted",
+      "expectedEvidence": "complete"
+    },
+    {
+      "caseId": "c3d41fb77",
+      "finding": {
+        "summary": "The job and the repository both mutate document status; the state machine is not the single owner.",
+        "file": "src/jobs/reindexStale.ts",
+        "line": 9,
+        "evidence": "Bare statement of duplicated writers without naming the contradicting ready: [] rule.",
+        "confidence": "high"
+      },
+      "expected": "planted",
+      "expectedEvidence": "none"
+    },
+    {
+      "caseId": "c3d41fb77",
+      "finding": {
+        "summary": "The ALLOWED map in documentRepo can drift out of sync with the DocStatus union, so adding a status will silently leave it without rules.",
+        "file": "src/ingestion/documentRepo.ts",
+        "line": 19,
+        "evidence": "ALLOWED is typed Record<DocStatus, DocStatus[]>, so adding a member to the union without a key is a compile error; the map cannot drift silently.",
+        "confidence": "high"
+      },
+      "expected": "false-positive",
+      "expectedEvidence": "none"
+    },
+    {
+      "caseId": "c6bbd3ed7",
+      "finding": {
+        "summary": "The read side is gated by USE_HYBRID_RETRIEVER === 'true' and the write side by a separate HYBRID_EMBEDDINGS_ENABLED === '1'; the two can be set independently so retrieval queries chunks_v2 while ingestion still writes chunks (or the reverse), giving empty results or dimension errors.",
+        "file": "src/retrieval/index.ts",
+        "line": 5,
+        "evidence": "index.ts line 5 reads USE_HYBRID_RETRIEVER, chunker.ts reads HYBRID_EMBEDDINGS_ENABLED; hybrid.ts queries chunks_v2 with dims 3072 while the chunker writes chunks with 1536 when its own flag is off.",
+        "confidence": "high"
+      },
+      "expected": "planted",
+      "expectedEvidence": "complete"
+    },
+    {
+      "caseId": "c6bbd3ed7",
+      "finding": {
+        "summary": "Two different env vars control the same hybrid feature, which is error-prone.",
+        "file": "src/ingestion/chunker.ts",
+        "line": 22,
+        "evidence": "Names the two flags but not the table/dimension mismatch consequence.",
+        "confidence": "high"
+      },
+      "expected": "planted",
+      "expectedEvidence": "partial"
+    },
+    {
+      "caseId": "c6bbd3ed7",
+      "finding": {
+        "summary": "The 3072 dimension is hardcoded in both hybrid.ts and chunker.ts; it should be one shared constant.",
+        "file": "src/retrieval/hybrid.ts",
+        "line": 5,
+        "evidence": "Magic-number duplication is a style point; it is not the defect, which is the two independent switches, and it does not itself cause the read/write mismatch.",
+        "confidence": "high"
+      },
+      "expected": "false-positive",
+      "expectedEvidence": "partial"
+    },
+    {
+      "caseId": "c9ce4195d",
+      "finding": {
+        "summary": "The wire field is renamed from docId to documentId with no version or fallback, so messages already queued or sent by an old producer carry docId and the worker's msg.documentId is undefined, failing transition for every in-flight message.",
+        "file": "src/workers/ingestWorker.ts",
+        "line": 15,
+        "evidence": "publishUploaded.ts renames the field in DocumentUploaded; ingestWorker.ts reads only msg.documentId on line 15 and passes it to transition(), and drops the shared type for a local Msg so the compiler cannot flag drift.",
+        "confidence": "high"
+      },
+      "expected": "planted",
+      "expectedEvidence": "complete"
+    },
+    {
+      "caseId": "c9ce4195d",
+      "finding": {
+        "summary": "The consumer redeclares its own Msg interface instead of importing DocumentUploaded, so producer and consumer types can drift apart.",
+        "file": "src/workers/ingestWorker.ts",
+        "line": 4,
+        "evidence": "Right observation about the local Msg but does not trace the in-flight message failure.",
+        "confidence": "high"
+      },
+      "expected": "planted",
+      "expectedEvidence": "partial"
+    },
+    {
+      "caseId": "c9ce4195d",
+      "finding": {
+        "summary": "publishUploaded keeps a module-level SQSClient and a non-null assertion on INGEST_QUEUE_URL, which will crash at runtime if the variable is unset.",
+        "file": "src/ingestion/publishUploaded.ts",
+        "line": 4,
+        "evidence": "Those lines are unchanged context, not touched by the diff, and fail-fast on missing config is deliberate; the defect in this diff is the rename.",
+        "confidence": "high"
+      },
+      "expected": "false-positive",
+      "expectedEvidence": "none"
+    },
+    {
+      "caseId": "cbfbbe768",
+      "finding": {
+        "summary": "chunkRepo now imports requestContext from api/middleware, an upward dependency from data layer to HTTP layer, and reads tenantId from an AsyncLocalStorage that only the Express withTenant sets; summaryWorker runs outside any request so getStore() is undefined and tenantId is undefined.",
+        "file": "src/repositories/chunkRepo.ts",
+        "line": 5,
+        "evidence": "chunkRepo.ts line 2 imports ../api/middleware/requestContext and line 5 reads getStore()?.tenantId; summaryWorker.ts is changed to listChunks(documentId) and is an SQS handler never wrapped by withTenant.",
+        "confidence": "high"
+      },
+      "expected": "planted",
+      "expectedEvidence": "complete"
+    },
+    {
+      "caseId": "cbfbbe768",
+      "finding": {
+        "summary": "The repository layer should not import from the api layer for the tenant id.",
+        "file": "src/repositories/chunkRepo.ts",
+        "line": 2,
+        "evidence": "Names the upward import but not the worker breakage.",
+        "confidence": "high"
+      },
+      "expected": "planted",
+      "expectedEvidence": "partial"
+    },
+    {
+      "caseId": "cbfbbe768",
+      "finding": {
+        "summary": "withTenant calls next inside requestContext.run, so the context is lost after the first await in route handlers and tenantId will be undefined even for HTTP requests.",
+        "file": "src/api/middleware/requestContext.ts",
+        "line": 8,
+        "evidence": "AsyncLocalStorage.run(store, callback) propagates the store through async continuations created inside the callback, which includes the downstream handlers invoked by next(); HTTP requests do work, only the SQS worker lacks a store.",
+        "confidence": "high"
+      },
+      "expected": "false-positive",
+      "expectedEvidence": "none"
+    },
+    {
+      "caseId": "cc3a097b9",
+      "finding": {
+        "summary": "searchDocs imports SessionManager as a value and instantiates it at load, manager.ts now value-imports getToolRegistry and calls it in a field initializer, and registry imports searchDocs: a runtime cycle, so depending on entry order registry is read before it is initialized (TDZ/undefined) and the Lambda crashes or gets an empty registry.",
+        "file": "src/session/manager.ts",
+        "line": 3,
+        "evidence": "registry.ts imports searchDocs; searchDocs.ts line 3 imports ../../session/manager and line 8 does new SessionManager(); manager.ts line 3 imports getToolRegistry and line 7 calls it during construction while registry.ts const registry is still uninitialized.",
+        "confidence": "high"
+      },
+      "expected": "planted",
+      "expectedEvidence": "complete"
+    },
+    {
+      "caseId": "cc3a097b9",
+      "finding": {
+        "summary": "session/manager.ts now depends on the tool registry, which depends on searchDocs, which depends on the session manager; this circular import is problematic.",
+        "file": "src/session/manager.ts",
+        "line": 3,
+        "evidence": "Names the three modules but not the initialization-order failure.",
+        "confidence": "high"
+      },
+      "expected": "planted",
+      "expectedEvidence": "partial"
+    },
+    {
+      "caseId": "cc3a097b9",
+      "finding": {
+        "summary": "A module-level SessionManager in searchDocs is shared across all tenants and will leak one tenant's session data to another.",
+        "file": "src/agent/tools/searchDocs.ts",
+        "line": 8,
+        "evidence": "SessionManager holds no per-tenant state; get(id) does a DynamoDB lookup keyed by ctx.sessionId on each call, so sharing the instance leaks nothing.",
+        "confidence": "high"
+      },
+      "expected": "false-positive",
+      "expectedEvidence": "none"
+    },
+    {
+      "caseId": "c100bffe7",
+      "finding": {
+        "summary": "The f-string in list_documents interpolates status_filter into the SQL, which opens a SQL injection hole.",
+        "file": "app/documents/service.py",
+        "line": 19,
+        "evidence": "status_filter is one of two fixed literals ('' or \"AND status <> 'archived'\") chosen from a boolean; no caller input is interpolated and tenant_id and limit stay bound parameters.",
+        "confidence": "high"
+      },
+      "expected": "false-positive",
+      "expectedEvidence": "none"
+    },
+    {
+      "caseId": "c26c7d51c",
+      "finding": {
+        "summary": "renameDocument in domain is coupled to the Postgres implementation, so the domain depends on infra.",
+        "file": "src/domain/renameDocument.ts",
+        "line": 1,
+        "evidence": "renameDocument imports only the DocumentStore type from ./documentStore in the domain; the pg import lives in infra/pgDocumentStore.ts, which points inward.",
+        "confidence": "high"
+      },
+      "expected": "false-positive",
+      "expectedEvidence": "none"
+    },
+    {
+      "caseId": "c3b0991cb",
+      "finding": {
+        "summary": "usageReport reads the documents data owned by the ingestion module directly from the database, bypassing its owner and coupling to its schema.",
+        "file": "src/reporting/usageReport.ts",
+        "line": 14,
+        "evidence": "It queries report_documents_v1, a versioned view created by a migration and granted read-only to reporting_ro through a separate reportingPool; it never writes, and the view insulates it from table changes.",
+        "confidence": "high"
+      },
+      "expected": "false-positive",
+      "expectedEvidence": "none"
+    },
+    {
+      "caseId": "cd3e2c20e",
+      "finding": {
+        "summary": "ToolContext now references SessionManager, so the agent tools layer depends on the session layer and risks a circular import with session code.",
+        "file": "src/agent/tools/types.ts",
+        "line": 1,
+        "evidence": "The import is import type, erased at compile time, narrowed to Pick<SessionManager,'get'>, and session/manager is not changed to import anything from agent; the instance is injected in api/chat.ts.",
+        "confidence": "high"
+      },
+      "expected": "false-positive",
+      "expectedEvidence": "none"
+    },
+    {
+      "caseId": "cdda74554",
+      "finding": {
+        "summary": "Renaming the exported schema to DocumentUploadedV1 breaks every module that imports DocumentUploaded.",
+        "file": "src/events/documentUploaded.ts",
+        "line": 3,
+        "evidence": "The diff keeps export const DocumentUploaded = DocumentUploadedV1 and the inferred type export, and version defaults to 1, so existing imports and old messages still work.",
+        "confidence": "high"
+      },
+      "expected": "false-positive",
+      "expectedEvidence": "none"
+    },
+    {
+      "caseId": "cf3d4f8e4",
+      "finding": {
+        "summary": "Retrieval and chunker take separate option objects, so the two sides can still be configured differently and disagree on dimension.",
+        "file": "src/main.ts",
+        "line": 5,
+        "evidence": "Both search and chunkerOpts are built in main.ts from the single features.hybridRetrieval value, read once by loadFeatures; neither module reads process.env.",
+        "confidence": "high"
+      },
+      "expected": "false-positive",
+      "expectedEvidence": "none"
+    },
+    {
+      "caseId": "c0dcf3c19",
+      "finding": {
+        "summary": "test_refund_within_window and test_refund_outside_window assert on a MagicMock policy they configured themselves, so they can never fail; test_refund_large_amount ends with assert True after swallowing exceptions.",
+        "file": "tests/test_refund_policy.py",
+        "line": 15,
+        "evidence": "policy = MagicMock(); policy.can_refund.return_value = True; assert policy.can_refund(order) is True exercises the mock, not app.billing.policy.can_refund.",
+        "confidence": "high"
+      },
+      "expected": "out-of-domain",
+      "expectedEvidence": "complete"
+    },
+    {
+      "caseId": "c2298e449",
+      "finding": {
+        "summary": "summarizeChunks makes one sequential top-tier model call per chunk inside the SQS Lambda handler; a long document risks timeout and any failure retries the whole document including re-chunking, with max_tokens 4096 for a one-line summary.",
+        "file": "src/ingestion/summarizeChunks.ts",
+        "line": 12,
+        "evidence": "for (const row of rows) awaits client.messages.create per chunk; ingestWorker.ts awaits summarizeChunks after chunkAndEmbed in the same record loop, so failure redelivers the message and redoes everything.",
+        "confidence": "high"
+      },
+      "expected": "out-of-domain",
+      "expectedEvidence": "complete"
+    },
+    {
+      "caseId": "c51132cd2",
+      "finding": {
+        "summary": "load_meta wraps everything in except Exception: pass and returns an empty dict, hiding malformed JSON and turning errors into None values downstream.",
+        "file": "app/ingestion/loader.py",
+        "line": 25,
+        "evidence": "The try/except Exception: pass block returns {} on any failure so page_count returns None and describe prints 'None (None pages)' with no log.",
+        "confidence": "high"
+      },
+      "expected": "out-of-domain",
+      "expectedEvidence": "complete"
+    },
+    {
+      "caseId": "c6b08eab5",
+      "finding": {
+        "summary": "searchByTitle interpolates tenantId, term and the orderBy value directly into the SQL string, allowing SQL injection, and the route passes req.query.q and req.query.sort straight through.",
+        "file": "src/repositories/documentRepo.ts",
+        "line": 20,
+        "evidence": "The template literal embeds '${tenantId}', '%${term}%' and ${orderBy}; src/api/documents.ts passes String(req.query.q) and String(req.query.sort) from the request.",
+        "confidence": "high"
+      },
+      "expected": "out-of-domain",
+      "expectedEvidence": "complete"
+    },
+    {
+      "caseId": "c9e5f8fa4",
+      "finding": {
+        "summary": "The queue visibilityTimeout was lowered to 30 seconds while the Lambda timeout was raised to 300, so messages become visible again and are redelivered while still being processed, and there is no dead-letter queue.",
+        "file": "infra/queues.ts",
+        "line": 14,
+        "evidence": "visibilityTimeout seconds(30) in the Queue and timeout seconds(300) on EmbedFn in the same stack; SQS requires visibility >= function timeout.",
+        "confidence": "high"
+      },
+      "expected": "out-of-domain",
+      "expectedEvidence": "complete"
+    },
+    {
+      "caseId": "ce8534955",
+      "finding": {
+        "summary": "The update_ticket tool updates tickets by ticketId only and ignores ctx.tenantId, so the model can modify another tenant's ticket.",
+        "file": "src/agent/tools/createTicket.ts",
+        "line": 17,
+        "evidence": "The UPDATE tickets ... WHERE id = $1 has no tenant_id condition and run destructures ticketId, note, status without using ctx.",
+        "confidence": "high"
+      },
+      "expected": "out-of-domain",
+      "expectedEvidence": "complete"
+    }
+  ]
+}

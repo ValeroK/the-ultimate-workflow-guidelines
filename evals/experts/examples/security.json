@@ -1,0 +1,18 @@
+{
+  "applies": [
+    "Adds a login route that checks a password and issues a session token",
+    "Builds a database query by concatenating a request parameter into the SQL string",
+    "Adds a Dockerfile step that downloads a script and pipes it to a shell",
+    "Bumps several dependencies and changes the lockfile",
+    "Lets a skill file grant an agent a new tool and edits the hook that runs after every command",
+    "Reads a file path from a request and serves the file it names"
+  ],
+  "does_not_apply": [
+    "Renames a CSS class in a button component",
+    "Fixes a typo in the README",
+    "Adds a concurrency group so two deploys to production cannot run at once (owner: devops)",
+    "Adds a login test whose assertion runs inside a callback that is never awaited (owner: quality)",
+    "Moves one tenant's tables from the shared pool to their own database (owner: architect)",
+    "Adds a well-known date library to replace a hand-written parser (owner: developer)"
+  ]
+}

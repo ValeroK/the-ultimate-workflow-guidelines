@@ -1,0 +1,18 @@
+{
+  "applies": [
+    "Adds an SQS queue and a Lambda consumer that charges a card for each message",
+    "Moves session state from a single container's memory into a shared store because the service will run three tasks",
+    "Adds a step in the order flow that calls the billing service synchronously from the request handler",
+    "Switches a nightly batch job from a container that runs all day to a scheduled function",
+    "Adds a vector search over documents shared by several customers in one index",
+    "Introduces a retry policy around calls from the API service to the inventory service"
+  ],
+  "does_not_apply": [
+    "Fixes a typo in the README",
+    "Splits a long function in one module into two smaller functions",
+    "Moves the billing package so the orders package no longer imports its internals (owner: softarch)",
+    "Wraps a database call in a catch block that logs and rethrows (owner: developer)",
+    "Changes the pipeline so the database migration runs before the new image is deployed (owner: devops)",
+    "Narrows the queue's access policy to the one producer's role (owner: security)"
+  ]
+}

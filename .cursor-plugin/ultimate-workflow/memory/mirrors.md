@@ -14,13 +14,15 @@ So the body is duplicated by hand. The check is thinner than it sounds: `mirrors
 
 | Pair | Relationship |
 |---|---|
-| `skills/the-ultimate-workflow-guidelines/SKILL.md` ↔ `rules/the-ultimate-workflow-guidelines.mdc` | **No longer a body mirror.** The `.mdc` is the Cursor twin of `CLAUDE.md` and shares its heading set; `SKILL.md` is the full text the index points at |
+| `skills/the-ultimate-workflow-guidelines/SKILL.md` ↔ `rules/the-ultimate-workflow-guidelines.mdc` | **No longer a body mirror.** The `.mdc` is the Cursor twin of `AGENTS.md` (which `CLAUDE.md` imports) and shares its heading set; `SKILL.md` is the full text the index points at |
 | `skills/project-bootstrap-guidelines/SKILL.md` ↔ `rules/project-bootstrap-guidelines.mdc` | Same body, different frontmatter. **The only genuine body mirror left, and nothing checks it** |
 | `skills/project-bootstrap-guidelines/references/memory-template.md` ↔ `skills/the-ultimate-workflow-guidelines/references/memory-template.md` | Byte-identical |
 | `AGENTS.md` ↔ `CLAUDE.md` | **Not a mirror, an import.** CLAUDE.md is the single line `@AGENTS.md`, because Claude Code reads only that filename while Cursor reads AGENTS.md natively. One source, two hosts. A test asserts the stub stays bare. **Repo dogfood only** — the shippable Cursor always-on is the `.mdc` inside `.cursor-plugin/ultimate-workflow/` |
 | `agents/` ↔ `.claude/agents/` | Local dogfood copy, **gitignored, invisible to CI** |
 | `commands/<phase>.md` ↔ `workflows/<phase>.js` | **Existence pair.** Neither contains the other's text; one without the other is an advertised command that does nothing, or a script nothing can reach |
 | `rules/uw-<topic>.mdc` ↔ `memory/<topic>.md` | **Selector and content.** The rule fires and points; the topical holds the knowledge. Deliberately NOT a text mirror -- a test asserts each rule stays shorter than what it points at |
+| The `// --- expert lane helpers` block in `workflows/plan.js`, `tests.js` and `review.js` | **Code mirror, checked.** Scripts cannot import, so the helpers are copied; a contract test holds the three copies equal |
+| `experts/skills/<name>/skill.md` ↔ payload `skills/<name>/SKILL.md` | **Not a mirror.** Different things: an expert skill is pasted into an expert's prompt by code, a payload skill is loaded by the host. The lower-case file name is deliberate, so no host loads an expert skill on every turn |
 | Marketplace catalogs ↔ plugin payload | **Layout pair.** Root `.claude-plugin/marketplace.json` and `.cursor-plugin/marketplace.json` both `source` the nested tree `.cursor-plugin/ultimate-workflow/`. See `memory/cursor-install.md` |
 
 ## Key decisions

@@ -37,8 +37,9 @@ Cursor has subagents but no scriptable orchestrator, so the phases are invoked r
 | Implement | `/uw-implementer` | **Yes** |
 | Review the diff | `/uw-reviewer`, once per lens | No |
 | Harvest lessons | `/uw-harvester` | No |
+| Domain expert input | `/uw-expert-<name>` at the stages in its `stages`; the quality expert at every test plan | No |
 
-**What this loses, stated plainly:** the ordering is advisory here, not structural. There is no round counter and no gate — the caps and stops below are numbers you honour, not numbers enforced. On Claude Code the same phases run as scripts and the ordering is guaranteed by construction.
+**What this loses, stated plainly:** the ordering is advisory here, not structural. Experts are not chosen for you, their shared skills are not pasted in, and no evidence is recorded: read the skills an expert's reference lists yourself. There is no round counter and no gate — the caps and stops below are numbers you honour, not numbers enforced. On Claude Code the same phases run as scripts and the ordering is guaranteed by construction.
 
 **What it keeps:** a fresh context per phase, one narrow job per agent, and write access confined to the implementer.
 

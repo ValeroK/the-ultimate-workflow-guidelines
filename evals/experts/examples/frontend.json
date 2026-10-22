@@ -1,0 +1,21 @@
+{
+  "applies": [
+    "Adds a share dialog that opens from a button in the toolbar",
+    "Replaces the native select with a custom dropdown menu",
+    "Adds a profile card that shows the user's name, email and avatar",
+    "Adds Hebrew and Arabic support to the settings pages",
+    "Adds a toast that appears when the export finishes",
+    "Hides the focus outline on all buttons to match the new design",
+    "Keeps the checkout pay bar above the on-screen keyboard on phones",
+    "Adds a swipe-to-dismiss gesture and an exit animation to the notification sheet"
+  ],
+  "does_not_apply": [
+    "Fixes a typo in the README",
+    "Moves the fetch in the orders page into a useEffect with a cleanup (owner: developer)",
+    "Renders the user's bio with dangerouslySetInnerHTML (owner: security)",
+    "Adds a Playwright test that waits a fixed two seconds before clicking (owner: quality)",
+    "Adds a new endpoint that returns the user's notifications (owner: softarch)",
+    "Changes the timeout of the API Gateway integration (owner: architect)",
+    "Animates the sidebar with transform instead of left so it stops dropping frames (owner: developer)"
+  ]
+}

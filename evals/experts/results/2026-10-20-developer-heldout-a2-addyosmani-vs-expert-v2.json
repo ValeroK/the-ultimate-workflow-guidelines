@@ -1,0 +1,250 @@
+{
+  "expert": "developer",
+  "split": "heldout",
+  "runsPerCase": 3,
+  "arms": {
+    "A0": {
+      "runsPerCase": 3,
+      "cases": {
+        "seeded": 6,
+        "benign": 4,
+        "sibling": 4
+      },
+      "seeded": {
+        "runsFound": 12,
+        "runs": 18,
+        "recall": 0.6666666666666666,
+        "casesFoundMajority": 4,
+        "casesFoundAllRuns": 4
+      },
+      "benign": {
+        "fpRuns": 2,
+        "runs": 12,
+        "fpRate": 0.16666666666666666
+      },
+      "sibling": {
+        "leakRuns": 11,
+        "fpRuns": 0,
+        "runs": 12,
+        "leakRate": 0.9166666666666666,
+        "fpRate": 0
+      },
+      "findings": {
+        "total": 45,
+        "perRun": 1.0714285714285714,
+        "validOtherRuns": 7,
+        "evidenceComplete": 0.8666666666666667
+      },
+      "failedRuns": 0,
+      "totalRuns": 42
+    },
+    "A2": {
+      "runsPerCase": 3,
+      "cases": {
+        "seeded": 6,
+        "benign": 4,
+        "sibling": 4
+      },
+      "seeded": {
+        "runsFound": 12,
+        "runs": 18,
+        "recall": 0.6666666666666666,
+        "casesFoundMajority": 4,
+        "casesFoundAllRuns": 4
+      },
+      "benign": {
+        "fpRuns": 1,
+        "runs": 12,
+        "fpRate": 0.08333333333333333
+      },
+      "sibling": {
+        "leakRuns": 12,
+        "fpRuns": 0,
+        "runs": 12,
+        "leakRate": 1,
+        "fpRate": 0
+      },
+      "findings": {
+        "total": 46,
+        "perRun": 1.0952380952380953,
+        "validOtherRuns": 9,
+        "evidenceComplete": 0.9130434782608695
+      },
+      "failedRuns": 0,
+      "totalRuns": 42
+    },
+    "A3": {
+      "runsPerCase": 3,
+      "cases": {
+        "seeded": 6,
+        "benign": 4,
+        "sibling": 4
+      },
+      "seeded": {
+        "runsFound": 18,
+        "runs": 18,
+        "recall": 1,
+        "casesFoundMajority": 6,
+        "casesFoundAllRuns": 6
+      },
+      "benign": {
+        "fpRuns": 1,
+        "runs": 12,
+        "fpRate": 0.08333333333333333
+      },
+      "sibling": {
+        "leakRuns": 7,
+        "fpRuns": 0,
+        "runs": 12,
+        "leakRate": 0.5833333333333334,
+        "fpRate": 0
+      },
+      "findings": {
+        "total": 42,
+        "perRun": 1,
+        "validOtherRuns": 7,
+        "evidenceComplete": 0.9523809523809523
+      },
+      "failedRuns": 0,
+      "totalRuns": 42
+    }
+  },
+  "comparisons": {
+    "A2": {
+      "pass": false,
+      "checks": [
+        {
+          "name": "recall beats baseline by the margin",
+          "ok": false,
+          "detail": "candidate 4 of 6 cases, baseline 4, margin 1",
+          "informational": false
+        },
+        {
+          "name": "false positives on benign cases no worse than baseline",
+          "ok": true,
+          "detail": "candidate 1/12 runs, baseline 2/12",
+          "informational": false
+        },
+        {
+          "name": "leak into sibling domains (informational)",
+          "ok": true,
+          "detail": "12/12 sibling runs reported another domain's defect, no limit for this expert",
+          "informational": true
+        },
+        {
+          "name": "evidence completeness (informational)",
+          "ok": true,
+          "detail": "candidate 0.9130434782608695, baseline 0.8666666666666667",
+          "informational": true
+        },
+        {
+          "name": "no failed runs",
+          "ok": true,
+          "detail": "0 of 42 runs failed",
+          "informational": false
+        }
+      ]
+    },
+    "A3": {
+      "pass": true,
+      "checks": [
+        {
+          "name": "recall beats baseline by the margin",
+          "ok": true,
+          "detail": "candidate 6 of 6 cases, baseline 4, margin 1",
+          "informational": false
+        },
+        {
+          "name": "false positives on benign cases no worse than baseline",
+          "ok": true,
+          "detail": "candidate 1/12 runs, baseline 2/12",
+          "informational": false
+        },
+        {
+          "name": "leak into sibling domains (informational)",
+          "ok": true,
+          "detail": "7/12 sibling runs reported another domain's defect, no limit for this expert",
+          "informational": true
+        },
+        {
+          "name": "evidence completeness (informational)",
+          "ok": true,
+          "detail": "candidate 0.9523809523809523, baseline 0.8666666666666667",
+          "informational": true
+        },
+        {
+          "name": "no failed runs",
+          "ok": true,
+          "detail": "0 of 42 runs failed",
+          "informational": false
+        }
+      ]
+    }
+  },
+  "perCase": {
+    "c279bff5e": {
+      "A0": "3/3",
+      "A2": "3/3",
+      "A3": "3/3"
+    },
+    "c42610081": {
+      "A0": "0/3",
+      "A2": "0/3",
+      "A3": "3/3"
+    },
+    "c72516a95": {
+      "A0": "0/3",
+      "A2": "0/3",
+      "A3": "3/3"
+    },
+    "caeb5e4fe": {
+      "A0": "3/3",
+      "A2": "3/3",
+      "A3": "3/3"
+    },
+    "cc53824e3": {
+      "A0": "3/3",
+      "A2": "3/3",
+      "A3": "3/3"
+    },
+    "cfac04bdb": {
+      "A0": "3/3",
+      "A2": "3/3",
+      "A3": "3/3"
+    }
+  },
+  "baseline": "A0",
+  "thresholds": {
+    "_comment": "Set before the first run and not tuned afterwards. These are our own choices, not an external standard. Differences under one case are not distinguishable at this sample size, so recall is compared in cases.",
+    "recallMarginCases": 1,
+    "maxFpRateDelta": 0,
+    "maxLeakRate": 0.1,
+    "evidenceTolerance": 0.05,
+    "minSelectionRecall": 0.9,
+    "maxCofireRate": 0.1,
+    "judgeAgreementMin": 0.9,
+    "runsPerCase": 3,
+    "overrides": {
+      "developer": {
+        "maxLeakRate": null
+      },
+      "architect": {
+        "maxLeakRate": null
+      },
+      "softarch": {
+        "maxLeakRate": null
+      },
+      "quality": {
+        "maxLeakRate": null
+      }
+    },
+    "_overridesNote": "2026-10-20, maintainer: the developer expert should raise everything it finds, including defects that belong to other domains. Lane discipline (leak) is reported for it and does not gate. The same policy is applied to the architect, softarch and quality experts on the assumption that it was meant for the whole group of role experts; revert an entry here if it was not.",
+    "generation": {
+      "cleanMarginTasks": 1,
+      "overEngineeredDeltaRuns": 0,
+      "correctTolerance": 0.05
+    },
+    "_generationNote": "Set before the first generation run. A task is clean when it is correct, falls into no trap and is not over-engineered. The brief must make more tasks clean by majority, must not add over-engineering, and must not cost correctness beyond the tolerance."
+  },
+  "date": "2026-10-20"
+}

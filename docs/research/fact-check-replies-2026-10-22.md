@@ -85,4 +85,38 @@ Full pages, exact URLs. Verdicts as returned; "different" means the claim's sour
 
 **Spot check:** items 9, 18 and 21 match MDN's own sources word for word (`mdn/content` for `img` and `addEventListener`; `mdn/browser-compat-data` `api/Scheduler.json`: Chrome 129, Firefox 142, Safari false). Rows 1 to 22a are [R].
 
-**Still to come:** 22b to 46 (the reply was cut off).
+### I, items 22b to 46 and extras (second paste)
+
+| # | Verdict | Fact as returned | Page |
+|---|---|---|---|
+| 22b | Confirmed | WAAPI and CSS animations can run off the main thread; `filter`, `background-color`, `clip-path` are named as accelerated in Motion's guide. | motion.dev performance |
+| 23 | Confirmed | `will-change` in a stylesheet keeps optimisations in memory; excessive use costs memory and speed. | MDN `will-change` |
+| 24 | Confirmed | `content-visibility: auto` skips layout and paint off screen; pair with `contain-intrinsic-size`. | web.dev content-visibility |
+| 25 | Different | Animating a CSS variable is not accelerated, but Motion's `x`/`y` independent transforms are. | motion.dev performance |
+| 26 | Confirmed | Classic scripts block parsing; `async` runs on arrival; `defer` in order after parsing; module scripts defer by default. | MDN `script` |
+| 27 | Confirmed | Inline handlers are blocked under CSP unless `script-src-attr` (or `script-src`) allows `'unsafe-inline'` or a matching `'unsafe-hashes'`. | MDN CSP `script-src-attr` |
+| 28 | Confirmed | An `unload` listener or `Cache-Control: no-store` on the HTML blocks the bfcache. | web.dev bfcache |
+| 29 | Confirmed | webpack tree shaking needs ES modules, `sideEffects`, `usedExports` and production mode. | webpack tree shaking |
+| 30 | Confirmed | Rollup `treeshake.moduleSideEffects: false` drops imported modules whose exports are unused. | rollupjs.org options |
+| 31 | Confirmed | Next.js `optimizePackageImports` loads only used modules from barrels; libraries such as `lucide-react`, `date-fns`, `lodash-es` are on by default. The 200 to 800 ms figure stays out. | nextjs.org config |
+| 32 | Confirmed | Compiling ES modules to CommonJS stops webpack tree shaking. | webpack tree shaking |
+| 33 | Confirmed | webpack: an expression in `import()` creates a context module with every match. Vite: variables match one directory level only. | webpack dependency management; vite.dev features |
+| 34 | Confirmed | `next/dynamic` and `React.lazy` split code; `ssr: false` is an error in Server Components. | nextjs.org lazy loading |
+| 35 | Confirmed | `'use client'` marks the module and its transitive imports as client code. | react.dev `use client` |
+| 36 | Different | Next.js 16 deprecates `<Image priority>` in favour of `preload`. | nextjs.org Image |
+| 37 | Different | Next.js 16 `'use cache'` needs `cacheComponents: true`, but `unstable_cache` still works and is the one that persists across deployments. | nextjs.org migrating to Cache Components |
+| 38 | Confirmed | `useMemo`/`useCallback` only for slow work or props to a `memo` child. | react.dev `useMemo` |
+| 39 | Confirmed | React Compiler memoises components and hooks; react.dev recommends relying on it for new code. The 1.0 release date is not in the quote. | react.dev React Compiler |
+| 40 | Confirmed | `useDeferredValue` and transitions keep input responsive; the input's own state must not be in a transition. | react.dev `useDeferredValue` |
+| 41 | Confirmed | `<Activity>` is in React 19.2 with `visible` and `hidden` (hidden unmounts effects, keeps state). | react.dev blog, React 19.2 |
+| 42 | Confirmed | `React.cache` is for Server Components and is invalidated across requests. | react.dev `cache` |
+| 43 | Confirmed in part | Lighthouse budgets via `--budget-path` and LHCI; the source is a GitHub issue discussing deprecation, not the docs. Weak. | GoogleChrome/lighthouse issue 15203 |
+| 44 | Confirmed | LHCI `temporary-public-storage` reports are readable by anyone with the link. | lighthouse-ci configuration |
+| 45 | Not found | No vendor publishes a `blur()` size limit; only "blur takes longer to paint". Both figures stay out. | web.dev animations guide |
+| 46 | Confirmed | Font `preconnect` and `preload` need `crossorigin`; without it preconnect only does DNS. | web.dev preconnect |
+
+**Extras (all primary pages):** `preconnect` and `dns-prefetch` in one `<link>` makes Safari cancel the preconnect; add `beforeunload` only while there are unsaved changes; `React.lazy` inside a component body resets state on every render; `React.cache` inside a component body never shares; `'use cache'` functions cannot read `cookies()`, `headers()` or `searchParams`; with `cacheComponents` on, segment exports `dynamic`, `revalidate`, `fetchCache` are errors; `@property` without `syntax` or `inherits` is ignored; a nonce in `script-src` makes the browser ignore `'unsafe-inline'`; incomplete dependency arrays in manual memoisation block React Compiler; `will-change` inside `@keyframes` does nothing.
+
+**Not reached:** the browser-level lazy-loading article and the WHATWG HTML pages; the reply used MDN and web.dev companions instead.
+
+Block I is complete: 46 items, 8 different, 1 not found, 1 weak (43).

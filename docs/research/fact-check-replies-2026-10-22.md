@@ -53,3 +53,34 @@ Three of three checkable quotes match, so H's reader opened the pages. Its 14 ro
 
 - H's 14 rows can be used once the OpenTelemetry quotes check out against their repositories; the 11 missing items go out again.
 - F needs a chat that can open pages: the one that answered H could, the one that answered F could not.
+
+## I. Web performance (first part: items 1 to 22a; the reply was cut off in 22b)
+
+Full pages, exact URLs. Verdicts as returned; "different" means the claim's source was wrong and the row must say what the page says.
+
+| # | Verdict | Fact as returned | Page |
+|---|---|---|---|
+| 1 | Confirmed | Good is LCP ≤ 2,500 ms, INP ≤ 200 ms, CLS ≤ 0.1 (the boundary counts as good); poor is above 4,000 ms, 500 ms, 0.25. TTFB: good ≤ 0.8 s, poor > 1.8 s. | web.dev defining thresholds; web.dev TTFB |
+| 2 | Confirmed | Assessed at the 75th percentile, mobile and desktop separately. | web.dev vitals |
+| 3 | Confirmed | INP is the worst interaction; one highest interaction is ignored for every 50. | web.dev INP |
+| 4 | Confirmed | Phases: input delay, processing duration, presentation delay. | web.dev optimize INP |
+| 5 | Confirmed | INP replaced FID on 2024-03-12. | web.dev blog |
+| 6 | Different | LCP candidates: `img`, `image` inside `svg`, `video` (poster or first frame), `url()` backgrounds, block-level text. A plain `<svg>` is not one. | web.dev LCP |
+| 7 | Confirmed | LCP sub-parts and targets: TTFB ~40%, load delay < 10%, load duration ~40%, render delay < 10%. | web.dev optimize LCP |
+| 8 | Confirmed | Lazy-loading an above-the-fold LCP image delays LCP. | web.dev LCP lazy loading |
+| 9 | Different | The `loading` default is `eager`; browsers do not lazy-load by default. | MDN `img` |
+| 10 | Confirmed | `fetchpriority="high"` raises an `img` or a preload; use it on one or two resources. | web.dev fetch priority |
+| 11 | Different | The preload scanner reads all of the HTML, `<body>` included, but not CSS or script-injected markup. | web.dev preload scanner |
+| 12 | Confirmed | Shift score = impact fraction × distance fraction; `hadRecentInput` within 500 ms; session windows with gaps under 1 s, at most 5 s. | web.dev CLS |
+| 13 | Confirmed | `width`/`height` on `img` and on `<source>` in `<picture>`, or CSS `aspect-ratio`, reserve the space. | web.dev optimize CLS |
+| 14 | Different | `swap`: 0 s block, infinite swap (fallback at once). `block`: about 3 s block. `fallback`: ≤ 100 ms block, 3 s swap. `optional`: ≤ 100 ms block, no swap. | MDN `FontFace.display` |
+| 15 | Confirmed | `<link>` loads font stylesheets faster than `@import`. | web.dev font best practices |
+| 16 | Confirmed | `size-adjust`, `ascent-override`, `descent-override`, `line-gap-override` calibrate the fallback; Chromium 87+, Firefox 89+. | web.dev size-adjust |
+| 17 | Confirmed | A long task is over 50 ms. | W3C Long Tasks |
+| 18 | Different | `scheduler.yield()`: Chrome and Edge 129, Firefox 142 (not 129), no Safari. | MDN `Scheduler.yield` |
+| 19 | Confirmed | Long Animation Frames shipped in Chrome 123. | developer.chrome.com |
+| 20 | Confirmed | Reading layout after a style write in the same frame forces synchronous layout. | web.dev layout thrashing |
+| 21 | Confirmed | Passive listeners cannot `preventDefault()`; `passive` defaults to true for `wheel`, `mousewheel`, `touchstart`, `touchmove` on Window, Document, `documentElement`, `body`. | MDN `addEventListener` |
+| 22a | Confirmed | `transform` and `opacity` avoid layout and paint. | web.dev compositor-only properties |
+
+**Still to come:** 22b to 46 (the reply was cut off).

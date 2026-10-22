@@ -148,7 +148,7 @@ Block I is complete: 46 items, 8 different, 1 not found, 1 weak (43).
 
 A second chat answered the same 46 items. It read most pages in full, but in places it worked from search snippets: it says so for items 4, 23, 43 and 44, and the CLS formula in 12 came from a secondary page.
 
-**Agreement:** on every item both replies answered, the verdicts are the same: 6, 9, 11, 14, 18, 25 and 36 are different in both, and the other 37 match. Item 9 is now also confirmed from the WHATWG HTML standard ("Eager ... the default state"), which the first reply did not reach. Item 3 is worded differently but means the same: one highest interaction is ignored per 50 interactions, so INP is the 98th percentile, which is the worst interaction on most pages.
+**Agreement:** on every item both replies answered, the facts agree. 6, 9, 11, 14, 18, 25 and 36 are different in both. The only label that differs is 37: the first reading called it different because `unstable_cache` still works; this one confirms that `'use cache'` needs `cacheComponents`, which the first also said. That is not a conflict. Item 9 is now also confirmed from the WHATWG HTML standard ("Eager ... the default state"), which the first reply did not reach. Item 3 is worded differently but means the same: one highest interaction is ignored per 50 interactions, so INP is the 98th percentile, which is the worst interaction on most pages.
 
 **Not reached this time (first reading stands):** TTFB bands (1), `will-change` memory (23), Lighthouse `--budget-path` (43), LHCI `temporary-public-storage` (44). Not found in either reading: a published `blur()` limit (45).
 

@@ -9,4 +9,4 @@ This skill is written in our own words. No text is copied.
 
 Left out: `securityContext`, RBAC, NetworkPolicy and Secrets (the security expert); replica counts and high availability (the architect); "every pod needs all three probes".
 
-The maintainer's second live check, 2026-10-22 (block B), confirmed the items marked [R] from helm.sh (variables, chart hooks) and kubernetes.io (feature gates), and corrected two: express mode can be rolled back, and Helm's default hook delete policy is `before-hook-creation`.
+The maintainer's second live check, 2026-10-22 (block B), confirmed the items marked [R] from helm.sh (variables, chart hooks) and kubernetes.io (feature gates), and corrected one: Helm's default hook delete policy is `before-hook-creation`, so a rerun does not fail.

@@ -12,4 +12,4 @@ Items marked [R] were confirmed by the maintainer's check of the vendor's live p
 
 Left out: style and naming, test syntax (the quality expert), secrets in state and IAM (the security expert), and the stale-plan rejection claim, which the documentation read does not state.
 
-The maintainer's second live check, 2026-10-22 (block B), confirmed the items marked [R] from developer.hashicorp.com (providers, refactoring, provisioners, module providers) and the AWS provider registry (`aws_security_group`), and corrected two: express mode can be rolled back, and Helm's default hook delete policy is `before-hook-creation`.
+The maintainer's second live check, 2026-10-22 (block B), confirmed the items marked [R] from developer.hashicorp.com (providers, refactoring, provisioners, module providers) and the AWS provider registry (`aws_security_group`).

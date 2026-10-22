@@ -17,7 +17,7 @@ No build section, by decision (2026-10-22): the taste skills (`motion-craft`, `i
 ## tests
 
 - worst-case-data (files: *.tsx, *.jsx, *.vue, *.svelte, *.astro, *.component.html)
-- responsive-and-devices (added: [Rr]esponsive|[Mm]obile|[Tt]ablet|\b[Pp]hones?\b|[Tt]ouch|[Vv]iewport|[Bb]reakpoint|\biOS\b|\bAndroid\b|\bSafari\b)
+- responsive-and-devices (added: [Rr]esponsive|[Mm]obile|[Tt]ablet|\b[Pp]hones?\b|\b[Tt]ouch\b|[Vv]iewport|[Bb]reakpoint|\biOS\b|\bAndroid\b|\bSafari\b)
 - rtl-and-direction (added: \bRTL\b|[Rr]ight-to-left|\bArabic\b|\bHebrew\b|\bPersian\b|\bUrdu\b|\bdir=)
 
 ## review
@@ -25,6 +25,6 @@ No build section, by decision (2026-10-22): the taste skills (`motion-craft`, `i
 - semantics-and-aria (files: *.tsx, *.jsx, *.vue, *.svelte, *.html, *.astro)
 - visual-accessibility (files: *.css, *.scss, *.sass, *.less, tailwind.config.*; added: outline(-[a-z]+)?:|outline-none|:focus|focus-visible|\bcolor:|background(-color)?:|opacity:|rgba\(|prefers-reduced-motion|prefers-contrast|forced-colors|user-scalable|maximum-scale|position:\s*(sticky|fixed)|class(Name)?="[^"]*\b(sticky|fixed)\b)
 - ui-on-real-data (files: *.tsx, *.jsx, *.vue, *.svelte, *.astro, *.css, *.scss)
-- responsive-and-devices (added: viewport|100vh|\bh-screen\b|[dsl]vh\b|safe-area-inset|env\(|:hover|\bhover:|@media\s*\((any-)?(hover|pointer)|touch-action|overscroll-behavior|user-select|inputmode|enterkeyhint|autocapitalize|pointerdown|pointermove|touchstart|touchmove|setPointerCapture|screen\.orientation|orientation:|innerWidth|tap-highlight|focus:outline|outline:\s*none)
+- responsive-and-devices (added: viewport|100vh|\bh-screen\b|[dsl]vh\b|safe-area-inset|\benv\(|:hover|\bhover:|@media\s*\((any-)?(hover|pointer)|touch-action|overscroll-behavior|user-select|inputmode|enterkeyhint|autocapitalize|pointerdown|pointermove|touchstart|touchmove|setPointerCapture|screen\.orientation|orientation:|innerWidth|tap-highlight|focus:outline|outline:\s*none)
 - rtl-and-direction (added: \bdir=|\b[Rr][Tt][Ll]\b|\bdirection:\s*(rtl|ltr)|margin-left|margin-right|padding-left|padding-right|text-align:\s*(left|right)|row-reverse|scrollLeft|\b-?(ml|mr|pl|pr|left|right)-\d|<bdi|unicode-bidi)
 - motion (added: \btransition(-[a-z]+)?\s*:|\banimation(-[a-z]+)?\s*:|@keyframes|\.animate\(|transitionend|animationend|transitioncancel|<motion\.|motion/react|framer-motion|useSpring|@react-spring|\bgsap\b|AnimatePresence|class(Name)?="[^"]*\b(transition|animate-))

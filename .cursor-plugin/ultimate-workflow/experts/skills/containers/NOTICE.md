@@ -9,4 +9,4 @@ This skill is written in our own words. No text is copied.
 
 Left out: non-root users, capabilities, secrets in build arguments (the security expert), image size and layer order as findings.
 
-The maintainer's second live check, 2026-10-22 (block B), confirmed the items marked [R] from docs.docker.com (`compose down`); the Dockerfile reference re-read in moby/buildkit at 98d9aa8 (2026-10-21) for the exec form's double quotes, and corrected two: express mode can be rolled back, and Helm's default hook delete policy is `before-hook-creation`.
+The maintainer's second live check, 2026-10-22 (block B), confirmed the items marked [R] from docs.docker.com (`compose down`); the Dockerfile reference re-read in moby/buildkit at 98d9aa8 (2026-10-21) for the exec form's double quotes.

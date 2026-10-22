@@ -639,7 +639,7 @@ test('frontend review: a change that matches every review skill fits the 56 KB c
 
 test('frontend review: a Go or Python change with words like "shortly", "transition" or "fixed" selects no frontend skill', () => {
   assert.deepEqual(names(fe({ 'svc/state.go': ['// the order will transition shortly; fixed in the next release', 'func (o *Order) Transition(to State) error {'] })), []);
-  assert.deepEqual(names(fe({ 'svc/flow.py': ['# fixed: startle the worker shortly after the transition', 'def left_pad(s): return s'] })), []);
+  assert.deepEqual(names(fe({ 'svc/flow.py': ['# fixed: startle the worker shortly after the transition', 'def left_pad(s): return s', "token = os.getenv('TOKEN')"] })), []);
 });
 
 test('frontend review: a stylesheet with only physical sides selects rtl-and-direction; a logical one does not', () => {
@@ -666,6 +666,8 @@ test('frontend tests: a plan naming a component gets worst-case-data; an RTL pla
   const k = ex.testsSkills(PLUGIN, 'Add a member list in `web/src/Members.tsx` for Hebrew (RTL) users.');
   const n = (k.skills.frontend ? k.skills.frontend.skills : []).map((s) => s.name);
   assert.ok(n.includes('worst-case-data') && n.includes('rtl-and-direction'), n.join(','));
+  const t = ex.testsSkills(PLUGIN, 'This change touches `web/src/Members.tsx` only.').skills.frontend.skills.map((s) => s.name);
+  assert.deepEqual(t, ['worst-case-data'], 'the word "touches" does not pull in the device skill');
   const g = ex.testsSkills(PLUGIN, 'Add a refund endpoint in `api/refund.go`.');
   assert.equal(g.skills.frontend, undefined);
 });

@@ -138,7 +138,7 @@ An agent was placed under an expert by its name and the survey's domain notes, n
 - **Survey candidates:** GitHub Actions hardening (awesome-copilot, 85), agentic actions (trailofbits, 80), CI/CD (addyosmani, 52), deploy defaults (awslabs, 50).
 
 ### 11. Observability and operations (skills, not an expert: maintainer decision 2026-10-21)
-- **Now:** alarms, SLOs and runbooks with the architect (proposed skill `alarms-and-slos`); log fields, correlation ids, metric labels and spans in code with the developer (proposed skill `telemetry-in-code`). Both wait for fact-check block H. Ledger: `docs/experts/ledgers/observability.md`.
+- **Now:** alarms, SLOs and runbooks with the architect (skill `alarms-and-slos`, 2026-10-22); log fields, correlation ids, metric labels and spans in code with the developer (skill `telemetry-in-code`, 2026-10-22). Both from fact-check blocks H and H2. Ledger: `docs/experts/ledgers/observability.md`.
 - **Owns:** logs, metrics, traces, alerts, SLOs, runbooks, incident readiness.
 - **Stages:** plan, review.
 - **Upstream agents:**
@@ -150,7 +150,7 @@ An agent was placed under an expert by its name and the survey's domain notes, n
 - **Survey candidates:** observability and instrumentation (addyosmani, 72), OpenTelemetry (ollygarden, 64 to 68), our `operability-guidelines` skill.
 
 ### 12. Performance (skills, not an expert: maintainer decision 2026-10-21)
-- **Now:** `web-performance` under the developer (maintainer's choice of host), waiting for fact-check block I; backend work that grows faster than its input becomes one category in the developer's review reference. Ledger: `docs/experts/ledgers/performance.md`.
+- **Now:** `web-performance` under the developer (maintainer's choice of host), written 2026-10-22 from fact-check block I (read twice); backend work that grows faster than its input becomes one category in the developer's review reference. Ledger: `docs/experts/ledgers/performance.md`.
 - **Owns:** latency and throughput at realistic load, N+1 and unbounded work, caching, web vitals.
 - **Stages:** plan, review.
 - **Upstream agents:**
@@ -198,6 +198,8 @@ Taken from each expert's `.cursor-plugin/ultimate-workflow/experts/<name>/skills
 | developer | review, build | `surgical-change` | `always` | every changed line traced to the task |
 | developer | review, build | `simplification` | `always` | no structure the change does not need |
 | developer | review, build | `engineering-principles` | `always` | a principle's exact meaning and counter-case |
+| developer | review | `web-performance` | root layouts, client entries and bundler config; `added:` images, scripts, fonts, dynamic imports, `use client`, layout reads, scroll and input handlers | what every route loads, the main content, shifts, input and animation cost; last but one, and dropped first at the cap |
+| developer | review | `telemetry-in-code` | `added:` logger setup, OpenTelemetry and X-Ray, propagators, metric clients, EMF, Lambda log settings | structured events, correlation, trace context, label cardinality |
 | developer | plan | `engineering-principles` | offered | the plan adds structure |
 | developer | plan | `dependency-discipline` | offered | the plan adds, removes or upgrades a dependency |
 | developer | plan | `failure-handling` | offered | the plan adds error paths, fallbacks, retries or multi-step writes |
@@ -209,6 +211,7 @@ Taken from each expert's `.cursor-plugin/ultimate-workflow/experts/<name>/skills
 | quality | review | `eval-integrity` | `added:` judge, pass@k, eval-set or rubric wording | the eval's number means what it claims |
 | quality | plan | `eval-integrity`, `test-gates` | offered | the plan decides how behaviour is verified |
 
+| architect | review | `alarms-and-slos` | alarm and rule files; `added:` CloudWatch alarm resources, missing-data and M-of-N settings, Prometheus rules, burn rates | alarms that cannot fire or fire wrongly, symptom against cause, burn-rate alerts |
 | architect | review | `lambda-event-sources` | `added:` event source mapping, scaling, batch-failure, visibility and concurrency settings | queues and streams that trigger Lambda |
 | architect | review | `aws-messaging` | `added:` SQS, SNS, EventBridge and Kinesis resources and send calls | delivery, ordering, deduplication, loss |
 | architect | review | `api-gateway` | `added:` API Gateway resources, timeout and throttle settings | timeouts, payloads, throttles, HTTP versus REST |

@@ -11,6 +11,13 @@ Added by us (no source): the calibration to workload criticality; the rule to ra
 
 Dropped: everything that runs a tool, fetches a page, or installs something.
 
+## 2026-10-22: alarms-and-slos
+
+- New skill `alarms-and-slos` at plan and review, from fact-check blocks H and H2: missing-data treatment (DynamoDB metrics default to `ignore`), evaluation range, percentiles over averages, rates over counts, composite and math alarm action limits, log alarms, mute rules and warm-up, multi-window burn rates.
+- Plan: one question on the objective and its alarms.
+- `aws-well-architected` COST04-BP05: log groups never expiring by default is now [R].
+- Not measured.
+
 ## 2026-10-20: combined with upstream architect agents
 
 Compared 19 upstream architect, SRE, FinOps and migration agents and skills (ECC, awesome-copilot, wshobson, buildwithclaude, awslabs aidlc, anthropics, agency-agents, Jeffallan, alirezarezvani; see NOTICE.md).

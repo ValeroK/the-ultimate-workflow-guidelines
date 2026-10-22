@@ -362,3 +362,18 @@ For the six frontend drafts (since 2026-10-22 shipped in `.cursor-plugin/ultimat
 - **59, 60, 62:** from Sonner's source and an author's issue reply, not its documentation site.
 
 **Added from the same pages:** an invalid `env()` with no fallback resets the property to its initial value rather than being ignored; every browser on iOS is WebKit, so `interactive-widget` works in none of them; `animation-fill-mode: forwards` keeps the stacking context and `will-change` effect after the animation; `interpolate-size` cannot animate between two intrinsic keywords; a `backdrop-filter` blurs only up to the nearest backdrop root (an ancestor with `filter`, `opacity` below 1, `mask` or `clip-path`); Motion's nested `AnimatePresence` needs `propagate` for inner exits; Base UI detects a Motion exit only if it animates `opacity`; `generateViewport` cannot be streamed, so request data in it blocks the page.
+
+### K, second reading (an independent reply, pasted 2026-10-22)
+
+A second chat answered all 65 items and returned the same 8 added facts (66 to 73), from MDN, the W3C and WHATWG specifications, webkit.org, developer.chrome.com, developer.apple.com, tailwindcss.com, radix-ui.com, base-ui.com, motion.dev, nextjs.org and Sonner's source.
+
+**Agreement:** every verdict matches the first reading. 32 and 59 are different in both (Safari unprefixed `user-select` from 16; Sonner `dir` defaults to `auto`). 18 is secondary only in both. 24 is marked confirmed, but the reply lists the same disagreement (Apple's guide says touch and hold; MDN and Tailwind say a tap sticks), so it stays "may stick". 52 is marked confirmed, but the reply says 0.998 is not printed on Apple's page, so it stays out.
+
+**New detail, now [R]:**
+- Radix suspends unmounting only while a CSS `@keyframes` animation plays on the closed state; a CSS `transition` does not delay it. (radix-ui.com animation guide)
+- The legacy `-webkit-line-clamp` also wants `overflow: hidden`. (MDN `line-clamp`)
+- The tap delay went away from Chrome 32 and iOS 9.3 on `width=device-width` pages. (developer.chrome.com)
+- `prefers-contrast` takes `no-preference`, `more`, `less`, `custom`; `high` and `low` are not values. (MDN)
+- Only the top-level window has a visual viewport distinct from the layout viewport. (MDN `VisualViewport`)
+
+Block K stands as recorded, read twice.

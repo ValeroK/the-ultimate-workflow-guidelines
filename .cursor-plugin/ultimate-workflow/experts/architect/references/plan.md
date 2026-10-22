@@ -19,6 +19,7 @@ Read the draft, then search the code and infrastructure files it will touch. Ans
 - **Change and existing data.** How the data already there moves to the new shape (expand, migrate, contract), and how the copy is checked before traffic moves. A plan that mirrors production writes to a second system says how sends, charges and publishes are suppressed on one side.
 - **Tenancy.** Tenant identity is enforced where the data is read, as a key or filter in code, not as an instruction. Costs can be attributed per tenant if the plan needs it.
 - **Cost and limits.** A ceiling on fan-out, concurrency, retries and per-run or per-tenant spend that stops the work when reached. A cost cut states what it does to reliability; a new data path (egress, a NAT, cross-zone traffic) states what it costs.
+- **The objective and its alarms.** For a new user-facing flow: the indicator measured from the user's side (success, latency, freshness), the target and window, and what happens when the budget is spent; none given is a question for the user, not an invented 99.9. Which symptom pages a person, which only opens a ticket, and who receives each.
 - **AWS fit.** The service matches the load: duration, burstiness, statefulness, latency. Long work does not sit behind a request that times out.
 
 ## When the plan makes a one-way choice

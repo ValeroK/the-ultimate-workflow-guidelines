@@ -11,7 +11,7 @@ requires: React 18 or 19 (use() is 19); eslint-plugin-react-hooks and eslint-plu
 
 - **Lets the expert catch:** a component or hook that renders or behaves wrongly although it compiles: a hook the lint rules cannot see, an effect that races or leaks, mutated or duplicated state, a render trap, an error an error boundary never catches, a server-only module or a full record crossing into client code.
 - **Applies to:** `.tsx` and `.jsx` files, and hooks in `.ts` and `.js`.
-- **Not for:** TypeScript and JavaScript traps (`typescript-craft`); `dangerouslySetInnerHTML`, unsafe URL schemes, server actions without authorization, client-exposed secrets and tokens in `localStorage` (security); accessibility, rendering performance and bundle size (frontend, planned); a boolean prop that switches behaviour (the developer's review checklist).
+- **Not for:** TypeScript and JavaScript traps (`typescript-craft`); `dangerouslySetInnerHTML`, unsafe URL schemes, server actions without authorization, client-exposed secrets and tokens in `localStorage` (security); accessibility (frontend); rendering performance and bundle size (`web-performance`); a boolean prop that switches behaviour (the developer's review checklist).
 
 Sources: **[D]** `eslint-plugin-react-hooks` and `eslint-plugin-react` rule documentation in their repositories (2026-10-20); **[R]** the maintainer's live check of react.dev and the Redux Toolkit site (2026-10-20); **[T]** an upstream community skill, not checked; **[O]** our own reasoning. A [T] or [O] item is a prompt to check, not a finding on its own.
 

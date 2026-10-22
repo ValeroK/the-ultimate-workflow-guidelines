@@ -4,6 +4,7 @@ Read by `experts.js` only; no model reads this file. One section per stage. The 
 
 ## plan
 
+- alarms-and-slos
 - lambda-event-sources
 - aws-messaging
 - api-gateway
@@ -14,6 +15,7 @@ Read by `experts.js` only; no model reads this file. One section per stage. The 
 
 ## review
 
+- alarms-and-slos (files: *.rules.yml, *.rules.yaml, prometheus-rules*.yaml, alerts*.yaml, alerts*.yml; added: aws_cloudwatch_metric_alarm|aws_cloudwatch_composite_alarm|AWS::CloudWatch::Alarm|AWS::CloudWatch::CompositeAlarm|new (cloudwatch\.)?Alarm\(|new (cloudwatch\.)?CompositeAlarm\(|TreatMissingData|treat_missing_data|treatMissingData|DatapointsToAlarm|datapoints_to_alarm|PutLogAlarm|PrometheusRule|alerting_rules|[Bb]urn.?[Rr]ate|\bSLO\b)
 - lambda-event-sources (added: EventSourceMapping|aws_lambda_event_source_mapping|SqsEventSource|KinesisEventSource|DynamoEventSource|ScalingConfig|MaximumConcurrency|maximum_concurrency|ReservedConcurrentExecutions|reserved_concurrent_executions|ProvisionedConcurrency|provisioned_concurrent_executions|BisectBatchOnFunctionError|ReportBatchItemFailures|batchItemFailures|VisibilityTimeout|visibility_timeout_seconds|FilterCriteria|filter_criteria|DeadLetterConfig|dead_letter_config|DestinationConfig)
 - aws-messaging (added: AWS::SQS::|AWS::SNS::|AWS::Events::|AWS::EventsV2::|AWS::Kinesis::|aws_sqs_queue|aws_sns_topic|aws_cloudwatch_event_|aws_kinesis_stream|aws-cdk-lib/aws-(sqs|sns|events|kinesis)|aws_cdk\.aws_(sqs|sns|events|kinesis)|RedrivePolicy|redrive_policy|RedriveAllowPolicy|maxReceiveCount|FifoQueue|fifo_queue|ContentBasedDeduplication|MessageDeduplicationId|MessageGroupId|FilterPolicy|filter_policy|SendMessage|send_message|PublishCommand|PutEventsCommand|put_events|PutRecords|put_records|eventsv2)
 - step-functions (files: *.asl.json, *.asl.yaml, *.asl.yml; added: AWS::StepFunctions|aws_sfn_state_machine|aws-stepfunctions|aws_stepfunctions|"States\.|StartExecution|StartSyncExecution|[Cc]ompensat|temporalio|go\.temporal\.io/sdk|io\.temporal\.)

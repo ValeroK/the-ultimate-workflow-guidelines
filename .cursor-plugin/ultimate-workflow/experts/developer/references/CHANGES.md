@@ -11,6 +11,17 @@ Added by us (no source): the rule to follow the repository's own convention befo
 
 Dropped: everything that runs a tool, fetches a page, or installs something.
 
+## 2026-10-22: web-performance and a review category
+
+- New skill `web-performance` at plan and review, from fact-check block I (read twice): what every route loads, `use client` roots, dynamic imports, tree shaking and barrels, render-blocking scripts, the main image (`loading`, `fetchpriority`, preload scanner, LCP candidates, Next.js 16 `preload`), layout shift, fonts, input and animation cost, Next.js and React caching. On a React diff with a catch it is the skill left out at the 40 KB cap (pinned by a test).
+- Review: new category "Work that grows faster than its input".
+- `react-craft`: rendering performance routes to `web-performance`.
+
+## 2026-10-22: telemetry-in-code
+
+- New skill `telemetry-in-code` at plan and review, from fact-check blocks H and H2: structured events, levels, correlation ids, trace context across async hops, propagators, span names, X-Ray annotations and the ADOT default, the X-Ray SDK's maintenance mode, metric cardinality and the OpenTelemetry overflow series, EMF and PutMetricData limits, Lambda log levels. Last in the review list, so existing selection does not change.
+- Not measured.
+
 ## 2026-10-20: web access and a first source pass
 
 - The agent can search the web and fetch pages (plan and review only); its review text no longer says it has no network.

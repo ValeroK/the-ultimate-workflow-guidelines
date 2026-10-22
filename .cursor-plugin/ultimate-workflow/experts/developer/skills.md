@@ -5,6 +5,8 @@ Read by `experts.js` only; no model reads this file. One section per stage. The 
 ## plan
 
 - engineering-principles
+- telemetry-in-code
+- web-performance
 - dependency-discipline
 - failure-handling
 
@@ -35,3 +37,5 @@ Read by `experts.js` only; no model reads this file. One section per stage. The 
 - surgical-change (always)
 - simplification (always)
 - engineering-principles (always)
+- web-performance (files: next.config.*, vite.config.*, webpack.config.*, rollup.config.*, index.html, **/app/layout.*, **/pages/_app.*, **/pages/_document.*, src/main.*; added: loading=|<img\b|<Image\b|<iframe|<video|<script\b|<link rel=|@font-face|font-display|@import url|fetchpriority|\btransition:|transition-property|@keyframes|will-change|content-visibility|\bimport\(|React\.lazy|\blazy\(|next/dynamic|["']use client["']|["']use cache["']|cacheComponents|sideEffects|optimizePackageImports|getBoundingClientRect|offsetHeight|offsetWidth|scheduler\.yield|onScroll|onPointerMove|requestAnimationFrame|addEventListener\(.(scroll|wheel|touchstart|touchmove|pointermove|unload)|useDeferredValue|startTransition|onFID)
+- telemetry-in-code (added: getLogger\(|structlog|logging\.basicConfig|logging\.config|dictConfig|pino\(|winston\.create|zap\.New|slog\.New|tracing_subscriber|@opentelemetry/|from opentelemetry|import opentelemetry|go\.opentelemetry\.io|io\.opentelemetry|OTEL_|propagators?\b|[Pp]ropagator|traceparent|X-Amzn-Trace-Id|aws-xray-sdk|aws_xray_sdk|xray\.|put_metric_data|PutMetricData|prom-client|prometheus_client|client_golang|metrics\.(create|get)Meter|meter\.create|create_counter|create_histogram|CloudWatchMetrics|aws-embedded-metrics|aws_embedded_metrics|aws_lambda_powertools|@aws-lambda-powertools|LoggingConfig|ApplicationLogLevel|LogFormat)

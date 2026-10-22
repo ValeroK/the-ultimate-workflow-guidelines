@@ -240,7 +240,7 @@ test('review: skills left out at the cap are reported by prepare and carried in 
 test('skills --stage plan: each planning expert offers the skills its plan.md lists, with a headline and the text', () => {
   const k = ex.planSkills(PLUGIN);
   assert.deepEqual(k.problems, []);
-  assert.deepEqual(k.skills.developer.map((s) => s.name), ['engineering-principles', 'dependency-discipline', 'failure-handling']);
+  assert.deepEqual(k.skills.developer.map((s) => s.name), ['engineering-principles', 'telemetry-in-code', 'web-performance', 'dependency-discipline', 'failure-handling']);
   for (const s of k.skills.developer) {
     assert.equal(s.headline, ex.readSkill(PLUGIN, s.name).meta.description, 'the headline is the skill\'s own description');
     assert.ok(s.text.startsWith('# ') && !s.text.includes('\ndescription: '));
@@ -382,7 +382,8 @@ test('architect plan: aws-well-architected is offered with its headline; the dev
   const offered = k.skills.architect.map((s) => s.name);
   for (const n of ['lambda-event-sources', 'step-functions', 'caching-and-latency', 'aws-well-architected']) assert.ok(offered.includes(n), n);
   assert.match(k.skills.architect.find((s) => s.name === 'aws-well-architected').headline, /AWS infrastructure/);
-  assert.equal(k.skills.developer.length, 3);
+  assert.equal(k.skills.developer.length, 5);
+  assert.ok(offered.includes('alarms-and-slos'));
 });
 
 // ---- architect: the serverless skills load only on their own constructs ---------------------
@@ -691,4 +692,32 @@ test('genai review: each skill is chosen by its own code, and all four together 
 test('genai review: ordinary application code, and a link to the vendor docs, select no genai skill', () => {
   assert.deepEqual(gen({ 'svc/orders.go': ['func (s *Server) Tools() []string { return s.tools }', '// see https://docs.anthropic.com for the API'] }), []);
   assert.deepEqual(gen({ 'README.md': ['Read more at docs.anthropic.com and in the Bedrock console.'] }), []);
+});
+
+// ---- observability and web performance (2026-10-22) -------------------------------------
+
+test('architect review: alarm definitions select alarms-and-slos; a queue with no alarm does not', () => {
+  assert.ok(arch({ 'infra/alarms.tf': ['resource "aws_cloudwatch_metric_alarm" "p99" {', '  treat_missing_data = "notBreaching"'] }).includes('alarms-and-slos'));
+  assert.ok(arch({ 'ops/api.rules.yml': ['- alert: HighErrorRate'] }).includes('alarms-and-slos'));
+  assert.ok(!arch({ 'infra/q.tf': ['resource "aws_sqs_queue" "jobs" {'] }).includes('alarms-and-slos'));
+});
+
+test('developer review: telemetry setup selects telemetry-in-code; ordinary logging calls and Counter do not', () => {
+  assert.ok(names(review({ 'svc/app.py': ['logger = logging.getLogger(__name__)'] })).includes('telemetry-in-code'));
+  assert.ok(names(review({ 'svc/trace.ts': ["import { trace } from '@opentelemetry/api';"] })).includes('telemetry-in-code'));
+  const plain = names(review({ 'svc/count.py': ['from collections import Counter', 'seen = Counter(words)', 'logger.info("done")'] }));
+  assert.ok(!plain.includes('telemetry-in-code'), plain.join(','));
+});
+
+test('developer review: a lazy main image selects web-performance; a backend file does not', () => {
+  assert.ok(names(review({ 'app/page.tsx': ['<img src={hero} loading="lazy" />'] })).includes('web-performance'));
+  assert.ok(!names(review({ 'svc/orders.go': ['func handle() {}'] })).includes('web-performance'));
+});
+
+test('developer review: on a React diff with a catch, web-performance is the skill left out at the cap, and says so', () => {
+  // Pinned so a change to the cap or the skills is a decision, not a drift. Raising the developer
+  // cap, as was done for frontend, is the maintainer's call.
+  const sel = review({ 'app/page.tsx': ['try { load() } catch (e) { throw e }', '<img src={hero} loading="lazy" />'] });
+  assert.deepEqual(sel.dropped, ['web-performance']);
+  assert.ok(names(sel).includes('react-craft') && names(sel).includes('failure-handling'));
 });

@@ -41,7 +41,7 @@ Sources: **[R]** the maintainer's live check of MDN, the CSS Flexbox, Grid, Text
 | An ellipsis with no way to read the full value hides data [T]; the HTML standard warns that `title` is not exposed to keyboard-only and touch users in many browsers [R] | `text-overflow: ellipsis` or `line-clamp` with no tooltip that opens on focus, no expanded view and no detail page | The full value is shown elsewhere on the same screen |
 | Amounts, dates, identifiers and anything the user compares are never truncated [T] | Ellipsis or clamp on a price, total, date or ID column | |
 | End truncation makes values that differ only at the end identical [T] | End ellipsis on file names (`report-v12-final.pdf`), paths, or emails that share a long domain | The meaningful part is at the start; middle truncation is used |
-| A line clamp needs its companion declarations or it does nothing [R] | `-webkit-line-clamp` without `display: -webkit-box` and `-webkit-box-orient: vertical` (or the standard `line-clamp` where supported) | |
+| A line clamp needs its companion declarations or it does nothing [R] | `-webkit-line-clamp` without `display: -webkit-box`, `-webkit-box-orient: vertical` and `overflow: hidden` (or the standard `line-clamp` where supported) | |
 | A tight `line-height` with `overflow: hidden` clips stacked diacritics and tall scripts [T] | `line-height: 1` (or less) plus `overflow: hidden` on text that can hold Vietnamese, Thai or other tall scripts | The product supports no such locale |
 
 ## Names, initials and missing values

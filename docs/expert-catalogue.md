@@ -97,7 +97,7 @@ An agent was placed under an expert by its name and the survey's domain notes, n
 
 ### 7. (merged into 6)
 
-### 8. Data and database (have: `data`, plan, tests and review; skills wait for the fact-check, see `docs/experts/data.md`)
+### 8. Data and database (have: `data`, plan, tests and review; one skill, `erasure-and-retention` (2026-10-22); the others wait for fact-check block F, see `docs/experts/data.md`)
 - **Owns:** Postgres and pgvector schema, migrations, queries and indexes, DynamoDB key design, and data lifecycle at the data layer. Multi-tenancy is the architect's (decided 2026-10-20), including tenant isolation where data is read.
 - **Stages:** plan, review.
 - **Upstream agents:**

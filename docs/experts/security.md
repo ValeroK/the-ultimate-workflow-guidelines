@@ -26,7 +26,7 @@ The core review checklist is adapted from `anthropics/claude-code-security-revie
 
 ## Skills
 
-`ci-workflow-security` at review, selected by a workflow file, a composite action or `actions.lock` (maintainer decision 2026-10-21). It holds the GitHub Actions rows from round-2 items 1 to 11 and the DevOps facts E1, E2 and E5, each tagged; `agent-surface.md`'s CI section now points to it and keeps only the general questions for other CI systems. Item 10 (newline injection through `GITHUB_ENV`) and organisation-wide OIDC trust stay [T]: only secondary pages state them. The IAM, JWT, CORS, deserialisation and MCP facts from the same round are confirmed and wait for their proposed skills (ledger section 2). Security has no `review-when-skills`: it joins a workflow change through the plan or the recheck, as before.
+`ci-workflow-security` at review, selected by a workflow file, a composite action or `actions.lock` (maintainer decision 2026-10-21). It holds the GitHub Actions rows from round-2 items 1 to 11 and the DevOps facts E1, E2 and E5, each tagged; `agent-surface.md`'s CI section now points to it and keeps only the general questions for other CI systems. Item 10 (newline injection through `GITHUB_ENV`) and organisation-wide OIDC trust stay [T]: only secondary pages state them. The IAM, JWT, CORS, deserialisation and MCP facts from the same round are confirmed and wait for their proposed skills (ledger section 2). `personal-data-exposure` at plan and review (2026-10-22, from fact-check block J): where a personal value goes, and consent or opt-out gates a change skips. Security has no `review-when-skills`: it joins a workflow change through the plan or the recheck, as before.
 
 ## Not measured
 

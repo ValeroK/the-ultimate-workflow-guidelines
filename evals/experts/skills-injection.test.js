@@ -740,3 +740,11 @@ test('data review: soft deletes, lifecycle rules and a new personal column selec
   assert.ok(dat({ 'db/migrate/2.sql': ['ALTER TABLE users ADD COLUMN phone text;'] }).includes('erasure-and-retention'));
   assert.deepEqual(dat({ 'db/migrate/3.sql': ['ALTER TABLE orders ADD COLUMN total_cents integer;'] }), []);
 });
+
+test('architect review: on a mixed serverless change, alarms-and-slos loads after the serverless skills and aws-well-architected is the one left out', () => {
+  // aws-well-architected was already left out of this diff before alarms-and-slos existed; the new
+  // skill sits just above it, so it takes no place a serverless skill held.
+  const sel = ex.selectSkills(PLUGIN, 'architect', 'review', ex.parseDiff(diffOf({ 'infra/main.tf': ['resource "aws_cloudwatch_metric_alarm" "x" {', 'resource "aws_sqs_queue" "q" {', 'resource "aws_lambda_event_source_mapping" "m" {', 'resource "aws_sfn_state_machine" "s" {'] })));
+  assert.deepEqual(names(sel), ['lambda-event-sources', 'aws-messaging', 'step-functions', 'alarms-and-slos']);
+  assert.deepEqual(sel.dropped, ['aws-well-architected']);
+});

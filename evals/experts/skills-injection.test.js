@@ -617,3 +617,55 @@ test('the skills cap is 40 KB by default and raised for frontend only', () => {
   assert.equal(ex.skillsCap('architect'), 40 * 1024);
   assert.equal(ex.skillsCap('frontend'), 56 * 1024);
 });
+
+// ---- frontend --------------------------------------------------------------------------
+
+const fe = (files) => ex.selectSkills(PLUGIN, 'frontend', 'review', ex.parseDiff(diffOf(files)));
+
+test('frontend review: a change that matches every review skill fits the 56 KB cap, with nothing dropped', () => {
+  // The cap was raised to 56 KB on the condition that all six fit together; if this fails, trim the skills.
+  const sel = fe({
+    'web/src/Composer.tsx': ['export const Composer = () => <button onClick={send}><SendIcon /></button>'],
+    'web/src/composer.css': [
+      '.bar { position: fixed; bottom: 0; height: 100vh; margin-left: 8px; transition: opacity 200ms; }',
+      '.bar:hover { outline: none; }',
+    ],
+  });
+  assert.deepEqual(names(sel), ['semantics-and-aria', 'visual-accessibility', 'ui-on-real-data', 'responsive-and-devices', 'rtl-and-direction', 'motion']);
+  assert.deepEqual(sel.dropped, []);
+  const bytes = sel.skills.reduce((n, s) => n + Buffer.byteLength(s.text), 0);
+  assert.ok(bytes <= 56 * 1024, `${bytes} bytes`);
+});
+
+test('frontend review: a Go or Python change with words like "shortly", "transition" or "fixed" selects no frontend skill', () => {
+  assert.deepEqual(names(fe({ 'svc/state.go': ['// the order will transition shortly; fixed in the next release', 'func (o *Order) Transition(to State) error {'] })), []);
+  assert.deepEqual(names(fe({ 'svc/flow.py': ['# fixed: startle the worker shortly after the transition', 'def left_pad(s): return s'] })), []);
+});
+
+test('frontend review: a stylesheet with only physical sides selects rtl-and-direction; a logical one does not', () => {
+  assert.ok(names(fe({ 'web/a.scss': ['.x { padding-right: 4px; }'] })).includes('rtl-and-direction'));
+  assert.ok(!names(fe({ 'web/a.scss': ['.x { padding-inline-end: 4px; }'] })).includes('rtl-and-direction'));
+});
+
+test('frontend review: keyframes or a motion library select motion; a plain component does not', () => {
+  assert.ok(names(fe({ 'web/a.css': ['@keyframes fade { from { opacity: 0 } }'] })).includes('motion'));
+  assert.ok(names(fe({ 'web/A.tsx': ["import { AnimatePresence } from 'motion/react';"] })).includes('motion'));
+  assert.ok(!names(fe({ 'web/A.tsx': ['export const A = () => <p>{name}</p>'] })).includes('motion'));
+});
+
+test('frontend: the taste skills are offered at plan and never selected at review or tests', () => {
+  const offered = (ex.planSkills(PLUGIN).skills.frontend || []).map((s) => s.name);
+  for (const s of ['motion-craft', 'interface-design', 'semantics-and-aria', 'rtl-and-direction']) assert.ok(offered.includes(s), s);
+  const text = fs.readFileSync(path.join(PLUGIN, 'experts', 'frontend', 'skills.md'), 'utf8');
+  const after = text.slice(text.indexOf('## tests'));
+  for (const s of ['motion-craft', 'interface-design']) assert.ok(!after.includes(`- ${s}`), s);
+  assert.ok(!/^## build/m.test(text), 'no build section, by decision');
+});
+
+test('frontend tests: a plan naming a component gets worst-case-data; an RTL plan also gets rtl-and-direction', () => {
+  const k = ex.testsSkills(PLUGIN, 'Add a member list in `web/src/Members.tsx` for Hebrew (RTL) users.');
+  const n = (k.skills.frontend ? k.skills.frontend.skills : []).map((s) => s.name);
+  assert.ok(n.includes('worst-case-data') && n.includes('rtl-and-direction'), n.join(','));
+  const g = ex.testsSkills(PLUGIN, 'Add a refund endpoint in `api/refund.go`.');
+  assert.equal(g.skills.frontend, undefined);
+});

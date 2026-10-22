@@ -160,7 +160,7 @@ An agent was placed under an expert by its name and the survey's domain notes, n
   - awesome-copilot `frontend-performance-investigator`, `mongodb-performance-advisor`
 - **Survey candidates:** web performance (addyosmani 48, ziniman 45), cost and performance (vercel, 40). These are weak sources: performance has the thinnest material.
 
-### 13. Frontend and accessibility (have: `frontend`, plan, tests, review; skills wait for the fact-check, see `docs/experts/frontend.md`)
+### 13. Frontend and accessibility (have: `frontend`, plan, tests, review; nine skills, see `docs/experts/frontend.md`)
 - **Owns:** UI components and state, rendering, design-system drift, accessibility.
 - **Stages:** plan, tests, review.
 - **Upstream agents:**

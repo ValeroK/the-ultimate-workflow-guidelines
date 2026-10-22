@@ -305,7 +305,7 @@ Block G is complete: 25 items, 3 different, 0 not found.
 
 ## K. Frontend across devices (65 items, 8 added; full pages)
 
-For the six frontend drafts in `docs/experts/drafts/frontend-2026-10-22/`. Pages: MDN (with its compatibility tables), the W3C CSS, Media Queries and WCAG specifications, the WHATWG HTML standard, webkit.org, developer.chrome.com, developer.apple.com, tailwindcss.com, radix-ui.com, base-ui.com, motion.dev, nextjs.org, and Sonner's own repository (its site was not reached).
+For the six frontend drafts (since 2026-10-22 shipped in `.cursor-plugin/ultimate-workflow/experts/skills/`). Pages: MDN (with its compatibility tables), the W3C CSS, Media Queries and WCAG specifications, the WHATWG HTML standard, webkit.org, developer.chrome.com, developer.apple.com, tailwindcss.com, radix-ui.com, base-ui.com, motion.dev, nextjs.org, and Sonner's own repository (its site was not reached).
 
 **Confirmed (60):** 1 to 17, 19 to 23, 25 to 31, 33 to 51, 53 to 58, 60 to 65, each as written in `fact-check-prompts-open-2026-10-21/K.txt`. Version numbers given by the reply where the claim asked: `tabular-nums` Chrome 52, Firefox 34, Safari 9.1; VirtualKeyboard Chromium 94 only; `-webkit-tap-highlight-color` iOS Safari and Chromium, not Firefox or desktop Safari; `navigator.vibrate` none in Safari, removed from desktop Firefox 129; `screen.orientation.lock` none in Safari, Chrome Android 38, Firefox Android 144; `interpolate-size` Chromium 129 only; `@starting-style` Chrome 117, Safari 17.5, Firefox 129; unprefixed `backdrop-filter` from Safari 18 (prefixed 9 to 17.6), Chrome 76, Firefox 103; `prefers-reduced-transparency` Chromium 118, behind a flag in Firefox, none in Safari.
 

@@ -206,3 +206,13 @@ Full pages for most; the reply notes a snippet for part of item 7 and secondary 
 **Extras:** `create_before_destroy` stops destroy-time provisioners; a tainted resource skips its destroy-time provisioner; removing inline `ingress`/`egress` blocks does not delete the rules (set `ingress = []`); PARALLEL pipelines have no stage rollback; after hotswaps use `cdk deploy --revert-drift`; construct id `Default` keeps a logical id when wrapping; one nested-stack operation changes at most 2,500 resources; express mode still waits for custom resources (set `ServiceTimeout`); `helm uninstall` never removes hook resources; environment branch patterns: `*` does not match `/`.
 
 **Two held-back review lines are now settled:** the StatefulSet PVC rule (24) and the deployment-branch rule (27).
+
+## F again (third snippet-only reading)
+
+Sent to a chat whose only tool was `google:search`, so every claim is marked snippet only. Verdicts match both earlier snippet readings (28, 39, 42 different; 31, 41 not found), plus:
+
+- **Item 29 now reads the other way from the second reply's SDK page:** this snippet of the same SDK example page says conditional writes "consume the same amount of write capacity whether" the condition succeeds or fails. Two snippets of one page disagree, which is the case for reading the page itself.
+- **Item 22:** the 8.0.28 date for `INSTANT RENAME COLUMN` was not in the snippet.
+- **Added (snippet only):** Prisma batches only `findUnique` (not `findMany`) in its dataloader; `@unique`, `@id`, `@relation`, `@ignore`, `@updatedAt` are not allowed in composite types; `uuid()` and `cuid()` defaults live in Prisma, not the database; PartiQL `DELETE` takes one item by full key; RDS PostgreSQL temp-table churn contends on TOAST OIDs; dropping MySQL temp tables does not shrink the global temp tablespace; `DBInstanceClassMemory` excludes OS and RDS overhead.
+
+F stays snippet only. It needs the chat that answered B, I and J (full pages).

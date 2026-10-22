@@ -182,6 +182,8 @@ const FINDINGS = {
           category: { type: 'string', description: 'Domain experts: the category from your reference, or the owning expert when it is outside your domain' },
           severity: { type: 'string', enum: ['high', 'medium', 'low'], description: 'Domain experts: by the protocol and your reference' },
           fix: { type: 'string', description: 'Domain experts: the fix in one sentence, smaller than the problem' },
+          basis: { type: 'string', description: 'Domain experts: where this finding came from: "skill:<name>" for a skill pasted into your prompt, "reference:<category>" for your stage reference, or "general" for your own knowledge' },
+          basisQuote: { type: 'string', description: 'Domain experts, with a skill basis: the words of the skill row that made you see it, copied exactly' },
         },
       },
     },
@@ -232,11 +234,15 @@ const droppedFor = (name) => {
   const entry = args && args.skills && typeof args.skills === 'object' ? args.skills[name] : null
   return (entry && Array.isArray(entry.dropped) ? entry.dropped : []).filter((x) => typeof x === 'string')
 }
+// Each finding says where it came from, so a run can show what the skills added over the model's
+// own knowledge. experts.js checks a skill basis against the skills that were loaded.
+const BASIS_RULE =
+  ' For each finding set basis: "skill:<name>" when a row of a skill below is what made you see it, and copy that row\'s words into basisQuote; "reference:<category>" when it comes from your stage reference; "general" when it comes from your own knowledge. Say "general" rather than name a skill that did not lead you to it: the quote is checked against the skill.'
 const skillBlock = (name) => {
   const mine = skillsFor(name)
   return mine.length === 0
-    ? '\n\nNo skill applies to this change by its files and lines. Do not open skill files.'
-    : `\n\nSKILLS for this change (${mine.map((x) => x.name).join(', ')}), chosen by the workflow from the diff. Read them before you look for findings. Do not open other skill files.\n\n${mine.map((x) => x.text.trim()).join('\n\n')}`
+    ? `\n\nNo skill applies to this change by its files and lines. Do not open skill files.${BASIS_RULE}`
+    : `\n\nSKILLS for this change (${mine.map((x) => x.name).join(', ')}), chosen by the workflow from the diff. Read them before you look for findings. Do not open other skill files.${BASIS_RULE}\n\n${mine.map((x) => x.text.trim()).join('\n\n')}`
 }
 
 log(`Reviewing ${range} through ${lenses.length} lenses (rigor: ${rigor})`)
@@ -295,7 +301,7 @@ const failedLenses = lenses.filter((_, i) => !lensResults[i])
 const expertFindings = (list, status) =>
   list
     .filter((f) => reviewingNames.includes(f.lens))
-    .map((f) => ({ expert: f.lens, file: f.file, line: f.line, what: f.what, confidence: f.confidence, ...(f.severity ? { severity: f.severity } : {}), status }))
+    .map((f) => ({ expert: f.lens, file: f.file, line: f.line, what: f.what, confidence: f.confidence, ...(f.severity ? { severity: f.severity } : {}), ...(typeof f.basis === 'string' ? { basis: f.basis } : {}), ...(typeof f.basisQuote === 'string' ? { basisQuote: f.basisQuote } : {}), status }))
 const lane = (found = []) => ({
   stage: 'review',
   available: available.map((e) => e.name),

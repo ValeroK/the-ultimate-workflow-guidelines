@@ -25,6 +25,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **`always: [tests]`** in an agent file: the expert joins the tests stage whether or not the plan selected it. The quality expert has it, because every test plan is about tests; `record --stage tests --plan` then writes it into the plan's `experts:` line, so the review and the commit check expect it too. The quality expert also gained a build brief for the agent that writes the tests.
 - **docs/adding-an-expert.md** (the tested recipe, with the goal, the decision record of what was measured and what was only reasoned) and **docs/what-a-good-expert-looks-like.md** (how to judge and vet an expert).
 
+- **Where a finding came from.** Every expert finding at review names its basis (`skill:<name>` with the row it rests on, `reference:<category>`, or `general`); `record` checks a skill basis against the skills loaded in that run and the skill's text, and `experts.js attribution` reports per expert the skills loaded at each stage, findings by basis, and skills loaded but never cited. Self-reported, so it shows what a finding claims; the A0, A2, A3 ablation shows what the skills add.
+
 ### Removed
 
 - The path-keyword router (`experts/route.js`) and the hardcoded expert registry in `workflows/review.js`. Selection is a model's judgement with the list in front of it; the path router selected the security expert for 7 of 12 seeded cases, and the model for 12 of 12 (one expert, one run each, diff only).

@@ -735,3 +735,47 @@ test('briefs: the cli prints the briefs as JSON and says why one was left out', 
   assert.deepEqual(out.map((b) => b.name), ['developer', 'quality']);
   assert.equal(typeof out[0].text, 'string');
 });
+
+// ---- where a finding came from (basis) --------------------------------------------------
+
+const quoteOf = (skill) => {
+  // A real row of a real skill, so the test follows the skill if it is reworded.
+  const text = ex.readSkill(PLUGIN, skill).text;
+  return text.split('\n').find((l) => l.startsWith('- ') && l.length > 60).slice(2, 80);
+};
+
+function attributed(findings, loaded = ['failure-handling']) {
+  const { dir } = ready();
+  ex.prepare(dir, 'working', PLUGIN);
+  const out = ex.record(dir, 'review', reviewResult({ findings, skillsLoaded: { security: loaded } }), { pluginRoot: PLUGIN });
+  return { dir, out, report: ex.attribution(dir, PLUGIN).experts.find((e) => e.expert === 'security') };
+}
+
+test('a skill basis whose quote is in a loaded skill checks out, and the report credits that skill', () => {
+  const q = quoteOf('failure-handling');
+  const { out, report } = attributed([found({ basis: 'skill:failure-handling', basisQuote: q })]);
+  assert.strictEqual(out.basisProblems, undefined);
+  assert.deepEqual(report.byBasis, { skill: 1, reference: 0, general: 0, missing: 0 });
+  assert.strictEqual(report.bySkill['failure-handling'], 1);
+  assert.deepEqual(report.uncited, []);
+});
+
+test('an invented skill, a skill that was not loaded, a quote not in the skill, and no basis are each reported', () => {
+  const q = quoteOf('failure-handling');
+  const { out, report } = attributed([
+    found({ what: 'one', basis: 'skill:no-such-skill', basisQuote: q }),
+    found({ what: 'two', basis: 'skill:go-craft', basisQuote: quoteOf('go-craft') }),
+    found({ what: 'three', basis: 'skill:failure-handling', basisQuote: 'a rule that this skill has never said anywhere at all' }),
+    found({ what: 'four' }),
+  ]);
+  const checks = report.problems.map((p) => p.check).sort();
+  assert.deepEqual(checks, ['missing', 'not-loaded', 'quote-not-found', 'unknown-skill']);
+  assert.strictEqual(out.basisProblems.length, 4);
+  assert.deepEqual(report.uncited, ['failure-handling'], 'a skill no finding credibly cites is listed as loaded and unused');
+});
+
+test('reference and general bases are counted, not checked against a skill', () => {
+  const { report } = attributed([found({ what: 'one', basis: 'reference:Data exposure' }), found({ what: 'two', basis: 'general' })], []);
+  assert.deepEqual(report.byBasis, { skill: 0, reference: 1, general: 1, missing: 0 });
+  assert.deepEqual(report.problems, []);
+});

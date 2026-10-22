@@ -749,3 +749,24 @@ test('architect review: on a mixed serverless change, alarms-and-slos loads afte
   assert.deepEqual(names(sel), ['lambda-event-sources', 'aws-messaging', 'step-functions', 'alarms-and-slos']);
   assert.deepEqual(sel.dropped, ['aws-well-architected']);
 });
+
+test('review workflow: an expert finding keeps its basis and quote in the lane, and the prompt asks for them', async () => {
+  const prompts = [];
+  const call = (c) => {
+    prompts.push(c);
+    if (c.label === 'recheck') return { experts: [] };
+    if (c.label === 'developer') return { lensVerdict: 'one', findings: [{ file: 'a.py', line: 1, what: 'x', howItFails: 'y', confidence: 'medium', basis: 'skill:failure-handling', basisQuote: 'quoted words' }] };
+    if (Array.isArray(c.schema && c.schema.required) && c.schema.required.includes('verdicts')) return { verdicts: [{ index: 0, verdict: 'confirmed', reason: 'r' }] };
+    return { findings: [], lensVerdict: 'clean' };
+  };
+  const { result } = await loadWorkflow(path.join(PLUGIN, 'workflows', 'review.js'))(
+    { available: ex.list(PLUGIN).experts, experts: ['developer'], diffFile: 'd', expertsDir: '/p', skills: {} },
+    call
+  );
+  const f = result.expertLane.findings.find((x) => x.expert === 'developer');
+  assert.ok(f, JSON.stringify(result.expertLane.findings));
+  assert.strictEqual(f.basis, 'skill:failure-handling');
+  assert.strictEqual(f.basisQuote, 'quoted words');
+  const asked = prompts.find((c) => c.label === 'developer');
+  assert.match(JSON.stringify(asked), /basisQuote/, 'the expert is told to give the basis and quote');
+});

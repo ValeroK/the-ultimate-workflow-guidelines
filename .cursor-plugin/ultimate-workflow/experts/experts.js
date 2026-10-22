@@ -27,6 +27,7 @@
 //   node experts.js record  --stage S [--plan P] < result   record a workflow result as evidence
 //   node experts.js check   [--plan P]                      would the commit gate allow a commit now
 //   node experts.js findings                                high-confidence findings still open, and which are dismissed
+//   node experts.js attribution                             per expert: skills loaded, findings by basis, skills never cited
 //   node experts.js resolve --id ID --reason "..."          dismiss one, on the user's word and in their words
 //   node experts.js fingerprint                             hash of the uncommitted changes
 //
@@ -604,6 +605,71 @@ function prepare(cwd, range = 'working', pluginRoot = PLUGIN_ROOT) {
   return { hash, range, diffFile, files: changes.files, available, skills: { ...skills, _protocol: protocolText(pluginRoot) }, ...(skillProblems.length > 0 ? { skillProblems } : {}) };
 }
 
+// ---- where a finding came from ----
+//
+// A review finding names its basis: a skill pasted into the prompt, the stage reference, or the
+// model's own knowledge. A skill basis is checked here against the skills that were loaded and
+// against the skill's text, so a run can say what the skills added and an invented citation shows.
+
+const BASIS_KINDS = ['skill', 'reference', 'general'];
+const normalise = (s) => String(s || '').toLowerCase().replace(/[`*|_]/g, ' ').replace(/\[(?:[RDTOG]|D, 2023)\]/gi, ' ').replace(/\s+/g, ' ').trim();
+
+/** `ok`, `missing`, `malformed`, `unknown-skill`, `not-loaded`, `no-quote` or `quote-not-found`. */
+function checkBasis(f, loaded, pluginRoot = PLUGIN_ROOT) {
+  const basis = typeof f.basis === 'string' ? f.basis.trim() : '';
+  if (!basis) return 'missing';
+  const m = /^(skill|reference|general)(?::\s*(.+))?$/.exec(basis);
+  if (!m) return 'malformed';
+  if (m[1] === 'general') return 'ok';
+  if (!m[2]) return 'malformed';
+  if (m[1] === 'reference') return 'ok';
+  const name = m[2].trim().split('#')[0].trim();
+  let text;
+  try {
+    text = readSkill(pluginRoot, name).text;
+  } catch {
+    return 'unknown-skill';
+  }
+  if (!loaded.includes(name)) return 'not-loaded';
+  const quote = normalise(f.basisQuote);
+  if (quote.length < 15) return 'no-quote';
+  return normalise(text).includes(quote) ? 'ok' : 'quote-not-found';
+}
+
+const basisKind = (f) => (/^(skill|reference|general)\b/.exec(String(f.basis || '').trim()) || [])[1] || 'missing';
+const basisSkill = (f) => (basisKind(f) === 'skill' ? String(f.basis).trim().slice(6).split('#')[0].trim() : null);
+
+/**
+ * Per expert, from the review records: the skills loaded, the findings by basis, the findings
+ * each skill led to, the skills loaded and never cited, and every basis that failed its check.
+ */
+function attribution(cwd, pluginRoot = PLUGIN_ROOT) {
+  const experts = [];
+  for (const { name } of list(pluginRoot).experts) {
+    const r = readJson(evidenceFile(cwd, 'review', name));
+    if (!r) continue;
+    const findings = Array.isArray(r.findings) ? r.findings : [];
+    const loaded = Array.isArray(r.skills) ? r.skills : [];
+    const byBasis = Object.fromEntries([...BASIS_KINDS, 'missing'].map((k) => [k, 0]));
+    const bySkill = Object.fromEntries(loaded.map((s) => [s, 0]));
+    const problems = [];
+    for (const f of findings) {
+      byBasis[basisKind(f)] += 1;
+      const s = basisSkill(f);
+      const check = f.basisCheck || checkBasis(f, loaded, pluginRoot);
+      if (s && check === 'ok') bySkill[s] = (bySkill[s] || 0) + 1;
+      if (check !== 'ok') problems.push({ id: f.id, file: f.file, line: f.line, basis: f.basis || null, check });
+    }
+    const loadedAt = {};
+    for (const st of STAGES) {
+      const e = readJson(evidenceFile(cwd, st, name));
+      if (e && Array.isArray(e.skills)) loadedAt[st] = e.skills;
+    }
+    experts.push({ expert: name, at: r.at, hash: r.hash, skillsLoaded: loaded, loadedAt, findings: findings.length, byBasis, bySkill, uncited: loaded.filter((s) => !bySkill[s]), problems });
+  }
+  return { experts };
+}
+
 /**
  * Turn a workflow result into evidence. The result must say it succeeded and carry an
  * `expertLane` for this stage; anything else records nothing, so a half-run cannot
@@ -635,7 +701,8 @@ function record(cwd, stage, result, { planFile = '', pluginRoot = PLUGIN_ROOT } 
   // no findings and no record, and the gate asks for the review again.
   const found = (lane.findings || [])
     .filter((f) => (lane.ran || []).includes(f.expert))
-    .map((f) => ({ ...f, id: findingId(f) }));
+    .map((f) => ({ ...f, id: findingId(f) }))
+    .map((f) => (stage === 'review' ? { ...f, basisCheck: checkBasis(f, (lane.skillsLoaded && Array.isArray(lane.skillsLoaded[f.expert]) ? lane.skillsLoaded[f.expert] : []), pluginRoot) } : f));
   for (const name of lane.ran || []) {
     const mine = found.filter((f) => f.expert === name);
     writeJson(evidenceFile(cwd, stage, name), {
@@ -644,14 +711,16 @@ function record(cwd, stage, result, { planFile = '', pluginRoot = PLUGIN_ROOT } 
       at,
       hash,
       failedElsewhere: (lane.failed || []).length > 0,
-      ...(stage === 'review' ? { findings: mine, skills: (lane.skillsLoaded && Array.isArray(lane.skillsLoaded[name]) ? lane.skillsLoaded[name] : []) } : {}),
+      skills: lane.skillsLoaded && Array.isArray(lane.skillsLoaded[name]) ? lane.skillsLoaded[name] : [],
+      ...(stage === 'review' ? { findings: mine } : {}),
     });
   }
   if (stage === 'review' && lane.recheck === true) {
     writeJson(evidenceFile(cwd, 'review', '_recheck'), { hash, final: lane.selected || [], added: lane.added || [], at });
   }
   const open = found.filter((f) => blocking(f) && !readWaivers(cwd)[f.id]);
-  return { stage, recorded: lane.ran || [], failed: lane.failed || [], hash, plan, findings: found.length, open };
+  const basisProblems = found.filter((f) => f.basisCheck && f.basisCheck !== 'ok').map((f) => `${f.id} ${f.expert} ${f.file}:${f.line}: basis ${f.basis ? `"${f.basis}"` : '(none)'} is ${f.basisCheck}`);
+  return { stage, recorded: lane.ran || [], failed: lane.failed || [], hash, plan, findings: found.length, open, ...(basisProblems.length > 0 ? { basisProblems } : {}) };
 }
 
 /** What the commit gate needs to decide, gathered once. Fails open to a skip. */
@@ -764,6 +833,7 @@ function main(argv) {
       return out({ findings: allFindings(o.cwd, fingerprint(o.cwd), names).filter((f) => blocking(f)) });
     }
     if (o.cmd === 'resolve') return out(resolve(o.cwd, o.id, o.reason, o.pluginRoot));
+    if (o.cmd === 'attribution') return out(attribution(o.cwd, o.pluginRoot));
     if (o.cmd === 'check') {
       const evidence = commitEvidence(o.cwd, o.plan, o.pluginRoot);
       const verdict = gates.commitGate(evidence);
@@ -774,7 +844,7 @@ function main(argv) {
   } catch (err) {
     fail(err.message);
   }
-  return fail(`unknown command: ${o.cmd || '(none)'} (expected list, brief, skills, read, select, prepare, record, check, findings, resolve, fingerprint)`);
+  return fail(`unknown command: ${o.cmd || '(none)'} (expected list, brief, skills, read, select, prepare, record, check, findings, resolve, attribution, fingerprint)`);
 }
 
 module.exports = {
@@ -811,6 +881,8 @@ module.exports = {
   findingId,
   resolve,
   allFindings,
+  checkBasis,
+  attribution,
 };
 
 if (require.main === module) main(process.argv.slice(2));

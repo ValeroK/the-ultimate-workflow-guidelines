@@ -2,6 +2,12 @@
 
 Kept as ideas: see NOTICE.md in the folder above. Everything is restated.
 
+## 2026-10-22: round 2 (fact-check block B)
+
+- The four held-back lines are in: a StorageClass with no `reclaimPolicy`, a StatefulSet whose undo is a template revert, a production environment open to any branch, and a label-triggered deploy with no `labeled` type.
+- Skills: 27 claims checked live, 2 different (express mode can be rolled back; Helm's default hook delete policy is `before-hook-creation`, so a rerun does not fail). Rows a check confirmed are [R]; [T] rows were confirmed, rewritten, or reclassified as our own reasoning; rows the value test cut are gone (a provider major bump, `sensitive` in state, drift detection, bootstrapping, CPU throttling).
+- Not measured.
+
 ## 2026-10-20: first version
 
 Compared 18 upstream DevOps, Terraform, Kubernetes, CI and deployment agents (awesome-copilot, wshobson, buildwithclaude, agency-agents, alirezarezvani, awslabs aidlc). None reviews an infrastructure change for what it will replace or destroy with evidence from the diff; that core was written from the vendors' documentation.

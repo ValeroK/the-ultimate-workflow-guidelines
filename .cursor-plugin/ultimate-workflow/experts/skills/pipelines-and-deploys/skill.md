@@ -7,7 +7,7 @@ description: Use when a change adds or changes a CI/CD workflow: promotion, envi
 
 Use this when a change adds or changes a CI/CD workflow. GitHub Actions is the main CI this skill is written for; GitLab, CodeBuild, CodeDeploy and Jenkins get the general rules and a short section. It holds what decides whether what reaches production is what was tested, and whether two deploys can collide. CI workflow security (triggers that run fork code with secrets, `permissions`, pinning actions to a commit, OIDC) is the security expert's; whether a check can fail is quality's.
 
-Each fact carries its source: **[D]** GitHub's documentation as published on GitHub (`github/docs`, read 2026-10-20; github.com unless marked); **[T]** an upstream community skill, not checked; **[O]** our own reasoning. **[R]** the maintainer's check of the live GitLab documentation (2026-10-20). Other GitLab rules are [O]: check the current GitLab documentation before a finding rests on one.
+Each fact carries its source: **[D]** GitHub's documentation as published on GitHub (`github/docs`, read 2026-10-20; github.com unless marked); **[T]** an upstream community skill, not checked; **[O]** our own reasoning. **[R]** the maintainer's checks of the live GitLab documentation (2026-10-20) and of docs.github.com and the CodePipeline guide, block B (2026-10-22). Other GitLab rules are [O]: check the current GitLab documentation before a finding rests on one.
 
 ## What reaches production
 
@@ -35,8 +35,10 @@ Each fact carries its source: **[D]** GitHub's documentation as published on Git
 ## Environments and gates
 
 - Environment secrets reach only jobs that reference the environment, and only after its reviewers approve [D]. A production deploy job with no `environment:` gets none of its protection rules [O].
+- Deployment branches: "No restriction" lets any branch deploy, and "Protected branches only" with no branch protection rules lets every branch deploy [R]; a branch pattern's `*` does not match `/` [R]. A production environment in either state lets a manual run from any branch deploy [O].
 - Up to six required reviewers can be listed and one approval suffices; a wait timer is 1 to 43,200 minutes [D].
-- A job skipped by `if:` reports Success. A whole workflow skipped by a `paths`, `branches` or commit-message filter leaves its checks Pending, and a pull request that requires them is blocked [D]. A filter that lets a change reach a deploy without the checks the rest pass is a finding [O].
+- A job skipped by `if:` reports Success [D]. A filter that lets a change reach a deploy without the checks the rest pass is a finding [O]; a required check left Pending by a filter is quality's.
+- A `pull_request` workflow runs only on `opened`, `synchronize` and `reopened` unless `types` says otherwise [D], so a deploy meant to start when a label is added needs `labeled` in `types` [O].
 
 ## Concurrency
 
@@ -55,6 +57,11 @@ Each fact carries its source: **[D]** GitHub's documentation as published on Git
 ## GitLab
 
 - A job with `when: manual` defined outside `rules:` defaults to `allow_failure: true`, so the pipeline does not wait for it and passes without it; inside `rules:` it defaults to `allow_failure: false` [R]. A manual production deploy or approval job written the first way does not hold back what follows it [O]. Whether a test job may fail is quality's.
+
+## AWS CodePipeline
+
+- V2 execution modes are SUPERSEDED (the default), QUEUED and PARALLEL; PARALLEL runs executions at once [R] and has no stage rollback [R]. PARALLEL on a pipeline that deploys to one environment lets two executions deploy together [O].
+- Trigger file-path filters see only the first 100 changed files [R]: a large commit can skip a pipeline it should start, or start one it should not [O].
 
 ## Caches and artifacts
 

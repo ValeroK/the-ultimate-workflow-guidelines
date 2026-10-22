@@ -12,3 +12,5 @@ This skill is written in our own words. No text is copied.
 Items marked [R] were confirmed by the maintainer's check of the vendor's live pages on 2026-10-20 (developer.hashicorp.com, docs.aws.amazon.com, docs.gitlab.com).
 
 Left out: the toolkit's attribution marker and metadata rules (its own process), security group and encryption checks (the security expert), backups and immutable infrastructure (the architect's `aws-well-architected`), and "Conditional" as a change-set Replacement value, which the 2023 guide does not show.
+
+The maintainer's second live check, 2026-10-22 (block B), confirmed the items marked [R] from docs.aws.amazon.com (CloudFormation express mode, rollback, resource import and quotas; CDK deploy and refactor; Lambda Node.js), and corrected two: express mode can be rolled back, and Helm's default hook delete policy is `before-hook-creation`.

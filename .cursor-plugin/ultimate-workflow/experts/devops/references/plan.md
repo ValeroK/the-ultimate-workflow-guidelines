@@ -12,7 +12,7 @@ Read the draft, then find how this repository builds and deploys: the CI workflo
 - **Repeatable builds.** Provider, module, chart, base image and runtime versions pinned, and the lock files committed. The artifact is tagged from the commit.
 - **What is promoted.** The artifact built once, the path it takes through the environments to production, the check at each step, and which job applies from which reviewed plan.
 - **Deploy order and concurrency.** What runs first (infrastructure, migration, code, flag), what stops a deploy, and what keeps two deploys to one environment from running at once.
-- **Undo.** The mechanism that takes production back (a previous tag, `rollout undo`, an alias, a flag), and the steps it cannot undo, such as a destructive migration or a deleted volume, which then need their own order.
+- **Undo.** The mechanism that takes production back (a previous tag, `rollout undo`, an alias, a flag), and the steps it cannot undo, such as a destructive migration, a deleted volume, a StatefulSet rollout that reverting the template does not repair, or a removed `moved` block, which then need their own order.
 - **Runtime health.** For a new container or workload: how it reports ready and healthy, and that it stops cleanly on the platform's stop signal.
 - **How it is checked before merge.** The command CI runs to validate the change (format, validate, plan, schema check).
 

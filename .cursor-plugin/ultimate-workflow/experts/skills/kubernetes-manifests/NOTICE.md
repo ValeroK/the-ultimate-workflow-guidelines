@@ -8,3 +8,5 @@ This skill is written in our own words. No text is copied.
 | github/awesome-copilot `platform-sre-kubernetes`; affaan-m/ECC `kubernetes-patterns` | MIT | Liveness checking a dependency, probe duplication, Job restart policy, CronJob overlap, Helm renames and hooks. Marked [T] where not in the documentation. Their fixed replica counts and limit ratios were not taken |
 
 Left out: `securityContext`, RBAC, NetworkPolicy and Secrets (the security expert); replica counts and high availability (the architect); "every pod needs all three probes".
+
+The maintainer's second live check, 2026-10-22 (block B), confirmed the items marked [R] from helm.sh (variables, chart hooks) and kubernetes.io (feature gates), and corrected two: express mode can be rolled back, and Helm's default hook delete policy is `before-hook-creation`.

@@ -10,3 +10,5 @@ This skill is written in our own words. No text is copied.
 Items marked [R] were confirmed by the maintainer's check of the vendor's live pages on 2026-10-20 (developer.hashicorp.com, docs.aws.amazon.com, docs.gitlab.com).
 
 Left out: workflow security (triggers, permissions, action pinning, OIDC, cache poisoning), which the security expert owns; checks that cannot fail, which quality owns; CI efficiency savings. GitLab is covered by no source read and is marked as unchecked in the skill.
+
+The maintainer's second live check, 2026-10-22 (block B), confirmed the items marked [R] from docs.github.com (environments) and the CodePipeline guide (execution modes, triggers), and corrected two: express mode can be rolled back, and Helm's default hook delete policy is `before-hook-creation`.

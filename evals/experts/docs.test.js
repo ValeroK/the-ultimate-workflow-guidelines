@@ -66,9 +66,11 @@ test('the gates doc lists G6 and the experts key of the status JSON, and the sta
   assert.ok(status.includes('experts: expertsReport'));
 });
 
-test('the changelog records the experts work under Unreleased', () => {
+test('the changelog records the experts work in the section above 3.1.0', () => {
   const log = read('CHANGELOG.md');
-  const unreleased = log.slice(log.indexOf('## [Unreleased]'), log.indexOf('## [3.1.0]'));
+  // The section is renamed from Unreleased to the version at release; either heading counts.
+  const start = log.search(/^## \[(Unreleased|4\.0\.0)\]/m);
+  const unreleased = log.slice(start, log.indexOf('## [3.1.0]'));
   for (const needle of ['Domain experts', '/ultimate-workflow:experts', 'Gate G6', 'route.js', 'Known gaps']) {
     assert.ok(unreleased.includes(needle), `the changelog never mentions: ${needle}`);
   }

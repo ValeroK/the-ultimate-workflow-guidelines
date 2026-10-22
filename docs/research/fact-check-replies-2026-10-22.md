@@ -144,6 +144,24 @@ Full pages, exact URLs. Verdicts as returned; "different" means the claim's sour
 
 Block I is complete: 46 items, 8 different, 1 not found, 1 weak (43).
 
+### I, second reading (an independent reply, pasted 2026-10-22)
+
+A second chat answered the same 46 items. It read most pages in full, but in places it worked from search snippets: it says so for items 4, 23, 43 and 44, and the CLS formula in 12 came from a secondary page.
+
+**Agreement:** on every item both replies answered, the verdicts are the same: 6, 9, 11, 14, 18, 25 and 36 are different in both, and the other 37 match. Item 9 is now also confirmed from the WHATWG HTML standard ("Eager ... the default state"), which the first reply did not reach. Item 3 is worded differently but means the same: one highest interaction is ignored per 50 interactions, so INP is the 98th percentile, which is the worst interaction on most pages.
+
+**Not reached this time (first reading stands):** TTFB bands (1), `will-change` memory (23), Lighthouse `--budget-path` (43), LHCI `temporary-public-storage` (44). Not found in either reading: a published `blur()` limit (45).
+
+**Added (primary pages):**
+- Chromium does not count elements with `opacity: 0`, elements covering the full viewport, or low-entropy placeholders as LCP candidates, so a hero that starts at `opacity: 0` for a fade-in delays LCP. (web.dev LCP)
+- `@font-face` alone downloads nothing; a font is fetched only when used styling references it, so preloading every weight downloads weights the page would have skipped. (web.dev font best practices)
+- WOFF2 compresses about 30 percent better than WOFF; web.dev advises WOFF2 only. (same page)
+- Changing `top` and `left` causes layout shifts that count toward CLS, even on an element in its own layer. (web.dev optimize CLS)
+- A preload sent as an HTTP `Link` header loads before everything else; image preloads are Low or Medium priority by default. (web.dev fetch priority)
+- Next.js `'use cache'`: the ban on `cookies()`, `headers()` and `searchParams` follows the whole call stack (`next-request-in-use-cache`); `React.cache` is isolated inside a `'use cache'` boundary; nesting a short-lived `'use cache'` inside one with no explicit `cacheLife` fails the build; a cached layout does not cache its `children`. (nextjs.org `use cache`)
+
+Block I stands as recorded above, now read twice; the added facts are [R].
+
 ## J. Privacy (37 items and 10 extras)
 
 Mostly full pages (EUR-Lex HTML and PDF, EDPB, ICO, the CPPA's statute and regulation PDFs, eCFR, W3C GPC, vendor docs). The reply itself notes snippets for parts of items 2 and 6 and secondary pages for item 23. Spot check: item 35 matches the PostgreSQL 18 manual (`maintenance.sgml` line 164) and item 29's `REDACTED:REDACTED` rule is in the OpenTelemetry URL registry.

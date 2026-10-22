@@ -302,3 +302,22 @@ From w3.org (WCAG 2.2, Understanding, APG, ARIA in HTML), html.spec.whatwg.org, 
 **Extras:** 2.5.8 is independent of zoom; keyboard access alone does not meet 2.5.7; `role="alert"` with `aria-live="assertive"` double-speaks in iOS VoiceOver; `showModal()` on a dialog already open non-modally throws `InvalidStateError`; a modal dialog inside an iframe blocks only the iframe; Angular `@defer` content should sit in a live region; flex `order` and `*-reverse` do not change tab or reading order (2.4.3); a semi-transparent sticky bar can pass 2.4.11 and fail 1.4.11; put the visible label at the start of the accessible name; "enter the 1st, 3rd and 5th character" of a password fails 3.3.8.
 
 Block G is complete: 25 items, 3 different, 0 not found.
+
+## K. Frontend across devices (65 items, 8 added; full pages)
+
+For the six frontend drafts in `docs/experts/drafts/frontend-2026-10-22/`. Pages: MDN (with its compatibility tables), the W3C CSS, Media Queries and WCAG specifications, the WHATWG HTML standard, webkit.org, developer.chrome.com, developer.apple.com, tailwindcss.com, radix-ui.com, base-ui.com, motion.dev, nextjs.org, and Sonner's own repository (its site was not reached).
+
+**Confirmed (60):** 1 to 17, 19 to 23, 25 to 31, 33 to 51, 53 to 58, 60 to 65, each as written in `fact-check-prompts-open-2026-10-21/K.txt`. Version numbers given by the reply where the claim asked: `tabular-nums` Chrome 52, Firefox 34, Safari 9.1; VirtualKeyboard Chromium 94 only; `-webkit-tap-highlight-color` iOS Safari and Chromium, not Firefox or desktop Safari; `navigator.vibrate` none in Safari, removed from desktop Firefox 129; `screen.orientation.lock` none in Safari, Chrome Android 38, Firefox Android 144; `interpolate-size` Chromium 129 only; `@starting-style` Chrome 117, Safari 17.5, Firefox 129; unprefixed `backdrop-filter` from Safari 18 (prefixed 9 to 17.6), Chrome 76, Firefox 103; `prefers-reduced-transparency` Chromium 118, behind a flag in Firefox, none in Safari.
+
+**Different (2):**
+- **32:** Safari accepts unprefixed `user-select` from Safari 16 (iOS 16); the `-webkit-` prefix is needed only for Safari 15.6 and earlier.
+- **59:** Sonner's `<Toaster />` defaults `dir` to `auto`, resolved from the document's `dir` (falling back to `ltr`); `theme` does default to `light`. From `src/index.tsx`.
+
+**Weak:**
+- **18 (secondary only):** iOS Safari zooming inputs below 16 px rests on defensivecss.dev; no Apple or WebKit page states the number.
+- **24 (sources disagree):** Apple's archived Safari guide says hover styles show on touch and hold; MDN and Tailwind say hover sticks after a tap. Keep the row as "may stick", not as a fact about taps.
+- **52 (value not on the page):** Apple's page names `DecelerationRate.normal` as the default; 0.998 comes from the UIKit header and WWDC18 session 803.
+- **42 (narrowed):** `animationend` does fire for a 0 s animation with a valid name; it does not fire under `animation: none`.
+- **59, 60, 62:** from Sonner's source and an author's issue reply, not its documentation site.
+
+**Added from the same pages:** an invalid `env()` with no fallback resets the property to its initial value rather than being ignored; every browser on iOS is WebKit, so `interactive-widget` works in none of them; `animation-fill-mode: forwards` keeps the stacking context and `will-change` effect after the animation; `interpolate-size` cannot animate between two intrinsic keywords; a `backdrop-filter` blurs only up to the nearest backdrop root (an ancestor with `filter`, `opacity` below 1, `mask` or `clip-path`); Motion's nested `AnimatePresence` needs `propagate` for inner exits; Base UI detects a Motion exit only if it animates `opacity`; `generateViewport` cannot be streamed, so request data in it blocks the page.

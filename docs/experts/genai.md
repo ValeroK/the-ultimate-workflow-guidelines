@@ -5,7 +5,7 @@ The Generative AI engineer owns the code around model calls and agents: what bou
 ## Status
 
 - **Built:** agent file (Goal, Responsibilities, How to judge), plan and review references, selection examples, `NOTICE.md`. Tools: read, search and the web (maintainer decision, 2026-10-21).
-- **Waiting:** research prompt 5 and fact-check prompt 7 (`docs/research/fact-check-round-2-prompts.md`), sent to the maintainer 2026-10-20. The four skills below are drafted in the ledger and not written until the reply is in (playbook step 6b). The references hold no model-specific number or parameter rule for the same reason.
+- **Skills (2026-10-22):** four, after the maintainer's live check of block D (37 items, 5 different; `docs/research/fact-check-replies-2026-10-22.md`). Rows the check confirmed are [R]; model-specific rows name the models the page named on that date, and must be re-checked when the repository pins a model they do not name.
 - **Not measured.** No corpus exists for this domain; planted cases come from the skills' facts once they are confirmed.
 
 ## Stages: plan, tests and review
@@ -26,13 +26,15 @@ The maintainer added the tests stage on 2026-10-21. The agent-and-tool case fami
 
 Fifteen upstream sources (38 files in 12 repositories) and the Generative AI Lens record; every item is in `docs/experts/ledgers/genai.md` (111 items: 61 taken, 30 routed, 16 rejected, 4 missing). Two files addressed instructions to an agent; they were noted and not followed.
 
-## Proposed skills (waiting for the facts)
+## Skills
 
-| Skill | What it would hold |
-|---|---|
-| `model-calls` | Parameters each pinned model refuses, output limits and stop reasons, structured output, retryable errors, prompt-cache invalidation |
-| `agent-loops-and-tools` | Turn and token bounds, tool contracts and overlap, approvals bound to arguments, how tool results are returned, MCP connector rules |
-| `rag-retrieval` | One embedding model for data and queries, re-embedding, answers for "found nothing", citations, Knowledge Base ingestion |
-| `bedrock-and-agentcore` | Converse against InvokeModel, unset output limits and quota, inference profiles as residency, guardrails attached, AgentCore quotas and sessions |
+| Skill | Stages | Holds |
+|---|---|---|
+| `agent-loops-and-tools` | plan, review | loop bounds and their cost, approvals bound to exact arguments, workflows before agents, tool definitions and strict limits, tool results and `is_error`, MCP connector, tool search, computer and browser tools |
+| `model-calls` | plan, review | parameters each model refuses (prefill, forced tool choice, thinking settings, sampling), stop reasons and refusals, the 5.5 tokenizer, parsing tool input, server-tool errors, prompt caching |
+| `bedrock-and-agentcore` | plan, review | token burndown and `maxTokens`, Converse, inference profiles and residency, guardrails and logging, classic agents, AgentCore quotas and sessions |
+| `rag-retrieval` | plan, review | one embedding model, re-embedding, found-nothing answers, citations, rerankers, context order, Knowledge Base ingestion |
+
+No tests section: the tests reference holds the agent and retrieval case families. Left out: model prices and ids, the MCP specification version and pgvector settings (not in the checked reply), and the facts that are security's (environment variables, `InvokeAgentRuntimeCommand`, the execution role's model scope).
 
 Rejected: a prompt-style skill, a model-price skill, a multi-agent pattern catalogue (not checkable in a diff).

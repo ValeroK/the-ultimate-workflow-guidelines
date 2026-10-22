@@ -11,4 +11,4 @@ The Generative AI engineer's references are written in our own words. No text is
 | github/awesome-copilot governance and responsible-AI agents and skills; trailofbits `agentic-actions-auditor` (ideas only); wshobson, buildwithclaude and agency-agents AI agents | Read 2026-10-20 | MIT; CC BY-SA 4.0 (ideas only, no text, so the share-alike terms do not apply) | Approvals bound to arguments, routing of security and eval items to their owners |
 | timescale/pg-aiguide `pgvector-semantic-search` | Read 2026-10-20 | Apache-2.0 | The embedding-model half of retrieval; the index half is the data expert's |
 
-Left out, and why: prompt style rules, model prices, multi-agent pattern catalogues (not checkable in a diff); every model-specific number, until the maintainer's live check returns.
+Left out, and why: prompt style rules, model prices, multi-agent pattern catalogues (not checkable in a diff); model prices and ids. Model-specific numbers are in the skills, from the maintainer's live check of 2026-10-22, each with the models it applies to.

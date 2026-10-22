@@ -80,7 +80,7 @@ An agent was placed under an expert by its name and the survey's domain notes, n
   - agency-agents `appsec-engineer`, `security-architect`, `cloud-security-architect`, `secrets-credential-engineer`, `ai-generated-code-auditor`
 - **Survey candidates:** OWASP and ASVS (agamm, 85), RLS and tenant isolation (supabase, 82), insecure defaults (trailofbits, 78), appsec hardening (addyosmani, 74), authorisation (agency-agents, 74), threat model (tech-leads-club, 72), cloud security and secrets (cloudflare and agency-agents, 68 to 72), web security (tech-leads-club, 62).
 
-### 6. Generative AI engineer (have: `genai`, plan, tests and review; skills wait for the fact-check, see `docs/experts/genai.md`; merges the former 6, agent-system architect, and 7, AI/LLM engineer)
+### 6. Generative AI engineer (have: `genai`, plan, tests and review; four skills, see `docs/experts/genai.md`; merges the former 6, agent-system architect, and 7, AI/LLM engineer)
 - **Owns:** prompts and prompt engineering, model calls and their failure modes, agent orchestration and tool design (tool contracts, loop and budget limits, human approval), context and memory, retrieval and embeddings (RAG), guardrails, token cost, model fallback, evaluation of model output, MCP servers. On AWS: Amazon Bedrock (models, Guardrails, Knowledge Bases, Prompt Management, batch inference, prompt caching, cross-region inference) and Amazon Bedrock AgentCore (Runtime, Gateway and its other services).
 - **Stages:** plan, tests, review.
 - **Reference material ready:** the Well-Architected Generative AI Lens (November 19, 2025): its best-practice IDs (`GENOPS`, `GENSEC`, `GENREL`, `GENPERF`, `GENCOST`, `GENSUS`), titles and what a change can show, in `docs/research/aws-well-architected-2026-10-20.md`. Bedrock pricing facts there: batch inference at half the on-demand price (primary); prompt caching savings from a secondary source only. AgentCore still needs its own research pass.
@@ -235,6 +235,12 @@ Taken from each expert's `.cursor-plugin/ultimate-workflow/experts/<name>/skills
 | frontend | review | `motion` | `added:` transitions, keyframes, end events, motion libraries | motion that breaks the UI |
 | frontend | tests | `worst-case-data` | component files the plan names | the worst realistic value per field |
 | frontend | plan | the review skills above, `motion-craft`, `interface-design` | offered | the plan adds UI; taste skills at plan only |
+
+| genai | review | `agent-loops-and-tools` | `added:` `tool_use`, `tool_result`, `tool_choice`, tool arrays and decorators, agent framework limits, MCP | loop bounds, approvals bound to arguments, tool results, MCP and tool search |
+| genai | review | `model-calls` | `added:` Anthropic SDK imports, `messages.create`, `cache_control`, `stop_reason`, `output_config`, thinking | refused parameters per model, stop reasons, parsing, caching |
+| genai | review | `bedrock-and-agentcore` | AgentCore config files; `added:` Bedrock runtime clients, Converse, `InvokeModel`, inference profiles, guardrails, AgentCore | quota burndown, inference profiles and residency, guardrails, AgentCore quotas and sessions |
+| genai | review | `rag-retrieval` | `added:` embeddings, vector stores, rerank, Knowledge Bases | one embedding model, re-embedding, found-nothing answers, context order |
+| genai | plan | all four | offered | the plan calls a model or builds an agent |
 
 | security | review | `ci-workflow-security` | `files: .github/workflows/*.yml, .github/workflows/*.yaml, .github/workflows/actions.lock, **/action.yml, **/action.yaml` | fork-code triggers, event text in steps, token and secrets, caches, pinning, OIDC |
 

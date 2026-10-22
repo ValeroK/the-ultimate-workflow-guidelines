@@ -671,3 +671,24 @@ test('frontend tests: a plan naming a component gets worst-case-data; an RTL pla
   const g = ex.testsSkills(PLUGIN, 'Add a refund endpoint in `api/refund.go`.');
   assert.equal(g.skills.frontend, undefined);
 });
+
+// ---- genai -----------------------------------------------------------------------------
+
+const gen = (files) => names(ex.selectSkills(PLUGIN, 'genai', 'review', ex.parseDiff(diffOf(files))));
+
+test('genai review: each skill is chosen by its own code, and all four together fit the cap', () => {
+  assert.deepEqual(gen({ 'agent/loop.py': ['from anthropic import Anthropic', 'resp = client.messages.create(model=m, max_tokens=1024, messages=msgs)'] }), ['model-calls']);
+  assert.deepEqual(gen({ 'agent/loop.ts': ["  tool_choice: { type: 'auto' },", '  if (block.type === "tool_use") {'] }), ['agent-loops-and-tools']);
+  assert.deepEqual(gen({ 'rag/index.py': ['vectors = embeddings.embed_documents(chunks)'] }), ['rag-retrieval']);
+  assert.deepEqual(gen({ 'svc/ask.py': ["rt = boto3.client('bedrock-runtime')", 'rt.converse(modelId=mid, messages=m)'] }), ['bedrock-and-agentcore']);
+  const all = ex.selectSkills(PLUGIN, 'genai', 'review', ex.parseDiff(diffOf({
+    'agent/run.py': ['from anthropic import Anthropic', 'if block.type == "tool_use":', 'q = embed_query(text)', "rt = boto3.client('bedrock-runtime')"],
+  })));
+  assert.deepEqual(names(all), ['agent-loops-and-tools', 'model-calls', 'bedrock-and-agentcore', 'rag-retrieval']);
+  assert.deepEqual(all.dropped, []);
+});
+
+test('genai review: ordinary application code, and a link to the vendor docs, select no genai skill', () => {
+  assert.deepEqual(gen({ 'svc/orders.go': ['func (s *Server) Tools() []string { return s.tools }', '// see https://docs.anthropic.com for the API'] }), []);
+  assert.deepEqual(gen({ 'README.md': ['Read more at docs.anthropic.com and in the Bedrock console.'] }), []);
+});

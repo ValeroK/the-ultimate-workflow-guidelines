@@ -216,3 +216,53 @@ Sent to a chat whose only tool was `google:search`, so every claim is marked sni
 - **Added (snippet only):** Prisma batches only `findUnique` (not `findMany`) in its dataloader; `@unique`, `@id`, `@relation`, `@ignore`, `@updatedAt` are not allowed in composite types; `uuid()` and `cuid()` defaults live in Prisma, not the database; PartiQL `DELETE` takes one item by full key; RDS PostgreSQL temp-table churn contends on TOAST OIDs; dropping MySQL temp tables does not shrink the global temp tablespace; `DBInstanceClassMemory` excludes OS and RDS overhead.
 
 F stays snippet only. It needs the chat that answered B, I and J (full pages).
+
+## D. GenAI (37 items, 10 extras, 10 added; full pages)
+
+All from platform.claude.com, docs.aws.amazon.com, nodejs.org, arxiv.org, anthropic.com and genai.owasp.org; no page unreachable. Model-specific rows name the models the page names.
+
+| # | Verdict | Fact as returned | Page |
+|---|---|---|---|
+| 1 | Different (wider) | Assistant prefill returns 400 on Claude 4.6 and later, Mythos Preview, and Haiku 5.5; Haiku 4.5 and Sonnet 4.5 still accept it with thinking off. | API errors; Haiku 5.5 migration |
+| 2 | Confirmed | `tool_choice` `any` or `tool` returns 400 on Opus 5.5, Sonnet 5.5, Fable 5.1, Mythos 5.1 (token counting too); Opus 5, Sonnet 5, Opus 4.8, 4.7 still accept it. | Define tools |
+| 3 | Confirmed | The SDKs require streaming for large `max_tokens`; `stop_reason: "max_tokens"` marks truncation. Batches need no streaming. | Streaming |
+| 4 | Confirmed | `thinking: {type: "disabled"}` returns 400 on Opus 5.5, Sonnet 5.5, Fable 5.1, Mythos 5.1, Fable 5, Mythos 5, Mythos Preview. On Sonnet 5.5 up-front thinking is turned off with `between_tools` at effort high or below. Opus 5, Sonnet 5, Haiku 5.5 accept `disabled`. | Thinking troubleshooting |
+| 5 | Confirmed | Opus 4.6 and later may escape tool arguments differently; parse with a JSON parser. | Opus 5.5 migration |
+| 6 | Confirmed | `output_format` is deprecated for `output_config.format`; the SDK `parse()` helper still takes a model. | Opus 5.5 migration |
+| 7 | Confirmed | Web search and fetch errors return 200 with an error block; invalid tool configuration is a 400. | Web search tool |
+| 8 | Confirmed | MCP connector: every `mcp_servers` entry needs exactly one `mcp_toolset`; beta `mcp-client-2025-11-20`, or `mcp-client-2026-09-15`, which includes it. | MCP connector |
+| 9 | Confirmed | Tool search returns 400 when every tool is deferred; never defer the tool search tool. | Tool search |
+| 10 | Confirmed | Cache order tools, system, messages; 4 breakpoints; minimum 512 tokens on the 5.x models and Haiku 5.5, 1,024 on Sonnet 4.6 and 4.5, 2,048 on Mythos Preview and Opus 4.7, 4,096 on Opus 4.6, 4.5 and Haiku 4.5; shorter prompts report zero cache counters. | Prompt caching |
+| 11 | Confirmed | All parallel tool results in one user message, no text before them; failures with `is_error: true`. | Parallel tool use |
+| 12 | Confirmed | `strict: true` needs `additionalProperties: false` on every object. | Opus 5.5 migration |
+| 13 | Confirmed | Mid-conversation system messages: Fable 5.1, Mythos 5.1, Fable 5, Mythos 5, Opus 5.5, Opus 4.8, Opus 5, Sonnet 5.5, Haiku 5.5. | Mid-conversation system messages |
+| 14 | Confirmed | Bedrock deducts input tokens plus `max_tokens` from quota at the start; unused output is credited back at the end. | Bedrock token burndown |
+| 15 | Confirmed in part | Guardrails can mask PII in requests and responses (not in tool arguments); invocation logging collects inputs and outputs. "Logs unmasked" is not quoted. | Guardrails sensitive filters |
+| 16 | Confirmed | Bedrock Agents Classic in maintenance mode: no new agents for accounts without prior use. | Agents classic maintenance mode |
+| 17 | Confirmed in part | The error list per API is quoted; the retryable split is the reply's reading of the codes. | Converse API reference |
+| 18 | Confirmed | Some models are invocable on demand only through an inference profile. | Inference profiles |
+| 19 | Confirmed | Geographic profiles stay in their geography; global ones route to any commercial Region. | Cross-Region inference |
+| 20 | Confirmed | Classic agent changes need `PrepareAgent`; aliases keep their bound version. | Agents test |
+| 21 | Confirmed | Ingestion must reach `COMPLETE`, plus minutes for the index. | Knowledge base sync |
+| 23 | Confirmed | Converse has one shape across models; `InvokeModel` bodies are provider-specific. | Conversation inference |
+| 24 | Different | `InvokeAgentRuntime` 25 TPS is per account in the Region, shared across all data plane APIs and endpoints, not per agent. | AgentCore quotas |
+| 25 | Different | Active session workloads: 5,000 in us-east-1 and us-west-2, 2,500 elsewhere (1,000 is total agents per account). | AgentCore quotas |
+| 26 | Confirmed | `idleRuntimeSessionTimeout` 900 s, `maxLifetime` 28,800 s; idle sessions count against the quota. | Runtime lifecycle settings |
+| 27 | Different | The new-session quota is one shared quota for container and direct-code agents. | AgentCore quotas |
+| 28 | Different | Memory `CreateEvent` 200 per second, not 10; extraction 150,000 tokens per minute. | AgentCore quotas |
+| 29 | Confirmed | 1,000 gateways per account, 100 targets per gateway, 1,000 tools per target. | AgentCore quotas |
+| 30 | Confirmed, indirect | Environment variables are a plain map; keep secrets in Secrets Manager. The quote is from the payments security page. | AgentCore payments security |
+| 31 | Confirmed | `InvokeAgentRuntimeCommand` runs a shell command in the session's container. | Runtime execute command |
+| 32 | Confirmed | The documented execution role allows `InvokeModel` on `arn:aws:bedrock:*::foundation-model/*`. | Runtime permissions |
+| 34 | Confirmed | Node `listen(port)` with no host binds `::` or `0.0.0.0`; a container service must bind all interfaces to be reachable through a published port. | nodejs.org net |
+| 36 | Confirmed | Query and stored vectors must come from the same embedding model. | DynamoDB vector search |
+| 37 | Confirmed | Lost in the Middle: U-shaped accuracy; GPT-3.5-Turbo 20-document QA 75.8% first, 53.8% tenth, below its 56.1% closed-book. | arXiv 2307.03172 |
+| 38 | Confirmed | Workflows follow predefined code paths, agents direct themselves; start simple. | Building effective agents |
+| 39 | Confirmed | OWASP LLM 2025: LLM01 Prompt Injection, LLM06 Excessive Agency, LLM10 Unbounded Consumption. | genai.owasp.org |
+| 40 | Confirmed | Agents about 4×, multi-agent about 15× the tokens of chat. | Multi-agent research system |
+
+**Extras, all confirmed:** non-default `temperature`, `top_p` or `top_k` returns 400 on Opus 4.7 and every later model listed; `defer_loading` with `cache_control` returns 400; strict limits 20 tools, 24 optional parameters, 16 union parameters, 180 s grammar compile; refusals are 200 with `stop_reason: "refusal"`; on Fable 5.1, Mythos 5.1, Opus 5.5, Sonnet 5.5, Haiku 5.5 editing the prefix invalidates later thinking blocks (400 by default, `prefix_mismatch_behavior: "drop_block"` drops them); top-level automatic caching returns 400 on the legacy Bedrock integration for Opus 4.6 and earlier; `web_fetch` fetches only URLs already in the conversation; `disable_parallel_tool_use` goes inside `tool_choice`; Opus, Sonnet and Haiku 5.5 on the Claude API and Google Cloud need `computer_toolset_20260801`; `InvokeAgentRuntimeCommand` limits 64 KB command, 1 to 3,600 s timeout (300 default), 100 MB response, session id at least 33 characters.
+
+**Added from the same pages:** `thinking: {type: "enabled"}` returns 400 on Claude 4.7 and later; `stop_reason: "model_context_window_exceeded"`; Fable 5.1 and Mythos 5.1 need 30-day retention (400 under ZDR without authorisation); the cache lookback window is 20 blocks per breakpoint; turn-scoped system messages (`clear_at`) take text only; `fine-grained-tool-streaming-2025-05-14` with a computer or browser toolset returns 400; computer and browser batch actions run sequentially and stop at the first failure; the 5.5 and Fable 5.1 tokenizer gives about 30% more tokens than Sonnet 4.6, 4.5 and Haiku 4.5; Sonnet 5.5 and Haiku 5.5 thinking blocks are bound to the producing account; Docker before 28.0.0 lets hosts on the same L2 segment reach ports published to localhost.
+
+The rows that change with releases (1, 2, 4, 10, 13 and the model extras) carry the date 2026-10-22 and the model names; the GenAI skills must name both.

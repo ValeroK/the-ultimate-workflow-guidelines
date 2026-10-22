@@ -266,3 +266,39 @@ All from platform.claude.com, docs.aws.amazon.com, nodejs.org, arxiv.org, anthro
 **Added from the same pages:** `thinking: {type: "enabled"}` returns 400 on Claude 4.7 and later; `stop_reason: "model_context_window_exceeded"`; Fable 5.1 and Mythos 5.1 need 30-day retention (400 under ZDR without authorisation); the cache lookback window is 20 blocks per breakpoint; turn-scoped system messages (`clear_at`) take text only; `fine-grained-tool-streaming-2025-05-14` with a computer or browser toolset returns 400; computer and browser batch actions run sequentially and stop at the first failure; the 5.5 and Fable 5.1 tokenizer gives about 30% more tokens than Sonnet 4.6, 4.5 and Haiku 4.5; Sonnet 5.5 and Haiku 5.5 thinking blocks are bound to the producing account; Docker before 28.0.0 lets hosts on the same L2 segment reach ports published to localhost.
 
 The rows that change with releases (1, 2, 4, 10, 13 and the model extras) carry the date 2026-10-22 and the model names; the GenAI skills must name both.
+
+## G. Frontend and accessibility (25 items, 10 extras; full pages)
+
+From w3.org (WCAG 2.2, Understanding, APG, ARIA in HTML), html.spec.whatwg.org, developer.mozilla.org, angular.dev and the eslint-plugin-jsx-a11y README; no page unreachable.
+
+| # | Verdict | Fact as returned | Page |
+|---|---|---|---|
+| 1 | Confirmed | 1.4.3 AA: 4.5:1, large text 3:1; 1.4.11 AA: 3:1 for component boundaries, states and needed graphics. Inactive and decorative content exempt. | Understanding 1.4.3; WCAG 2.2 |
+| 2 | Different | Large text is 18 pt or 14 pt bold, which the Understanding page puts at about 24 px and **18.5 px** (1 pt = 1.333 px), not 18.66. | Understanding 1.4.3 |
+| 3 | Confirmed | 2.5.8 AA (new in 2.2): 24 by 24 CSS px, with spacing and inline exceptions; 2.5.5 AAA: 44 by 44. | Understanding 2.5.8, 2.5.5 |
+| 4 | Confirmed | 1.4.10 AA: 320 CSS px (1,280 at 400%), two-dimensional content exempt; 1.4.4 AA: 200%, captions and images of text exempt. | WCAG 2.2 |
+| 5 | Different | 2.4.11 AA fails only when the focused component is **entirely** hidden; a sticky bar covering part of it passes. 2.4.13 is AAA. | Understanding 2.4.11 |
+| 6 | Confirmed | 2.5.7 AA: dragging has a single-pointer alternative unless essential. | Understanding 2.5.7 |
+| 7 | Confirmed | `showModal()` makes the rest of the document inert and focuses inside; `show()` does not. | MDN `showModal` |
+| 8 | Confirmed | `inert` removes a subtree from focus, clicks and the accessibility tree. | MDN `inert` |
+| 9 | Confirmed | APG tabs: Tab into the panel, arrow keys between tabs; patterns for menus and comboboxes. | APG tabs |
+| 10 | Confirmed | A live region must exist, empty, before its content changes. | MDN live regions |
+| 11 | Different | Current Angular binds ARIA attributes directly (`[aria-label]`) as well as `[attr.aria-label]`, and removes the attribute when null. The old rule no longer holds. | angular.dev binding |
+| 12 | Confirmed | `prefers-reduced-motion`; 2.3.3 is AAA. | Understanding 2.3.3 |
+| 13 | Confirmed | 3.3.7 Redundant Entry (A), 3.3.8 Accessible Authentication (AA: blocking paste fails), 3.2.6 Consistent Help (A), all new in 2.2. | Understanding pages |
+| 14 | Confirmed | 2.5.3 (A): the name contains the visible label; 1.3.5 (AA): `autocomplete` tokens, for fields about the user only. | Understanding 2.5.3, 1.3.5 |
+| 15 | Confirmed | A flex item's automatic minimum size keeps it from shrinking below its content without `min-width: 0` or non-visible `overflow`. | CSS Flexbox 1 |
+| 16 | Confirmed | `Intl.Segmenter` grapheme (the default) keeps emoji and combined characters whole. | MDN `Intl.Segmenter` |
+| 17 | Confirmed | Six plural categories; Arabic uses all six. | MDN `Intl.PluralRules` |
+| 18 | Confirmed | 1.4.13 AA: dismissible, hoverable, persistent; native `title` tooltips exempt. | Understanding 1.4.13 |
+| 19 | Confirmed | 4.1.1 Parsing is obsolete and removed in 2.2; duplicate ids still fail 1.3.1 or 4.1.2 when they break names. | WCAG 2.2 |
+| 20 | Confirmed | Logical properties follow `writing-mode` and `direction`; physical ones do not. | MDN `margin-inline-start` |
+| 21 | Confirmed | `row` already runs right to left in RTL; `row-reverse` runs left to right. | MDN `flex-direction` |
+| 22 | Confirmed | RTL `scrollLeft` is 0 at the start and negative toward the end. | MDN `scrollLeft` |
+| 23 | Confirmed | jsx-a11y recommended includes `alt-text`, `click-events-have-key-events`, `no-static-element-interactions`, `label-has-associated-control`, `tabindex-no-positive`, `no-autofocus`. | plugin README |
+| 24 | Confirmed | No `aria-hidden` on focusable elements or their ancestors. | ARIA in HTML |
+| 25 | Confirmed | `placeholder` is not a label. | HTML standard |
+
+**Extras:** 2.5.8 is independent of zoom; keyboard access alone does not meet 2.5.7; `role="alert"` with `aria-live="assertive"` double-speaks in iOS VoiceOver; `showModal()` on a dialog already open non-modally throws `InvalidStateError`; a modal dialog inside an iframe blocks only the iframe; Angular `@defer` content should sit in a live region; flex `order` and `*-reverse` do not change tab or reading order (2.4.3); a semi-transparent sticky bar can pass 2.4.11 and fail 1.4.11; put the visible label at the start of the accessible name; "enter the 1st, 3rd and 5th character" of a password fails 3.3.8.
+
+Block G is complete: 25 items, 3 different, 0 not found.

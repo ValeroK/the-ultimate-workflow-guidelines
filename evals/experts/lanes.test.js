@@ -18,7 +18,7 @@ const wf = (name) => loadWorkflow(path.join(PLUGIN, 'workflows', `${name}.js`));
 const AVAILABLE = list(PLUGIN).experts.map(({ always, ...e }) => e);
 const ui = { name: 'uiux', agent: 'uw-expert-uiux', description: 'UI/UX expert. Applies when screens or flows change.', stages: ['plan', 'tests', 'review'] };
 const reviewOnly = { name: 'lintish', agent: 'uw-expert-lintish', description: 'Style expert. Applies to formatting.', stages: ['review'] };
-const EXP = { expertsDir: '/plugin/experts' };
+const EXP = { expertsDir: '/plugin/experts', skills: {} };
 
 const SLICE = { slice: 's', patterns: [], reusable: [], constraints: [], notCovered: 'n' };
 const answer = (...names) => ({ experts: names.map((name) => ({ name, why: `because of ${name}` })) });

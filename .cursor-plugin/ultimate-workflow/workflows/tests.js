@@ -11,6 +11,14 @@ export const meta = {
   ],
 }
 
+// --- agent names (identical in every workflow; a test holds them equal) ---
+// An installed plugin registers its agents as "<plugin>:<agent>", so a bare "uw-explorer"
+// is "agent type not found". Every agentType goes through agentName(). A local run against
+// agents copied to .claude/agents/ passes args.agentNamespace: "".
+const AGENT_NAMESPACE = args && typeof args.agentNamespace === 'string' ? args.agentNamespace : 'ultimate-workflow:'
+const agentName = (name) => (String(name).includes(':') ? name : AGENT_NAMESPACE + name)
+// --- end agent names ---
+
 // Draft, attack, merge.
 //
 // The attack stage exists because the author of a test plan is the worst
@@ -154,7 +162,7 @@ Ground every test in a stated goal or success criterion from the plan. A criteri
 Also determine the project's real verification command by looking at how tests are actually run here -- CI config, scripts, existing test files -- not by guessing a convention.
 
 Name the specific tests that must exist and pass. That turns "is this done" from a judgement into something anyone can check.`,
-  { agentType: 'uw-critic', label: 'draft', phase: 'Draft', schema: DRAFT }
+  { agentType: agentName('uw-critic'), label: 'draft', phase: 'Draft', schema: DRAFT }
 )
 
 if (!draft) {
@@ -181,6 +189,8 @@ if (!args || args.available === undefined || args.available === null) {
   expertLane = { stage: 'tests', skipped: 'args.available is not the output of experts/experts.js list, so domain experts were not considered.' }
 } else if (availableExperts.length > 0 && selectedExperts.length > 0 && !args.expertsDir) {
   expertLane = { stage: 'tests', skipped: 'args.expertsDir was not passed, so experts could not be pointed at their references.' }
+} else if (availableExperts.length > 0 && selectedExperts.length > 0 && (!args.skills || typeof args.skills !== 'object' || Array.isArray(args.skills))) {
+  expertLane = { stage: 'tests', skipped: 'args.skills was not passed, so the experts would have run without their skills. Run "node experts/experts.js skills --stage tests --plan <plan file>" and pass its JSON unchanged.' }
 } else {
   // An expert whose agent file says `always: [tests]` joins here whether or not the plan selected
   // it: every test plan is about tests. It is added to the selection, so the record says it ran.
@@ -219,7 +229,7 @@ THE DRAFT TESTS
 ${draft.testsMarkdown}
 
 Add only cases that the draft does not already cover and that your domain says must exist. Do not restate the draft.${skillBlock(e.name)}`,
-        { agentType: e.agent, label: `tests:${e.name}`, phase: 'Experts', schema: TESTS_INPUT }
+        { agentType: agentName(e.agent), label: `tests:${e.name}`, phase: 'Experts', schema: TESTS_INPUT }
       )
     )
   )
@@ -265,7 +275,7 @@ Your question is not whether these are good tests. It is: **could someone write 
 Read the actual code the tests would run against. A gap that is real in the abstract but impossible in this codebase is not a gap.
 
 You have no quota. Zero gaps is a correct answer, and common from an angle this change does not touch.`,
-      { agentType: 'uw-critic', label: angle, phase: 'Attack', schema: CRITIQUE }
+      { agentType: agentName('uw-critic'), label: angle, phase: 'Attack', schema: CRITIQUE }
     )
   )
 )
@@ -327,7 +337,7 @@ For each gap, either close it -- by adding or strengthening a test, and say what
 Do not simply append every suggested test. A test plan that grows to cover every hypothetical is one nobody runs and nobody maintains. Prefer strengthening a weak assertion over adding a new case: an existing test with a real oracle catches more than two tests with none.
 
 Return the full revised Tests section, the verification command, and the specific test names that must exist and pass.`,
-  { agentType: 'uw-critic', label: 'merge', phase: 'Merge', schema: MERGED }
+  { agentType: agentName('uw-critic'), label: 'merge', phase: 'Merge', schema: MERGED }
 )
 
 if (!merged) {

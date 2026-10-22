@@ -14,6 +14,7 @@ const fs = require('node:fs');
 // merge), not that the host accepts the script.
 
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+const AGENT_NAMESPACE = 'ultimate-workflow:';
 
 function stripMeta(source) {
   const stripped = source.replace(/^export const meta = \{[\s\S]*?^\}\r?\n/m, '');
@@ -35,8 +36,14 @@ function loadWorkflow(file, { transform } = {}) {
     // `respond(call)` returns the agent's structured result, or throws / returns
     // null to model a failed agent. Like the host's parallel(), a failure becomes
     // null for that slot and the others still run.
+    // The host resolves only the plugin-qualified name ("ultimate-workflow:uw-explorer"), so a
+    // bare name fails every test here, and calls record the agent's own name for readability.
     const agent = async (prompt, opts = {}) => {
+      if (typeof opts.agentType === 'string' && !opts.agentType.startsWith(AGENT_NAMESPACE)) {
+        throw new Error(`run-workflow: agentType "${opts.agentType}" lacks the "${AGENT_NAMESPACE}" prefix; the host would not find it`);
+      }
       const call = { prompt, ...opts };
+      if (typeof call.agentType === 'string') call.agentType = call.agentType.slice(AGENT_NAMESPACE.length);
       calls.push(call);
       return respond(call);
     };

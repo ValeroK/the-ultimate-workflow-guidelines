@@ -87,7 +87,7 @@ async function buildPrompt(c) {
     const call = await captureReviewPrompt(
       c.pluginDir,
       // The recheck is off: this exercise measures the expert's instructions, not selection.
-      { available: listExperts(c.pluginDir), experts: ['security'], recheck: false, diffFile: c.diffFile, expertsDir: path.join(c.pluginDir, 'experts'), range },
+      { available: listExperts(c.pluginDir), experts: ['security'], recheck: false, diffFile: c.diffFile, expertsDir: path.join(c.pluginDir, 'experts'), skills: {}, range },
       'security'
     );
     // The shipped expert may run read-only commands and use the web. Every arm in this

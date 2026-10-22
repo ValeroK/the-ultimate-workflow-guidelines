@@ -287,9 +287,16 @@ test('plan: a skill not on offer, or for an expert that does not take part, is r
   assert.deepEqual(result.expertLane.skillsLoaded.developer, []);
 });
 
-test('plan: with no skills passed, the question and the schema are what they were', async () => {
+// 4.0.1: a run that forgot `skills` used to consult the experts with none, and nothing said so.
+test('plan: with no skills passed, no expert is consulted and the lane says skills were missing', async () => {
+  const { result, calls } = await planRun({}, () => ({ experts: [{ name: 'developer', why: 'x' }] }));
+  assert.match(result.expertLane.skipped, /args\.skills was not passed/);
+  assert.ok(!calls.some((c) => c.label === 'select-experts' || c.label.startsWith('plan:')));
+});
+
+test('plan: with an empty skills object, the question and the schema are what they were', async () => {
   let asked = null;
-  const { result } = await planRun({}, (call) => {
+  const { result } = await planRun({ skills: {} }, (call) => {
     asked = call;
     return { experts: [{ name: 'developer', why: 'x' }] };
   });

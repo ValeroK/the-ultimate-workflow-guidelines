@@ -50,7 +50,7 @@ const SLICE = { slice: 's', patterns: [], reusable: [], constraints: [], notCove
 const PLAN = { planMarkdown: '---\nplan_confirmed: false\n---\n# Plan\n', openQuestions: [], deviations: [] };
 const INPUT = { summary: 'Needs an ownership check.', constraints: ['The id is compared with the session user.'], risks: [], questions: [] };
 
-const planArgs = (over = {}) => ({ feature: 'add an orders route', available: AVAILABLE, expertsDir: path.join(PLUGIN, 'experts'), ...over });
+const planArgs = (over = {}) => ({ feature: 'add an orders route', available: AVAILABLE, expertsDir: path.join(PLUGIN, 'experts'), skills: {}, ...over });
 
 test('the first round lists every parallel reader as pending at once, with a task a subagent can follow on its own', () => {
   const s = setup(planArgs());

@@ -219,7 +219,7 @@ test('a brand-new expert is picked up by every part of the flow with no edit bey
 
   // the plan phase offers it, consults it, and writes its input into the plan
   const planRun = loadWorkflow(path.join(payload, 'workflows', 'plan.js'));
-  const planOut = await planRun({ feature: 'add a settings screen', available: list, expertsDir: path.join(payload, 'experts') }, (call) => {
+  const planOut = await planRun({ feature: 'add a settings screen', available: list, expertsDir: path.join(payload, 'experts'), skills: {} }, (call) => {
     if (call.label === 'select-experts') {
       assert.ok(call.prompt.includes('- uiux: '), 'the new expert is in the question');
       return { experts: [{ name: 'uiux', why: 'a new screen' }] };
@@ -234,7 +234,7 @@ test('a brand-new expert is picked up by every part of the flow with no edit bey
 
   // the tests phase skips it, since it declared no tests stage
   const testsRun = loadWorkflow(path.join(payload, 'workflows', 'tests.js'));
-  const testsOut = await testsRun({ plan: 'PLAN-x.md', available: list, experts: ['uiux'], expertsDir: path.join(payload, 'experts') }, (call) =>
+  const testsOut = await testsRun({ plan: 'PLAN-x.md', available: list, experts: ['uiux'], expertsDir: path.join(payload, 'experts'), skills: {} }, (call) =>
     call.label === 'draft' ? { testsMarkdown: '## Tests', testCommand: 'x', expectedTestNames: [] } : { angleVerdict: 'fine', gaps: [] }
   );
   // (the quality expert joins every tests stage, so it is the only one that runs)
@@ -258,7 +258,7 @@ test('a failed expert review leaves the commit blocked', async () => {
   const prep = JSON.parse(experts(payload, dir, ['prepare']).stdout);
   const run = loadWorkflow(path.join(payload, 'workflows', 'review.js'));
   const { result } = await run(
-    { available: prep.available, experts: ['security'], diffFile: prep.diffFile, expertsDir: path.join(payload, 'experts'), expertsOnly: true },
+    { available: prep.available, experts: ['security'], diffFile: prep.diffFile, expertsDir: path.join(payload, 'experts'), skills: prep.skills, expertsOnly: true },
     (call) => {
       if (call.label === 'recheck') return { experts: [] };
       throw new Error('agent crashed');
@@ -297,7 +297,7 @@ async function reviewWith(payload, dir, plan, findings) {
   const prep = JSON.parse(experts(payload, dir, ['prepare']).stdout);
   const run = loadWorkflow(path.join(payload, 'workflows', 'review.js'));
   const { result } = await run(
-    { available: prep.available, experts: ['security'], diffFile: prep.diffFile, expertsDir: path.join(payload, 'experts'), plan, expertsOnly: true },
+    { available: prep.available, experts: ['security'], diffFile: prep.diffFile, expertsDir: path.join(payload, 'experts'), plan, skills: prep.skills, expertsOnly: true },
     (call) => {
       if (call.label === 'recheck') return { experts: [] };
       if (call.phase === 'Lenses') return { lensVerdict: 'checked', findings: findings.map((f) => ({ file: f.file, line: f.line, what: f.what, howItFails: 'a support account reads any order', confidence: f.confidence })) };

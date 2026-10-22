@@ -118,7 +118,7 @@ test('the guide marks its own bars as proposals, and names the replay tool that 
 });
 
 test('every path the vetting guide mentions exists or is a labelled placeholder', () => {
-  const refs = [...VETTING.matchAll(/`((?:agents|experts|workflows|evals|docs|vendor|hooks)\/[A-Za-z0-9_./<>*-]+)`/g)].map((m) => m[1]);
+  const refs = [...VETTING.matchAll(/`((?:agents|experts|phases|evals|docs|vendor|hooks)\/[A-Za-z0-9_./<>*-]+)`/g)].map((m) => m[1]);
   assert.ok(refs.length >= 4);
   for (const ref of refs) {
     if (/<|\*|\.\.\./.test(ref)) continue;

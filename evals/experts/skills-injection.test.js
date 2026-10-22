@@ -168,13 +168,13 @@ const SKILL = { name: 'go-craft', text: '# Go craft\n\nMARKER-GO-SKILL' };
 test('build.js: skills on a brief reach the prompts after the brief, and the result names them', async () => {
   const responder = (call) =>
     call.label === 'write-tests' ? { filesWritten: ['t.test.js'], testsFailAsExpected: true, summary: 'w', testCommand: 'npm test' } : { green: true, filesChanged: ['a.go'], summary: 'done' };
-  const { result, calls } = await loadWorkflow(path.join(PLUGIN, 'workflows', 'build.js'))({ plan: 'PLAN-x.md', briefs: [{ name: 'developer', text: 'Brief body.', skills: [SKILL, { name: 'bad' }] }] }, responder);
+  const { result, calls } = await loadWorkflow(path.join(PLUGIN, 'phases', 'build.js'))({ plan: 'PLAN-x.md', briefs: [{ name: 'developer', text: 'Brief body.', skills: [SKILL, { name: 'bad' }] }] }, responder);
   assert.deepEqual(result.skillsLoaded, ['go-craft']);
   for (const c of calls) {
     assert.ok(c.prompt.indexOf('MARKER-GO-SKILL') > c.prompt.indexOf('Brief body.'), c.label);
     assert.match(c.prompt, /SKILLS for this change \(go-craft\)/);
   }
-  const none = await loadWorkflow(path.join(PLUGIN, 'workflows', 'build.js'))({ plan: 'PLAN-x.md', briefs: [{ name: 'developer', text: 'Brief body.' }] }, responder);
+  const none = await loadWorkflow(path.join(PLUGIN, 'phases', 'build.js'))({ plan: 'PLAN-x.md', briefs: [{ name: 'developer', text: 'Brief body.' }] }, responder);
   assert.deepEqual(none.result.skillsLoaded, []);
   for (const c of none.calls) assert.ok(!c.prompt.includes('SKILLS for this change'));
 });
@@ -183,7 +183,7 @@ test('review.js: the expert gets its own skills pasted in, the lane records them
   const available = ex.list(PLUGIN).experts;
   const args = { available, experts: ['developer', 'security'], diffFile: '.ultimate-workflow/review.diff', expertsDir: '/p/experts', skills: { developer: { skills: [SKILL], dropped: [] } } };
   const clean = (call) => (call.label === 'recheck' ? { experts: [] } : { findings: [], lensVerdict: `clean through ${call.label}` });
-  const { result, calls } = await loadWorkflow(path.join(PLUGIN, 'workflows', 'review.js'))(args, clean);
+  const { result, calls } = await loadWorkflow(path.join(PLUGIN, 'phases', 'review.js'))(args, clean);
   const dev = calls.find((c) => c.label === 'developer');
   const sec = calls.find((c) => c.label === 'security');
   assert.match(dev.prompt, /SKILLS for this change \(go-craft\)[\s\S]*MARKER-GO-SKILL/);
@@ -228,7 +228,7 @@ test('review: skills left out at the cap are reported by prepare and carried in 
   const total = p.skills.developer.skills.reduce((n, s) => n + Buffer.byteLength(s.text), 0);
   assert.ok(total <= ex.skillsCap('developer'));
   const clean = (call) => (call.label === 'recheck' ? { experts: [] } : { findings: [], lensVerdict: 'clean' });
-  const { result } = await loadWorkflow(path.join(PLUGIN, 'workflows', 'review.js'))(
+  const { result } = await loadWorkflow(path.join(PLUGIN, 'phases', 'review.js'))(
     { available: ex.list(PLUGIN).experts, experts: ['developer'], diffFile: 'd', expertsDir: '/p', skills: p.skills },
     clean
   );
@@ -251,7 +251,7 @@ test('skills --stage plan: each planning expert offers the skills its plan.md li
 const PLAN_MD = '---\nplan_confirmed: false\n---\n# Plan\n\nAdd a retry around the payment call.\n';
 const OFFER = { developer: [{ name: 'failure-handling', headline: 'load when the plan adds retries', text: '# Failure\n\nMARKER-FAILURE' }, { name: 'dependency-discipline', headline: 'load when deps change', text: '# Deps\n\nMARKER-DEPS' }] };
 const planRun = (args, select) =>
-  loadWorkflow(path.join(PLUGIN, 'workflows', 'plan.js'))(
+  loadWorkflow(path.join(PLUGIN, 'phases', 'plan.js'))(
     { feature: 'retry payments', available: ex.list(PLUGIN).experts, expertsDir: '/p/experts', ...args },
     (call) => {
       if (call.label === 'select-experts') return select(call);
@@ -328,7 +328,7 @@ test('build.js: test-craft reaches the test-writing prompt once, with both brief
   const b = ex.briefs(PLUGIN, { planText: 'Change `svc/pay.py`.' }).briefs;
   const responder = (call) =>
     call.label === 'write-tests' ? { filesWritten: ['t.py'], testsFailAsExpected: true, summary: 'w', testCommand: 'pytest' } : { green: true, filesChanged: ['a.py'], summary: 'done' };
-  const { result, calls } = await loadWorkflow(path.join(PLUGIN, 'workflows', 'build.js'))({ plan: 'PLAN-x.md', briefs: b }, responder);
+  const { result, calls } = await loadWorkflow(path.join(PLUGIN, 'phases', 'build.js'))({ plan: 'PLAN-x.md', briefs: b }, responder);
   const w = calls.find((c) => c.label === 'write-tests');
   assert.match(w.prompt, /STANDING BRIEF, from developer, quality/);
   assert.equal((w.prompt.match(/^# Test craft$/gm) || []).length, 1);
@@ -766,7 +766,7 @@ test('review workflow: an expert finding keeps its basis and quote in the lane, 
     if (Array.isArray(c.schema && c.schema.required) && c.schema.required.includes('verdicts')) return { verdicts: [{ index: 0, verdict: 'confirmed', reason: 'r' }] };
     return { findings: [], lensVerdict: 'clean' };
   };
-  const { result } = await loadWorkflow(path.join(PLUGIN, 'workflows', 'review.js'))(
+  const { result } = await loadWorkflow(path.join(PLUGIN, 'phases', 'review.js'))(
     { available: ex.list(PLUGIN).experts, experts: ['developer'], diffFile: 'd', expertsDir: '/p', skills: {} },
     call
   );

@@ -175,7 +175,7 @@ test('a script that neither finishes nor asks for anything is called stuck, not 
   // A copy of the plugin whose plan workflow awaits a promise that never settles.
   const plugin = tmp('replay-stuck');
   fs.cpSync(PLUGIN, plugin, { recursive: true, filter: (p) => !/ultimate-workflow[\\/](fixtures|architecture-evals|skills)([\\/]|$)/.test(p) });
-  const file = path.join(plugin, 'workflows', 'plan.js');
+  const file = path.join(plugin, 'phases', 'plan.js');
   fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace("phase('Explore')", "phase('Explore')\nawait new Promise(() => {})"));
   const r = s.run('plan', 'r', { UW_PLUGIN: plugin, UW_STALL_MS: '400' });
   assert.strictEqual(r.status, 2);

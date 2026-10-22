@@ -19,9 +19,9 @@ So the body is duplicated by hand. The check is thinner than it sounds: `mirrors
 | `skills/project-bootstrap-guidelines/references/memory-template.md` ↔ `skills/the-ultimate-workflow-guidelines/references/memory-template.md` | Byte-identical |
 | `AGENTS.md` ↔ `CLAUDE.md` | **Not a mirror, an import.** CLAUDE.md is the single line `@AGENTS.md`, because Claude Code reads only that filename while Cursor reads AGENTS.md natively. One source, two hosts. A test asserts the stub stays bare. **Repo dogfood only** — the shippable Cursor always-on is the `.mdc` inside `.cursor-plugin/ultimate-workflow/` |
 | `agents/` ↔ `.claude/agents/` | Local dogfood copy, **gitignored, invisible to CI** |
-| `commands/<phase>.md` ↔ `workflows/<phase>.js` | **Existence pair.** Neither contains the other's text; one without the other is an advertised command that does nothing, or a script nothing can reach |
+| `commands/<phase>.md` ↔ `phases/<phase>.js` | **Existence pair.** Neither contains the other's text; one without the other is an advertised command that does nothing, or a script nothing can reach |
 | `rules/uw-<topic>.mdc` ↔ `memory/<topic>.md` | **Selector and content.** The rule fires and points; the topical holds the knowledge. Deliberately NOT a text mirror -- a test asserts each rule stays shorter than what it points at |
-| The `// --- expert lane helpers` block in `workflows/plan.js`, `tests.js` and `review.js` | **Code mirror, checked.** Scripts cannot import, so the helpers are copied; a contract test holds the three copies equal |
+| The `// --- expert lane helpers` block in `phases/plan.js`, `tests.js` and `review.js` | **Code mirror, checked.** Scripts cannot import, so the helpers are copied; a contract test holds the three copies equal |
 | `experts/skills/<name>/skill.md` ↔ payload `skills/<name>/SKILL.md` | **Not a mirror.** Different things: an expert skill is pasted into an expert's prompt by code, a payload skill is loaded by the host. The lower-case file name is deliberate, so no host loads an expert skill on every turn |
 | Marketplace catalogs ↔ plugin payload | **Layout pair.** Root `.claude-plugin/marketplace.json` and `.cursor-plugin/marketplace.json` both `source` the nested tree `.cursor-plugin/ultimate-workflow/`. See `memory/cursor-install.md` |
 

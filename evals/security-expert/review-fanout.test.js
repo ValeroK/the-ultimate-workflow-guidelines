@@ -7,7 +7,7 @@ const path = require('node:path');
 const { loadWorkflow } = require('./lib/run-workflow.js');
 
 const PLUGIN = path.join(__dirname, '..', '..', '.cursor-plugin', 'ultimate-workflow');
-const REVIEW = path.join(PLUGIN, 'workflows', 'review.js');
+const REVIEW = path.join(PLUGIN, 'phases', 'review.js');
 const { list } = require(path.join(PLUGIN, 'experts', 'experts.js'));
 const CORE = ['correctness', 'simplicity', 'surgical-scope', 'test-coverage'];
 

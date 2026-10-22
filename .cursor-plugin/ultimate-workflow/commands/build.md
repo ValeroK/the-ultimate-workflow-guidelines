@@ -18,7 +18,7 @@ argument-hint: "<plan file; required if more than one PLAN-*.md exists>"
 
 Call the **Workflow** tool with:
 
-- `scriptPath`: `${CLAUDE_PLUGIN_ROOT}/workflows/build.js`
+- `scriptPath`: `${CLAUDE_PLUGIN_ROOT}/phases/build.js`
 - `args`: a JSON object, not a string: `{ "plan": "<the plan file from step 1>", "briefs": <the array, unchanged> }`, plus `command` if the user gave a verification command.
 
 Domain experts do not write code. If the plan has an "Expert input" section, the workflow tells the implementer that its constraints are requirements. A standing brief is different: it applies to every build, whether or not the expert was selected at plan time, and it says how to write, never what to build. The experts check the result at review, against what they required.

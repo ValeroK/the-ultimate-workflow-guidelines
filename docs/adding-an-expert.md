@@ -130,7 +130,7 @@ An expert earns its place where you can name something a lens cannot give:
 
 ## The recipe
 
-Paths under `agents/`, `experts/` and `workflows/` are relative to `.cursor-plugin/ultimate-workflow/`.
+Paths under `agents/`, `experts/` and `phases/` are relative to `.cursor-plugin/ultimate-workflow/`.
 
 | # | File | What you do |
 |---|---|---|

@@ -225,7 +225,7 @@ CLAUDE.md                         one line: @AGENTS.md
 .claude-plugin/marketplace.json   Claude marketplace catalog
 .cursor-plugin/marketplace.json   Cursor marketplace catalog
 .cursor-plugin/ultimate-workflow/ shippable plugin (Claude + Cursor payload)
-  skills/   rules/   agents/   commands/   workflows/   hooks/   memory/   experts/
+  skills/   rules/   agents/   commands/   phases/   hooks/   memory/   experts/
   experts/<name>/references/       one reference per stage an expert joins
   experts/skills/                  shared skills that code pastes into an expert's prompt
 docs/                             the expert recipe, catalogue, gates and design notes

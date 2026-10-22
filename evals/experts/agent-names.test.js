@@ -12,7 +12,7 @@ const path = require('node:path');
 
 const PLUGIN = path.join(__dirname, '..', '..', '.cursor-plugin', 'ultimate-workflow');
 const WORKFLOWS = ['plan.js', 'tests.js', 'review.js', 'build.js', 'harvest.js'];
-const read = (f) => fs.readFileSync(path.join(PLUGIN, 'workflows', f), 'utf8');
+const read = (f) => fs.readFileSync(path.join(PLUGIN, 'phases', f), 'utf8');
 const block = (src) => {
   const a = src.indexOf('// --- agent names');
   const b = src.indexOf('// --- end agent names ---');
@@ -21,13 +21,13 @@ const block = (src) => {
 
 test('every workflow carries the same agent names block', () => {
   const blocks = WORKFLOWS.map((f) => [f, block(read(f))]);
-  for (const [f, b] of blocks) assert.ok(b, `workflows/${f} lacks the agent names block`);
-  for (const [f, b] of blocks) assert.strictEqual(b, blocks[0][1], `workflows/${f} differs from workflows/${blocks[0][0]}`);
+  for (const [f, b] of blocks) assert.ok(b, `phases/${f} lacks the agent names block`);
+  for (const [f, b] of blocks) assert.strictEqual(b, blocks[0][1], `phases/${f} differs from phases/${blocks[0][0]}`);
 });
 
 test('the namespace is the plugin name from plugin.json', () => {
   const { name } = JSON.parse(fs.readFileSync(path.join(PLUGIN, '.claude-plugin', 'plugin.json'), 'utf8'));
-  for (const f of WORKFLOWS) assert.ok(read(f).includes(`args.agentNamespace : '${name}:'`), `workflows/${f}`);
+  for (const f of WORKFLOWS) assert.ok(read(f).includes(`args.agentNamespace : '${name}:'`), `phases/${f}`);
 });
 
 test('a local run can pass agentNamespace "" to reach agents copied to .claude/agents/', async () => {
@@ -45,14 +45,14 @@ test('a local run can pass agentNamespace "" to reach agents copied to .claude/a
 test('no agentType is passed without agentName()', () => {
   for (const f of WORKFLOWS) {
     const bare = read(f).match(/agentType:\s*(?!agentName\()[^\s,}]+/g);
-    assert.deepStrictEqual(bare, null, `workflows/${f}`);
+    assert.deepStrictEqual(bare, null, `phases/${f}`);
   }
 });
 
 test('every agent a workflow names exists in agents/', () => {
   for (const f of WORKFLOWS) {
     for (const [, name] of read(f).matchAll(/agentName\('([a-z-]+)'\)/g)) {
-      assert.ok(fs.existsSync(path.join(PLUGIN, 'agents', `${name}.md`)), `workflows/${f} names ${name}`);
+      assert.ok(fs.existsSync(path.join(PLUGIN, 'agents', `${name}.md`)), `phases/${f} names ${name}`);
     }
   }
 });

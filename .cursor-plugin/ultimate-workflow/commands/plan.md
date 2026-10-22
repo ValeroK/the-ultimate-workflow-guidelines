@@ -19,7 +19,7 @@ Then run `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" skills --stage plan`. 
 
 Call the **Workflow** tool with:
 
-- `scriptPath`: `${CLAUDE_PLUGIN_ROOT}/workflows/plan.js`
+- `scriptPath`: `${CLAUDE_PLUGIN_ROOT}/phases/plan.js`
 - `args`: a JSON object, not a string: `{ "feature": "<the feature to plan, verbatim from the user>", "available": <the list, unchanged>, "skills": <the skills object, unchanged>, "expertsDir": "${CLAUDE_PLUGIN_ROOT}/experts" }`, plus `areas` if the user named some.
 
 Call it once. Do not re-implement the phase inline, and do not run it a second

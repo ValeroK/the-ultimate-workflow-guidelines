@@ -120,7 +120,7 @@ test('every file the always-on indexes point at actually exists', () => {
     const text = read(file);
     const refs = [
       ...text.matchAll(
-        /`((?:\.cursor-plugin\/ultimate-workflow\/)?(?:memory|skills|research|hooks|workflows|agents)\/[^`]+?\.(?:md|js)|PRD-[^`]+?\.md)`/g
+        /`((?:\.cursor-plugin\/ultimate-workflow\/)?(?:memory|skills|research|hooks|phases|agents)\/[^`]+?\.(?:md|js)|PRD-[^`]+?\.md)`/g
       ),
     ]
       .map((m) => m[1])
@@ -187,7 +187,7 @@ test('the implementer never gains readonly', () => {
 
 // --- the command surface -----------------------------------------------------
 //
-// `workflows/*.js` are scripts for the Workflow tool, not a slash-command
+// `phases/*.js` are scripts for the Workflow tool, not a slash-command
 // surface. `commands/*.md` is what makes `/ultimate-workflow:plan` -- advertised
 // in the README, SKILL.md, and both always-on indexes -- actually exist. A
 // command with no script, or a script with no command, is an advertised feature
@@ -198,15 +198,22 @@ const PHASES = ['plan', 'tests', 'build', 'review', 'harvest'];
 test('every advertised phase has both a command and a script', () => {
   for (const p of PHASES) {
     assert.ok(fs.existsSync(pjoin('commands', `${p}.md`)), `no command for /${p}`);
-    assert.ok(fs.existsSync(pjoin('workflows', `${p}.js`)), `no script for /${p}`);
+    assert.ok(fs.existsSync(pjoin('phases', `${p}.js`)), `no script for /${p}`);
   }
+});
+
+// 4.0.1: Claude Code registers a plugin's workflows/ folder as named workflows, one per script,
+// under the same names as the commands. /ultimate-workflow:plan then ran plan.js directly, with
+// the user's text as a string and none of the expert setup the command does first.
+test('the phase scripts are not in a workflows/ folder, so only the commands reach them', () => {
+  assert.equal(fs.existsSync(pjoin('workflows')), false);
 });
 
 test('no command points at a script that does not exist', () => {
   const dir = pjoin('commands');
   for (const f of fs.readdirSync(dir).filter((x) => x.endsWith('.md'))) {
     const text = fs.readFileSync(path.join(dir, f), 'utf8');
-    const m = /workflows\/([a-z-]+)\.js/.exec(text);
+    const m = /phases\/([a-z-]+)\.js/.exec(text);
     if (!PHASES.includes(f.replace(/\.md$/, ''))) {
       // A prompt-only command such as /handoff runs no script, by design: it is
       // user-triggered and has nothing to orchestrate. It still has to be a real
@@ -216,21 +223,21 @@ test('no command points at a script that does not exist', () => {
     }
     assert.ok(m, `${f} never names a workflow script`);
     assert.ok(
-      fs.existsSync(pjoin('workflows', `${m[1]}.js`)),
-      `${f} points at workflows/${m[1]}.js, which does not exist`
+      fs.existsSync(pjoin('phases', `${m[1]}.js`)),
+      `${f} points at phases/${m[1]}.js, which does not exist`
     );
   }
 });
 
 test('no script is left without a command to invoke it', () => {
   const scripts = fs
-    .readdirSync(pjoin('workflows'))
+    .readdirSync(pjoin('phases'))
     .filter((f) => f.endsWith('.js'))
     .map((f) => f.replace(/\.js$/, ''));
   for (const s of scripts) {
     assert.ok(
       fs.existsSync(pjoin('commands', `${s}.md`)),
-      `workflows/${s}.js has no command, so nothing can reach it`
+      `phases/${s}.js has no command, so nothing can reach it`
     );
   }
 });
@@ -251,7 +258,7 @@ test('the phase count in the prose matches the number of phases that exist', () 
   for (const rel of ['README.md', 'CLAUDE.md']) {
     const t = read(rel);
     if (/\bfive phases\b/i.test(t) || /\bFive phases\b/.test(t)) {
-      assert.equal(fs.readdirSync(pjoin('workflows')).filter((f) => f.endsWith('.js')).length, 5,
+      assert.equal(fs.readdirSync(pjoin('phases')).filter((f) => f.endsWith('.js')).length, 5,
         `${rel} says five phases`);
     }
   }
@@ -347,7 +354,7 @@ test('the site names every phase, and the count matches the scripts', () => {
   for (const p of PHASES) {
     assert.match(t, new RegExp(`<code>${p}</code>`), `the site never mentions the ${p} phase`);
   }
-  const scripts = fs.readdirSync(pjoin('workflows')).filter((f) => f.endsWith('.js'));
+  const scripts = fs.readdirSync(pjoin('phases')).filter((f) => f.endsWith('.js'));
   assert.equal(scripts.length, PHASES.length, 'a phase was added or removed without updating the site');
 });
 
@@ -469,7 +476,7 @@ const REQUIRED_PLUGIN_FILES = [
   'memory.md',
   'memory/mirrors.md',
   'hooks/hooks.json',
-  'workflows/plan.js',
+  'phases/plan.js',
 ];
 
 test('the plugin root is under a Cursor sparse-included prefix', () => {

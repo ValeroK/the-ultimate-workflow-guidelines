@@ -171,7 +171,7 @@ test('the cookbook keeps the overlap with existing reviewers as an open point', 
 
 test('every expert-sized path the cookbook mentions exists or is a labelled placeholder', () => {
   const doc = text();
-  const refs = [...doc.matchAll(/`((?:agents|experts|workflows|evals|docs)\/[A-Za-z0-9_./<>-]+)`/g)].map((m) => m[1]);
+  const refs = [...doc.matchAll(/`((?:agents|experts|phases|evals|docs)\/[A-Za-z0-9_./<>-]+)`/g)].map((m) => m[1]);
   assert.ok(refs.length > 5);
   for (const ref of refs) {
     if (/<name>|<file>|<domain>|<stage>|\.\.\./.test(ref)) continue;

@@ -1,6 +1,6 @@
 # Frontend and accessibility expert: sources, borders and status
 
-The frontend and accessibility expert owns whether a UI change can be operated and perceived by keyboard, screen-reader, zoom and right-to-left users, whether it holds up on real data, and whether it uses the design system. It joins at plan, tests and review.
+The frontend and accessibility expert owns whether a UI change can be operated and perceived by keyboard, screen-reader, zoom and right-to-left users, whether it holds up on real data, and whether it uses the design system. It also owns the web on every device: desktop browsers, tablets and phones (viewports, touch and pointer input, safe areas, on-screen keyboards), and motion and interface polish (maintainer decision, 2026-10-22, with Emil Kowalski's skills as the source). It joins at plan, tests and review.
 
 ## Status
 
@@ -16,7 +16,9 @@ The frontend and accessibility expert owns whether a UI change can be operated a
 | Component state, effects and hooks | developer (`react-craft`) |
 | A UI test's oracle and determinism | quality |
 | XSS through unsafe sinks, secrets in client bundles | security |
-| Render performance and bundle size | not yet owned: the performance expert is in question (put to the maintainer) |
+| Responsive and cross-device behaviour (desktop, tablet, phone), motion, interface polish | frontend |
+| Render performance and bundle size | developer (`web-performance`, maintainer decision 2026-10-21) |
+| Native app code (Swift, React Native and Expo) | not owned: a mobile expert is not built |
 
 ## Sources
 

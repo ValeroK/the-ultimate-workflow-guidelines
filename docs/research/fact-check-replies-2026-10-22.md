@@ -168,3 +168,41 @@ Mostly full pages (EUR-Lex HTML and PDF, EDPB, ICO, the CPPA's statute and regul
 **Extras:** CloudWatch log groups never expire by default (answers H item 11 too); Sentry derives location from IP even with IP storage off; Sentry does not scrub AI agent span attributes (`input.messages`, `tool.call.arguments`, ...) by default; Sentry Python, PHP and Node SDKs capture stack local variables by default; S3 delete markers made by lifecycle rules are never replicated; GA4 redaction does not cover Measurement Protocol or Data Import; GA4 "reset on new activity" restarts user-data retention; async OpenSearch `_delete_by_query` leaves a task document holding the query; Kafka `local.retention.ms` must not exceed `retention.ms`; CCPA 11 CCR 7004 forbids "Yes/No" next to "Do Not Sell or Share" (double negative).
 
 **Not reached:** leginfo.legislature.ca.gov (statute read from the CPPA's PDF instead), GA answer 6366371, the EDPB 05/2020 PDF on edpb.europa.eu (read from a government mirror).
+
+## B. DevOps round 2 (27 items and 10 extras)
+
+Full pages for most; the reply notes a snippet for part of item 7 and secondary pages for part of item 23.
+
+| # | Verdict | Fact as returned | Page |
+|---|---|---|---|
+| 1 | Confirmed | Resources of a provider configuration must be destroyed before the configuration is removed. | Terraform module providers |
+| 2 | Confirmed | `moved` works within one state; across states use `removed` and `import`. | Terraform refactoring |
+| 3 | Confirmed | A `moved` block inside a removed module is not evaluated; keep a shim or declare it in the caller. | Terraform refactoring |
+| 4 | Confirmed | Creation-time provisioners run only on create; Terraform cannot model what they do. | Terraform provisioners |
+| 5 | Confirmed | A `providers` argument overrides inheritance; removing it falls back to the default provider. | Terraform module providers |
+| 6 | Confirmed | Inline rules on `aws_security_group` plus separate rule resources cause conflicts, perpetual diffs, overwritten rules. | AWS provider registry |
+| 7 | Confirmed in part | CloudFormation express mode completes before resources stabilise; rollback is off by default. The `aws cloudformation deploy` limitation was not in what the reply read. | CloudFormation express mode |
+| 8 | Different | A failed express-mode operation can be rolled back: `rollback-stack` supports express mode, or set `disableRollback: false` up front. It is CDK hotswap that has no rollback. | CloudFormation rollback page |
+| 9 | Confirmed | `--hotswap` skips what it cannot hotswap; `--hotswap-fallback` falls back to a CloudFormation deployment. | CDK deploy reference |
+| 10 | Confirmed | `cdk refactor` fails with property changes, additions or deletions mixed in; no cross-environment moves. | CDK refactor |
+| 11 | Confirmed | Lambda Node.js runtimes bundle SDK v3, not v2. | Lambda Node.js |
+| 12 | Confirmed | A retained resource comes back into a stack through an import, not a re-create under the same name. | CloudFormation resource import |
+| 13 | Confirmed | Template quotas: 500 resources, 200 parameters, 200 outputs, 200 mappings, 51,200 bytes inline, 1 MB from S3. | CloudFormation quotas |
+| 14 | Confirmed | AppConfig rolls back when an environment alarm fires during deployment or bake; it needs a role to read the alarm. | AppConfig deployment strategy |
+| 15 | Confirmed | CodeDeploy runs `ApplicationStop` from the last successful revision. | CodeDeploy agent |
+| 16 | Confirmed | Execution modes SUPERSEDED (default), QUEUED and PARALLEL (V2 only); PARALLEL runs at once. | CodePipeline concepts |
+| 17 | Confirmed | Trigger file-path filters see the first 100 changed files. | CodePipeline troubleshooting |
+| 18 | Confirmed | If minimum healthy hosts rounds up to the fleet's healthy count, the deployment fails at once. | CodeDeploy instance health |
+| 19 | Confirmed | With early success criteria, circuit breaker and alarm rollback apply only until ECS completes the deployment. | ECS failure detection |
+| 20 | Confirmed in part | Lifecycle rules expire images by their criteria; "even if in use" is not stated on the page. | ECR lifecycle policies |
+| 21 | Confirmed in part | Resource names come from `.Release.Name` or `fullnameOverride`; the delete-and-create consequence is not stated by Helm. | helm.sh variables |
+| 22 | Different | With no `hook-delete-policy`, Helm applies `before-hook-creation` by default, so a same-name rerun does not fail; the resource does stay after uninstall. | helm.sh chart hooks |
+| 23 | Confirmed in part | `inconclusiveLimit` is the inconclusive threshold; "no data is Inconclusive and pauses" rests on secondary pages. | Argo Rollouts FAQ |
+| 24 | Confirmed | `StatefulSetAutoDeletePVC`: beta on by default 1.27 to 1.31, GA in 1.32. | kubernetes.io feature gates |
+| 25 | Confirmed | `compose down -v` removes declared named and anonymous volumes; `external` ones never. | docs.docker.com |
+| 26 | Confirmed | `image prune -a` removes all images not referenced by any container. | docs.docker.com |
+| 27 | Confirmed | "No restriction" lets any branch deploy; "protected branches only" with no protection rules lets all branches deploy. | docs.github.com environments |
+
+**Extras:** `create_before_destroy` stops destroy-time provisioners; a tainted resource skips its destroy-time provisioner; removing inline `ingress`/`egress` blocks does not delete the rules (set `ingress = []`); PARALLEL pipelines have no stage rollback; after hotswaps use `cdk deploy --revert-drift`; construct id `Default` keeps a logical id when wrapping; one nested-stack operation changes at most 2,500 resources; express mode still waits for custom resources (set `ServiceTimeout`); `helm uninstall` never removes hook resources; environment branch patterns: `*` does not match `/`.
+
+**Two held-back review lines are now settled:** the StatefulSet PVC rule (24) and the deployment-branch rule (27).

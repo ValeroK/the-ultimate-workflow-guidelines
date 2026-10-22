@@ -7,7 +7,7 @@ const path = require('node:path');
 const { loadWorkflow } = require('./lib/run-workflow.js');
 
 const PLUGIN = path.join(__dirname, '..', '..', '.cursor-plugin', 'ultimate-workflow');
-const REVIEW = path.join(PLUGIN, 'workflows', 'review.js');
+const REVIEW = path.join(PLUGIN, 'phases', 'review.js');
 const { list } = require(path.join(PLUGIN, 'experts', 'experts.js'));
 const CORE = ['correctness', 'simplicity', 'surgical-scope', 'test-coverage'];
 
@@ -31,7 +31,7 @@ const AVAILABLE = list(PLUGIN).experts;
 const devops = { name: 'devops', agent: 'uw-expert-devops', description: 'DevOps expert. Applies when the pipeline or deployment changes.', stages: ['plan', 'review'] };
 const planOnly = { name: 'planonlyfixture', agent: 'uw-expert-planonlyfixture', description: 'A fixture expert that joins only the plan stage. Applies when module boundaries change.', stages: ['plan'] };
 
-const EXP = { diffFile: '.ultimate-workflow/review.diff', expertsDir: '/plugin/experts' };
+const EXP = { diffFile: '.ultimate-workflow/review.diff', expertsDir: '/plugin/experts', skills: {} };
 const base = (over = {}) => ({ available: AVAILABLE, experts: [], ...EXP, ...over });
 const DEPS = { tier1: [{ name: 'lodash', version: '4.17.15', advisory: 'GHSA-p6mc-m468-83gw' }] };
 
@@ -92,10 +92,10 @@ test('a plan that names an expert that is not installed stops the run, naming it
 });
 
 test('experts need a diff file and a references directory, so the run stops before anything is spawned without them', async () => {
-  for (const extra of [{ diffFile: undefined }, { expertsDir: undefined }]) {
+  for (const extra of [{ diffFile: undefined }, { expertsDir: undefined }, { skills: undefined }]) {
     const { result, calls } = await loadWorkflow(REVIEW)({ ...base(), ...extra }, clean);
     assert.strictEqual(result.ok, false, JSON.stringify(extra));
-    assert.match(result.error, /diffFile|expertsDir/);
+    assert.match(result.error, /diffFile|expertsDir|skills/);
     assert.strictEqual(calls.length, 0, 'an expert that cannot see the diff must not run blind');
   }
 });

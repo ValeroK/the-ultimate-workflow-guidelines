@@ -25,7 +25,7 @@ Phases are separate invocations rather than one script because the runtime canno
 
 ## Common operations
 
-- **Run a phase locally**, before it is installed as a plugin: invoke the Workflow tool with `scriptPath` pointing at `workflows/<name>.js`.
+- **Run a phase locally**, before it is installed as a plugin: invoke the Workflow tool with `scriptPath` pointing at `phases/<name>.js`, and pass `agentNamespace: ""` in `args` so the bare names reach the `.claude/agents/` copies.
 - **Add an agent type**: write `agents/uw-<role>.md`, copy it to `.claude/agents/` for local runs, and expect a delay before it resolves — a missing type fails loudly with the available list, which is the good failure mode.
 - **Reconcile the local mirror**: `diff -r agents/ .claude/agents/`. The `.claude/` copy is gitignored, so CI cannot see it, and it has already drifted once — the local copy lagged the shipped one, so a behaviour recorded as validated had never actually been exercised.
 
@@ -35,6 +35,8 @@ No filesystem or shell access from the script; no `import()`; `Date.now()`, `Mat
 
 ## Gotchas (topic-specific)
 
+- **Never put the phase scripts in a folder named `workflows/`.** Claude Code registers a plugin's `workflows/` scripts as named workflows under the command names, so `/ultimate-workflow:plan` ran `plan.js` directly: the user's text arrived as a string and the command's expert setup (`experts.js list`, `skills`) never ran. That is why they live in `phases/`; `mirrors.test.js` refuses a `workflows/` folder. (Discovered 2026-10-22)
+- **An installed plugin's agents are `ultimate-workflow:<name>`, never the bare name.** Every `agentType` goes through `agentName()`; a bare one is "agent type not found" on every user's machine while every local run and test passes, because local runs use the `.claude/agents/` copies. Shipped broken in 4.0.0 for all five phases. The test harness now refuses a bare name. (Discovered 2026-10-22)
 - **A `null` from `parallel()` means that branch failed, not that it found nothing.** Merging nulls into a result list turns total failure into an empty result, byte-identical to a correct empty answer. Every script must return an explicit failure when all branches are null, and warn on partial coverage. This was reproduced in new code written while explicitly designing against it.
 - **Resume replays in order.** Cached results stop at the first agent that did not finish, and every agent that *started* after it re-runs even if it completed. Prefer many small agents to few long ones.
 

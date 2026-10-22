@@ -7,7 +7,7 @@ argument-hint: "[feature name]"
 
 Run this phase by calling the **Workflow** tool with:
 
-- `scriptPath`: `${CLAUDE_PLUGIN_ROOT}/workflows/harvest.js`
+- `scriptPath`: `${CLAUDE_PLUGIN_ROOT}/phases/harvest.js`
 - `args`: `$ARGUMENTS`
 
 Optional feature name. If empty, harvest the current branch against its merge base.

@@ -10,6 +10,14 @@ export const meta = {
   ],
 }
 
+// --- agent names (identical in every workflow; a test holds them equal) ---
+// An installed plugin registers its agents as "<plugin>:<agent>", so a bare "uw-explorer"
+// is "agent type not found". Every agentType goes through agentName(). A local run against
+// agents copied to .claude/agents/ passes args.agentNamespace: "".
+const AGENT_NAMESPACE = args && typeof args.agentNamespace === 'string' ? args.agentNamespace : 'ultimate-workflow:'
+const agentName = (name) => (String(name).includes(':') ? name : AGENT_NAMESPACE + name)
+// --- end agent names ---
+
 // Exploration is the breadth-shaped part of planning: several independent
 // readers over different slices, each with a clean context, rather than one
 // agent accumulating everything it has read into a window that gets worse the
@@ -196,7 +204,7 @@ const slices = await parallel(
 Report what someone about to build this would need to know: the patterns they must follow, the utilities that already exist so they are not rewritten, and the constraints that are not obvious from reading the code once.
 
 Do not summarise the code. Do not review its quality. Say plainly what your slice did not cover.`,
-      { agentType: 'uw-explorer', label: r.label, phase: 'Explore', schema: SLICE }
+      { agentType: agentName('uw-explorer'), label: r.label, phase: 'Explore', schema: SLICE }
     )
   )
 )
@@ -235,7 +243,7 @@ Produce the complete plan document as markdown, following this shape:
 - Open questions
 
 Two rules on content. Anchor every claim about the codebase in something a reader actually reported -- do not assert structure nobody observed. And leave the Tests section out entirely; it is written and confirmed separately, after this plan is.`,
-  { agentType: 'uw-explorer', label: 'synthesise', phase: 'Synthesise', schema: PLAN }
+  { agentType: agentName('uw-explorer'), label: 'synthesise', phase: 'Synthesise', schema: PLAN }
 )
 
 if (!plan) {
@@ -260,6 +268,8 @@ if (!args || args.available === undefined || args.available === null) {
   expertLane = { stage: 'plan', skipped: 'args.available is not the output of experts/experts.js list, so domain experts were not considered.' }
 } else if (available.length > 0 && !args.expertsDir) {
   expertLane = { stage: 'plan', skipped: 'args.expertsDir was not passed, so experts could not be pointed at their references.' }
+} else if (available.length > 0 && (!args.skills || typeof args.skills !== 'object' || Array.isArray(args.skills))) {
+  expertLane = { stage: 'plan', skipped: 'args.skills was not passed, so the experts would have run without their skills. Run "node experts/experts.js skills --stage plan" and pass its JSON unchanged.' }
 } else if (available.length === 0) {
   expertLane = { stage: 'plan', available: [], selected: currentExperts, ran: [], failed: [], added: [] }
 } else {
@@ -286,7 +296,7 @@ ${describeSkills(available.map((e) => e.name))}`
         : ''
     }`,
     {
-      agentType: 'uw-explorer',
+      agentType: agentName('uw-explorer'),
       label: 'select-experts',
       phase: 'Experts',
       schema: skillsOnOffer ? { ...SELECTION, required: [...SELECTION.required, 'skills'], properties: { ...SELECTION.properties, skills: SKILL_CHOICE } } : SELECTION,
@@ -324,7 +334,7 @@ THE DRAFT PLAN
 ${planMarkdown}
 
 Say what your domain requires of this plan that it does not yet say. Read the code the plan touches where you need to.${skillBlock(e.name)}`,
-          { agentType: e.agent, label: `plan:${e.name}`, phase: 'Experts', schema: PLAN_INPUT }
+          { agentType: agentName(e.agent), label: `plan:${e.name}`, phase: 'Experts', schema: PLAN_INPUT }
         )
       )
     )

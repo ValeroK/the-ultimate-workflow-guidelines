@@ -109,9 +109,9 @@ test('only the brief arm gets the brief, and no task text gives the traps or the
   }
 });
 
-test('the brief block is exactly what workflows/build.js puts into the implementer prompt', async () => {
+test('the brief block is exactly what phases/build.js puts into the implementer prompt', async () => {
   const real = briefs(PLUGIN).briefs;
-  const run = loadWorkflow(path.join(PLUGIN, 'workflows', 'build.js'));
+  const run = loadWorkflow(path.join(PLUGIN, 'phases', 'build.js'));
   const { calls } = await run({ plan: 'PLAN-x.md', briefs: real }, (call) =>
     call.label === 'write-tests' ? { filesWritten: [], testsFailAsExpected: true, summary: 's', testCommand: 'x' } : { green: true, filesChanged: [], summary: 's' }
   );
@@ -322,7 +322,7 @@ test('an answered batch whose repository was left unchanged is a failed run, not
 });
 
 test('the implementer instruction mirrors the real build prompt, and gives neither arm the brief\'s main rule', () => {
-  const build = read(path.join(PLUGIN, 'workflows', 'build.js'));
+  const build = read(path.join(PLUGIN, 'phases', 'build.js'));
   const { plan: p } = plan();
   for (const b of p.batches) {
     const text = read(b.taskFile);

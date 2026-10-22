@@ -229,11 +229,11 @@ function checkExpert({ payloadDir, examplesDir, name, declaredTools = DECLARED_T
 function workflowParseErrors(payloadDir) {
   const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
   const out = [];
-  for (const f of fs.readdirSync(path.join(payloadDir, 'workflows')).filter((x) => x.endsWith('.js'))) {
+  for (const f of fs.readdirSync(path.join(payloadDir, 'phases')).filter((x) => x.endsWith('.js'))) {
     try {
-      new AsyncFunction('args', 'agent', 'parallel', 'phase', 'log', stripMeta(fs.readFileSync(path.join(payloadDir, 'workflows', f), 'utf8')));
+      new AsyncFunction('args', 'agent', 'parallel', 'phase', 'log', stripMeta(fs.readFileSync(path.join(payloadDir, 'phases', f), 'utf8')));
     } catch (err) {
-      out.push(`workflows/${f} does not parse (${err.message})`);
+      out.push(`phases/${f} does not parse (${err.message})`);
     }
   }
   return out;
@@ -243,16 +243,16 @@ function workflowParseErrors(payloadDir) {
 // drifts is a lane that behaves differently from its siblings, so they are held equal.
 function laneHelperProblems(payloadDir) {
   const block = (f) => {
-    const src = fs.readFileSync(path.join(payloadDir, 'workflows', f), 'utf8');
+    const src = fs.readFileSync(path.join(payloadDir, 'phases', f), 'utf8');
     const a = src.indexOf('// --- expert lane helpers');
     const b = src.indexOf('// --- end expert lane helpers ---');
     return a === -1 || b === -1 ? null : src.slice(a, b);
   };
   const blocks = LANE_WORKFLOWS.map((f) => [f, block(f)]);
   const missing = blocks.filter(([, b]) => b === null).map(([f]) => f);
-  if (missing.length > 0) return [`workflows/${missing.join(', ')} lack the expert lane helpers block`];
+  if (missing.length > 0) return [`phases/${missing.join(', ')} lack the expert lane helpers block`];
   const first = blocks[0][1];
-  return blocks.filter(([, b]) => b !== first).map(([f]) => `workflows/${f} has expert lane helpers that differ from workflows/${blocks[0][0]}; they must be identical`);
+  return blocks.filter(([, b]) => b !== first).map(([f]) => `phases/${f} has expert lane helpers that differ from phases/${blocks[0][0]}; they must be identical`);
 }
 
 // Shared skills: knowledge code pastes into an expert's prompt. They live in

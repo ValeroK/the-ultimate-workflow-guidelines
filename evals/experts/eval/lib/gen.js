@@ -78,7 +78,7 @@ function loadTasks(file = GEN_FILE) {
   return JSON.parse(fs.readFileSync(file, 'utf8'));
 }
 
-/** The brief block exactly as workflows/build.js puts it into the implementer's prompt. */
+/** The brief block exactly as phases/build.js puts it into the implementer's prompt. */
 function briefBlock(briefs) {
   const ok = (briefs || []).filter((b) => b && typeof b.name === 'string' && typeof b.text === 'string' && b.text.trim() !== '');
   if (ok.length === 0) return '';

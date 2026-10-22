@@ -52,7 +52,7 @@ test('the real tree satisfies the contract for every expert it discovers', () =>
 
 test('the security expert is discovered from the agents folder, with no registry anywhere', () => {
   assert.ok(registeredExperts(PAYLOAD).includes('security'));
-  const review = fs.readFileSync(path.join(PAYLOAD, 'workflows', 'review.js'), 'utf8');
+  const review = fs.readFileSync(path.join(PAYLOAD, 'phases', 'review.js'), 'utf8');
   assert.ok(!/const EXPERTS\s*=/.test(review), 'review.js must not carry a hardcoded expert registry');
   assert.ok(!fs.existsSync(path.join(PAYLOAD, 'experts', 'route.js')), 'the keyword router is gone');
 });
@@ -109,11 +109,11 @@ const MUTANTS = {
     edit(path.join(t.examples, 'security.json'), (s) => s.replace('"applies": [', '"applies": ["REPLACE: a change that clearly needs this expert", ')),
   'the expert directory grows past its byte budget': (t) => fs.writeFileSync(ref(t, 'fat.md'), 'x'.repeat(200 * 1024)),
   'a workflow edit that leaves review.js unparseable': (t) =>
-    edit(path.join(t.payload, 'workflows', 'review.js'), (s) => s.replace("const noExperts = Boolean(args && args.noExperts)", 'const noExperts = Boolean(args && args.noExperts) garbage')),
+    edit(path.join(t.payload, 'phases', 'review.js'), (s) => s.replace("const noExperts = Boolean(args && args.noExperts)", 'const noExperts = Boolean(args && args.noExperts) garbage')),
   'the lane helpers drift in one workflow': (t) =>
-    edit(path.join(t.payload, 'workflows', 'tests.js'), (s) => s.replace('const asList = (v) =>', 'const asList = (v, extra) =>')),
+    edit(path.join(t.payload, 'phases', 'tests.js'), (s) => s.replace('const asList = (v) =>', 'const asList = (v, extra) =>')),
   'a workflow loses its lane helpers': (t) =>
-    edit(path.join(t.payload, 'workflows', 'plan.js'), (s) => s.replace('// --- end expert lane helpers ---', '')),
+    edit(path.join(t.payload, 'phases', 'plan.js'), (s) => s.replace('// --- end expert lane helpers ---', '')),
   'an expert agent file that discovery cannot read': (t) =>
     fs.writeFileSync(path.join(t.payload, 'agents', 'uw-expert-stray.md'), '---\nname: uw-expert-wrong\ndescription: A stray expert whose name does not match.\ntools: Read, Grep, Glob\nreadonly: true\n---\n\n# Stray\n'),
 };

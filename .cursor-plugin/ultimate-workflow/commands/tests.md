@@ -21,7 +21,7 @@ An expert marked `always: [tests]` (the quality expert) joins this stage whether
 
 Call the **Workflow** tool with:
 
-- `scriptPath`: `${CLAUDE_PLUGIN_ROOT}/workflows/tests.js`
+- `scriptPath`: `${CLAUDE_PLUGIN_ROOT}/phases/tests.js`
 - `args`: a JSON object, not a string: `{ "plan": "<plan file>", "available": <the list>, "experts": <the plan's experts>, "skills": <from step 3, unchanged>, "expertsDir": "${CLAUDE_PLUGIN_ROOT}/experts" }`, plus `angles` if the user gave some.
 
 Call it once. Do not re-implement the phase inline, and do not run it a second

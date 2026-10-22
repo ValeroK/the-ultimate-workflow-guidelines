@@ -10,6 +10,14 @@ export const meta = {
   ],
 }
 
+// --- agent names (identical in every workflow; a test holds them equal) ---
+// An installed plugin registers its agents as "<plugin>:<agent>", so a bare "uw-explorer"
+// is "agent type not found". Every agentType goes through agentName(). A local run against
+// agents copied to .claude/agents/ passes args.agentNamespace: "".
+const AGENT_NAMESPACE = args && typeof args.agentNamespace === 'string' ? args.agentNamespace : 'ultimate-workflow:'
+const agentName = (name) => (String(name).includes(':') ? name : AGENT_NAMESPACE + name)
+// --- end agent names ---
+
 // Four orthogonal lenses, then a skeptic. The lenses are parallel because the
 // concerns genuinely do not overlap; a correctness reviewer and a scope
 // reviewer looking at the same hunk are asking unrelated questions.
@@ -93,9 +101,9 @@ if (!noExperts) {
   if (unknownPlanned.length > 0) {
     return { ok: false, error: `The plan names expert(s) that are not installed: ${unknownPlanned.join(', ')}. Nothing was reviewed.`, available: available.map((e) => e.name) }
   }
-  const missing = available.length > 0 ? ['diffFile', 'expertsDir'].filter((k) => !args[k]) : []
+  const missing = available.length > 0 ? ['diffFile', 'expertsDir', 'skills'].filter((k) => !args[k]) : []
   if (missing.length > 0) {
-    return { ok: false, error: `Experts need ${missing.join(' and ')} in args (experts/experts.js prepare produces the diff file). Nothing was reviewed.` }
+    return { ok: false, error: `Experts need ${missing.join(' and ')} in args (experts/experts.js prepare produces the diff file and the skills). Nothing was reviewed.` }
   }
 }
 if (noExperts && (planned.length > 0 || expertsOnly)) {
@@ -119,7 +127,7 @@ ${describeExperts(available)}
 Already selected: ${planned.length ? planned.join(', ') : 'none'}.
 
 Name every available expert that applies to this change and is not already selected, each with one sentence tying it to something in the diff. You cannot remove an expert that is already selected; do not mention those. When you are unsure whether one applies, include it: an unnecessary review costs a few minutes, a missed one costs a defect nobody looked for. If none apply, return an empty list.`,
-    { agentType: 'uw-explorer', label: 'recheck', phase: 'Recheck', schema: RECHECK_ANSWER }
+    { agentType: agentName('uw-explorer'), label: 'recheck', phase: 'Recheck', schema: RECHECK_ANSWER }
   )
   if (!answer) {
     recheckFailed = true
@@ -289,7 +297,7 @@ Every finding needs a file, a line, one sentence on the defect, and a concrete f
 Set lensVerdict whether or not you find anything.
 
 ${NO_QUOTA}`,
-      { agentType: reviewingNames.includes(lens) ? agentFor[lens] : 'uw-reviewer', label: lens, phase: 'Lenses', schema: FINDINGS }
+      { agentType: agentName(reviewingNames.includes(lens) ? agentFor[lens] : 'uw-reviewer'), label: lens, phase: 'Lenses', schema: FINDINGS }
     )
   )
 )
@@ -390,7 +398,7 @@ ${JSON.stringify(f, null, 2)}
 Read the code around it. Check whether the described failure path is actually reachable. Look for the guard the reviewer missed. Consider whether the behaviour is intentional and documented elsewhere.
 
 Default to refuted when uncertain. A false finding costs the reader more than a missed one, because it burns trust in every other finding beside it. Return a verdict for index ${f.index} only.`,
-          { agentType: 'uw-reviewer', label: `verify:${f.index}`, phase: 'Verify', schema: VERDICTS }
+          { agentType: agentName('uw-reviewer'), label: `verify:${f.index}`, phase: 'Verify', schema: VERDICTS }
         )
       )
     : [
@@ -405,7 +413,7 @@ For each: read the code around it, check whether the described failure path is r
 Default to refuted when uncertain. A false finding costs the reader more than a missed one, because it burns trust in every other finding beside it.
 
 Return one verdict per finding, by index. Do not soften -- confirmed or refuted, with the reason.`,
-            { agentType: 'uw-reviewer', label: 'refute', phase: 'Verify', schema: VERDICTS }
+            { agentType: agentName('uw-reviewer'), label: 'refute', phase: 'Verify', schema: VERDICTS }
           ),
       ]
 

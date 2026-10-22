@@ -9,6 +9,14 @@ export const meta = {
   ],
 }
 
+// --- agent names (identical in every workflow; a test holds them equal) ---
+// An installed plugin registers its agents as "<plugin>:<agent>", so a bare "uw-explorer"
+// is "agent type not found". Every agentType goes through agentName(). A local run against
+// agents copied to .claude/agents/ passes args.agentNamespace: "".
+const AGENT_NAMESPACE = args && typeof args.agentNamespace === 'string' ? args.agentNamespace : 'ultimate-workflow:'
+const agentName = (name) => (String(name).includes(':') ? name : AGENT_NAMESPACE + name)
+// --- end agent names ---
+
 // Step 6 of the workflow -- writing down what was learned -- is its weakest
 // step in practice, because it happens at the end of a long session when
 // context is full and attention is gone. This runs it with fresh eyes reading
@@ -102,7 +110,7 @@ const [fromPlan, fromHistory, existing] = await parallel([
 Extract candidate lessons. For each, cite the plan file and section it came from.
 
 ${NO_QUOTA}`,
-      { agentType: 'uw-harvester', label: 'plan', phase: 'Read', schema: CANDIDATES }
+      { agentType: agentName('uw-harvester'), label: 'plan', phase: 'Read', schema: CANDIDATES }
     ),
 
   () =>
@@ -114,7 +122,7 @@ Look for lessons in what actually changed and in what the commit messages say ab
 For each candidate, cite the commit sha or file path.
 
 ${NO_QUOTA}`,
-      { agentType: 'uw-harvester', label: 'history', phase: 'Read', schema: CANDIDATES }
+      { agentType: agentName('uw-harvester'), label: 'history', phase: 'Read', schema: CANDIDATES }
     ),
 
   () =>
@@ -126,7 +134,7 @@ Read: the "## Gotchas" section of CLAUDE.md, the memory.md index if present, and
 Return each existing Gotcha verbatim, and for each topical its path and what it covers. Note anything a router should know -- for example a topical that a new lesson would naturally extend rather than replace.
 
 Propose nothing. This is an inventory.`,
-      { agentType: 'uw-harvester', label: 'existing', phase: 'Read', schema: EXISTING }
+      { agentType: agentName('uw-harvester'), label: 'existing', phase: 'Read', schema: EXISTING }
     ),
 ])
 
@@ -202,7 +210,7 @@ Merge candidates that are the same lesson seen from two angles. Two readers look
 For anything you keep, write the exact text to add, ready to paste, in the voice the target file already uses. Cite its source.
 
 ${NO_QUOTA} A short, well-sourced list is the goal. Discarding most candidates is a good outcome, not a failure.`,
-  { agentType: 'uw-harvester', label: 'route', phase: 'Route', schema: PROPOSALS }
+  { agentType: agentName('uw-harvester'), label: 'route', phase: 'Route', schema: PROPOSALS }
 )
 
 if (!routed) {

@@ -226,7 +226,7 @@ test('review: skills left out at the cap are reported by prepare and carried in 
   assert.ok(p.skills.developer.dropped.length > 0);
   assert.ok(p.skillProblems.some((m) => /developer: skills left out at the \d+-byte cap/.test(m)));
   const total = p.skills.developer.skills.reduce((n, s) => n + Buffer.byteLength(s.text), 0);
-  assert.ok(total <= ex.SKILLS_BYTES);
+  assert.ok(total <= ex.skillsCap('developer'));
   const clean = (call) => (call.label === 'recheck' ? { experts: [] } : { findings: [], lensVerdict: 'clean' });
   const { result } = await loadWorkflow(path.join(PLUGIN, 'workflows', 'review.js'))(
     { available: ex.list(PLUGIN).experts, experts: ['developer'], diffFile: 'd', expertsDir: '/p', skills: p.skills },
@@ -613,8 +613,9 @@ test('architect review: Temporal workflow code selects step-functions', () => {
   assert.ok(ar({ 'worker/main.go': ['\t"go.temporal.io/sdk/workflow"'] }).includes('step-functions'));
 });
 
-test('the skills cap is 40 KB by default and raised for frontend only', () => {
-  assert.equal(ex.skillsCap('developer'), ex.SKILLS_BYTES);
+test('the skills cap is 40 KB by default and raised for frontend and the developer', () => {
+  assert.equal(ex.skillsCap('developer'), 56 * 1024);
+  assert.equal(ex.skillsCap('quality'), ex.SKILLS_BYTES);
   assert.equal(ex.skillsCap('architect'), 40 * 1024);
   assert.equal(ex.skillsCap('frontend'), 56 * 1024);
 });
@@ -714,11 +715,11 @@ test('developer review: a lazy main image selects web-performance; a backend fil
   assert.ok(!names(review({ 'svc/orders.go': ['func handle() {}'] })).includes('web-performance'));
 });
 
-test('developer review: on a React diff with a catch, web-performance is the skill left out at the cap, and says so', () => {
-  // Pinned so a change to the cap or the skills is a decision, not a drift. Raising the developer
-  // cap, as was done for frontend, is the maintainer's call.
-  const sel = review({ 'app/page.tsx': ['try { load() } catch (e) { throw e }', '<img src={hero} loading="lazy" />'] });
-  assert.deepEqual(sel.dropped, ['web-performance']);
+test('developer review: a React diff with a catch, an image and telemetry setup keeps every skill under the 56 KB cap', () => {
+  // At 40 KB this diff dropped web-performance; the cap was raised for the developer on 2026-10-22.
+  const sel = review({ 'app/page.tsx': ['try { load() } catch (e) { throw e }', '<img src={hero} loading="lazy" />', "import { trace } from '@opentelemetry/api';"] });
+  assert.deepEqual(sel.dropped, []);
+  assert.ok(names(sel).includes('web-performance') && names(sel).includes('telemetry-in-code'));
   assert.ok(names(sel).includes('react-craft') && names(sel).includes('failure-handling'));
 });
 

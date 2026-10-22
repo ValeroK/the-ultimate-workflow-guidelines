@@ -178,8 +178,10 @@ const SKILL_STAGES = ['review', 'build', 'tests'];
 const SKILLS_BYTES = 40 * 1024;
 // Experts whose stage can legitimately need more, by decision. Frontend, 2026-10-22: its six review
 // skills (semantics, visual accessibility, real data, devices, direction, motion) come to about
-// 53 KB when one change matches them all; a test holds them under this cap.
-const SKILLS_BYTES_BY_EXPERT = { frontend: 56 * 1024 };
+// 53 KB when one change matches them all; a test holds them under this cap. Developer, 2026-10-22:
+// with web-performance and telemetry-in-code, a React change with a catch reached about 45 KB and
+// dropped web-performance at 40 KB (maintainer decision to raise it).
+const SKILLS_BYTES_BY_EXPERT = { frontend: 56 * 1024, developer: 56 * 1024 };
 const skillsCap = (expert) => SKILLS_BYTES_BY_EXPERT[expert] || SKILLS_BYTES;
 const SKILLS_FILE_LINE = /^\s*-\s*([a-z][a-z0-9-]*)(?:\s+\((.*)\))?\s*$/;
 

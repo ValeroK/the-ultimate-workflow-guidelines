@@ -13,7 +13,7 @@ Dropped: everything that runs a tool, fetches a page, or installs something.
 
 ## 2026-10-22: web-performance and a review category
 
-- New skill `web-performance` at plan and review, from fact-check block I (read twice): what every route loads, `use client` roots, dynamic imports, tree shaking and barrels, render-blocking scripts, the main image (`loading`, `fetchpriority`, preload scanner, LCP candidates, Next.js 16 `preload`), layout shift, fonts, input and animation cost, Next.js and React caching. On a React diff with a catch it is the skill left out at the 40 KB cap (pinned by a test).
+- New skill `web-performance` at plan and review, from fact-check block I (read twice): what every route loads, `use client` roots, dynamic imports, tree shaking and barrels, render-blocking scripts, the main image (`loading`, `fetchpriority`, preload scanner, LCP candidates, Next.js 16 `preload`), layout shift, fonts, input and animation cost, Next.js and React caching. The developer's cap was raised to 56 KB the same day (maintainer decision), so a React diff with a catch keeps it.
 - Review: new category "Work that grows faster than its input".
 - `react-craft`: rendering performance routes to `web-performance`.
 

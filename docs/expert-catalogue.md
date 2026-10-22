@@ -198,7 +198,7 @@ Taken from each expert's `.cursor-plugin/ultimate-workflow/experts/<name>/skills
 | developer | review, build | `surgical-change` | `always` | every changed line traced to the task |
 | developer | review, build | `simplification` | `always` | no structure the change does not need |
 | developer | review, build | `engineering-principles` | `always` | a principle's exact meaning and counter-case |
-| developer | review | `web-performance` | root layouts, client entries and bundler config; `added:` images, scripts, fonts, dynamic imports, `use client`, layout reads, scroll and input handlers | what every route loads, the main content, shifts, input and animation cost; last but one, and dropped first at the cap |
+| developer | review | `web-performance` | root layouts, client entries and bundler config; `added:` images, scripts, fonts, dynamic imports, `use client`, layout reads, scroll and input handlers | what every route loads, the main content, shifts, input and animation cost; last but one in priority |
 | developer | review | `telemetry-in-code` | `added:` logger setup, OpenTelemetry and X-Ray, propagators, metric clients, EMF, Lambda log settings | structured events, correlation, trace context, label cardinality |
 | developer | plan | `engineering-principles` | offered | the plan adds structure |
 | developer | plan | `dependency-discipline` | offered | the plan adds, removes or upgrades a dependency |

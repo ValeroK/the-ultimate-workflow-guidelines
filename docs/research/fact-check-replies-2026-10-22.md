@@ -83,4 +83,6 @@ Full pages, exact URLs. Verdicts as returned; "different" means the claim's sour
 | 21 | Confirmed | Passive listeners cannot `preventDefault()`; `passive` defaults to true for `wheel`, `mousewheel`, `touchstart`, `touchmove` on Window, Document, `documentElement`, `body`. | MDN `addEventListener` |
 | 22a | Confirmed | `transform` and `opacity` avoid layout and paint. | web.dev compositor-only properties |
 
+**Spot check:** items 9, 18 and 21 match MDN's own sources word for word (`mdn/content` for `img` and `addEventListener`; `mdn/browser-compat-data` `api/Scheduler.json`: Chrome 129, Firefox 142, Safari false). Rows 1 to 22a are [R].
+
 **Still to come:** 22b to 46 (the reply was cut off).

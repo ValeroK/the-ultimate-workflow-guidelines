@@ -98,3 +98,13 @@ test('refusals: an unknown phase, a missing file, and a file that is not JSON ea
   assert.equal(r.status, 2);
   assert.match(r.stderr, /bad\.json is not readable JSON/);
 });
+
+test('plan: areas as a list or a comma-separated string both add a reader per area', async () => {
+  const respond = async (c) => (c.label === 'synthesise' ? null : { slice: 's', patterns: [], reusable: [], constraints: [], notCovered: 'n' });
+  const plan = path.join(PLUGIN, 'phases', 'plan.js');
+  for (const areas of [['Sidebar.tsx', 'globals.css'], 'Sidebar.tsx, globals.css']) {
+    const { calls } = await loadWorkflow(plan)({ feature: 'x', areas, available: [], skills: {} }, respond);
+    const labels = calls.map((c) => c.label);
+    assert.ok(labels.some((l) => /Sidebar\.tsx/.test(l)) && labels.some((l) => /globals\.css/.test(l)), `${JSON.stringify(areas)} -> ${labels.join(',')}`);
+  }
+});

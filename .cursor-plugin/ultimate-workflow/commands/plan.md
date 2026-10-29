@@ -17,7 +17,7 @@ Then run `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" skills --stage plan > 
 
 ## Run the phase
 
-1. With the Write tool, write `.ultimate-workflow/run/plan.args.json`: `{ "feature": "<the feature to plan, verbatim from the user>" }`, plus `"areas"` if the user named some.
+1. With the Write tool, write `.ultimate-workflow/run/plan.args.json`: `{ "feature": "<the feature to plan, verbatim from the user>" }`, plus `"areas"` (a list of strings) if the user named some.
 2. Run `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" script --phase plan --args-file .ultimate-workflow/run/plan.args.json --file available=.ultimate-workflow/run/available.json --file skills=.ultimate-workflow/run/skills.json`. It writes `.ultimate-workflow/run/plan.js`, which is `phases/plan.js` with those arguments and `expertsDir` built in, and prints its `scriptPath` and the skill names each expert may be offered.
 3. Call the **Workflow** tool once, with `scriptPath` set to the path that command printed and no `args`. Do not pass the arguments yourself and do not copy or edit the script: the tool will not load a script from the plugin's own folder, and arguments a model retypes are no longer the text the code chose.
 

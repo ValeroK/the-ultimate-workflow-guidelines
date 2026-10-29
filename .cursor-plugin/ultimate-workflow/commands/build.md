@@ -10,16 +10,15 @@ argument-hint: "<plan file; required if more than one PLAN-*.md exists>"
 1. **The plan file.** The one the user named. Otherwise, if exactly one `PLAN-*.md` exists at the repository root, use it. If several exist and none was named, ask which; never pick by modification time.
 2. **The briefs.** The workflow script cannot read the filesystem, so the briefs, and the skills each one selects for this plan, are found here, in code. Run:
 
-   `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" brief --plan <plan file>`
+   `mkdir -p .ultimate-workflow/run`, then `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" brief --plan <plan file> > .ultimate-workflow/run/briefs.json`
 
-   It prints a JSON array of `{ "name", "text", "skills" }`, one per expert that declares the `build` stage; `skills` holds the skill texts chosen from the files and text of the plan. Keep it exactly as printed. An empty array is fine and means no expert has a brief. Show the user anything the script prints on stderr: a brief that is missing or too large is left out, a skill that did not fit is named, and a plan that names no file gets only the skills every build gets.
+   It writes a JSON array of `{ "name", "text", "skills" }`, one per expert that declares the `build` stage; `skills` holds the skill texts chosen from the files and text of the plan. An empty array is fine and means no expert has a brief. Show the user anything the script prints on stderr: a brief that is missing or too large is left out, a skill that did not fit is named, and a plan that names no file gets only the skills every build gets.
 
 ## Run the phase
 
-Call the **Workflow** tool with:
-
-- `scriptPath`: `${CLAUDE_PLUGIN_ROOT}/phases/build.js`
-- `args`: a JSON object, not a string: `{ "plan": "<the plan file from step 1>", "briefs": <the array, unchanged> }`, plus `command` if the user gave a verification command.
+1. With the Write tool, write `.ultimate-workflow/run/build.args.json`: `{ "plan": "<the plan file from step 1>" }`, plus `"command"` if the user gave a verification command.
+2. Run `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" script --phase build --args-file .ultimate-workflow/run/build.args.json --file briefs=.ultimate-workflow/run/briefs.json`. It writes `.ultimate-workflow/run/build.js` with those arguments built in, and prints its `scriptPath`.
+3. Call the **Workflow** tool once, with `scriptPath` set to the path that command printed and no `args`. Do not pass the arguments yourself and do not copy or edit the script: the tool will not load a script from the plugin's own folder, and arguments a model retypes are no longer the text the code chose.
 
 Domain experts do not write code. If the plan has an "Expert input" section, the workflow tells the implementer that its constraints are requirements. A standing brief is different: it applies to every build, whether or not the expert was selected at plan time, and it says how to write, never what to build. The experts check the result at review, against what they required.
 

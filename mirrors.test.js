@@ -213,7 +213,11 @@ test('no command points at a script that does not exist', () => {
   const dir = pjoin('commands');
   for (const f of fs.readdirSync(dir).filter((x) => x.endsWith('.md'))) {
     const text = fs.readFileSync(path.join(dir, f), 'utf8');
-    const m = /phases\/([a-z-]+)\.js/.exec(text);
+    // 4.0.2: the Workflow tool refuses a scriptPath in the plugin's install folder, so a phase
+    // command builds its runnable copy with `experts.js script --phase <name>` and never
+    // points the tool at the plugin's own phases/ folder.
+    assert.doesNotMatch(text, /scriptPath`?:\s*`?\$\{CLAUDE_PLUGIN_ROOT\}/, `${f} points the Workflow tool at the plugin folder, which it refuses`);
+    const m = /script --phase ([a-z-]+)/.exec(text);
     if (!PHASES.includes(f.replace(/\.md$/, ''))) {
       // A prompt-only command such as /handoff runs no script, by design: it is
       // user-triggered and has nothing to orchestrate. It still has to be a real

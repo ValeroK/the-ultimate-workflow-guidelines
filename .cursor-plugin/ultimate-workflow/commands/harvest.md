@@ -5,12 +5,11 @@ argument-hint: "[feature name]"
 
 # Phase: harvest
 
-Run this phase by calling the **Workflow** tool with:
-
-- `scriptPath`: `${CLAUDE_PLUGIN_ROOT}/phases/harvest.js`
-- `args`: `$ARGUMENTS`
-
 Optional feature name. If empty, harvest the current branch against its merge base.
+
+1. With the Write tool, write `.ultimate-workflow/run/harvest.args.json`: `{ "scope": "<the feature name, or the current branch>" }`, plus `"range"` if the branch's merge base is not `origin/main` (for example `<merge base>..HEAD`).
+2. Run `mkdir -p .ultimate-workflow/run` if needed, then `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" script --phase harvest --args-file .ultimate-workflow/run/harvest.args.json`. It writes `.ultimate-workflow/run/harvest.js` with those arguments built in, and prints its `scriptPath`.
+3. Call the **Workflow** tool once, with `scriptPath` set to the path that command printed and no `args`. Do not pass the arguments yourself and do not copy or edit the script: the tool will not load a script from the plugin's own folder, and arguments a model retypes are no longer the text the code chose.
 
 Call it once. Do not re-implement the phase inline, and do not run it a second
 time because the first result was not what you expected -- these phases cost

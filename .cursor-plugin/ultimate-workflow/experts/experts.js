@@ -751,6 +751,65 @@ function commitEvidence(cwd, planFile, pluginRoot = PLUGIN_ROOT) {
   }
 }
 
+// ---- phase scripts with their arguments built in ----
+
+// The Workflow tool loads a scriptPath only from a folder the session can read, never from
+// the plugin's install folder, and a model that passes args has to type them out: 30-300 KB
+// of skill text per phase. So the command writes a copy of the phase script into the
+// project, with the arguments already inside, and runs that by path. The JSON goes from
+// file to file untouched; nothing is retyped.
+function stageScript(pluginRoot, cwd, phaseName, { argsFile = '', files = [], merges = [] } = {}) {
+  const src = path.join(pluginRoot, 'phases', `${phaseName}.js`);
+  if (!/^[a-z]+$/.test(phaseName) || !fs.existsSync(src)) throw new Error(`no phase script phases/${phaseName}.js`);
+  const readJson = (p) => {
+    try {
+      return JSON.parse(fs.readFileSync(path.resolve(cwd, p), 'utf8').replace(/^﻿/, ''));
+    } catch (err) {
+      throw new Error(`${p} is not readable JSON (${err.message})`);
+    }
+  };
+  const args = { expertsDir: path.join(pluginRoot, 'experts') };
+  for (const p of merges) {
+    const v = readJson(p);
+    if (!v || typeof v !== 'object' || Array.isArray(v)) throw new Error(`${p} must hold a JSON object to merge`);
+    Object.assign(args, v);
+  }
+  for (const spec of files) {
+    const at = spec.indexOf('=');
+    if (at < 1) throw new Error(`--file needs key=path, got "${spec}"`);
+    args[spec.slice(0, at)] = readJson(spec.slice(at + 1));
+  }
+  if (argsFile) {
+    const v = readJson(argsFile);
+    if (!v || typeof v !== 'object' || Array.isArray(v)) throw new Error(`${argsFile} must hold a JSON object`);
+    Object.assign(args, v);
+  }
+  const text = fs.readFileSync(src, 'utf8');
+  const meta = /^export const meta = \{[\s\S]*?^\}\r?\n/m.exec(text);
+  if (!meta || meta.index !== 0) throw new Error(`phases/${phaseName}.js does not start with its meta block`);
+  const head = meta[0];
+  const body = text.slice(head.length);
+  const out = [
+    head,
+    `// Written by experts.js script from phases/${phaseName}.js, with its arguments built in. Do not edit;`,
+    '// run the command again instead. Arguments passed to the Workflow call win over these.',
+    `const EMBEDDED_ARGS = ${JSON.stringify(args)}`,
+    'return await (async (args) => {',
+    body,
+    "})(Object.assign({}, EMBEDDED_ARGS, args && typeof args === 'object' && !Array.isArray(args) ? args : {}))",
+    '',
+  ].join('\n');
+  const dir = path.join(cwd, '.ultimate-workflow', 'run');
+  fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, `${phaseName}.js`);
+  fs.writeFileSync(file, out);
+  const skills = args.skills && typeof args.skills === 'object' && !Array.isArray(args.skills) ? args.skills : null;
+  const skillNames = skills
+    ? Object.fromEntries(Object.entries(skills).filter(([k, v]) => k !== '_protocol' && Array.isArray(v)).map(([k, v]) => [k, v.map((s) => s && s.name)]))
+    : null;
+  return { scriptPath: file, bytes: Buffer.byteLength(out), keys: Object.keys(args).sort(), skills: skillNames, skillProblems: args.skillProblems || [] };
+}
+
 // ---- command line ----
 
 function fail(message) {
@@ -759,7 +818,7 @@ function fail(message) {
 }
 
 function parseArgs(argv) {
-  const o = { cmd: argv[0], plan: '', add: null, stage: '', id: '', reason: '', range: 'working', pluginRoot: PLUGIN_ROOT, cwd: process.cwd() };
+  const o = { cmd: argv[0], plan: '', add: null, stage: '', id: '', reason: '', range: 'working', pluginRoot: PLUGIN_ROOT, cwd: process.cwd(), phase: '', argsFile: '', files: [], merges: [] };
   for (let i = 1; i < argv.length; i++) {
     const a = argv[i];
     const need = () => {
@@ -775,6 +834,10 @@ function parseArgs(argv) {
     else if (a === '--range') o.range = need();
     else if (a === '--plugin-root') o.pluginRoot = need();
     else if (a === '--cwd') o.cwd = need();
+    else if (a === '--phase') o.phase = need();
+    else if (a === '--args-file') o.argsFile = need();
+    else if (a === '--file') o.files.push(need());
+    else if (a === '--merge') o.merges.push(need());
     else fail(`unknown argument: ${a}`);
   }
   return o;
@@ -834,6 +897,10 @@ function main(argv) {
     }
     if (o.cmd === 'resolve') return out(resolve(o.cwd, o.id, o.reason, o.pluginRoot));
     if (o.cmd === 'attribution') return out(attribution(o.cwd, o.pluginRoot));
+    if (o.cmd === 'script') {
+      if (!o.phase) fail('script needs --phase <plan|tests|build|review|harvest>');
+      return out(stageScript(o.pluginRoot, o.cwd, o.phase, { argsFile: o.argsFile, files: o.files, merges: o.merges }));
+    }
     if (o.cmd === 'check') {
       const evidence = commitEvidence(o.cwd, o.plan, o.pluginRoot);
       const verdict = gates.commitGate(evidence);
@@ -844,7 +911,7 @@ function main(argv) {
   } catch (err) {
     fail(err.message);
   }
-  return fail(`unknown command: ${o.cmd || '(none)'} (expected list, brief, skills, read, select, prepare, record, check, findings, resolve, attribution, fingerprint)`);
+  return fail(`unknown command: ${o.cmd || '(none)'} (expected list, brief, skills, read, select, prepare, record, check, findings, resolve, attribution, fingerprint, script)`);
 }
 
 module.exports = {
@@ -876,6 +943,7 @@ module.exports = {
   workingChanges,
   fingerprint,
   prepare,
+  stageScript,
   record,
   commitEvidence,
   findingId,

@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- **The phase commands can start their workflow on a real install.** The Workflow tool refuses a `scriptPath` in the plugin's install folder ("scriptPath must be a script path this tool returned, or a file you can already read"), so every command's `${CLAUDE_PLUGIN_ROOT}/phases/<x>.js` failed, and sessions copied the script by hand with the arguments retyped, up to 294 KB of skill text. `experts.js script --phase <x>` now writes `.ultimate-workflow/run/<x>.js`, the phase script with its arguments built in from the files the command already produced (`--file key=path`, `--merge path`, `--args-file path` for the small ones), and prints its path; the commands call the tool with that path and no `args`. `harvest` now gets an object (`scope`, `range`) instead of the raw argument string. Tested in `evals/experts/stage-script.test.js`; `mirrors.test.js` refuses a command that points the tool at the plugin folder.
+
 ### Changed
 
 - **Experts report a defect they can show now, not later.** In a real review the frontend expert saw that focus might not reach the opened phone drawer and left it for a later browser test; a core lens reported it instead. `experts/protocol.md` now says to report it and name the stage that will measure it.

@@ -75,11 +75,11 @@ test('build: the shipped developer brief is short, concrete and tells the implem
   assert.doesNotMatch(b.text, /\bSOLID\b|\bDRY\b/, 'rules, not principle names: AGENTS.md already says simplicity first');
 });
 
-test('command: build.md loads the briefs in code and passes them as an object', () => {
+test('command: build.md loads the briefs in code and builds them into the script from a file', () => {
   const fs = require('node:fs');
   const text = fs.readFileSync(path.join(PLUGIN, 'commands', 'build.md'), 'utf8');
-  assert.match(text, /experts\.js" brief/);
-  assert.match(text, /"briefs": <the array, unchanged>/);
+  assert.match(text, /experts\.js" brief --plan <plan file> > \.ultimate-workflow\/run\/briefs\.json/);
+  assert.match(text, /script --phase build [^`]*--file briefs=\.ultimate-workflow\/run\/briefs\.json/);
   assert.match(text, /briefsLoaded/);
-  assert.match(text, /JSON object, not a string/);
+  assert.match(text, /no `args`/);
 });

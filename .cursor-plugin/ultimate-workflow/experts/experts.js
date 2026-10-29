@@ -115,6 +115,26 @@ function list(pluginRoot = PLUGIN_ROOT) {
  * With `planText`, each brief also carries the skills its build.md selects for the paths and text
  * of that plan. A plan that names no file selects only the `always` skills, and `note` says so.
  */
+// One card of a plan split into cards: the lines under the first heading whose text contains
+// `heading` (case-insensitive), up to the next heading of the same or a higher level. Used so a
+// card's build loads the briefs and skills its own section calls for, not the whole plan's.
+function planSection(planText, heading) {
+  const lines = planText.split(/\r?\n/);
+  const want = heading.trim().toLowerCase();
+  const at = lines.findIndex((l) => /^#{1,6}\s/.test(l) && l.toLowerCase().includes(want));
+  if (at === -1) return null;
+  const level = /^(#+)/.exec(lines[at])[1].length;
+  let end = lines.length;
+  for (let i = at + 1; i < lines.length; i++) {
+    const m = /^(#{1,6})\s/.exec(lines[i]);
+    if (m && m[1].length <= level) {
+      end = i;
+      break;
+    }
+  }
+  return lines.slice(at, end).join('\n');
+}
+
 function briefs(pluginRoot = PLUGIN_ROOT, { planText = null } = {}) {
   const change = planText === null ? null : { files: planPaths(planText), text: String(planText) };
   const found = list(pluginRoot);
@@ -184,6 +204,10 @@ const SKILLS_BYTES = 40 * 1024;
 // dropped web-performance at 40 KB (maintainer decision to raise it).
 const SKILLS_BYTES_BY_EXPERT = { frontend: 56 * 1024, developer: 56 * 1024 };
 const skillsCap = (expert) => SKILLS_BYTES_BY_EXPERT[expert] || SKILLS_BYTES;
+// At review, at most this many skills per expert, in skills.md order, by decision (2026-10-29). On the
+// CEO dashboard run 15 of 16 review skills went uncited twice, and a planted-defect ablation found
+// no difference with and without them, while each skill is prompt text every lens call pays for.
+const REVIEW_SKILLS_MAX = 2;
 const SKILLS_FILE_LINE = /^\s*-\s*([a-z][a-z0-9-]*)(?:\s+\((.*)\))?\s*$/;
 
 function globToRegExp(glob) {
@@ -599,6 +623,11 @@ function prepare(cwd, range = 'working', pluginRoot = PLUGIN_ROOT) {
     const sel = selectSkills(pluginRoot, e.name, 'review', change);
     skillProblems.push(...sel.problems);
     if (sel.dropped.length > 0) skillProblems.push(`${e.name}: skills left out at the ${skillsCap(e.name)}-byte cap: ${sel.dropped.join(', ')}`);
+    if (sel.skills.length > REVIEW_SKILLS_MAX) {
+      const over = sel.skills.splice(REVIEW_SKILLS_MAX).map((x) => x.name);
+      sel.dropped.push(...over);
+      skillProblems.push(`${e.name}: skills left out at the ${REVIEW_SKILLS_MAX}-skill review cap: ${over.join(', ')}`);
+    }
     if (sel.skills.length > 0 || sel.dropped.length > 0) skills[e.name] = { skills: sel.skills, dropped: sel.dropped };
   }
   // The shared rules ride with the skills, because the workflow cannot read files (see protocolText).
@@ -751,6 +780,65 @@ function commitEvidence(cwd, planFile, pluginRoot = PLUGIN_ROOT) {
   }
 }
 
+// ---- phase scripts with their arguments built in ----
+
+// The Workflow tool loads a scriptPath only from a folder the session can read, never from
+// the plugin's install folder, and a model that passes args has to type them out: 30-300 KB
+// of skill text per phase. So the command writes a copy of the phase script into the
+// project, with the arguments already inside, and runs that by path. The JSON goes from
+// file to file untouched; nothing is retyped.
+function stageScript(pluginRoot, cwd, phaseName, { argsFile = '', files = [], merges = [] } = {}) {
+  const src = path.join(pluginRoot, 'phases', `${phaseName}.js`);
+  if (!/^[a-z]+$/.test(phaseName) || !fs.existsSync(src)) throw new Error(`no phase script phases/${phaseName}.js`);
+  const readJson = (p) => {
+    try {
+      return JSON.parse(fs.readFileSync(path.resolve(cwd, p), 'utf8').replace(/^﻿/, ''));
+    } catch (err) {
+      throw new Error(`${p} is not readable JSON (${err.message})`);
+    }
+  };
+  const args = { expertsDir: path.join(pluginRoot, 'experts') };
+  for (const p of merges) {
+    const v = readJson(p);
+    if (!v || typeof v !== 'object' || Array.isArray(v)) throw new Error(`${p} must hold a JSON object to merge`);
+    Object.assign(args, v);
+  }
+  for (const spec of files) {
+    const at = spec.indexOf('=');
+    if (at < 1) throw new Error(`--file needs key=path, got "${spec}"`);
+    args[spec.slice(0, at)] = readJson(spec.slice(at + 1));
+  }
+  if (argsFile) {
+    const v = readJson(argsFile);
+    if (!v || typeof v !== 'object' || Array.isArray(v)) throw new Error(`${argsFile} must hold a JSON object`);
+    Object.assign(args, v);
+  }
+  const text = fs.readFileSync(src, 'utf8');
+  const meta = /^export const meta = \{[\s\S]*?^\}\r?\n/m.exec(text);
+  if (!meta || meta.index !== 0) throw new Error(`phases/${phaseName}.js does not start with its meta block`);
+  const head = meta[0];
+  const body = text.slice(head.length);
+  const out = [
+    head,
+    `// Written by experts.js script from phases/${phaseName}.js, with its arguments built in. Do not edit;`,
+    '// run the command again instead. Arguments passed to the Workflow call win over these.',
+    `const EMBEDDED_ARGS = ${JSON.stringify(args)}`,
+    'return await (async (args) => {',
+    body,
+    "})(Object.assign({}, EMBEDDED_ARGS, args && typeof args === 'object' && !Array.isArray(args) ? args : {}))",
+    '',
+  ].join('\n');
+  const dir = path.join(cwd, '.ultimate-workflow', 'run');
+  fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, `${phaseName}.js`);
+  fs.writeFileSync(file, out);
+  const skills = args.skills && typeof args.skills === 'object' && !Array.isArray(args.skills) ? args.skills : null;
+  const skillNames = skills
+    ? Object.fromEntries(Object.entries(skills).filter(([k, v]) => k !== '_protocol' && Array.isArray(v)).map(([k, v]) => [k, v.map((s) => s && s.name)]))
+    : null;
+  return { scriptPath: file, bytes: Buffer.byteLength(out), keys: Object.keys(args).sort(), skills: skillNames, skillProblems: args.skillProblems || [] };
+}
+
 // ---- command line ----
 
 function fail(message) {
@@ -759,7 +847,7 @@ function fail(message) {
 }
 
 function parseArgs(argv) {
-  const o = { cmd: argv[0], plan: '', add: null, stage: '', id: '', reason: '', range: 'working', pluginRoot: PLUGIN_ROOT, cwd: process.cwd() };
+  const o = { cmd: argv[0], plan: '', add: null, stage: '', id: '', reason: '', range: 'working', pluginRoot: PLUGIN_ROOT, cwd: process.cwd(), phase: '', argsFile: '', files: [], merges: [], section: '' };
   for (let i = 1; i < argv.length; i++) {
     const a = argv[i];
     const need = () => {
@@ -775,6 +863,11 @@ function parseArgs(argv) {
     else if (a === '--range') o.range = need();
     else if (a === '--plugin-root') o.pluginRoot = need();
     else if (a === '--cwd') o.cwd = need();
+    else if (a === '--phase') o.phase = need();
+    else if (a === '--section') o.section = need();
+    else if (a === '--args-file') o.argsFile = need();
+    else if (a === '--file') o.files.push(need());
+    else if (a === '--merge') o.merges.push(need());
     else fail(`unknown argument: ${a}`);
   }
   return o;
@@ -795,7 +888,13 @@ function main(argv) {
       return out(l.experts);
     }
     if (o.cmd === 'brief') {
-      const b = briefs(o.pluginRoot, { planText: o.plan ? fs.readFileSync(o.plan, 'utf8') : null });
+      let planText = o.plan ? fs.readFileSync(o.plan, 'utf8') : null;
+      if (o.section) {
+        if (planText === null) fail('brief --section needs --plan');
+        planText = planSection(planText, o.section);
+        if (planText === null) fail(`no heading containing "${o.section}" in ${o.plan}`);
+      }
+      const b = briefs(o.pluginRoot, { planText });
       if (b.problems.length > 0) process.stderr.write(`experts.js: ${b.problems.join('; ')}\n`);
       if (b.note) process.stderr.write(`experts.js: ${b.note}\n`);
       return out(b.briefs);
@@ -834,6 +933,10 @@ function main(argv) {
     }
     if (o.cmd === 'resolve') return out(resolve(o.cwd, o.id, o.reason, o.pluginRoot));
     if (o.cmd === 'attribution') return out(attribution(o.cwd, o.pluginRoot));
+    if (o.cmd === 'script') {
+      if (!o.phase) fail('script needs --phase <plan|tests|build|review|harvest>');
+      return out(stageScript(o.pluginRoot, o.cwd, o.phase, { argsFile: o.argsFile, files: o.files, merges: o.merges }));
+    }
     if (o.cmd === 'check') {
       const evidence = commitEvidence(o.cwd, o.plan, o.pluginRoot);
       const verdict = gates.commitGate(evidence);
@@ -844,7 +947,7 @@ function main(argv) {
   } catch (err) {
     fail(err.message);
   }
-  return fail(`unknown command: ${o.cmd || '(none)'} (expected list, brief, skills, read, select, prepare, record, check, findings, resolve, attribution, fingerprint)`);
+  return fail(`unknown command: ${o.cmd || '(none)'} (expected list, brief, skills, read, select, prepare, record, check, findings, resolve, attribution, fingerprint, script)`);
 }
 
 module.exports = {
@@ -854,6 +957,7 @@ module.exports = {
   BRIEF_BYTES,
   list,
   briefs,
+  planSection,
   SKILL_STAGES,
   SKILLS_BYTES,
   skillsCap,
@@ -876,6 +980,7 @@ module.exports = {
   workingChanges,
   fingerprint,
   prepare,
+  stageScript,
   record,
   commitEvidence,
   findingId,

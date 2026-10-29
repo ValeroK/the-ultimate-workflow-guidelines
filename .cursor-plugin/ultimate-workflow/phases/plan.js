@@ -32,9 +32,11 @@ const agentName = (name) => (String(name).includes(':') ? name : AGENT_NAMESPACE
 // spent some of its value.
 
 const feature = (args && args.feature) || ''
-const areas = ((args && args.areas) || '')
-  .split(',')
-  .map((a) => a.trim())
+// A comma-separated string or a list: an agent writing the args file reasonably wrote a list, and
+// `.split` on it crashed the run before any agent started (2026-10-29).
+const rawAreas = (args && args.areas) || ''
+const areas = (Array.isArray(rawAreas) ? rawAreas : String(rawAreas).split(','))
+  .map((a) => String(a).trim())
   .filter(Boolean)
 
 if (!feature) {

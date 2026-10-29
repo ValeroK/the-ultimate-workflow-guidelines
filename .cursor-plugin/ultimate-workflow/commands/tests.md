@@ -11,18 +11,17 @@ The plan file is the one the user named. Otherwise, if exactly one `PLAN-*.md` e
 
 Find the experts, in code:
 
-1. `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" list` prints the available experts as JSON. Keep it exactly as printed; it is passed as `available`.
+1. `mkdir -p .ultimate-workflow/run`, then `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" list > .ultimate-workflow/run/available.json` writes the available experts as JSON.
 2. `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" read --plan <plan file>` prints the experts the plan selected. Pass its `experts` as `experts`. If the plan has none recorded (`present` is false), pass an empty list and tell the user that planning did not record a decision.
-3. `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" skills --stage tests --plan <plan file>` prints, for each expert that joins the tests stage, the skill texts chosen from the plan. Keep it exactly as printed; it is passed as `skills`. Show the user anything it prints on stderr.
+3. `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" skills --stage tests --plan <plan file> > .ultimate-workflow/run/skills.json` writes, for each expert that joins the tests stage, the skill texts chosen from the plan. Show the user anything it prints on stderr.
 
 An expert marked `always: [tests]` (the quality expert) joins this stage whether or not the plan selected it, because every test plan is about tests. The workflow adds it and reports it in `expertLane.added`.
 
 ## Run the phase
 
-Call the **Workflow** tool with:
-
-- `scriptPath`: `${CLAUDE_PLUGIN_ROOT}/phases/tests.js`
-- `args`: a JSON object, not a string: `{ "plan": "<plan file>", "available": <the list>, "experts": <the plan's experts>, "skills": <from step 3, unchanged>, "expertsDir": "${CLAUDE_PLUGIN_ROOT}/experts" }`, plus `angles` if the user gave some.
+1. With the Write tool, write `.ultimate-workflow/run/tests.args.json`: `{ "plan": "<plan file>", "experts": <the plan's experts, from step 2> }`, plus `"angles"` if the user gave some.
+2. Run `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" script --phase tests --args-file .ultimate-workflow/run/tests.args.json --file available=.ultimate-workflow/run/available.json --file skills=.ultimate-workflow/run/skills.json`. It writes `.ultimate-workflow/run/tests.js` with those arguments and `expertsDir` built in, and prints its `scriptPath`.
+3. Call the **Workflow** tool once, with `scriptPath` set to the path that command printed and no `args`. Do not pass the arguments yourself and do not copy or edit the script: the tool will not load a script from the plugin's own folder, and arguments a model retypes are no longer the text the code chose.
 
 Call it once. Do not re-implement the phase inline, and do not run it a second
 time because the first result was not what you expected -- these phases cost

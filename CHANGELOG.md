@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Experts report a defect they can show now, not later.** In a real review the frontend expert saw that focus might not reach the opened phone drawer and left it for a later browser test; a core lens reported it instead. `experts/protocol.md` now says to report it and name the stage that will measure it.
+- **`commands/plan.md` no longer says `plan_confirmed` "is not yours to set".** It contradicted the skill, which says to set it once the user has confirmed and never to clear a block; the command now says the same.
+
 ## [4.0.1] - 2026-10-28
 
 Fixes three faults that only appeared on a real plugin install; local runs and every test passed. On 4.0.0 the phase commands could not run as designed.

@@ -28,7 +28,7 @@ six figures of tokens each, and a rerun is a decision for the user to make.
 
 ## When it returns
 
-Present the returned plan and **stop**. Do not write it to disk and do not start work until the user confirms. Two things depend on that stop: the confirmation is the product, and `plan_confirmed` is not yours to set.
+Present the returned plan and **stop**. Do not write it to disk and do not start work until the user confirms. Two things depend on that stop: the confirmation is the product, and `plan_confirmed` is set to `true` only after the user has confirmed, never to clear a block.
 
 Show the user what the experts did, from `expertLane`: which experts were selected and why (`reasons`), whose input is in the plan (`ran`), any consult that failed (`failed`), and which skills each expert was given and why (`skillsLoaded`, `skillReasons`). The input itself is in the plan under "Expert input" and is part of what the user is confirming. If `expertLane.skipped` is set, say so plainly: no expert was consulted, and why.
 

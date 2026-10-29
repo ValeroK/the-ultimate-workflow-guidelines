@@ -273,6 +273,25 @@ test('prepare saves the diff the experts will read, records what it fingerprinte
   assert.strictEqual(JSON.parse(fs.readFileSync(path.join(dir, '.ultimate-workflow', 'experts', 'prepared.json'), 'utf8')).hash, p.hash);
 });
 
+// 4.0.2, by decision: at most two review skills per expert, in skills.md order; the rest are
+// named as left out, so a run says what the cap removed.
+test('prepare caps each expert at two review skills and names the ones left out', () => {
+  const dir = repo();
+  write(path.join(dir, 'web', 'Panel.tsx'), [
+    'export function Panel() {',
+    '  return <button className="ml-4 fixed transition-opacity" dir="rtl" style={{ color: "rgba(0,0,0,.5)" }} onPointerDown={go}>x</button>;',
+    '}',
+    '',
+  ].join('\n'));
+  write(path.join(dir, 'web', 'panel.css'), '.p { color: red; transition: opacity 1s; height: 100vh; }\n');
+  const p = ex.prepare(dir, 'working', PLUGIN);
+  const fe = p.skills.frontend;
+  assert.deepStrictEqual(fe.skills.map((s) => s.name), ['semantics-and-aria', 'visual-accessibility']);
+  assert.ok(fe.dropped.includes('ui-on-real-data') && fe.dropped.includes('motion'), fe.dropped.join(','));
+  assert.ok(p.skillProblems.some((x) => /^frontend: skills left out at the 2-skill review cap: /.test(x)), JSON.stringify(p.skillProblems));
+  for (const [name, v] of Object.entries(p.skills)) if (name !== '_protocol') assert.ok(v.skills.length <= 2, name);
+});
+
 test('prepare with a git range saves that range, while the fingerprint stays the working tree', () => {
   const dir = repo();
   git(dir, 'checkout', '-q', '-b', 'feature');

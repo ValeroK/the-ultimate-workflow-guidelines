@@ -1,6 +1,6 @@
 ---
 description: Review the diff through four parallel lenses plus the domain experts that apply, then adversarially try to refute each finding. Writes nothing.
-argument-hint: "[--experts-only] [--lenses security,performance]"
+argument-hint: "[--experts-only | --no-experts] [--lenses security,performance]"
 ---
 
 # Phase: review
@@ -23,7 +23,7 @@ The review has a part that code does, before the workflow, and a part the workfl
 2. Run `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" script --phase review --args-file .ultimate-workflow/run/review.args.json --merge .ultimate-workflow/run/prepare.json`, adding `--file deps=.ultimate-workflow/run/deps.json` if the audit ran. It writes `.ultimate-workflow/run/review.js` with `available`, `skills` and `diffFile` from prepare, your arguments and `expertsDir` built in, and prints its `scriptPath`, the skill names per expert and any `skillProblems`.
 3. Call the **Workflow** tool once, with `scriptPath` set to the path that command printed and no `args`. Do not pass the arguments yourself and do not copy or edit the script: the tool will not load a script from the plugin's own folder, and arguments a model retypes are no longer the text the code chose.
 
-The workflow asks the same question again of the real diff, "which of these experts apply?", and merges the answer by code: the diff can add an expert to the plan's set and can never remove one. You do not choose experts. Pass `"noExperts": true` only if you truly cannot run `experts.js` (no shell on this host), and tell the user that domain experts were not considered.
+The workflow asks the same question again of the real diff, "which of these experts apply?", and merges the answer by code: the diff can add an expert to the plan's set and can never remove one. You do not choose experts. Put `"noExperts": true` in the args file when the user passed `--no-experts` (the four core lenses only, at about a third of the cost; the record says the experts were left out by request), or if you truly cannot run `experts.js` (no shell on this host). Either way, tell the user that domain experts were not considered.
 
 Call it once. Do not re-implement the phase inline, and do not run it a second
 time because the first result was not what you expected -- these phases cost

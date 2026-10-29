@@ -42,6 +42,14 @@ const briefs = ((args && args.briefs) || []).filter((b) => b && typeof b.name ==
 // The skills a brief carries were chosen by the command from the plan (`experts.js brief --plan`).
 const skillsOf = (b) => (Array.isArray(b.skills) ? b.skills : []).filter((s) => s && typeof s.name === 'string' && typeof s.text === 'string' && s.text.trim() !== '')
 const skillsLoaded = briefs.flatMap((b) => skillsOf(b).map((s) => s.name)).filter((n, i, all) => all.indexOf(n) === i)
+// Resuming at the implementation, by the user's decision: the tests are already written, and the
+// ones that passed before the change were accepted (for example a guard shown rejecting a bad
+// sample). Without this a stopped build could only be resumed by hand-editing a copy of this
+// script. The decision and the command are required, and the result carries them.
+const resume = args && args.resumeAt === 'implement'
+  ? { reason: String(args.resumeReason || '').trim(), testFiles: (Array.isArray(args.testFiles) ? args.testFiles : []).filter((f) => typeof f === 'string') }
+  : null
+const resumed = resume ? { resumedAt: 'implement', resumeReason: resume.reason } : {}
 
 const WROTE = {
   type: 'object',
@@ -113,7 +121,12 @@ const locate = planFile
 
 phase('Tests')
 
-const tests = await agent(
+if (resume && (!command || !resume.reason)) {
+  return { ok: false, error: 'resumeAt "implement" needs command (the verification command) and resumeReason (the user\'s decision on the tests that already pass), so the skipped test step is on record. Nothing was implemented.' }
+}
+if (resume) log(`Resumed at the implementation, tests not rewritten: ${resume.reason}`)
+
+const tests = resume ? { filesWritten: resume.testFiles, testsFailAsExpected: true, testCommand: command } : await agent(
   `${locate} ${EXPERT_NOTE}${BRIEF}
 
 Write the tests from its confirmed Tests section. Only the tests. Do not write the implementation yet.
@@ -189,6 +202,7 @@ When not green, include the failure output verbatim.`,
       green: true,
       rounds: round,
       testFiles: tests.filesWritten,
+      ...resumed,
       briefsLoaded: briefs.map((b) => b.name),
       skillsLoaded,
       filesChanged: attempt.filesChanged,
@@ -252,6 +266,7 @@ return {
   ok: false,
   green: false,
   stoppedAt: `round ${round}`,
+  ...resumed,
   reason: `Verification failed ${round} times. Round cap reached.`,
   diagnosis,
   history,

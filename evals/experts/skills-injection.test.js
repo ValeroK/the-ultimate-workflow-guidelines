@@ -638,6 +638,7 @@ test('frontend review: a change that matches every review skill fits the 56 KB c
     'web/src/composer.css': [
       '.bar { position: fixed; bottom: 0; height: 100vh; margin-left: 8px; transition: opacity 200ms; }',
       '.bar:hover { outline: none; }',
+      '[dir="rtl"] .bar { margin-right: 8px; }',
     ],
   });
   assert.deepEqual(names(sel), ['semantics-and-aria', 'visual-accessibility', 'ui-on-real-data', 'responsive-and-devices', 'rtl-and-direction', 'motion']);
@@ -651,9 +652,14 @@ test('frontend review: a Go or Python change with words like "shortly", "transit
   assert.deepEqual(names(fe({ 'svc/flow.py': ['# fixed: startle the worker shortly after the transition', 'def left_pad(s): return s', "token = os.getenv('TOKEN')"] })), []);
 });
 
-test('frontend review: a stylesheet with only physical sides selects rtl-and-direction; a logical one does not', () => {
-  assert.ok(names(fe({ 'web/a.scss': ['.x { padding-right: 4px; }'] })).includes('rtl-and-direction'));
-  assert.ok(!names(fe({ 'web/a.scss': ['.x { padding-inline-end: 4px; }'] })).includes('rtl-and-direction'));
+// 2026-10-29, by decision: physical sides alone no longer select it (ml-4 and left-2 loaded it on
+// nearly every Tailwind diff of an app with no RTL support); a direction signal does.
+test('frontend review: rtl-and-direction needs a direction signal, not physical sides alone', () => {
+  assert.ok(!names(fe({ 'web/a.scss': ['.x { padding-right: 4px; }'] })).includes('rtl-and-direction'));
+  assert.ok(!names(fe({ 'web/A.tsx': ['<div className="ml-4 left-2 text-left" />'] })).includes('rtl-and-direction'));
+  for (const line of ['<html dir={dir}>', '[dir="rtl"] .x { padding-right: 4px; }', '.x { direction: rtl; }', '.x:dir(rtl) { left: 0; }', '<bdi>{name}</bdi>', '.x { unicode-bidi: isolate; }']) {
+    assert.ok(names(fe({ 'web/a.tsx': [line] })).includes('rtl-and-direction'), line);
+  }
 });
 
 test('frontend review: keyframes or a motion library select motion; a plain component does not', () => {

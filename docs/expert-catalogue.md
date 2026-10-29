@@ -234,7 +234,7 @@ Taken from each expert's `.cursor-plugin/ultimate-workflow/experts/<name>/skills
 | frontend | review | `visual-accessibility` | style files and Tailwind config; `added:` outlines, focus, colours, opacity, preferences, zoom, sticky and fixed | contrast, focus visibility, target size, reflow, hover content |
 | frontend | review | `ui-on-real-data` | `files: *.tsx, *.jsx, *.vue, *.svelte, *.astro, *.css, *.scss` | long, short and missing values, truncation, `Intl` |
 | frontend | review, tests | `responsive-and-devices` | review: `added:` viewport units, safe areas, hover and pointer queries, touch and pointer handlers, input modes; tests: device words in the plan | phones, tablets, keyboards, touch, orientation |
-| frontend | review, tests | `rtl-and-direction` | review: `added:` `dir`, RTL, physical sides, `row-reverse`, `scrollLeft`; tests: RTL languages in the plan | direction flips |
+| frontend | review, tests | `rtl-and-direction` | review: `added:` `dir=`, RTL, `direction:`, `:dir(`, `<bdi`, `unicode-bidi` (physical sides alone no longer, 2026-10-29); tests: RTL languages in the plan | direction flips |
 | frontend | review | `motion` | `added:` transitions, keyframes, end events, motion libraries | motion that breaks the UI |
 | frontend | tests | `worst-case-data` | component files the plan names | the worst realistic value per field |
 | frontend | plan | the review skills above, `motion-craft`, `interface-design` | offered | the plan adds UI; taste skills at plan only |

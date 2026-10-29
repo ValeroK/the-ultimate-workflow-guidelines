@@ -115,6 +115,26 @@ function list(pluginRoot = PLUGIN_ROOT) {
  * With `planText`, each brief also carries the skills its build.md selects for the paths and text
  * of that plan. A plan that names no file selects only the `always` skills, and `note` says so.
  */
+// One card of a plan split into cards: the lines under the first heading whose text contains
+// `heading` (case-insensitive), up to the next heading of the same or a higher level. Used so a
+// card's build loads the briefs and skills its own section calls for, not the whole plan's.
+function planSection(planText, heading) {
+  const lines = planText.split(/\r?\n/);
+  const want = heading.trim().toLowerCase();
+  const at = lines.findIndex((l) => /^#{1,6}\s/.test(l) && l.toLowerCase().includes(want));
+  if (at === -1) return null;
+  const level = /^(#+)/.exec(lines[at])[1].length;
+  let end = lines.length;
+  for (let i = at + 1; i < lines.length; i++) {
+    const m = /^(#{1,6})\s/.exec(lines[i]);
+    if (m && m[1].length <= level) {
+      end = i;
+      break;
+    }
+  }
+  return lines.slice(at, end).join('\n');
+}
+
 function briefs(pluginRoot = PLUGIN_ROOT, { planText = null } = {}) {
   const change = planText === null ? null : { files: planPaths(planText), text: String(planText) };
   const found = list(pluginRoot);
@@ -184,6 +204,10 @@ const SKILLS_BYTES = 40 * 1024;
 // dropped web-performance at 40 KB (maintainer decision to raise it).
 const SKILLS_BYTES_BY_EXPERT = { frontend: 56 * 1024, developer: 56 * 1024 };
 const skillsCap = (expert) => SKILLS_BYTES_BY_EXPERT[expert] || SKILLS_BYTES;
+// At review, at most this many skills per expert, in skills.md order, by decision (2026-10-29). On the
+// CEO dashboard run 15 of 16 review skills went uncited twice, and a planted-defect ablation found
+// no difference with and without them, while each skill is prompt text every lens call pays for.
+const REVIEW_SKILLS_MAX = 2;
 const SKILLS_FILE_LINE = /^\s*-\s*([a-z][a-z0-9-]*)(?:\s+\((.*)\))?\s*$/;
 
 function globToRegExp(glob) {
@@ -599,6 +623,11 @@ function prepare(cwd, range = 'working', pluginRoot = PLUGIN_ROOT) {
     const sel = selectSkills(pluginRoot, e.name, 'review', change);
     skillProblems.push(...sel.problems);
     if (sel.dropped.length > 0) skillProblems.push(`${e.name}: skills left out at the ${skillsCap(e.name)}-byte cap: ${sel.dropped.join(', ')}`);
+    if (sel.skills.length > REVIEW_SKILLS_MAX) {
+      const over = sel.skills.splice(REVIEW_SKILLS_MAX).map((x) => x.name);
+      sel.dropped.push(...over);
+      skillProblems.push(`${e.name}: skills left out at the ${REVIEW_SKILLS_MAX}-skill review cap: ${over.join(', ')}`);
+    }
     if (sel.skills.length > 0 || sel.dropped.length > 0) skills[e.name] = { skills: sel.skills, dropped: sel.dropped };
   }
   // The shared rules ride with the skills, because the workflow cannot read files (see protocolText).
@@ -818,7 +847,7 @@ function fail(message) {
 }
 
 function parseArgs(argv) {
-  const o = { cmd: argv[0], plan: '', add: null, stage: '', id: '', reason: '', range: 'working', pluginRoot: PLUGIN_ROOT, cwd: process.cwd(), phase: '', argsFile: '', files: [], merges: [] };
+  const o = { cmd: argv[0], plan: '', add: null, stage: '', id: '', reason: '', range: 'working', pluginRoot: PLUGIN_ROOT, cwd: process.cwd(), phase: '', argsFile: '', files: [], merges: [], section: '' };
   for (let i = 1; i < argv.length; i++) {
     const a = argv[i];
     const need = () => {
@@ -835,6 +864,7 @@ function parseArgs(argv) {
     else if (a === '--plugin-root') o.pluginRoot = need();
     else if (a === '--cwd') o.cwd = need();
     else if (a === '--phase') o.phase = need();
+    else if (a === '--section') o.section = need();
     else if (a === '--args-file') o.argsFile = need();
     else if (a === '--file') o.files.push(need());
     else if (a === '--merge') o.merges.push(need());
@@ -858,7 +888,13 @@ function main(argv) {
       return out(l.experts);
     }
     if (o.cmd === 'brief') {
-      const b = briefs(o.pluginRoot, { planText: o.plan ? fs.readFileSync(o.plan, 'utf8') : null });
+      let planText = o.plan ? fs.readFileSync(o.plan, 'utf8') : null;
+      if (o.section) {
+        if (planText === null) fail('brief --section needs --plan');
+        planText = planSection(planText, o.section);
+        if (planText === null) fail(`no heading containing "${o.section}" in ${o.plan}`);
+      }
+      const b = briefs(o.pluginRoot, { planText });
       if (b.problems.length > 0) process.stderr.write(`experts.js: ${b.problems.join('; ')}\n`);
       if (b.note) process.stderr.write(`experts.js: ${b.note}\n`);
       return out(b.briefs);
@@ -921,6 +957,7 @@ module.exports = {
   BRIEF_BYTES,
   list,
   briefs,
+  planSection,
   SKILL_STAGES,
   SKILLS_BYTES,
   skillsCap,

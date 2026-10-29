@@ -83,3 +83,50 @@ test('command: build.md loads the briefs in code and builds them into the script
   assert.match(text, /briefsLoaded/);
   assert.match(text, /no `args`/);
 });
+
+// 4.0.2: a build stopped at the test step because accepted guards already pass could only be
+// resumed by hand-editing a copy of build.js. resumeAt "implement" skips the test step on record.
+test('build: resumeAt "implement" skips the test step, uses the given command, and says so in the result', async () => {
+  const { result, calls } = await build()(
+    { plan: 'PLAN-x.md', resumeAt: 'implement', resumeReason: 'DS-24 accepted as a guard (rejects the bad sample)', command: 'uv run python t.py', testFiles: ['t.py'] },
+    responder
+  );
+  assert.equal(calls.some((c) => c.label === 'write-tests'), false, 'no test-writing call');
+  const impl = calls.find((c) => c.label === 'attempt-1');
+  assert.ok(impl.prompt.includes('uv run python t.py'));
+  assert.equal(result.ok, true);
+  assert.equal(result.resumedAt, 'implement');
+  assert.match(result.resumeReason, /DS-24 accepted/);
+  assert.deepEqual(result.testFiles, ['t.py']);
+});
+
+test('build: resumeAt "implement" without the command or the reason implements nothing', async () => {
+  for (const over of [{ command: '' }, { resumeReason: '' }]) {
+    const { result, calls } = await build()({ plan: 'PLAN-x.md', resumeAt: 'implement', resumeReason: 'r', command: 'c', ...over }, responder);
+    assert.equal(result.ok, false);
+    assert.match(result.error, /needs command .* and resumeReason/);
+    assert.equal(calls.length, 0);
+  }
+});
+
+// 4.0.2: on a plan split into cards, the devops brief loaded on cards 1 and 2 because card 3
+// adds a CI job. --section scopes the selection to one card's section.
+test('brief --section: a card is read alone, so another card\'s CI job loads no devops brief', () => {
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const { spawnSync } = require('node:child_process');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'uw-section-'));
+  const plan = path.join(dir, 'PLAN-x.md');
+  fs.writeFileSync(plan, [
+    '# Plan', '', '## Card 1: tokens', '', 'Change `web/src/app/globals.css` and `web/src/components/Sidebar.tsx`.', '',
+    '## Card 3: capture', '', 'Add a job to `.github/workflows/tests.yml` that runs the capture.', '',
+  ].join('\n'));
+  const run = (...extra) => spawnSync(process.execPath, [path.join(PLUGIN, 'experts', 'experts.js'), 'brief', '--plan', plan, ...extra], { encoding: 'utf8' });
+  const whole = JSON.parse(run().stdout).map((b) => b.name);
+  const card1 = JSON.parse(run('--section', 'card 1').stdout).map((b) => b.name);
+  assert.ok(whole.includes('devops'), whole.join(','));
+  assert.ok(!card1.includes('devops'), card1.join(','));
+  const missing = run('--section', 'card 9');
+  assert.equal(missing.status, 2);
+  assert.match(missing.stderr, /no heading containing "card 9"/);
+});

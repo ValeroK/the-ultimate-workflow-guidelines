@@ -12,6 +12,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- **At review each expert gets at most two skills,** its first two matches in `skills.md` order; the rest are named in `skillProblems` (decision 2026-10-29). On the CEO dashboard run 15 of 16 loaded review skills went uncited on two cards, and a planted-defect ablation (core lenses, experts without skills, experts with skills, two runs each) found no difference from the skills. Plan, tests and build are unchanged.
+- **`/ultimate-workflow:review --no-experts`** runs the four core lenses only, at about a third of the cost, and says the experts were left out by request.
+- **`rtl-and-direction` at review needs a direction signal** (`dir=`, `rtl`, `direction:`, `:dir(`, `<bdi`, `unicode-bidi`), not physical sides alone (decision 2026-10-29). On an app with no RTL support, `ml-4` or `left-2` loaded it on nearly every diff. An RTL app's change that only adds physical sides no longer loads it.
+- **A stopped build can resume at the implementation, on record.** `build` takes `resumeAt: "implement"` with `resumeReason` (the user's decision), `testFiles` and `command`; it skips the test step and the result says `resumedAt`. Before, two cards needed a hand-edited copy of `build.js`.
+- **`experts.js brief --section "<card heading>"`** chooses the briefs and skills from one card of a plan split into cards. Before, the devops brief loaded on cards 1 and 2 because card 3 adds a CI job.
 - **Experts report a defect they can show now, not later.** In a real review the frontend expert saw that focus might not reach the opened phone drawer and left it for a later browser test; a core lens reported it instead. `experts/protocol.md` now says to report it and name the stage that will measure it.
 - **`commands/plan.md` no longer says `plan_confirmed` "is not yours to set".** It contradicted the skill, which says to set it once the user has confirmed and never to clear a block; the command now says the same.
 

@@ -623,6 +623,25 @@ function dependentsOf(cwd, changed, candidates, before, now) {
 }
 
 /**
+ * The experts of the last check, when the current changes are still the same work in progress:
+ * the last check's snapshot and the current diff share at least one file (decided 2026-10-29). A
+ * recheck then cannot drop them, as it cannot drop the plan's. After a commit and an unrelated new
+ * change the two share no file, and nothing is kept.
+ */
+function keepFromLastCheck(cwd, changes) {
+  const recheck = readJson(evidenceFile(cwd, 'review', '_recheck'));
+  if (!recheck || !recheck.hash || !Array.isArray(recheck.final) || recheck.final.length === 0) return null;
+  let before;
+  try {
+    before = splitByFile(fs.readFileSync(path.join(cwd, SNAPSHOTS, `${recheck.hash}.diff`), 'utf8'));
+  } catch {
+    return null;
+  }
+  const shared = [...splitByFile(changes.diff).keys()].filter((p) => before.has(p));
+  return shared.length > 0 ? { experts: recheck.final, base: recheck.hash, shared: shared.length } : null;
+}
+
+/**
  * Whether this recheck can review only what changed since the last one, and what that is. The
  * base is the last experts check (`_recheck`); every expert it selected must have a review of
  * exactly that base, or nothing is narrowed.
@@ -752,6 +771,7 @@ function prepare(cwd, range = 'working', pluginRoot = PLUGIN_ROOT, { delta = fal
   writeJson(path.join(cwd, EVIDENCE, 'prepared.json'), { hash, range, at: new Date().toISOString() });
   // Computed before this tree's snapshot is saved; only the experts check (range working) narrows.
   const d = delta ? (range === 'working' ? computeDelta(cwd, changes) : { refused: 'a changed-only review needs range working' }) : null;
+  const keep = range === 'working' ? keepFromLastCheck(cwd, changes) : null;
   saveSnapshot(cwd, hash, changes.diff);
   const available = list(pluginRoot).experts;
   // Skills for every expert that could review, not only the planned ones: the recheck inside the
@@ -776,6 +796,7 @@ function prepare(cwd, range = 'working', pluginRoot = PLUGIN_ROOT, { delta = fal
     ...(skillProblems.length > 0 ? { skillProblems } : {}),
     ...(d && d.delta ? { delta: d.delta, deltaFile: d.deltaFile } : {}),
     ...(d && d.refused ? { deltaRefused: d.refused } : {}),
+    ...(keep ? { keep } : {}),
   };
 }
 
@@ -1151,6 +1172,7 @@ module.exports = {
   prepare,
   splitByFile,
   computeDelta,
+  keepFromLastCheck,
   stageScript,
   record,
   commitEvidence,

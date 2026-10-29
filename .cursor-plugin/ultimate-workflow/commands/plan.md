@@ -24,6 +24,7 @@ Then run `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" skills --stage plan > 
 Call it once. Do not re-implement the phase inline, and do not run it a second
 time because the first result was not what you expected -- these phases cost
 six figures of tokens each, and a rerun is a decision for the user to make.
+One exception: if the run failed before any agent started (0 agents, and an input or argument error), fix the input, rebuild the script, call the Workflow tool once more and say so, and note it in the ledger's workarounds. Any other failure stops here and goes to the user.
 
 ## When it returns
 

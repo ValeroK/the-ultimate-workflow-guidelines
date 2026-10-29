@@ -161,7 +161,9 @@ Ground every test in a stated goal or success criterion from the plan. A criteri
 
 Also determine the project's real verification command by looking at how tests are actually run here -- CI config, scripts, existing test files -- not by guessing a convention.
 
-Name the specific tests that must exist and pass. That turns "is this done" from a judgement into something anyone can check.`,
+Name the specific tests that must exist and pass. That turns "is this done" from a judgement into something anyone can check.
+
+If the plan splits the work into cards, put the cases that need the running system (a browser capture, an integration or end-to-end harness) in the first card's harness and list them before the source-level checks, so every later card is verified against them.`,
   { agentType: agentName('uw-critic'), label: 'draft', phase: 'Draft', schema: DRAFT }
 )
 

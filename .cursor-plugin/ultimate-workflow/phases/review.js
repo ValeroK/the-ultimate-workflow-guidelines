@@ -111,14 +111,17 @@ if (noExperts && (planned.length > 0 || expertsOnly)) {
 }
 
 const RECHECK_ANSWER = SELECTION
-// On a changed-only recheck the experts of the last check stay selected: their narrowed review is
-// what re-checks their earlier verdict, so a recheck that answers "nobody" must not drop them. The
-// recheck can still add. Found on the first real-install test (2026-10-29): the recheck chose
-// nobody and the earlier expert never saw the change.
-const keptFromDelta = args && args.deltaFile && args.delta && Array.isArray(args.delta.experts)
-  ? args.delta.experts.filter((n) => available.some((e) => e.name === n) && !planned.includes(n))
-  : []
-let experts = [...planned, ...keptFromDelta]
+// The experts of the last check stay selected while the changes are the same work in progress
+// (prepare's `keep`, and the experts a changed-only review narrows): a recheck that answers
+// "nobody" must not drop them, as it cannot drop the plan's. The recheck can still add. Found on
+// the first real-install test (2026-10-29): the recheck chose nobody and the earlier expert never
+// saw the change.
+const keptNames = [
+  ...(args && args.keep && Array.isArray(args.keep.experts) ? args.keep.experts : []),
+  ...(args && args.deltaFile && args.delta && Array.isArray(args.delta.experts) ? args.delta.experts : []),
+]
+const kept = keptNames.filter((n, i) => keptNames.indexOf(n) === i && available.some((e) => e.name === n) && !planned.includes(n))
+let experts = [...planned, ...kept]
 let added = []
 let recheck = false
 let recheckFailed = false

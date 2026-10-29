@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- **The running-system harness comes first.** When a plan splits the work into cards and a check needs the running system (a browser capture, an integration or end-to-end harness), the plan and test-plan prompts make that harness the first card, so later cards are verified against it. On the CEO dashboard run it was card 3 and found four defects card 2 had already committed.
+- **A recheck cannot drop the experts still on this work.** `prepare` prints `keep` with the last experts check's experts when its snapshot and the current diff share at least one file (decided 2026-10-29), and `review.js` keeps them selected; the recheck can still add. After a commit and an unrelated new change nothing carries over. The changed-only recheck uses the same path.
+- **One retry for a run that started no agent.** The five phase commands keep "call it once", with one exception: a run that failed before any agent started (an input or argument error) is fixed and run once more, said so and noted in the ledger's workarounds.
+
 ### Added
 
 - **A value ledger and `/ultimate-workflow:value`.** Every phase command now ends by appending one line to `.ultimate-workflow/ledger.jsonl` (local, like the evidence): the session's numbers from the Workflow result (run id, agents, tokens, duration, workarounds) and, from the phase's own saved result, the experts, skills, review findings by basis and uncited skills, whether the review was a delta, the cases each expert added at tests (a new `casesAdded` in the tests lane), and the build's rounds and briefs. Catches are recorded and later confirmed or refuted with `experts.js ledger catch|confirm|refute` (the plan command records each expert correction to the draft; the review command each confirmed finding; the build confirms one when its test goes red). `/ultimate-workflow:value` reports totals per phase, catches by stage and origin, the experts' unique precision (confirmed over judged), skill citation rates and skills never cited, and the workarounds. Code records and adds up; whether a catch was unique or real stays the user's or the session's call. `experts/ledger.js`, `evals/experts/ledger.test.js`. On the CEO dashboard run all of this was kept by hand.

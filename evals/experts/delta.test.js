@@ -207,3 +207,32 @@ test('the commands pass --delta on the experts check and only there', () => {
   assert.match(read('experts.md'), /prepare --range working --delta > \.ultimate-workflow\/run\/prepare\.json/);
   assert.match(read('review.md'), /with `--delta` before the `>` when this is the experts check/);
 });
+
+// PLAN-flow-fixes item 2 (decided 2026-10-29): outside a delta too, the last check's experts stay
+// while the changes are the same work in progress (its snapshot and the diff share a file).
+test('prepare keeps the last check\'s experts while the work shares a file with it, and not after an unrelated new change', () => {
+  let dir = card();
+  assert.equal(ex.prepare(dir, 'working', PLUGIN).keep, undefined, 'no earlier check');
+  fullReview(dir);
+  fix(dir, 'src/b.js');
+  const p = ex.prepare(dir, 'working', PLUGIN);
+  assert.deepStrictEqual(p.keep.experts, ['frontend']);
+
+  dir = card();
+  fullReview(dir);
+  git(dir, 'add', '-A');
+  git(dir, 'commit', '-q', '-m', 'card done');
+  write(path.join(dir, 'src', 'z.js'), 'module.exports = 9;\n');
+  assert.equal(ex.prepare(dir, 'working', PLUGIN).keep, undefined, 'a new, unrelated change keeps nothing');
+});
+
+test('review.js: a full recheck that answers nobody still runs the experts prepare kept', async () => {
+  const run = loadWorkflow(path.join(PLUGIN, 'phases', 'review.js'));
+  const { result, calls } = await run(
+    { range: 'working', available: ex.list(PLUGIN).experts, experts: [], diffFile: '.ultimate-workflow/review.diff', keep: { experts: ['frontend'], base: 'b' }, expertsDir: '/p/experts', skills: {}, expertsOnly: true },
+    async (c) => (c.label === 'recheck' ? { experts: [] } : { findings: [], lensVerdict: 'clean' })
+  );
+  assert.ok(calls.some((c) => c.label === 'frontend'));
+  assert.match(calls.find((c) => c.label === 'frontend').prompt, /saved at \.ultimate-workflow\/review\.diff/, 'a full review reads the full diff');
+  assert.deepStrictEqual(result.expertLane.selected, ['frontend']);
+});

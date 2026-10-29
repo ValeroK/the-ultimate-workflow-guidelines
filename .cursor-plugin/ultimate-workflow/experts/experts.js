@@ -531,6 +531,143 @@ function workingChanges(cwd) {
 const sha = (text) => crypto.createHash('sha256').update(text).digest('hex');
 const fingerprint = (cwd) => sha(workingChanges(cwd).diff);
 
+// ---- the changed-only recheck (decided 2026-10-29) ----
+//
+// After a small fix, /ultimate-workflow:experts gives an expert whose last review covers the
+// previous changes only the files that changed since, plus the files in the diff that depend on
+// them; its findings elsewhere carry forward. On the CEO dashboard run a full recheck cost about
+// 490k tokens per fix. The gate is not loosened: the record is still written for the current
+// fingerprint. What it can miss is an effect on a file that neither changed nor visibly uses a
+// changed one, so the chain is capped and a large change reviews everything.
+
+const SNAPSHOTS = path.join(EVIDENCE, 'snapshots');
+const SNAPSHOTS_KEPT = 5;
+const DELTA_CHAIN_MAX = 3;
+const DELTA_SHARE_MAX = 0.4;
+
+/** One patch per file, keyed by the path after the change. */
+function splitByFile(diff) {
+  const out = new Map();
+  for (const part of String(diff).split(/^(?=diff --git )/m)) {
+    const m = /^diff --git a\/(.+?) b\/(.+)$/m.exec(part);
+    if (m) out.set(m[2], part);
+  }
+  return out;
+}
+
+function saveSnapshot(cwd, hash, diff) {
+  const dir = path.join(cwd, SNAPSHOTS);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, `${hash}.diff`), diff);
+  const kept = fs.readdirSync(dir).filter((f) => f.endsWith('.diff'))
+    .map((f) => ({ f, t: fs.statSync(path.join(dir, f)).mtimeMs }))
+    .sort((a, b) => b.t - a.t);
+  for (const x of kept.slice(SNAPSHOTS_KEPT)) fs.rmSync(path.join(dir, x.f), { force: true });
+}
+
+const reEscape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** Names a file offers to others: JS/TS exports and top-level Python defs and classes. */
+function exportedNames(text) {
+  const names = new Set();
+  for (const m of text.matchAll(/^\s*export\s+(?:default\s+)?(?:async\s+)?(?:function\*?|const|let|var|class|interface|type|enum)\s+([A-Za-z_$][\w$]*)/gm)) names.add(m[1]);
+  for (const m of text.matchAll(/^\s*export\s*\{([^}]*)\}/gm)) {
+    for (const part of m[1].split(',')) {
+      const n = part.trim().split(/\s+as\s+/).pop().trim();
+      if (/^[A-Za-z_$][\w$]*$/.test(n)) names.add(n);
+    }
+  }
+  for (const m of text.matchAll(/^(?:def|class)\s+([A-Za-z_]\w*)/gm)) names.add(m[1]);
+  names.delete('default');
+  return [...names].filter((n) => n.length >= 3);
+}
+
+/** Lines one patch has and the other does not: what the latest edit actually touched. */
+function touchedLines(before, now) {
+  const lines = (p) => new Set(String(p || '').split(/\r?\n/).filter((l) => /^[+-]/.test(l) && !/^(\+\+\+|---) /.test(l)));
+  const a = lines(before);
+  const b = lines(now);
+  return [...b].filter((l) => !a.has(l)).concat([...a].filter((l) => !b.has(l))).map((l) => l.slice(1));
+}
+
+/** Files in the diff that use a changed file: import it, or name its exports or the custom properties it touched. */
+function dependentsOf(cwd, changed, candidates, before, now) {
+  const probes = changed.map((file) => {
+    let text = '';
+    try {
+      text = fs.readFileSync(path.join(cwd, file), 'utf8');
+    } catch {}
+    const stem = path.basename(file).replace(/\.[^.]+$/, '');
+    const cssVars = [...new Set(touchedLines(before.get(file), now.get(file)).join('\n').match(/--[a-z][\w-]*(?=\s*:)/g) || [])];
+    return {
+      file,
+      importRe: stem.length >= 2 ? new RegExp(`(?:\\bimport\\b|\\brequire\\s*\\(|\\bfrom\\b)[^\\n]*['"\`][^'"\`\\n]*\\b${reEscape(stem)}(?:\\.[a-z]+)?['"\`]|^\\s*(?:from|import)\\s+[\\w.]*\\b${reEscape(stem)}\\b`, 'm') : null,
+      names: exportedNames(text).map((n) => new RegExp(`(?<![\\w$])${reEscape(n)}(?![\\w$])`)),
+      cssVars,
+    };
+  });
+  const out = [];
+  for (const cand of candidates) {
+    let text;
+    try {
+      const buf = fs.readFileSync(path.join(cwd, cand));
+      if (buf.length > 1024 * 1024) continue;
+      text = buf.toString('utf8');
+    } catch {
+      continue;
+    }
+    const why = probes.find((p) => (p.importRe && p.importRe.test(text)) || p.names.some((re) => re.test(text)) || p.cssVars.some((v) => text.includes(v)));
+    if (why) out.push({ file: cand, uses: why.file });
+  }
+  return out;
+}
+
+/**
+ * Whether this recheck can review only what changed since the last one, and what that is. The
+ * base is the last experts check (`_recheck`); every expert it selected must have a review of
+ * exactly that base, or nothing is narrowed.
+ */
+function computeDelta(cwd, changes) {
+  const recheck = readJson(evidenceFile(cwd, 'review', '_recheck'));
+  if (!recheck || !recheck.hash) return { refused: 'no earlier experts check to compare against' };
+  const base = recheck.hash;
+  if (base === sha(changes.diff)) return { refused: 'nothing changed since the last experts check' };
+  const experts = recheck.final || [];
+  if (experts.length === 0) return { refused: 'the last experts check selected no expert' };
+  let chain = 0;
+  for (const name of experts) {
+    const r = readJson(evidenceFile(cwd, 'review', name));
+    if (!r || r.hash !== base) return { refused: `${name}'s review does not cover the last checked changes` };
+    chain = Math.max(chain, (r.delta && Number(r.delta.chain)) || 0);
+  }
+  if (chain >= DELTA_CHAIN_MAX) return { refused: `${DELTA_CHAIN_MAX} changed-only reviews in a row, so this one reviews everything` };
+  let baseDiff;
+  try {
+    baseDiff = fs.readFileSync(path.join(cwd, SNAPSHOTS, `${base}.diff`), 'utf8');
+  } catch {
+    return { refused: 'no snapshot of the last checked changes' };
+  }
+  const before = splitByFile(baseDiff);
+  const now = splitByFile(changes.diff);
+  const changed = [...now.keys()].filter((p) => before.get(p) !== now.get(p));
+  const removed = [...before.keys()].filter((p) => !now.has(p));
+  const dependents = dependentsOf(cwd, changed, [...now.keys()].filter((p) => !changed.includes(p)), before, now);
+  const files = [...changed, ...dependents.map((d) => d.file)];
+  if (now.size > 0 && files.length / now.size > DELTA_SHARE_MAX) {
+    return { refused: `${files.length} of ${now.size} files changed or depend on a change (over ${DELTA_SHARE_MAX * 100}%), so this one reviews everything` };
+  }
+  const head = [
+    `# Changed-only review: these files changed since the experts check of ${base.slice(0, 12)}, or use a file that did.`,
+    ...changed.map((p) => `#   changed: ${p}`),
+    ...dependents.map((d) => `#   uses ${d.uses}: ${d.file}`),
+    ...removed.map((p) => `#   removed since: ${p}`),
+    '',
+  ].join('\n');
+  const deltaFile = path.join('.ultimate-workflow', 'delta.diff');
+  fs.writeFileSync(path.join(cwd, deltaFile), head + files.map((p) => now.get(p)).join(''));
+  return { delta: { base, files, changed, dependents, removed, chain: chain + 1, experts }, deltaFile };
+}
+
 // ---- evidence ----
 
 const evidenceFile = (cwd, stage, name) => path.join(cwd, EVIDENCE, stage, `${name}.json`);
@@ -605,7 +742,7 @@ function protocolText(pluginRoot = PLUGIN_ROOT) {
   return fs.existsSync(file) ? fs.readFileSync(file, 'utf8').trim() : '';
 }
 
-function prepare(cwd, range = 'working', pluginRoot = PLUGIN_ROOT) {
+function prepare(cwd, range = 'working', pluginRoot = PLUGIN_ROOT, { delta = false } = {}) {
   const changes = workingChanges(cwd);
   const diff = range === 'working' ? changes.diff : git(cwd, ['diff', ...DIFF_FORMAT, range]);
   const diffFile = path.join('.ultimate-workflow', 'review.diff');
@@ -613,6 +750,9 @@ function prepare(cwd, range = 'working', pluginRoot = PLUGIN_ROOT) {
   fs.writeFileSync(path.join(cwd, diffFile), diff);
   const hash = sha(changes.diff);
   writeJson(path.join(cwd, EVIDENCE, 'prepared.json'), { hash, range, at: new Date().toISOString() });
+  // Computed before this tree's snapshot is saved; only the experts check (range working) narrows.
+  const d = delta ? (range === 'working' ? computeDelta(cwd, changes) : { refused: 'a changed-only review needs range working' }) : null;
+  saveSnapshot(cwd, hash, changes.diff);
   const available = list(pluginRoot).experts;
   // Skills for every expert that could review, not only the planned ones: the recheck inside the
   // workflow can add an expert, and the workflow cannot read a file to fetch that expert's skills.
@@ -631,7 +771,12 @@ function prepare(cwd, range = 'working', pluginRoot = PLUGIN_ROOT) {
     if (sel.skills.length > 0 || sel.dropped.length > 0) skills[e.name] = { skills: sel.skills, dropped: sel.dropped };
   }
   // The shared rules ride with the skills, because the workflow cannot read files (see protocolText).
-  return { hash, range, diffFile, files: changes.files, available, skills: { ...skills, _protocol: protocolText(pluginRoot) }, ...(skillProblems.length > 0 ? { skillProblems } : {}) };
+  return {
+    hash, range, diffFile, files: changes.files, available, skills: { ...skills, _protocol: protocolText(pluginRoot) },
+    ...(skillProblems.length > 0 ? { skillProblems } : {}),
+    ...(d && d.delta ? { delta: d.delta, deltaFile: d.deltaFile } : {}),
+    ...(d && d.refused ? { deltaRefused: d.refused } : {}),
+  };
 }
 
 // ---- where a finding came from ----
@@ -732,8 +877,22 @@ function record(cwd, stage, result, { planFile = '', pluginRoot = PLUGIN_ROOT } 
     .filter((f) => (lane.ran || []).includes(f.expert))
     .map((f) => ({ ...f, id: findingId(f) }))
     .map((f) => (stage === 'review' ? { ...f, basisCheck: checkBasis(f, (lane.skillsLoaded && Array.isArray(lane.skillsLoaded[f.expert]) ? lane.skillsLoaded[f.expert] : []), pluginRoot) } : f));
+  // A changed-only review: the expert saw only `delta.files`, so its findings on every other file
+  // carry forward from the review it builds on, with their ids (and so their waivers). That base
+  // must be exactly the review the delta was computed from, or nothing is recorded.
+  const delta = stage === 'review' && lane.delta && Array.isArray(lane.delta.experts) ? lane.delta : null;
+  const carried = {};
+  if (delta) {
+    const seen = new Set([...(delta.files || []), ...(delta.removed || [])]);
+    for (const name of delta.experts.filter((n) => (lane.ran || []).includes(n))) {
+      const prev = readJson(evidenceFile(cwd, 'review', name));
+      if (!prev || prev.hash !== delta.base) throw new Error(`${name}'s review on record is not the one this changed-only review builds on (${String(delta.base).slice(0, 12)}), so nothing was recorded; run the experts check again`);
+      carried[name] = (prev.findings || []).filter((f) => !seen.has(f.file)).map((f) => ({ ...f, carriedFrom: delta.base }));
+    }
+  }
   for (const name of lane.ran || []) {
-    const mine = found.filter((f) => f.expert === name);
+    const mine = found.filter((f) => f.expert === name).concat(carried[name] || []);
+    const narrowed = delta && delta.experts.includes(name);
     writeJson(evidenceFile(cwd, stage, name), {
       stage,
       name,
@@ -742,12 +901,14 @@ function record(cwd, stage, result, { planFile = '', pluginRoot = PLUGIN_ROOT } 
       failedElsewhere: (lane.failed || []).length > 0,
       skills: lane.skillsLoaded && Array.isArray(lane.skillsLoaded[name]) ? lane.skillsLoaded[name] : [],
       ...(stage === 'review' ? { findings: mine } : {}),
+      ...(narrowed ? { delta: { base: delta.base, files: delta.files || [], removed: delta.removed || [], chain: Number(delta.chain) || 1 } } : {}),
     });
   }
   if (stage === 'review' && lane.recheck === true) {
     writeJson(evidenceFile(cwd, 'review', '_recheck'), { hash, final: lane.selected || [], added: lane.added || [], at });
   }
-  const open = found.filter((f) => blocking(f) && !readWaivers(cwd)[f.id]);
+  const all = found.concat(...Object.values(carried));
+  const open = all.filter((f) => blocking(f) && !readWaivers(cwd)[f.id]);
   const basisProblems = found.filter((f) => f.basisCheck && f.basisCheck !== 'ok').map((f) => `${f.id} ${f.expert} ${f.file}:${f.line}: basis ${f.basis ? `"${f.basis}"` : '(none)'} is ${f.basisCheck}`);
   return { stage, recorded: lane.ran || [], failed: lane.failed || [], hash, plan, findings: found.length, open, ...(basisProblems.length > 0 ? { basisProblems } : {}) };
 }
@@ -847,7 +1008,7 @@ function fail(message) {
 }
 
 function parseArgs(argv) {
-  const o = { cmd: argv[0], plan: '', add: null, stage: '', id: '', reason: '', range: 'working', pluginRoot: PLUGIN_ROOT, cwd: process.cwd(), phase: '', argsFile: '', files: [], merges: [], section: '' };
+  const o = { cmd: argv[0], plan: '', add: null, stage: '', id: '', reason: '', range: 'working', pluginRoot: PLUGIN_ROOT, cwd: process.cwd(), phase: '', argsFile: '', files: [], merges: [], section: '', delta: false };
   for (let i = 1; i < argv.length; i++) {
     const a = argv[i];
     const need = () => {
@@ -865,6 +1026,7 @@ function parseArgs(argv) {
     else if (a === '--cwd') o.cwd = need();
     else if (a === '--phase') o.phase = need();
     else if (a === '--section') o.section = need();
+    else if (a === '--delta') o.delta = true;
     else if (a === '--args-file') o.argsFile = need();
     else if (a === '--file') o.files.push(need());
     else if (a === '--merge') o.merges.push(need());
@@ -915,7 +1077,7 @@ function main(argv) {
       if (o.add === null) fail('select needs --add a,b (use --add "" to record that none apply)');
       return out(selectIntoPlan(needPlan(), o.add, list(o.pluginRoot).experts.map((e) => e.name)));
     }
-    if (o.cmd === 'prepare') return out(prepare(o.cwd, o.range, o.pluginRoot));
+    if (o.cmd === 'prepare') return out(prepare(o.cwd, o.range, o.pluginRoot, { delta: o.delta }));
     if (o.cmd === 'fingerprint') return out({ hash: fingerprint(o.cwd) });
     if (o.cmd === 'record') {
       if (!o.stage) fail('record needs --stage plan|tests|review');
@@ -980,6 +1142,8 @@ module.exports = {
   workingChanges,
   fingerprint,
   prepare,
+  splitByFile,
+  computeDelta,
   stageScript,
   record,
   commitEvidence,

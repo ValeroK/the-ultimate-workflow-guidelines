@@ -10,7 +10,7 @@ This is the review command with only the domain experts running, which is fast e
 Read `${CLAUDE_PLUGIN_ROOT}/commands/review.md` and follow it exactly, with these differences:
 
 - the range is always `working` (the uncommitted changes);
-- run prepare with `--delta`: `prepare --range working --delta`. When the last experts check covers the earlier changes, it narrows each of those experts to the files that changed since and the files in the diff that use them, and their findings on other files carry forward. Tell the user which: `delta` (the files, and the chain count) or `deltaRefused` (the reason it reviews everything this time). Nothing else changes: the record is still for the current changes;
+- step 3's prepare is `prepare --range working --delta > .ultimate-workflow/run/prepare.json` (the `--delta` is required here). When the last experts check covers the earlier changes, it narrows each of those experts to the files that changed since and the files in the diff that use them, and their findings on other files carry forward. Tell the user which: `delta` (the files, and the chain count) or `deltaRefused` (the reason it reviews everything this time). Nothing else changes: the record is still for the current changes;
 - pass `"expertsOnly": true`, so the four core lenses do not run;
 - the plan file is the one in `$ARGUMENTS`, or the single `PLAN-*.md` at the root, or none.
 

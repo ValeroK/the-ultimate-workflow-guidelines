@@ -187,3 +187,23 @@ test('review.js: a narrowed expert reads the delta file; an expert the recheck a
   assert.doesNotMatch(prompt('security'), /delta\.diff/);
   assert.deepStrictEqual(result.expertLane.delta.experts, ['frontend']);
 });
+
+// First real-install test (2026-10-29): the recheck answered "nobody" and the expert that reviewed
+// the earlier changes never saw the fix. On a delta its experts stay; the recheck can only add.
+test('review.js: on a delta, the last check\'s experts stay selected when the recheck answers nobody', async () => {
+  const run = loadWorkflow(path.join(PLUGIN, 'phases', 'review.js'));
+  const delta = { base: 'b'.repeat(64), files: ['src/a.css'], removed: [], chain: 1, experts: ['frontend'] };
+  const { result, calls } = await run(
+    { range: 'working', available: ex.list(PLUGIN).experts, experts: [], diffFile: '.ultimate-workflow/review.diff', deltaFile: '.ultimate-workflow/delta.diff', delta, expertsDir: '/p/experts', skills: {}, expertsOnly: true },
+    async (c) => (c.label === 'recheck' ? { experts: [] } : { findings: [], lensVerdict: 'clean' })
+  );
+  assert.ok(calls.some((c) => c.label === 'frontend'), 'frontend reviewed the change');
+  assert.deepStrictEqual(result.expertLane.selected, ['frontend']);
+  assert.deepStrictEqual(result.expertLane.delta.experts, ['frontend']);
+});
+
+test('the commands pass --delta on the experts check and only there', () => {
+  const read = (f) => fs.readFileSync(path.join(PLUGIN, 'commands', f), 'utf8');
+  assert.match(read('experts.md'), /prepare --range working --delta > \.ultimate-workflow\/run\/prepare\.json/);
+  assert.match(read('review.md'), /with `--delta` before the `>` when this is the experts check/);
+});

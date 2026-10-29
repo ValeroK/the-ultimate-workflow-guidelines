@@ -111,7 +111,14 @@ if (noExperts && (planned.length > 0 || expertsOnly)) {
 }
 
 const RECHECK_ANSWER = SELECTION
-let experts = [...planned]
+// On a changed-only recheck the experts of the last check stay selected: their narrowed review is
+// what re-checks their earlier verdict, so a recheck that answers "nobody" must not drop them. The
+// recheck can still add. Found on the first real-install test (2026-10-29): the recheck chose
+// nobody and the earlier expert never saw the change.
+const keptFromDelta = args && args.deltaFile && args.delta && Array.isArray(args.delta.experts)
+  ? args.delta.experts.filter((n) => available.some((e) => e.name === n) && !planned.includes(n))
+  : []
+let experts = [...planned, ...keptFromDelta]
 let added = []
 let recheck = false
 let recheckFailed = false
@@ -124,7 +131,7 @@ if (!noExperts && available.length > 0 && args.recheck !== false) {
 Available experts (the only names you may answer with):
 ${describeExperts(available)}
 
-Already selected: ${planned.length ? planned.join(', ') : 'none'}.
+Already selected: ${experts.length ? experts.join(', ') : 'none'}.
 
 Name every available expert that applies to this change and is not already selected, each with one sentence tying it to something in the diff. You cannot remove an expert that is already selected; do not mention those. When you are unsure whether one applies, include it: an unnecessary review costs a few minutes, a missed one costs a defect nobody looked for. If none apply, return an empty list.`,
     { agentType: agentName('uw-explorer'), label: 'recheck', phase: 'Recheck', schema: RECHECK_ANSWER }
@@ -133,7 +140,7 @@ Name every available expert that applies to this change and is not already selec
     recheckFailed = true
     log('recheck failed; continuing with the planned experts only, and the commit gate will not be satisfied')
   } else {
-    const merged = addOnly(planned, answer.experts, available)
+    const merged = addOnly(experts, answer.experts, available)
     experts = merged.experts
     added = merged.added
     notInstalled.push(...merged.rejected)

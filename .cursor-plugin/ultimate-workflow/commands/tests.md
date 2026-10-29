@@ -36,6 +36,11 @@ The section ends with "Expert test cases", one subsection per expert that took p
 Once the user has confirmed and the Tests section is in the plan file, record the evidence: build a JSON object with `"ok": true` and the `expertLane` exactly as returned, and run
 `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" record --stage tests --plan <plan file>` with it on standard input. `--plan` writes any expert that joined because it always does (quality) into the plan's `experts:` line, so the review and the commit check expect it too. Skip this if `expertLane.skipped` was set.
 
+
+## Record the run in the ledger
+
+Last, after the steps above: save the workflow's result, exactly as returned, to `.ultimate-workflow/run/tests.result.json` (copy it from the tool's output; never retype or edit it), and write `.ultimate-workflow/run/tests.row.json` with the Write tool: `{ "runId": "<the run id>", "agents": <number>, "tokens": <subagent tokens>, "durationMs": <milliseconds>, "plan": "<plan file, if any>", "workarounds": ["<anything you had to do that this command did not say, one line each>"] }`, the numbers from the Workflow tool's result. Leave out a number the result does not show; never estimate one. Then run `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" ledger add --phase tests --row .ultimate-workflow/run/tests.row.json --result .ultimate-workflow/run/tests.result.json`. `/ultimate-workflow:value` reports from it.
+
 ## If the Workflow tool is unavailable
 
 Say so plainly rather than approximating the phase by hand. The value of a

@@ -13,6 +13,7 @@ Read `${CLAUDE_PLUGIN_ROOT}/commands/review.md` and follow it exactly, with thes
 - step 3's prepare is `prepare --range working --delta > .ultimate-workflow/run/prepare.json` (the `--delta` is required here). When the last experts check covers the earlier changes, it narrows each of those experts to the files that changed since and the files in the diff that use them, and their findings on other files carry forward. Tell the user which: `delta` (the files, and the chain count) or `deltaRefused` (the reason it reviews everything this time). Nothing else changes: the record is still for the current changes;
 - pass `"expertsOnly": true`, so the four core lenses do not run;
 - the plan file is the one in `$ARGUMENTS`, or the single `PLAN-*.md` at the root, or none.
+- the ledger step uses `--phase experts`, and records no catches.
 
 If `record` printed open findings, do not run `check` yet and do not commit: follow "High-confidence findings are raised and resolved" in the review command. Raise each finding to the user and wait for their decision. You may not skip this because the commit was the goal.
 

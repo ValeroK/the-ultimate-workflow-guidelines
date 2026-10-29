@@ -32,6 +32,13 @@ six figures of tokens each, and a rerun is a decision for the user to make.
 
 Report what landed and whether verification is green. Say which briefs and skills were loaded (`briefsLoaded`, `skillsLoaded`), so it is visible when none were. If the run escalated, present the blocker with options and **stop** -- do not pick one. Never report green without having seen the verification output.
 
+
+## Record the run in the ledger
+
+Last, after the steps above: save the workflow's result, exactly as returned, to `.ultimate-workflow/run/build.result.json` (copy it from the tool's output; never retype or edit it), and write `.ultimate-workflow/run/build.row.json` with the Write tool: `{ "runId": "<the run id>", "agents": <number>, "tokens": <subagent tokens>, "durationMs": <milliseconds>, "plan": "<plan file, if any>", "workarounds": ["<anything you had to do that this command did not say, one line each>"] }`, the numbers from the Workflow tool's result. Leave out a number the result does not show; never estimate one. Then run `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" ledger add --phase build --row .ultimate-workflow/run/build.row.json --result .ultimate-workflow/run/build.result.json`. `/ultimate-workflow:value` reports from it.
+
+When a test written for a recorded catch went red against the first implementation for the reason the catch names, confirm it: `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" ledger confirm --id <id> --text "<the test and its failure>"`.
+
 ## If the Workflow tool is unavailable
 
 Say so plainly rather than approximating the phase by hand. The value of a

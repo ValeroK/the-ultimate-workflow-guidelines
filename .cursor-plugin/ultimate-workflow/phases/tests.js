@@ -236,6 +236,7 @@ Add only cases that the draft does not already cover and that your domain says m
   const ran = []
   const failed = []
   const sections = []
+  const casesAdded = {}
   taking.forEach((e, i) => {
     const r = results[i]
     if (!r) {
@@ -244,6 +245,7 @@ Add only cases that the draft does not already cover and that your domain says m
       return
     }
     ran.push(e.name)
+    casesAdded[e.name] = (r.cases || []).length
     const rows = (r.cases || []).map((c) => `- **${c.name}**: ${c.asserts} (catches: ${c.why})`)
     sections.push(`#### ${e.name}\n\n${r.summary}${rows.length ? '\n\n' + rows.join('\n') : ''}`)
   })
@@ -255,6 +257,7 @@ Add only cases that the draft does not already cover and that your domain says m
     ran,
     failed,
     added: forced,
+    casesAdded,
     skillsLoaded: Object.fromEntries(taking.map((e) => [e.name, skillsFor(e.name).map((x) => x.name)])),
   }
 }

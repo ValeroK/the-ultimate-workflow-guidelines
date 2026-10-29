@@ -48,6 +48,13 @@ Findings below high confidence are reported with the others but do not block.
 
 Say which experts ran, which skills each one was given (`expertLane.skillsLoaded`) and which were left out at the cap (`expertLane.skillsDropped`), which were added by the diff beyond the plan (`expertLane.added`) and why (the recheck's reasons are in the workflow log), and any that failed. Present confirmed, refuted, and unverified findings **separately**. List the refuted ones rather than dropping them: a verifier that silently filters cannot be audited.
 
+
+## Record the run in the ledger
+
+Last, after the steps above: save the workflow's result, exactly as returned, to `.ultimate-workflow/run/review.result.json` (copy it from the tool's output; never retype or edit it), and write `.ultimate-workflow/run/review.row.json` with the Write tool: `{ "runId": "<the run id>", "agents": <number>, "tokens": <subagent tokens>, "durationMs": <milliseconds>, "plan": "<plan file, if any>", "workarounds": ["<anything you had to do that this command did not say, one line each>"] }`, the numbers from the Workflow tool's result. Leave out a number the result does not show; never estimate one. Then run `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" ledger add --phase review --row .ultimate-workflow/run/review.row.json --result .ultimate-workflow/run/review.result.json`. `/ultimate-workflow:value` reports from it.
+
+For each confirmed finding, record a catch: `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" ledger catch --what "<the finding, one line>" --by <expert:<name> or lens:<lens>> --stage review --unique <yes when no other lens or expert reported it, else no> --confirmed "<finding id>"`.
+
 ## If the Workflow tool is unavailable
 
 Say so plainly rather than approximating the phase by hand. The value of a

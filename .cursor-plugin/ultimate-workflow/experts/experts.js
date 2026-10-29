@@ -1036,8 +1036,15 @@ function parseArgs(argv) {
 }
 
 function main(argv) {
-  const o = parseArgs(argv);
   const out = (v) => process.stdout.write(`${JSON.stringify(v)}\n`);
+  if (argv[0] === 'ledger') {
+    try {
+      return require('./ledger.js').cli(argv.slice(1), process.cwd(), out, fail);
+    } catch (err) {
+      return fail(err.message);
+    }
+  }
+  const o = parseArgs(argv);
   const needPlan = () => {
     if (!o.plan) fail(`${o.cmd} needs --plan <plan file> (nothing here picks "the newest PLAN-*.md")`);
     return o.plan;
@@ -1109,7 +1116,7 @@ function main(argv) {
   } catch (err) {
     fail(err.message);
   }
-  return fail(`unknown command: ${o.cmd || '(none)'} (expected list, brief, skills, read, select, prepare, record, check, findings, resolve, attribution, fingerprint, script)`);
+  return fail(`unknown command: ${o.cmd || '(none)'} (expected list, brief, skills, read, select, prepare, record, check, findings, resolve, attribution, fingerprint, script, ledger)`);
 }
 
 module.exports = {

@@ -13,7 +13,7 @@
 //
 //   node replay.js <workflow> <args.json> <name>
 //
-//   workflow   plan, tests, build or review (the script under workflows/)
+//   workflow   plan, tests, build or review (the script under phases/)
 //   args.json  the args object the command would pass, for example the output of
 //              `experts.js list` as "available"
 //   name       a label for the run; the final result is written to <work>/<name>.result.json
@@ -107,7 +107,7 @@ async function replay(workflow, args, name) {
     return new Promise(() => {});
   };
 
-  const run = loadWorkflow(path.join(PLUGIN, 'workflows', `${workflow}.js`));
+  const run = loadWorkflow(path.join(PLUGIN, 'phases', `${workflow}.js`));
   let finished = null;
   let failed = null;
   run(args, respond).then((r) => (finished = r), (e) => (failed = e));

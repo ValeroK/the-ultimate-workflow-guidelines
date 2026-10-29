@@ -1,7 +1,7 @@
 {
   "name": "ultimate-workflow",
   "description": "Plan-first, test-first workflow for AI coding assistants. Five phase commands (plan, tests, build, review, harvest) that each run in a fresh context with scoped tools, nine domain experts (architect, software architect, developer, DevOps, quality, security, frontend and accessibility, generative AI, data) that join from the plan onward with fifty vetted skills chosen in code, seven design skills (feature workflow, greenfield bootstrap, and five architecture skills), and opt-in lifecycle gates, including a commit gate that waits for the experts' review. Behavioral principles derived from Andrej Karpathy observations on LLM coding pitfalls.",
-  "version": "4.0.0",
+  "version": "4.0.1",
   "author": {
     "name": "ValeroK"
   },

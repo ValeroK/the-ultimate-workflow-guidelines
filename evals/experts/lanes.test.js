@@ -8,7 +8,7 @@ const { loadWorkflow } = require('../security-expert/lib/run-workflow.js');
 
 const PLUGIN = path.join(__dirname, '..', '..', '.cursor-plugin', 'ultimate-workflow');
 const { list } = require(path.join(PLUGIN, 'experts', 'experts.js'));
-const wf = (name) => loadWorkflow(path.join(PLUGIN, 'workflows', `${name}.js`));
+const wf = (name) => loadWorkflow(path.join(PLUGIN, 'phases', `${name}.js`));
 
 // The expert lanes of the plan and tests phases: who is asked, what the model may
 // decide, and what is written into the result by the script and not by a model.
@@ -18,7 +18,7 @@ const wf = (name) => loadWorkflow(path.join(PLUGIN, 'workflows', `${name}.js`));
 const AVAILABLE = list(PLUGIN).experts.map(({ always, ...e }) => e);
 const ui = { name: 'uiux', agent: 'uw-expert-uiux', description: 'UI/UX expert. Applies when screens or flows change.', stages: ['plan', 'tests', 'review'] };
 const reviewOnly = { name: 'lintish', agent: 'uw-expert-lintish', description: 'Style expert. Applies to formatting.', stages: ['review'] };
-const EXP = { expertsDir: '/plugin/experts' };
+const EXP = { expertsDir: '/plugin/experts', skills: {} };
 
 const SLICE = { slice: 's', patterns: [], reusable: [], constraints: [], notCovered: 'n' };
 const answer = (...names) => ({ experts: names.map((name) => ({ name, why: `because of ${name}` })) });
@@ -229,7 +229,7 @@ test('build: the implementer is told that the plan\'s expert input is binding, a
 test('the lane helpers are the same text in plan, tests and review', () => {
   const fs = require('node:fs');
   const block = (n) => {
-    const s = fs.readFileSync(path.join(PLUGIN, 'workflows', `${n}.js`), 'utf8');
+    const s = fs.readFileSync(path.join(PLUGIN, 'phases', `${n}.js`), 'utf8');
     return s.slice(s.indexOf('// --- expert lane helpers'), s.indexOf('// --- end expert lane helpers ---'));
   };
   assert.ok(block('plan').length > 500);

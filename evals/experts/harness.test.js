@@ -91,7 +91,7 @@ const experts = (payload, dir, args, input) =>
 async function review(payload, dir, plan, { recheck = [], expertsArg } = {}) {
   const prep = JSON.parse(experts(payload, dir, ['prepare']).stdout);
   const planned = JSON.parse(experts(payload, dir, ['read', '--plan', plan]).stdout).experts;
-  const run = loadWorkflow(path.join(payload, 'workflows', 'review.js'));
+  const run = loadWorkflow(path.join(payload, 'phases', 'review.js'));
   const { result } = await run(
     { range: 'working', available: prep.available, experts: expertsArg || planned, diffFile: prep.diffFile, expertsDir: path.join(payload, 'experts'), plan, skills: prep.skills, expertsOnly: true },
     (call) => (call.label === 'recheck' ? { experts: recheck.map((name) => ({ name, why: 'x' })) } : { findings: [], lensVerdict: `clean through ${call.label}` })
@@ -218,8 +218,8 @@ test('a brand-new expert is picked up by every part of the flow with no edit bey
   assert.deepStrictEqual(list.map((e) => e.name).sort(), [...shipped, 'uiux'].sort());
 
   // the plan phase offers it, consults it, and writes its input into the plan
-  const planRun = loadWorkflow(path.join(payload, 'workflows', 'plan.js'));
-  const planOut = await planRun({ feature: 'add a settings screen', available: list, expertsDir: path.join(payload, 'experts') }, (call) => {
+  const planRun = loadWorkflow(path.join(payload, 'phases', 'plan.js'));
+  const planOut = await planRun({ feature: 'add a settings screen', available: list, expertsDir: path.join(payload, 'experts'), skills: {} }, (call) => {
     if (call.label === 'select-experts') {
       assert.ok(call.prompt.includes('- uiux: '), 'the new expert is in the question');
       return { experts: [{ name: 'uiux', why: 'a new screen' }] };
@@ -233,8 +233,8 @@ test('a brand-new expert is picked up by every part of the flow with no edit bey
   assert.ok(!planOut.calls.some((c) => c.label === 'plan:security'), 'security was not chosen, so it was not consulted');
 
   // the tests phase skips it, since it declared no tests stage
-  const testsRun = loadWorkflow(path.join(payload, 'workflows', 'tests.js'));
-  const testsOut = await testsRun({ plan: 'PLAN-x.md', available: list, experts: ['uiux'], expertsDir: path.join(payload, 'experts') }, (call) =>
+  const testsRun = loadWorkflow(path.join(payload, 'phases', 'tests.js'));
+  const testsOut = await testsRun({ plan: 'PLAN-x.md', available: list, experts: ['uiux'], expertsDir: path.join(payload, 'experts'), skills: {} }, (call) =>
     call.label === 'draft' ? { testsMarkdown: '## Tests', testCommand: 'x', expectedTestNames: [] } : { angleVerdict: 'fine', gaps: [] }
   );
   // (the quality expert joins every tests stage, so it is the only one that runs)
@@ -256,9 +256,9 @@ test('a failed expert review leaves the commit blocked', async () => {
   const { dir, plan } = project('plan_confirmed: true\ntests_confirmed: true\nexperts: [security]');
   write(path.join(dir, 'src', 'a.js'), 'module.exports = 2;\n');
   const prep = JSON.parse(experts(payload, dir, ['prepare']).stdout);
-  const run = loadWorkflow(path.join(payload, 'workflows', 'review.js'));
+  const run = loadWorkflow(path.join(payload, 'phases', 'review.js'));
   const { result } = await run(
-    { available: prep.available, experts: ['security'], diffFile: prep.diffFile, expertsDir: path.join(payload, 'experts'), expertsOnly: true },
+    { available: prep.available, experts: ['security'], diffFile: prep.diffFile, expertsDir: path.join(payload, 'experts'), skills: prep.skills, expertsOnly: true },
     (call) => {
       if (call.label === 'recheck') return { experts: [] };
       throw new Error('agent crashed');
@@ -295,9 +295,9 @@ const HIGH = { expert: 'security', file: 'src/a.js', line: 3, what: 'The admin c
 
 async function reviewWith(payload, dir, plan, findings) {
   const prep = JSON.parse(experts(payload, dir, ['prepare']).stdout);
-  const run = loadWorkflow(path.join(payload, 'workflows', 'review.js'));
+  const run = loadWorkflow(path.join(payload, 'phases', 'review.js'));
   const { result } = await run(
-    { available: prep.available, experts: ['security'], diffFile: prep.diffFile, expertsDir: path.join(payload, 'experts'), plan, expertsOnly: true },
+    { available: prep.available, experts: ['security'], diffFile: prep.diffFile, expertsDir: path.join(payload, 'experts'), plan, skills: prep.skills, expertsOnly: true },
     (call) => {
       if (call.label === 'recheck') return { experts: [] };
       if (call.phase === 'Lenses') return { lensVerdict: 'checked', findings: findings.map((f) => ({ file: f.file, line: f.line, what: f.what, howItFails: 'a support account reads any order', confidence: f.confidence })) };

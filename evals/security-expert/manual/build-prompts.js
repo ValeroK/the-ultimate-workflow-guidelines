@@ -40,7 +40,7 @@ Use an empty findings array if you have nothing to report. Then reply with the s
 const body = (file) => fs.readFileSync(file, 'utf8').replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, '').trim();
 
 async function captureReviewPrompt(pluginDir, args, label) {
-  const run = loadWorkflow(path.join(pluginDir, 'workflows', 'review.js'));
+  const run = loadWorkflow(path.join(pluginDir, 'phases', 'review.js'));
   const { calls } = await run(args, () => ({ findings: [], lensVerdict: 'captured' }));
   const call = calls.find((x) => x.label === label);
   if (!call) throw new Error(`review.js produced no "${label}" call for ${JSON.stringify(args)}`);
@@ -87,7 +87,7 @@ async function buildPrompt(c) {
     const call = await captureReviewPrompt(
       c.pluginDir,
       // The recheck is off: this exercise measures the expert's instructions, not selection.
-      { available: listExperts(c.pluginDir), experts: ['security'], recheck: false, diffFile: c.diffFile, expertsDir: path.join(c.pluginDir, 'experts'), range },
+      { available: listExperts(c.pluginDir), experts: ['security'], recheck: false, diffFile: c.diffFile, expertsDir: path.join(c.pluginDir, 'experts'), skills: {}, range },
       'security'
     );
     // The shipped expert may run read-only commands and use the web. Every arm in this

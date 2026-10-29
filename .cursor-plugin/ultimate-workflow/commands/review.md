@@ -21,7 +21,7 @@ The review has a part that code does, before the workflow, and a part the workfl
 
 Call the **Workflow** tool with:
 
-- `scriptPath`: `${CLAUDE_PLUGIN_ROOT}/workflows/review.js`
+- `scriptPath`: `${CLAUDE_PLUGIN_ROOT}/phases/review.js`
 - `args`: a JSON object, not a string: `{ "range": "<range>", "available": <from step 3, unchanged>, "experts": <from step 4>, "diffFile": ".ultimate-workflow/review.diff", "expertsDir": "${CLAUDE_PLUGIN_ROOT}/experts", "plan": "<plan file, if any>", "skills": <from step 3, unchanged>, "deps": <the audit JSON, if produced> }`, plus `rigor` and `lenses` if the user gave them (`$ARGUMENTS`), and `"expertsOnly": true` if the user passed `--experts-only` (this is what the commit check uses: only the experts run, not the four core lenses).
 
 The workflow asks the same question again of the real diff, "which of these experts apply?", and merges the answer by code: the diff can add an expert to the plan's set and can never remove one. You do not choose experts. Pass `"noExperts": true` only if you truly cannot run `experts.js` (no shell on this host), and tell the user that domain experts were not considered.

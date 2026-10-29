@@ -10,6 +10,14 @@ export const meta = {
   ],
 }
 
+// --- agent names (identical in every workflow; a test holds them equal) ---
+// An installed plugin registers its agents as "<plugin>:<agent>", so a bare "uw-explorer"
+// is "agent type not found". Every agentType goes through agentName(). A local run against
+// agents copied to .claude/agents/ passes args.agentNamespace: "".
+const AGENT_NAMESPACE = args && typeof args.agentNamespace === 'string' ? args.agentNamespace : 'ultimate-workflow:'
+const agentName = (name) => (String(name).includes(':') ? name : AGENT_NAMESPACE + name)
+// --- end agent names ---
+
 // The only writing phase, and the only one with a loop.
 //
 // Two things make the loop safe rather than a way to burn tokens on thrashing:
@@ -115,7 +123,7 @@ Then RUN them and confirm they FAIL.
 A new test that passes before the implementation exists is testing nothing, and it is invisible afterwards -- a green suite looks the same whether its tests constrain the behaviour or merely coexist with it. If any new test passes now, list it in unexpectedlyPassing and say so plainly. That is a finding, not a convenience.
 
 Report the project's real verification command as testCommand.`,
-  { agentType: 'uw-implementer', label: 'write-tests', phase: 'Tests', schema: WROTE }
+  { agentType: agentName('uw-implementer'), label: 'write-tests', phase: 'Tests', schema: WROTE }
 )
 
 if (!tests) {
@@ -163,7 +171,7 @@ Smallest change that works. Nothing beyond the plan. Do not improve adjacent cod
 Never make a test pass by weakening it. Deleting an assertion or special-casing the test input converts a failing test into a lie that outlives you. If a test is genuinely wrong, say so and leave it failing.
 
 When not green, include the failure output verbatim.`,
-    { agentType: 'uw-implementer', label: `attempt-${round}`, phase: round === 1 ? 'Implement' : 'Verify', schema: BUILT }
+    { agentType: agentName('uw-implementer'), label: `attempt-${round}`, phase: round === 1 ? 'Implement' : 'Verify', schema: BUILT }
   )
 
   if (!attempt) {
@@ -209,7 +217,7 @@ ${JSON.stringify(attempt.filesChanged, null, 2)}
 Read the relevant code and tests. Say what is actually wrong -- not what might be. Give the failure a short stable signature so a repeat can be recognised as no progress.
 
 If the TEST looks wrong rather than the code, say so: that is a legitimate outcome and needs a human, not another attempt.`,
-    { agentType: 'uw-reviewer', label: `diagnose-${round}`, phase: 'Verify', schema: DIAGNOSIS }
+    { agentType: agentName('uw-reviewer'), label: `diagnose-${round}`, phase: 'Verify', schema: DIAGNOSIS }
   )
 
   const priorSignature = diagnosis && diagnosis.signature

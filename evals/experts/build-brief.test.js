@@ -8,7 +8,7 @@ const { loadWorkflow } = require('../security-expert/lib/run-workflow.js');
 const { briefs } = require(path.join(__dirname, '..', '..', '.cursor-plugin', 'ultimate-workflow', 'experts', 'experts.js'));
 
 const PLUGIN = path.join(__dirname, '..', '..', '.cursor-plugin', 'ultimate-workflow');
-const build = () => loadWorkflow(path.join(PLUGIN, 'workflows', 'build.js'));
+const build = () => loadWorkflow(path.join(PLUGIN, 'phases', 'build.js'));
 
 const BRIEF = { name: 'developer', text: '# Engineering brief\n\nAlways reuse the helper the repository already has.' };
 

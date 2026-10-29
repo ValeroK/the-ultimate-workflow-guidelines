@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.1] - 2026-10-28
+
+Fixes three faults that only appeared on a real plugin install; local runs and every test passed. On 4.0.0 the phase commands could not run as designed.
+
+### Fixed
+
+- **Agents are called by their plugin name.** Claude Code registers a plugin's agents as `ultimate-workflow:uw-*` and has no bare names, but the phase scripts asked for `uw-explorer`, `uw-reviewer` and the expert names as listed, so every phase failed with "agent type not found". Each script now carries one identical block (`AGENT_NAMESPACE`, default `ultimate-workflow:`, and `agentName()`) and every `agentType` goes through it; `args.agentNamespace: ""` keeps local runs, which use the `.claude/agents/` copies, working. The shared test harness refuses a bare name, and `evals/experts/agent-names.test.js` checks that the blocks are identical, that the namespace equals `plugin.json`'s name, that no `agentType` bypasses `agentName()`, and that every named agent exists.
+- **The phase scripts moved from `workflows/` to `phases/`.** Claude Code registers every script in a plugin's `workflows/` folder as a named workflow under the same names as the commands, so `/ultimate-workflow:plan` ran `plan.js` directly: the user's text arrived as a plain string and the command's expert setup (`experts.js list`, `experts.js skills`) never ran, which skipped the experts. In `phases/` the scripts are reached only through the commands. The commands, tests, memory topicals, rules, AGENTS.md, README and `docs/adding-an-expert.md` follow; `mirrors.test.js` now refuses a `workflows/` folder in the payload. Historical records keep the old path.
+- **A run without skills is no longer silent.** Before, a missing `args.skills` consulted the experts with no skills and nothing said so, which made attribution meaningless. `plan` and `tests` now skip the experts and say why; `review` refuses to run.
+
+### Changed
+
+- `memory/workflows-authoring.md` records the two install-only gotchas (bare agent names, `workflows/` auto-registration).
+
 ## [4.0.0] - 2026-10-22
 
 **Breaking, with the gates on:** a `git commit` is refused until the domain experts have reviewed the current changes (Gate G6, below), and a source edit until the plan records which experts apply. With the gates off, nothing that worked in 3.1 changes.

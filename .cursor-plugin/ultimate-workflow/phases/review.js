@@ -253,6 +253,14 @@ const skillBlock = (name) => {
     : `\n\nSKILLS for this change (${mine.map((x) => x.name).join(', ')}), chosen by the workflow from the diff. Read them before you look for findings. Do not open other skill files.${BASIS_RULE}\n\n${mine.map((x) => x.text.trim()).join('\n\n')}`
 }
 
+// A changed-only recheck (experts.js prepare --delta): an expert whose last review covers the
+// previous changes reads only what changed since, and what uses it. An expert the recheck added,
+// and the recheck itself, read the full diff.
+const deltaArgs = args && args.delta && args.deltaFile && Array.isArray(args.delta.experts) ? args.delta : null
+const narrowed = (lens) => Boolean(deltaArgs) && reviewingNames.includes(lens) && deltaArgs.experts.includes(lens)
+const usedDelta = reviewingNames.filter(narrowed)
+if (usedDelta.length) log(`changed-only review for ${usedDelta.join(', ')}: ${deltaArgs.files.length} file(s) since ${String(deltaArgs.base).slice(0, 12)}`)
+
 log(`Reviewing ${range} through ${lenses.length} lenses (rigor: ${rigor})`)
 
 const lensResults = await parallel(
@@ -262,7 +270,11 @@ const lensResults = await parallel(
 
 ${
   reviewingNames.includes(lens)
-    ? `The diff for ${range} is saved at ${args.diffFile}. Read it there. Stage: review. ${readFirst(args.expertsDir, lens, 'review')}${
+    ? `${
+        narrowed(lens)
+          ? `You reviewed these changes before. Only some files changed since, or use a file that did: their current patches are at ${args.deltaFile}, and its header lists what changed, what uses it and what was removed. Review those files. Your earlier findings on every other file stand and are carried forward, so do not repeat them. The full diff is at ${args.diffFile} if you need context.`
+          : `The diff for ${range} is saved at ${args.diffFile}. Read it there.`
+      } Stage: review. ${readFirst(args.expertsDir, lens, 'review')}${
         args.plan
           ? ` The plan is at ${args.plan}: find the "Expert input" section, read what you required from this change at planning time, and report any requirement the diff does not honour.`
           : ''
@@ -322,6 +334,7 @@ const lane = (found = []) => ({
   failed: reviewingNames.filter((n) => failedLenses.includes(n)),
   recheck,
   findings: found,
+  ...(usedDelta.length ? { delta: { base: deltaArgs.base, files: deltaArgs.files, removed: deltaArgs.removed || [], chain: deltaArgs.chain, experts: usedDelta } } : {}),
   ...(recheckFailed ? { recheckFailed: true } : {}),
   ...(notInstalled.length ? { ignoredUnknown: notInstalled } : {}),
   ...(noExperts ? { skipped: 'noExperts was passed, so domain experts were not considered' } : {}),

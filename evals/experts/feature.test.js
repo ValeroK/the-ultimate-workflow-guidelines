@@ -35,6 +35,24 @@ test('a PRD runs the bootstrap, then one full flow per roadmap milestone', () =>
   assert.match(FEATURE, /never one plan for the whole PRD/);
 });
 
+test('a finished milestone is marked done, so the next session picks the next one', () => {
+  assert.match(FEATURE, /mark it done in `ROADMAP\.md`/);
+  assert.match(FEATURE, /`progress\.md`/);
+});
+
+test('HOW-TO-USE.md covers both flows and lists every command that ships', () => {
+  const guide = read('HOW-TO-USE.md');
+  assert.match(guide, /^## Flow A: a new project \(greenfield\)$/m);
+  assert.match(guide, /^## Flow B: a feature in an existing project$/m);
+  assert.match(guide, /\/ultimate-workflow:feature continue the roadmap/);
+  const shipped = fs.readdirSync(path.join(ROOT, P, 'commands')).filter((f) => f.endsWith('.md')).map((f) => f.slice(0, -3));
+  for (const name of shipped) {
+    const cmd = name === 'handoff' ? '/handoff' : `/ultimate-workflow:${name}`;
+    assert.ok(guide.includes('`' + cmd + '`'), cmd);
+  }
+  assert.match(read('README.md'), /\[HOW-TO-USE\.md\]\(HOW-TO-USE\.md\)/);
+});
+
 test('the workflow docs point at the feature command and the tiers', () => {
   for (const rel of [P + 'skills/the-ultimate-workflow-guidelines/SKILL.md', P + 'rules/the-ultimate-workflow-guidelines.mdc', 'AGENTS.md', 'README.md']) {
     const doc = read(rel);

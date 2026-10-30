@@ -79,6 +79,8 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 The Workflow *operationalizes* the Principles — each step cites the principle it applies instead of restating it.
 
+**Entry point:** for any feature request or PRD, run `/ultimate-workflow:feature <what you want>`. It picks the tier (see [*How much of the workflow*](#how-much-of-the-workflow-skip-light-or-full)), runs the phase commands in order, and stops only at the two confirmations, a blocking finding or a real failure. The phase commands stay available one at a time.
+
 ### How to stop and ask
 
 Several steps below say "stop and ask", "confirm with the user", or "raise questions". Do **not** surface those as free-form prose — invoke the host's structured ask-user tool:
@@ -153,11 +155,11 @@ For any non-trivial task, follow this loop:
 
 Where `agents/uw-expert-*.md` exist (architect, softarch, developer, devops, quality, security ship with this plugin), the phase commands bring them in: at plan a model asks which apply and each chosen one adds constraints, at tests they add cases (quality always does), at build their standing briefs shape how code is written (the devops brief only when the plan names infrastructure, pipeline or container files), and before a commit they review the diff. The plan records the decision on its `experts:` line; `experts: []` is a decision too. Shared skills from `experts/skills/` are pasted into an expert's prompt by code. On a host without the phase scripts, invoke `uw-expert-<name>` yourself at the stages its `stages` line names, and read the skills its `experts/<name>/skills.md` lists for that stage. How it works: `commands/plan.md`, `commands/review.md`, `commands/experts.md`.
 
-### Gates: an opt-in backstop for ad-hoc work
+### Gates: on by default, a backstop under the phases
 
-The phase commands make ordering structural -- a phase you have not started cannot be skipped -- so the gates are no longer the enforcement story. What they still cover is work done outside the phases. They are **off unless you turn them on**: set `ULTIMATE_WORKFLOW_GATES=on`.
+The phase commands make ordering structural -- a phase you have not started cannot be skipped. The gates back that up for work done outside the phases, or when an agent drifts off them. As of 4.1.0 they are **on by default**; set `ULTIMATE_WORKFLOW_GATES=off` (or `0`, `false`, `no`) to turn them off.
 
-When enabled, the steps above are backed by deterministic gates. They read a small YAML front-matter block at the top of `PRD.md` (bootstrap) or `PLAN-<feature>.md` (feature work):
+They read a small YAML front-matter block at the top of `PRD.md` (bootstrap) or `PLAN-<feature>.md` (feature work):
 
 - No source edit lands before `plan_confirmed: true`.
 - No implementation lands before `tests_confirmed: true`. Test files are exempt -- that is the point.
@@ -167,9 +169,7 @@ When enabled, the steps above are backed by deterministic gates. They read a sma
 
 Set `plan_confirmed` and `tests_confirmed` to `true` **only after the user has actually confirmed** that stage. Do not set them to clear a block. The gates maintain every other field themselves.
 
-Even when enabled they are inert in a repository with neither `PRD.md` nor `PLAN-*.md`, so trivial work in unmanaged projects is never affected. They fail open: an internal error blocks nothing.
-
-The demotion was measured, not stylistic. Full enforcement on one host, partial on one, unverified on two -- and three separate routes to "installed and silently enforcing nothing". A default-on mechanism that fails open invisibly is worse than an opt-in one somebody chose. Run `node hooks/status.js` to see which of never-ran / live / stale / disabled you are actually in.
+They are inert in a repository with neither `PRD.md` nor `PLAN-*.md`, so skip-tier work and unmanaged projects are never affected. They fail open: an internal error blocks nothing. That is why liveness matters: run `node hooks/status.js` to see which of never-ran / live / stale / disabled you are actually in. (They were opt-in in 3.x because a default-on mechanism that fails open invisibly looked like enforcement while providing none; `status.js` is the answer to that, and the phase runs showed agents drifting without them.)
 
 The gates are **Claude Code only**. Cursor, Codex CLI, Gemini CLI, and claude.ai run the workflow above as prose, with the confirmation steps observed rather than enforced. That is a deliberate scope: a pre-edit denial is silently dropped on Cursor, and the Codex and Gemini hook contracts have never been exercised, so shipping gates there would look like enforcement while providing none.
 
@@ -246,12 +246,14 @@ Length is a *consequence*, not the criterion. The two stores serve different **p
 
 Length follows naturally from purpose: warnings are short ("don't do X"); explanations need room to breathe.
 
-### When to skip this workflow
+### How much of the workflow: skip, light or full
 
-Use judgment. Skip for:
-- Typo or formatting fixes.
-- Single-line bug fixes with an obvious cause.
-- Pure-doc edits (README tweaks, comment rewording).
-- Trivial renames or moves with no behavioral change.
+`/ultimate-workflow:feature` makes this choice and says which; so should you when running the phases by hand.
 
-When in doubt, err toward the workflow.
+| Tier | When | Flow |
+|---|---|---|
+| **Skip** | Typo or formatting; a single-line fix with an obvious cause; a pure-doc edit; a rename or move with no behaviour change | Make the change directly. |
+| **Light** | A small feature or fix: a few files, clear scope, no new module, contract, schema or external service | plan with `experts: []`, tests (critics and quality still run), build, experts check |
+| **Full** | Real scope; a contract, schema, security or infrastructure change; work split into cards; a PRD or new project | plan with experts, tests, build per card, review, experts check, harvest |
+
+When unsure, choose the bigger tier. A PRD or a new project starts with `project-bootstrap-guidelines`, then runs the full tier once per roadmap milestone, never one plan for the whole PRD.

@@ -4,13 +4,13 @@
     "name": "ValeroK"
   },
   "metadata": {
-    "description": "Plan-first, test-first workflow for AI coding assistants. Five phase commands, nine domain experts with fifty vetted skills, seven design skills, and opt-in lifecycle gates."
+    "description": "Plan-first, test-first workflow for AI coding assistants. A feature command, five phase commands, nine domain experts with fifty vetted skills, seven design skills, and lifecycle gates on by default."
   },
   "plugins": [
     {
       "name": "ultimate-workflow",
       "source": ".cursor-plugin/ultimate-workflow",
-      "description": "Plan-first, test-first workflow for AI coding assistants. Five phase commands (plan, tests, build, review, harvest) that each run in a fresh context with scoped tools, nine domain experts (architect, software architect, developer, DevOps, quality, security, frontend and accessibility, generative AI, data) that join from the plan onward with fifty vetted skills chosen in code, seven design skills (feature workflow, greenfield bootstrap, and five architecture skills), and opt-in lifecycle gates, including a commit gate that waits for the experts' review. Behavioral principles derived from Andrej Karpathy observations on LLM coding pitfalls.",
+      "description": "Plan-first, test-first workflow for AI coding assistants. A feature command that runs the whole loop at the right tier (skip, light, full), five phase commands (plan, tests, build, review, harvest) that each run in a fresh context with scoped tools, nine domain experts (architect, software architect, developer, DevOps, quality, security, frontend and accessibility, generative AI, data) that join from the plan onward with fifty vetted skills chosen in code, seven design skills (feature workflow, greenfield bootstrap, and five architecture skills), and lifecycle gates on by default, including a commit gate that waits for the experts' review. Behavioral principles derived from Andrej Karpathy observations on LLM coding pitfalls.",
       "version": "4.1.0",
       "author": {
         "name": "ValeroK"

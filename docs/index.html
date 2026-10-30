@@ -391,7 +391,7 @@ commit    with the gates on, refused until /ultimate-workflow:experts has run:
 
 <p>Cursor keeps most of what matters: separate jobs, a clean context each time, and only one of them able to write. What it loses is the guarantee, and its rule file says so plainly rather than implying otherwise.</p>
 
-<p>There is an optional enforcement layer for Claude Code, which blocks an edit before the plan is confirmed, a commit before the domain experts have reviewed it, and so on. It is <strong>off by default</strong>. The details, and the honest limits, are in <a href="gates.md">the gates document</a>.</p>
+<p>There is an enforcement layer for Claude Code, which blocks an edit before the plan is confirmed, a commit before the domain experts have reviewed it, and so on. It is <strong>on by default</strong> since 4.1.0 (<code>ULTIMATE_WORKFLOW_GATES=off</code> turns it off), and does nothing in a repo with no <code>PRD.md</code> or <code>PLAN-*.md</code>. The details, and the honest limits, are in <a href="gates.md">the gates document</a>.</p>
 
 <h2 id="install">Install</h2>
 

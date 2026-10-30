@@ -43,7 +43,7 @@ An expert is **not a persona**. "You are a senior security engineer" adds almost
             brief, on every build, selected or not, plus the skills code chose from the plan.
             A brief whose build.md lists no `always` skill (devops) joins only when the plan
             selects one of its skills. It says how to write, never what to build.
- commit     with the gates on (opt-in, G6): no source edit until the plan records which
+ commit     with the gates on (the default, G6): no source edit until the plan records which
             experts apply (experts: [] counts), and no commit until
             /ultimate-workflow:experts (or /review) has run:
             ask again (model) against the real diff; the answer can only ADD experts

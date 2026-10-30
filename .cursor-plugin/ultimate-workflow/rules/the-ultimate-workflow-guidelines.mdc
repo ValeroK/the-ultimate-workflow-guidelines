@@ -20,6 +20,8 @@ Full text, with the reasoning behind each: `skills/the-ultimate-workflow-guideli
 
 Understand → **plan** (confirm with the user) → **test plan** (confirm) → **implement** → blocker protocol → **harvest** → **hand off**.
 
+On Claude Code, `/ultimate-workflow:feature <request>` runs the whole loop for a feature or PRD, choosing the tier below. Here, hold the same sequence by hand.
+
 Both confirmation points are real stops, not politeness. The plan lives on disk as `PLAN-<feature>.md`, which survives context compaction in a way chat history does not.
 
 When a session ends with work still in flight, run `/handoff` (`commands/handoff.md`, shipped with this plugin). It writes `HANDOFF-<topic>.md` so the next agent inherits the in-flight state that no committed document carries. Where it is not installed, write the same document by hand.
@@ -47,7 +49,13 @@ Hold the sequence yourself: wait for every parallel agent before synthesising, s
 
 ## When to skip
 
-Typos and formatting. Single-line fixes with an obvious cause. Pure-doc edits. Trivial renames with no behavioural change. When in doubt, err toward the workflow.
+Three tiers, chosen by `/ultimate-workflow:feature` (or by you when running phases by hand):
+
+- **Skip** -- typos and formatting, single-line fixes with an obvious cause, pure-doc edits, trivial renames with no behavioural change. Just make the change.
+- **Light** -- a small, clear change of a few files with no new module, contract, schema or external service: plan without experts, tests, build, experts check.
+- **Full** -- everything else, and any PRD or new project: plan with experts, tests, build per card, review, experts check, harvest. A PRD runs the bootstrap first, then the full tier once per roadmap milestone.
+
+When in doubt, take the bigger tier.
 
 ## Where things live
 

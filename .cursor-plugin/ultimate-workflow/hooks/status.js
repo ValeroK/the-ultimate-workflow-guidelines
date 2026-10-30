@@ -101,8 +101,8 @@ function report(cwd, env) {
 
 function reportLiveness(l) {
   if (l.state === 'disabled') {
-    say('Gates:   DISABLED (opt-in; ULTIMATE_WORKFLOW_GATES is not set to on)');
-    say('         Nothing is being enforced. Set ULTIMATE_WORKFLOW_GATES=on to enable.');
+    say('Gates:   DISABLED (ULTIMATE_WORKFLOW_GATES is set to off)');
+    say('         Nothing is being enforced. Unset it, or set it to on, to enable.');
     return;
   }
 

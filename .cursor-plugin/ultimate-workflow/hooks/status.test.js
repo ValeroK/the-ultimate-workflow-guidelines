@@ -270,12 +270,12 @@ test('--json reports stale rather than live for an old heartbeat', () => {
   assert.ok(json.liveness.ageSeconds > 3600, 'stale means older than the live window');
 });
 
-test('--json reports disabled whenever the gates are not switched on', () => {
+test('--json reports disabled when the gates are switched off', () => {
   const dir = tmpdir();
   beat(dir, new Date().toISOString());
 
-  // 'off', and the shipped default: the variable absent altogether.
-  for (const env of [{ ULTIMATE_WORKFLOW_GATES: 'off' }, { ULTIMATE_WORKFLOW_GATES: undefined }]) {
+  // Gates are on by default since 4.1.0, so only an explicit off disables them.
+  for (const env of [{ ULTIMATE_WORKFLOW_GATES: 'off' }, { ULTIMATE_WORKFLOW_GATES: '0' }]) {
     const { json } = runJson(dir, env);
     assert.equal(json.liveness.state, 'disabled', `for env ${JSON.stringify(env)}`);
     assert.strictEqual(json.liveness.ageSeconds, null);

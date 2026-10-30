@@ -2,7 +2,7 @@
 
 The five phase commands make ordering structural: you cannot skip a step that has not been started. The gates cover the other case — **ad-hoc edits in a repo that has a plan**, where nobody ran a phase at all.
 
-They are **opt-in**. Set `ULTIMATE_WORKFLOW_GATES=on`. Anything else, including unset, means off.
+They are **on by default** since 4.1.0. Set `ULTIMATE_WORKFLOW_GATES=off` (or `0`, `false`, `no`) to turn them off; unset or anything else means on. Run `node hooks/status.js` to see whether they are actually live in your session (never ran, live, stale or disabled).
 
 ## What they do
 
@@ -17,17 +17,21 @@ Lifecycle hooks read a small YAML block at the top of `PRD.md` or `PLAN-<feature
 | G5 | One line per prompt naming the current stage, so it survives a trimmed history |
 | G6 | No source edit until the plan records which domain experts apply (`experts: []` counts), and no `git commit` until the experts have re-checked and reviewed the current changes. A high-confidence expert finding blocks it until fixed or dismissed by the user |
 
-Even switched on they are **completely inert** in a repo with no `PRD.md` and no `PLAN-*.md`, so trivial work in an unmanaged project is never blocked. They fail open: an internal error blocks nothing.
+They are **completely inert** in a repo with no `PRD.md` and no `PLAN-*.md`, so trivial work in an unmanaged project is never blocked. They fail open: an internal error blocks nothing.
 
 Set `plan_confirmed` and `tests_confirmed` to `true` only after the user has actually confirmed that stage. They are not the model's to set, and setting one to clear a block defeats the only thing the gate does.
 
-## Why they are off by default
+## Why they are on by default again
+
+In 3.x they were opt-in, for the reasons below. 4.1.0 turned them back on: `status.js` now makes a silent no-op visible (never ran / live / stale / disabled), and real runs of the phases showed agents drifting off the workflow when nothing held them to it. The gates are still a backstop under `/ultimate-workflow:feature` and the phase commands, not the main story, and they still fail open.
+
+### Why they were off in 3.x
 
 They shipped **on** in 2.4.0, as the enforcement story. Measuring them changed the answer.
 
 Full enforcement on one host, partial on one, unverified on two. Worse, there turned out to be three separate routes to *installed and silently enforcing nothing* — and a hook that never loaded, a hook that crashed, and a hook that correctly allowed everything all look identical from outside.
 
-A default-on mechanism that fails open invisibly is worse than an opt-in one somebody chose. So they were demoted to a backstop and the phase commands became the story.
+A default-on mechanism that fails open invisibly is worse than an opt-in one somebody chose. So they were demoted to an opt-in backstop and the phase commands became the story.
 
 Two of the defects found in the v3.0.0 review are worth stating, because they show the failure mode:
 

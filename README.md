@@ -6,6 +6,8 @@ Works in **Claude Code**, **Cursor**, **Codex CLI**, **Gemini CLI**, and **Claud
 
 Visual walkthrough: **https://valerok.github.io/the-ultimate-workflow-guidelines/**
 
+**Just want to use it?** Read **[HOW-TO-USE.md](HOW-TO-USE.md)**: what to type for a new project and for a feature, one page.
+
 ---
 
 ## The problem

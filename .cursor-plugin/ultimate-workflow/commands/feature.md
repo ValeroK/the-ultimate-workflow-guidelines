@@ -51,6 +51,8 @@ Anything else (choosing the next phase, the ledger step, the experts check befor
 
 ## 4. At the end
 
+For a roadmap milestone, mark it done in `ROADMAP.md` and add a dated entry to `progress.md` (what was built, what was decided, what is next), so the next session starts at the next milestone.
+
 Run `${CLAUDE_PLUGIN_ROOT}/commands/value.md` for this feature's runs, and give the user:
 
 - what was built and where;

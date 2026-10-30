@@ -108,3 +108,23 @@ test('plan: areas as a list or a comma-separated string both add a reader per ar
     assert.ok(labels.some((l) => /Sidebar\.tsx/.test(l)) && labels.some((l) => /globals\.css/.test(l)), `${JSON.stringify(areas)} -> ${labels.join(',')}`);
   }
 });
+
+// PLAN-flow-fixes items 1 and 3 (2026-10-29).
+test('plan and tests prompts put a running-system harness in the first card', async () => {
+  const respond = async (c) => {
+    if (c.label === 'synthesise') return null;
+    if (c.label === 'draft') return null;
+    return { slice: 's', patterns: [], reusable: [], constraints: [], notCovered: 'n' };
+  };
+  const p = await loadWorkflow(path.join(PLUGIN, 'phases', 'plan.js'))({ feature: 'x', available: [], skills: {} }, respond);
+  assert.match(p.calls.find((c) => c.label === 'synthesise').prompt, /that harness is the first card/);
+  const t = await loadWorkflow(path.join(PLUGIN, 'phases', 'tests.js'))({ plan: 'PLAN-x.md', available: [], skills: {} }, respond);
+  assert.match(t.calls.find((c) => c.label === 'draft').prompt, /in the first card's harness/);
+});
+
+test('the five phase commands allow one retry only for a run that started no agent, in the same words', () => {
+  const sentence = /One exception: if the run failed before any agent started \(0 agents, and an input or argument error\), fix the input, rebuild the script, call the Workflow tool once more and say so/;
+  for (const c of ['plan', 'tests', 'build', 'review', 'harvest']) {
+    assert.match(fs.readFileSync(path.join(PLUGIN, 'commands', `${c}.md`), 'utf8'), sentence, c);
+  }
+});

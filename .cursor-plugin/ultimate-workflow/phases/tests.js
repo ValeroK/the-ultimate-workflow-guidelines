@@ -161,7 +161,9 @@ Ground every test in a stated goal or success criterion from the plan. A criteri
 
 Also determine the project's real verification command by looking at how tests are actually run here -- CI config, scripts, existing test files -- not by guessing a convention.
 
-Name the specific tests that must exist and pass. That turns "is this done" from a judgement into something anyone can check.`,
+Name the specific tests that must exist and pass. That turns "is this done" from a judgement into something anyone can check.
+
+If the plan splits the work into cards, put the cases that need the running system (a browser capture, an integration or end-to-end harness) in the first card's harness and list them before the source-level checks, so every later card is verified against them.`,
   { agentType: agentName('uw-critic'), label: 'draft', phase: 'Draft', schema: DRAFT }
 )
 
@@ -236,6 +238,7 @@ Add only cases that the draft does not already cover and that your domain says m
   const ran = []
   const failed = []
   const sections = []
+  const casesAdded = {}
   taking.forEach((e, i) => {
     const r = results[i]
     if (!r) {
@@ -244,6 +247,7 @@ Add only cases that the draft does not already cover and that your domain says m
       return
     }
     ran.push(e.name)
+    casesAdded[e.name] = (r.cases || []).length
     const rows = (r.cases || []).map((c) => `- **${c.name}**: ${c.asserts} (catches: ${c.why})`)
     sections.push(`#### ${e.name}\n\n${r.summary}${rows.length ? '\n\n' + rows.join('\n') : ''}`)
   })
@@ -255,6 +259,7 @@ Add only cases that the draft does not already cover and that your domain says m
     ran,
     failed,
     added: forced,
+    casesAdded,
     skillsLoaded: Object.fromEntries(taking.map((e) => [e.name, skillsFor(e.name).map((x) => x.name)])),
   }
 }

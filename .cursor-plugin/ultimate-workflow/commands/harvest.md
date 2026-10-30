@@ -14,10 +14,16 @@ Optional feature name. If empty, harvest the current branch against its merge ba
 Call it once. Do not re-implement the phase inline, and do not run it a second
 time because the first result was not what you expected -- these phases cost
 six figures of tokens each, and a rerun is a decision for the user to make.
+One exception: if the run failed before any agent started (0 agents, and an input or argument error), fix the input, rebuild the script, call the Workflow tool once more and say so, and note it in the ledger's workarounds. Any other failure stops here and goes to the user.
 
 ## When it returns
 
 Present the proposals grouped by destination and **stop**. Apply nothing without the user accepting it -- a proposal you have to accept is a proposal you actually read.
+
+
+## Record the run in the ledger
+
+Last, after the steps above: save the workflow's result, exactly as returned, to `.ultimate-workflow/run/harvest.result.json` (a one-liner that reads the tool's output file is the expected way, and is not a workaround; never retype or edit it), and write `.ultimate-workflow/run/harvest.row.json` with the Write tool: `{ "runId": "<the run id>", "agents": <number>, "tokens": <subagent tokens>, "durationMs": <milliseconds>, "plan": "<plan file, if any>", "workarounds": ["<anything you had to do that this command did not say, one line each>"] }`, the numbers from the Workflow tool's result. Leave out a number the result does not show; never estimate one. Then run `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" ledger add --phase harvest --row .ultimate-workflow/run/harvest.row.json --result .ultimate-workflow/run/harvest.result.json`. `/ultimate-workflow:value` reports from it.
 
 ## If the Workflow tool is unavailable
 

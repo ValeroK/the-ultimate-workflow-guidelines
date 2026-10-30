@@ -244,7 +244,9 @@ Produce the complete plan document as markdown, following this shape:
 - **Deviation justification** -- every place you propose departing from an existing pattern, with the current pattern, the alternative, and pros and cons for both. If there are none, write "None -- reuses existing patterns." Do not manufacture a deviation to look thorough; do not hide one to look tidy.
 - Open questions
 
-Two rules on content. Anchor every claim about the codebase in something a reader actually reported -- do not assert structure nobody observed. And leave the Tests section out entirely; it is written and confirmed separately, after this plan is.`,
+Two rules on content. Anchor every claim about the codebase in something a reader actually reported -- do not assert structure nobody observed. And leave the Tests section out entirely; it is written and confirmed separately, after this plan is.
+
+If the work is split into cards and a check needs the running system (a browser capture, an integration or end-to-end harness, a load run), that harness is the first card, and later cards are built and verified against it: built last, it finds defects the earlier cards already committed.`,
   { agentType: agentName('uw-explorer'), label: 'synthesise', phase: 'Synthesise', schema: PLAN }
 )
 

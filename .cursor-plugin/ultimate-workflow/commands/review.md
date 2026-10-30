@@ -11,7 +11,7 @@ The review has a part that code does, before the workflow, and a part the workfl
 
 1. **The plan file.** The one the user named. Otherwise, if exactly one `PLAN-*.md` exists at the repository root, use it. If several exist and none was named, ask which; never pick by modification time. If none exists (a bug fix, a small change), there is no plan: skip the plan steps below, and the experts are chosen from the diff alone.
 2. **The range.** If the working tree has uncommitted changes (`git status --porcelain` prints anything), review those: range `working`. Otherwise review `main..HEAD`, or the range the user gave.
-3. **Prepare.** Run `mkdir -p .ultimate-workflow/run`, then `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" prepare --range <range> > .ultimate-workflow/run/prepare.json`, with `--delta` before the `>` when this is the experts check (`/ultimate-workflow:experts`) and never for a full review. It saves the diff to `.ultimate-workflow/review.diff`, fingerprints the working tree so the evidence says what was reviewed, and writes JSON: `hash`, `diffFile`, `files`, `available` (the experts that exist, discovered from the agents folder) and `skills` (for each expert, the skill texts its review reference selects for this diff). The script step below prints any `skillProblems`; show them to the user. If it exits with code 2, stop and show its stderr.
+3. **Prepare.** Run `mkdir -p .ultimate-workflow/run`, then `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" prepare --range <range> > .ultimate-workflow/run/prepare.json`, with `--delta` before the `>` when this is the experts check (`/ultimate-workflow:experts`) and never for a full review. It saves the diff to `.ultimate-workflow/review.diff`, fingerprints the working tree so the evidence says what was reviewed, and writes JSON: `hash`, `diffFile`, `files`, `available` (the experts that exist, discovered from the agents folder) and `skills` (for each expert, the skill texts its review reference selects for this diff). The script step below prints any `skillProblems`; show them to the user. If `prepare.json` has `untrackedHeavy`, untracked files (often generated output) make up most of the diff: show the user the biggest and ask whether to ignore them before the review runs, since the experts would pay to read them. If it exits with code 2, stop and show its stderr.
 4. **The plan's experts.** If there is a plan file, run `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" read --plan <plan file>` and use its `experts`. Otherwise use an empty list.
 5. **Dependency audit.** If `files` includes a `package-lock.json`, a `uv.lock` or a `pyproject.toml`, run the audit, which needs network access and which a model must not improvise. List the tracked lockfiles with `git ls-files -- '*package-lock.json' '*uv.lock'`, and add a `pyproject.toml` only where no `uv.lock` sits beside it. Then run
    `git diff --name-status <base of the range, or HEAD for working> | node "${CLAUDE_PLUGIN_ROOT}/experts/deps-audit.js" --base-ref <the same base> --changed-from-stdin <those files>`
@@ -28,6 +28,7 @@ The workflow asks the same question again of the real diff, "which of these expe
 Call it once. Do not re-implement the phase inline, and do not run it a second
 time because the first result was not what you expected -- these phases cost
 six figures of tokens each, and a rerun is a decision for the user to make.
+One exception: if the run failed before any agent started (0 agents, and an input or argument error), fix the input, rebuild the script, call the Workflow tool once more and say so, and note it in the ledger's workarounds. Any other failure stops here and goes to the user.
 
 ## After the workflow
 
@@ -47,6 +48,13 @@ Findings below high confidence are reported with the others but do not block.
 ## When it returns
 
 Say which experts ran, which skills each one was given (`expertLane.skillsLoaded`) and which were left out at the cap (`expertLane.skillsDropped`), which were added by the diff beyond the plan (`expertLane.added`) and why (the recheck's reasons are in the workflow log), and any that failed. Present confirmed, refuted, and unverified findings **separately**. List the refuted ones rather than dropping them: a verifier that silently filters cannot be audited.
+
+
+## Record the run in the ledger
+
+Last, after the steps above: save the workflow's result, exactly as returned, to `.ultimate-workflow/run/review.result.json` (a one-liner that reads the tool's output file is the expected way, and is not a workaround; never retype or edit it), and write `.ultimate-workflow/run/review.row.json` with the Write tool: `{ "runId": "<the run id>", "agents": <number>, "tokens": <subagent tokens>, "durationMs": <milliseconds>, "plan": "<plan file, if any>", "workarounds": ["<anything you had to do that this command did not say, one line each>"] }`, the numbers from the Workflow tool's result. Leave out a number the result does not show; never estimate one. Then run `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" ledger add --phase review --row .ultimate-workflow/run/review.row.json --result .ultimate-workflow/run/review.result.json`. `/ultimate-workflow:value` reports from it.
+
+For each confirmed finding, record a catch: `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" ledger catch --what "<the finding, one line>" --by <expert:<name> or lens:<lens>> --stage review --unique <yes when no other lens or expert reported it, else no> --confirmed "<finding id>"`.
 
 ## If the Workflow tool is unavailable
 

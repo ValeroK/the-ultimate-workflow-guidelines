@@ -525,7 +525,7 @@ function workingChanges(cwd) {
     }
     diff += `diff --git a/${p} b/${p}\nnew file\n--- /dev/null\n+++ b/${p}\n${body.split('\n').map((l) => `+${l}`).join('\n')}\n`;
   }
-  return { diff, files: [...new Set(files)] };
+  return { diff, files: [...new Set(files)], untracked };
 }
 
 const sha = (text) => crypto.createHash('sha256').update(text).digest('hex');
@@ -620,6 +620,39 @@ function dependentsOf(cwd, changed, candidates, before, now) {
     if (why) out.push({ file: cand, uses: why.file });
   }
   return out;
+}
+
+const UNTRACKED_HEAVY_BYTES = 200 * 1024;
+const UNTRACKED_HEAVY_SHARE = 0.5;
+
+/** Untracked files that make up most of a large diff, biggest first; null when they do not. */
+function untrackedHeavy(changes) {
+  const total = Buffer.byteLength(changes.diff);
+  if (total < UNTRACKED_HEAVY_BYTES || !(changes.untracked || []).length) return null;
+  const parts = splitByFile(changes.diff);
+  const sizes = changes.untracked.filter((p) => parts.has(p)).map((p) => ({ path: p, bytes: Buffer.byteLength(parts.get(p)) }));
+  const bytes = sizes.reduce((n, x) => n + x.bytes, 0);
+  if (bytes / total < UNTRACKED_HEAVY_SHARE) return null;
+  return { bytes, share: Math.round((bytes / total) * 100) / 100, files: sizes.length, biggest: sizes.sort((a, b) => b.bytes - a.bytes).slice(0, 5) };
+}
+
+/**
+ * The experts of the last check, when the current changes are still the same work in progress:
+ * the last check's snapshot and the current diff share at least one file (decided 2026-10-29). A
+ * recheck then cannot drop them, as it cannot drop the plan's. After a commit and an unrelated new
+ * change the two share no file, and nothing is kept.
+ */
+function keepFromLastCheck(cwd, changes) {
+  const recheck = readJson(evidenceFile(cwd, 'review', '_recheck'));
+  if (!recheck || !recheck.hash || !Array.isArray(recheck.final) || recheck.final.length === 0) return null;
+  let before;
+  try {
+    before = splitByFile(fs.readFileSync(path.join(cwd, SNAPSHOTS, `${recheck.hash}.diff`), 'utf8'));
+  } catch {
+    return null;
+  }
+  const shared = [...splitByFile(changes.diff).keys()].filter((p) => before.has(p));
+  return shared.length > 0 ? { experts: recheck.final, base: recheck.hash, shared: shared.length } : null;
 }
 
 /**
@@ -752,6 +785,11 @@ function prepare(cwd, range = 'working', pluginRoot = PLUGIN_ROOT, { delta = fal
   writeJson(path.join(cwd, EVIDENCE, 'prepared.json'), { hash, range, at: new Date().toISOString() });
   // Computed before this tree's snapshot is saved; only the experts check (range working) narrows.
   const d = delta ? (range === 'working' ? computeDelta(cwd, changes) : { refused: 'a changed-only review needs range working' }) : null;
+  const keep = range === 'working' ? keepFromLastCheck(cwd, changes) : null;
+  // Untracked generated output (a capture's run files, a build folder) can swamp the diff the
+  // experts read: 1.8 MB of it on a real install. Say so, and name the biggest, before anyone pays
+  // to review it; ignoring it is the user's call.
+  const heavy = untrackedHeavy(changes);
   saveSnapshot(cwd, hash, changes.diff);
   const available = list(pluginRoot).experts;
   // Skills for every expert that could review, not only the planned ones: the recheck inside the
@@ -776,6 +814,8 @@ function prepare(cwd, range = 'working', pluginRoot = PLUGIN_ROOT, { delta = fal
     ...(skillProblems.length > 0 ? { skillProblems } : {}),
     ...(d && d.delta ? { delta: d.delta, deltaFile: d.deltaFile } : {}),
     ...(d && d.refused ? { deltaRefused: d.refused } : {}),
+    ...(keep ? { keep } : {}),
+    ...(heavy ? { untrackedHeavy: heavy } : {}),
   };
 }
 
@@ -1036,8 +1076,15 @@ function parseArgs(argv) {
 }
 
 function main(argv) {
-  const o = parseArgs(argv);
   const out = (v) => process.stdout.write(`${JSON.stringify(v)}\n`);
+  if (argv[0] === 'ledger') {
+    try {
+      return require('./ledger.js').cli(argv.slice(1), process.cwd(), out, fail);
+    } catch (err) {
+      return fail(err.message);
+    }
+  }
+  const o = parseArgs(argv);
   const needPlan = () => {
     if (!o.plan) fail(`${o.cmd} needs --plan <plan file> (nothing here picks "the newest PLAN-*.md")`);
     return o.plan;
@@ -1109,7 +1156,7 @@ function main(argv) {
   } catch (err) {
     fail(err.message);
   }
-  return fail(`unknown command: ${o.cmd || '(none)'} (expected list, brief, skills, read, select, prepare, record, check, findings, resolve, attribution, fingerprint, script)`);
+  return fail(`unknown command: ${o.cmd || '(none)'} (expected list, brief, skills, read, select, prepare, record, check, findings, resolve, attribution, fingerprint, script, ledger)`);
 }
 
 module.exports = {
@@ -1144,6 +1191,7 @@ module.exports = {
   prepare,
   splitByFile,
   computeDelta,
+  keepFromLastCheck,
   stageScript,
   record,
   commitEvidence,

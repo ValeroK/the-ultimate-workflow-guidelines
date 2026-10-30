@@ -24,6 +24,7 @@ Then run `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" skills --stage plan > 
 Call it once. Do not re-implement the phase inline, and do not run it a second
 time because the first result was not what you expected -- these phases cost
 six figures of tokens each, and a rerun is a decision for the user to make.
+One exception: if the run failed before any agent started (0 agents, and an input or argument error), fix the input, rebuild the script, call the Workflow tool once more and say so, and note it in the ledger's workarounds. Any other failure stops here and goes to the user.
 
 ## When it returns
 
@@ -31,11 +32,20 @@ Present the returned plan and **stop**. Do not write it to disk and do not start
 
 Show the user what the experts did, from `expertLane`: which experts were selected and why (`reasons`), whose input is in the plan (`ran`), any consult that failed (`failed`), and which skills each expert was given and why (`skillsLoaded`, `skillReasons`). The input itself is in the plan under "Expert input" and is part of what the user is confirming. If `expertLane.skipped` is set, say so plainly: no expert was consulted, and why.
 
+If the markdown comes back HTML-escaped (`&amp;`, `&lt;`, `&gt;`, `&quot;`, `&#39;`), decode those five before showing or writing it, `&amp;` last; seen on a real install, where writing it unchanged would have corrupted the plan.
+
 Once the user has confirmed and the plan file is on disk, record what happened, in code and not from memory. Build a JSON object with `"ok": true` and the `expertLane` exactly as the workflow returned it (do not edit it), and run:
 
 `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" record --stage plan --plan <plan file>`
 
 with that object on standard input. It writes the `experts:` line into the plan's frontmatter, only ever adding to what is there, and leaves an evidence file for each expert that gave input. If `expertLane.skipped` was set there is nothing to record: tell the user, and do not invent an `experts:` line; source edits stay blocked by the experts gate until the user decides. If the user says no expert applies, record that with `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" select --plan <plan file> --add ""`.
+
+
+## Record the run in the ledger
+
+Last, after the steps above: save the workflow's result, exactly as returned, to `.ultimate-workflow/run/plan.result.json` (a one-liner that reads the tool's output file is the expected way, and is not a workaround; never retype or edit it), and write `.ultimate-workflow/run/plan.row.json` with the Write tool: `{ "runId": "<the run id>", "agents": <number>, "tokens": <subagent tokens>, "durationMs": <milliseconds>, "plan": "<plan file, if any>", "workarounds": ["<anything you had to do that this command did not say, one line each>"] }`, the numbers from the Workflow tool's result. Leave out a number the result does not show; never estimate one. Then run `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" ledger add --phase plan --row .ultimate-workflow/run/plan.row.json --result .ultimate-workflow/run/plan.result.json`. `/ultimate-workflow:value` reports from it.
+
+Then, for each item in the "Expert input" that corrected the draft (a defect in it, not general advice), record a catch: `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" ledger catch --what "<the defect, one line>" --by expert:<name> --stage plan`. It stays unconfirmed until a test or a measurement shows it: when one does, `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" ledger confirm --id <id> --text "<the test that went red, or the measurement>"`, and `refute` with the reason when it is not borne out.
 
 ## If the Workflow tool is unavailable
 

@@ -27,10 +27,20 @@ Domain experts do not write code. If the plan has an "Expert input" section, the
 Call it once. Do not re-implement the phase inline, and do not run it a second
 time because the first result was not what you expected -- these phases cost
 six figures of tokens each, and a rerun is a decision for the user to make.
+One exception: if the run failed before any agent started (0 agents, and an input or argument error), fix the input, rebuild the script, call the Workflow tool once more and say so, and note it in the ledger's workarounds. Any other failure stops here and goes to the user.
 
 ## When it returns
 
 Report what landed and whether verification is green. Say which briefs and skills were loaded (`briefsLoaded`, `skillsLoaded`), so it is visible when none were. If the run escalated, present the blocker with options and **stop** -- do not pick one. Never report green without having seen the verification output.
+
+
+## Record the run in the ledger
+
+Last, after the steps above: save the workflow's result, exactly as returned, to `.ultimate-workflow/run/build.result.json` (a one-liner that reads the tool's output file is the expected way, and is not a workaround; never retype or edit it), and write `.ultimate-workflow/run/build.row.json` with the Write tool: `{ "runId": "<the run id>", "agents": <number>, "tokens": <subagent tokens>, "durationMs": <milliseconds>, "plan": "<plan file, if any>", "workarounds": ["<anything you had to do that this command did not say, one line each>"] }`, the numbers from the Workflow tool's result. Leave out a number the result does not show; never estimate one. Then run `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" ledger add --phase build --row .ultimate-workflow/run/build.row.json --result .ultimate-workflow/run/build.result.json`. `/ultimate-workflow:value` reports from it.
+
+Record any defect the build itself found that was not in the plan or the tests (a broken check, an environment bug, a wrong assumption the tests exposed): `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" ledger catch --what "<the defect>" --by build-agent --stage build --confirmed "<what showed it>"`.
+
+When a test written for a recorded catch went red against the first implementation for the reason the catch names, confirm it: `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" ledger confirm --id <id> --text "<the test and its failure>"`.
 
 ## If the Workflow tool is unavailable
 

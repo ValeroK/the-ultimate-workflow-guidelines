@@ -26,6 +26,7 @@ An expert marked `always: [tests]` (the quality expert) joins this stage whether
 Call it once. Do not re-implement the phase inline, and do not run it a second
 time because the first result was not what you expected -- these phases cost
 six figures of tokens each, and a rerun is a decision for the user to make.
+One exception: if the run failed before any agent started (0 agents, and an input or argument error), fix the input, rebuild the script, call the Workflow tool once more and say so, and note it in the ledger's workarounds. Any other failure stops here and goes to the user.
 
 ## When it returns
 
@@ -33,8 +34,17 @@ Present the returned Tests section and **stop**. Negotiating "how would we know 
 
 The section ends with "Expert test cases", one subsection per expert that took part. Say which experts joined because they always do (`expertLane.added`) and which skills each was given (`expertLane.skillsLoaded`). If `expertLane.failed` is not empty, say which expert's cases are missing. If `expertLane.skipped` is set, say that no expert was consulted, and why.
 
+If the markdown comes back HTML-escaped (`&amp;`, `&lt;`, `&gt;`, `&quot;`, `&#39;`), decode those five before showing or writing it, `&amp;` last; seen on a real install, where writing it unchanged would have corrupted the plan.
+
 Once the user has confirmed and the Tests section is in the plan file, record the evidence: build a JSON object with `"ok": true` and the `expertLane` exactly as returned, and run
 `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" record --stage tests --plan <plan file>` with it on standard input. `--plan` writes any expert that joined because it always does (quality) into the plan's `experts:` line, so the review and the commit check expect it too. Skip this if `expertLane.skipped` was set.
+
+
+## Record the run in the ledger
+
+Last, after the steps above: save the workflow's result, exactly as returned, to `.ultimate-workflow/run/tests.result.json` (a one-liner that reads the tool's output file is the expected way, and is not a workaround; never retype or edit it), and write `.ultimate-workflow/run/tests.row.json` with the Write tool: `{ "runId": "<the run id>", "agents": <number>, "tokens": <subagent tokens>, "durationMs": <milliseconds>, "plan": "<plan file, if any>", "workarounds": ["<anything you had to do that this command did not say, one line each>"] }`, the numbers from the Workflow tool's result. Leave out a number the result does not show; never estimate one. Then run `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" ledger add --phase tests --row .ultimate-workflow/run/tests.row.json --result .ultimate-workflow/run/tests.result.json`. `/ultimate-workflow:value` reports from it.
+
+Then record what the test plan caught before any code: for each critic gap or expert case that changed the test plan because a check could not fail or a behaviour was untested, `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" ledger catch --what "<the gap, one line>" --by <critic or expert:<name>> --stage tests --unique <yes when only that critic or expert raised it, else unknown>`. It is confirmed later, when the test it added goes red on a real defect.
 
 ## If the Workflow tool is unavailable
 

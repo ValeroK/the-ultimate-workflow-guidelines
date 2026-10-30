@@ -118,3 +118,9 @@ test('every phase command ends by recording its run in the ledger, with its own 
   assert.match(read('plan.md'), /ledger catch --what .* --by expert:<name> --stage plan/);
   assert.match(read('value.md'), /experts\.js" ledger report/);
 });
+
+test('tests and build ask for their own catches: the test plan\'s gaps, and what the build found', () => {
+  const read = (f) => fs.readFileSync(path.join(PLUGIN, 'commands', f), 'utf8');
+  assert.match(read('tests.md'), /ledger catch --what .* --by <critic or expert:<name>> --stage tests/);
+  assert.match(read('build.md'), /ledger catch --what .* --by build-agent --stage build --confirmed/);
+});

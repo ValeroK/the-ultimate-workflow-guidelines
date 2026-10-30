@@ -58,7 +58,23 @@ A real example from building this repo: the hook payloads it recorded didn't mat
 
 Short warnings go somewhere always loaded. Longer explanations go in a topic file that's only opened when relevant, so your always-on instructions stay small.
 
-## The five commands
+## One command for a feature or a PRD
+
+```
+/ultimate-workflow:feature add CSV export to the reports page
+```
+
+It picks how much of the workflow the change needs, says which, and runs the phases below in order. It stops only for your two confirmations (the plan, then the test plan), an open high-confidence expert finding, a build that fails three rounds, or a real failure.
+
+| Tier | When | What runs |
+|---|---|---|
+| **Skip** | A typo, formatting, a one-line fix with an obvious cause, a doc edit, a rename | Nothing: the change is just made |
+| **Light** | A small, clear change of a few files; no new module, contract, schema or external service | plan (no experts), tests, build, experts check |
+| **Full** | Real scope; contracts, schemas, security or infrastructure; work split into cards; any PRD | plan (with experts), tests, build per card, review, experts check, harvest |
+
+**Building a PRD.** Give it the PRD (or the idea): `/ultimate-workflow:feature build the PRD in PRD.md`. On a new project it first runs the bootstrap (it writes or reviews `PRD.md`, the design and `ROADMAP.md` with you, stopping at each), then runs the full tier once per roadmap milestone, each with its own plan. If `PRD.md` and `ROADMAP.md` already exist it starts at the next milestone not done.
+
+## The five phase commands
 
 | Command | What it does | Can it write? |
 |---|---|---|
@@ -70,7 +86,7 @@ Short warnings go somewhere always loaded. Longer explanations go in a topic fil
 
 Four of the five hand you proposals instead of applying them. That's on purpose. A proposal you have to accept is a proposal you actually read.
 
-You don't need all five every time. A typo doesn't need a plan.
+You can still run them one at a time; `/ultimate-workflow:feature` is just the five in the right order at the right tier.
 
 Three more commands sit outside the loop. **`/ultimate-workflow:experts`** is the quick expert check before a commit: it asks again which experts apply to the real diff, runs them and records the evidence. **`/ultimate-workflow:expert-attribution`** reports, from that evidence, which skills each expert had at each stage and where its findings say they came from (a skill, its reference, or the model's own knowledge), with any citation that does not check out. **`/ultimate-workflow:value`** reports, from the value ledger every phase appends to (`.ultimate-workflow/ledger.jsonl`), what the workflow cost per phase and what the experts and skills contributed: catches by stage and origin, the experts' confirmed unique catches and their precision, skill citation rates and skills never cited, and the workarounds sessions needed. **`/handoff`** writes a handoff document when a session ends with work still in flight, so the next agent inherits the state that hasn't landed in any committed file yet. You run it; it is never invoked on your behalf.
 
@@ -109,7 +125,7 @@ What you see: ask for an order lookup route and the plan comes back with a secur
 
 **Shared skills.** Each expert lists the skills it may need: a language's pitfalls, failure handling, engineering principles, how to write a test, AWS services and Well-Architected practices, Terraform, CloudFormation, Kubernetes and pipelines, accessibility and devices, model calls and agents, alarms and telemetry, web performance, personal data and erasure. There are fifty, under `experts/skills/`, each with the date its facts were checked and a tag on every row saying where it comes from. Code picks the ones that apply from the diff (review) or the plan (build, tests) and pastes them into the expert's prompt; at plan a model picks from an offered list. They are not the design-guidance skills below, which the host loads by itself. How it works: [docs/adding-an-expert.md#shared-skills](docs/adding-an-expert.md#shared-skills).
 
-**The honest limits.** The commit gate runs on Claude Code and is off unless you turn the gates on (see [docs/gates.md](docs/gates.md)); elsewhere the same flow is written instructions and works as far as the model follows them. Whether a model picks the right experts was measured once, on one expert: it chose security for 12 of 12 seeded security diffs and for 5 of 6 harmless look-alikes (it is told to include an expert when unsure). That is promising, not proven. Against a plain reviewer the results do not yet show a gain. On written test sets the developer expert found 6 of 6 seeded defects against 4 of 6 once, but every later written set, the deliberately hard ones included, was found in full by the plain reviewer, even with a smaller model doing the review. On real defects mined from fix commits (8 cases) the expert found the same 4 as the plain reviewer and raised 3 false alarms in 18 harmless commits against none ([evals/experts/results/README.md](evals/experts/results/README.md)). Devops, frontend, genai and data are not measured, and neither is any skill at build, tests or plan. `/ultimate-workflow:expert-attribution` shows, per run, which skills each expert had and where its findings say they came from; whether the skills made the difference needs the same change reviewed with and without them. Experts cost tokens: one call to choose, one per expert per stage, and about 28 KB of briefs and skills on every build.
+**The honest limits.** The commit gate runs on Claude Code and is on by default (see [docs/gates.md](docs/gates.md)); elsewhere the same flow is written instructions and works as far as the model follows them. Whether a model picks the right experts was measured once, on one expert: it chose security for 12 of 12 seeded security diffs and for 5 of 6 harmless look-alikes (it is told to include an expert when unsure). That is promising, not proven. Against a plain reviewer the results do not yet show a gain. On written test sets the developer expert found 6 of 6 seeded defects against 4 of 6 once, but every later written set, the deliberately hard ones included, was found in full by the plain reviewer, even with a smaller model doing the review. On real defects mined from fix commits (8 cases) the expert found the same 4 as the plain reviewer and raised 3 false alarms in 18 harmless commits against none ([evals/experts/results/README.md](evals/experts/results/README.md)). Devops, frontend, genai and data are not measured, and neither is any skill at build, tests or plan. `/ultimate-workflow:expert-attribution` shows, per run, which skills each expert had and where its findings say they came from; whether the skills made the difference needs the same change reviewed with and without them. Experts cost tokens: one call to choose, one per expert per stage, and about 28 KB of briefs and skills on every build.
 
 ## Starting a brand new project?
 
@@ -209,13 +225,13 @@ Claude Code can run the five commands as real scripts, so the ordering is guaran
 | The five jobs, each with fresh context | Yes | Yes, you invoke them | As prose |
 | Ordering guaranteed | Yes | You hold the sequence | You hold the sequence |
 | Only the builder can write | Yes | Yes | — |
-| Optional enforcement hooks | Yes | No | Not verified |
+| Enforcement hooks (on by default) | Yes | No | Not verified |
 | Domain experts at plan, tests and review | Yes | You invoke `uw-expert-<name>` by hand; no selection, skill injection or evidence | No |
 | Commit refused until the experts have reviewed | Yes, with the gates on | No | No |
 
 Cursor keeps most of what matters: separate jobs, clean context each time, and only one of them able to write. What it loses is the guarantee, and its rule file says so plainly rather than implying otherwise.
 
-There's an optional enforcement layer for Claude Code — hooks that block an edit before the plan is confirmed, a commit before the domain experts have reviewed it, and so on. It's **off by default**; details and the honest limits are in **[docs/gates.md](docs/gates.md)**.
+There's an enforcement layer for Claude Code — hooks that block an edit before the plan is confirmed, a commit before the domain experts have reviewed it, and so on. It's **on by default** since 4.1.0 (`ULTIMATE_WORKFLOW_GATES=off` turns it off) and does nothing in a repo with no `PRD.md` or `PLAN-*.md`; details and the honest limits are in **[docs/gates.md](docs/gates.md)**.
 
 ## Layout
 

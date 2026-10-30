@@ -1,6 +1,6 @@
 # AGENTS.md
 
-This repo *is* the `ultimate-workflow` plugin: skills, phase commands, scoped agents, and opt-in gates.
+This repo *is* the `ultimate-workflow` plugin: skills, phase commands, scoped agents, and gates (on by default since 4.1.0).
 
 The **shippable plugin** lives at `.cursor-plugin/ultimate-workflow/` (so Cursor marketplace sparse-checkout actually materializes it — see `memory/cursor-install.md` there). This file is the always-on root doc for working **in this git repo**. `CLAUDE.md` is a one-line stub that imports it; Cursor reads this file natively. It is an **index, deliberately thin** — always-loaded text is paid for on every turn whether it is relevant or not, so only what has **no retrieval cue** belongs here. See `.cursor-plugin/ultimate-workflow/memory/context-boundary.md` before adding to it.
 
@@ -17,13 +17,19 @@ Full text, with the reasoning behind each: `.cursor-plugin/ultimate-workflow/ski
 
 Understand → **plan** (confirm) → **test plan** (confirm) → **implement** → blocker protocol → **harvest** → **hand off**.
 
-Phase commands: `/ultimate-workflow:plan`, `:tests`, `:build`, `:review`, `:harvest`; `:experts` is the pre-commit expert check. Each runs in a fresh context and stops; only `build` writes. `/handoff` writes a session handoff document and is user-triggered only.
+Entry point: `/ultimate-workflow:feature <request>` runs the whole loop at the right tier. Phase commands: `/ultimate-workflow:plan`, `:tests`, `:build`, `:review`, `:harvest`; `:experts` is the pre-commit expert check. Each runs in a fresh context and stops; only `build` writes. `/handoff` writes a session handoff document and is user-triggered only.
 
 Both confirmation points are real stops. The plan lives on disk as `PLAN-<feature>.md`, which survives a trimmed conversation in a way chat history does not. Favour concision over polish in it.
 
 ## When to skip
 
-Typos and formatting. Single-line fixes with an obvious cause. Pure-doc edits. Trivial renames with no behavioural change. When in doubt, err toward the workflow.
+Three tiers, chosen by `/ultimate-workflow:feature` (or by you when running phases by hand):
+
+- **Skip** -- typos and formatting, single-line fixes with an obvious cause, pure-doc edits, trivial renames with no behavioural change. Just make the change.
+- **Light** -- a small, clear change of a few files with no new module, contract, schema or external service: plan without experts, tests, build, experts check.
+- **Full** -- everything else, and any PRD or new project: plan with experts, tests, build per card, review, experts check, harvest. A PRD runs the bootstrap first, then the full tier once per roadmap milestone.
+
+When in doubt, take the bigger tier.
 
 Equally, do not bog down on a trivial reversible decision: decide, flag it, move on.
 

@@ -222,18 +222,19 @@ test('readState picks the most recently modified PLAN file when several exist', 
 
 // --- escape hatch ----------------------------------------------------------
 
-test('gates are OFF unless explicitly enabled', () => {
-  // v3 demoted these from the enforcement story to a backstop for ad-hoc work.
-  // A default-on mechanism that fails open and invisibly is worse than an
-  // opt-in one somebody chose.
-  assert.equal(state.gatesEnabled({}), false);
-  assert.equal(state.gatesEnabled({ ULTIMATE_WORKFLOW_GATES: '' }), false);
-  assert.equal(state.gatesEnabled({ ULTIMATE_WORKFLOW_GATES: 'off' }), false);
-});
-
-test('gates turn on for any affirmative spelling', () => {
+test('gates are ON unless explicitly switched off (4.1.0)', () => {
+  // On by default again, by decision (2026-10-30): status.js now tells a gate that
+  // never ran from one that is live, and a real run skipped steps without them.
+  assert.equal(state.gatesEnabled({}), true);
+  assert.equal(state.gatesEnabled({ ULTIMATE_WORKFLOW_GATES: '' }), true);
   for (const v of ['on', 'ON', '1', 'true', 'yes']) {
     assert.equal(state.gatesEnabled({ ULTIMATE_WORKFLOW_GATES: v }), true, v);
+  }
+});
+
+test('gates turn off for any negative spelling, and only for those', () => {
+  for (const v of ['off', 'OFF', ' off ', '0', 'false', 'no']) {
+    assert.equal(state.gatesEnabled({ ULTIMATE_WORKFLOW_GATES: v }), false, v);
   }
 });
 

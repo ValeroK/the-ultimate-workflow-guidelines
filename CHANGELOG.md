@@ -10,6 +10,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - **The running-system harness comes first.** When a plan splits the work into cards and a check needs the running system (a browser capture, an integration or end-to-end harness), the plan and test-plan prompts make that harness the first card, so later cards are verified against it. On the CEO dashboard run it was card 3 and found four defects card 2 had already committed.
 - **A recheck cannot drop the experts still on this work.** `prepare` prints `keep` with the last experts check's experts when its snapshot and the current diff share at least one file (decided 2026-10-29), and `review.js` keeps them selected; the recheck can still add. After a commit and an unrelated new change nothing carries over. The changed-only recheck uses the same path.
+- **`prepare` warns when untracked files make up most of a large diff** (`untrackedHeavy`, over 200 KB and half the bytes), naming the biggest, and the review command asks the user whether to ignore them first. On a real install 1.8 MB of capture output was about to be reviewed.
+- **Plan and tests markdown that comes back HTML-escaped is decoded before it is shown or written**, `&amp;` last. Seen on a real install.
+- **Copying a workflow result from the tool's output file with a one-liner is the expected way**, said so in the ledger step, so it is no longer logged as a workaround.
+- **The tests and build commands record their own catches:** each critic gap or expert case that changed the test plan, and each defect the build found. On the first real card all 16 catches were at tests or build, where nothing had asked for them.
 - **One retry for a run that started no agent.** The five phase commands keep "call it once", with one exception: a run that failed before any agent started (an input or argument error) is fixed and run once more, said so and noted in the ledger's workarounds.
 
 ### Added

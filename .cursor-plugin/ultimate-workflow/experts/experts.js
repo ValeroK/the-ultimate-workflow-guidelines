@@ -525,7 +525,7 @@ function workingChanges(cwd) {
     }
     diff += `diff --git a/${p} b/${p}\nnew file\n--- /dev/null\n+++ b/${p}\n${body.split('\n').map((l) => `+${l}`).join('\n')}\n`;
   }
-  return { diff, files: [...new Set(files)] };
+  return { diff, files: [...new Set(files)], untracked };
 }
 
 const sha = (text) => crypto.createHash('sha256').update(text).digest('hex');
@@ -620,6 +620,20 @@ function dependentsOf(cwd, changed, candidates, before, now) {
     if (why) out.push({ file: cand, uses: why.file });
   }
   return out;
+}
+
+const UNTRACKED_HEAVY_BYTES = 200 * 1024;
+const UNTRACKED_HEAVY_SHARE = 0.5;
+
+/** Untracked files that make up most of a large diff, biggest first; null when they do not. */
+function untrackedHeavy(changes) {
+  const total = Buffer.byteLength(changes.diff);
+  if (total < UNTRACKED_HEAVY_BYTES || !(changes.untracked || []).length) return null;
+  const parts = splitByFile(changes.diff);
+  const sizes = changes.untracked.filter((p) => parts.has(p)).map((p) => ({ path: p, bytes: Buffer.byteLength(parts.get(p)) }));
+  const bytes = sizes.reduce((n, x) => n + x.bytes, 0);
+  if (bytes / total < UNTRACKED_HEAVY_SHARE) return null;
+  return { bytes, share: Math.round((bytes / total) * 100) / 100, files: sizes.length, biggest: sizes.sort((a, b) => b.bytes - a.bytes).slice(0, 5) };
 }
 
 /**
@@ -772,6 +786,10 @@ function prepare(cwd, range = 'working', pluginRoot = PLUGIN_ROOT, { delta = fal
   // Computed before this tree's snapshot is saved; only the experts check (range working) narrows.
   const d = delta ? (range === 'working' ? computeDelta(cwd, changes) : { refused: 'a changed-only review needs range working' }) : null;
   const keep = range === 'working' ? keepFromLastCheck(cwd, changes) : null;
+  // Untracked generated output (a capture's run files, a build folder) can swamp the diff the
+  // experts read: 1.8 MB of it on a real install. Say so, and name the biggest, before anyone pays
+  // to review it; ignoring it is the user's call.
+  const heavy = untrackedHeavy(changes);
   saveSnapshot(cwd, hash, changes.diff);
   const available = list(pluginRoot).experts;
   // Skills for every expert that could review, not only the planned ones: the recheck inside the
@@ -797,6 +815,7 @@ function prepare(cwd, range = 'working', pluginRoot = PLUGIN_ROOT, { delta = fal
     ...(d && d.delta ? { delta: d.delta, deltaFile: d.deltaFile } : {}),
     ...(d && d.refused ? { deltaRefused: d.refused } : {}),
     ...(keep ? { keep } : {}),
+    ...(heavy ? { untrackedHeavy: heavy } : {}),
   };
 }
 

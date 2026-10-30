@@ -236,3 +236,20 @@ test('review.js: a full recheck that answers nobody still runs the experts prepa
   assert.match(calls.find((c) => c.label === 'frontend').prompt, /saved at \.ultimate-workflow\/review\.diff/, 'a full review reads the full diff');
   assert.deepStrictEqual(result.expertLane.selected, ['frontend']);
 });
+
+test('prepare warns when untracked files make up most of a large diff, and names the biggest; a normal diff gets no warning', () => {
+  const dir = card();
+  assert.equal(ex.prepare(dir, 'working', PLUGIN).untrackedHeavy, undefined);
+  write(path.join(dir, '.capture', 'run1.json'), JSON.stringify({ rows: 'x'.repeat(300 * 1024) }));
+  write(path.join(dir, '.capture', 'run2.json'), JSON.stringify({ rows: 'y'.repeat(10 * 1024) }));
+  const p = ex.prepare(dir, 'working', PLUGIN);
+  assert.equal(p.untrackedHeavy.files, 2);
+  assert.equal(p.untrackedHeavy.biggest[0].path, '.capture/run1.json');
+  assert.ok(p.untrackedHeavy.share > 0.9);
+});
+
+test('plan and tests commands decode HTML-escaped markdown before writing it', () => {
+  for (const c of ['plan.md', 'tests.md']) {
+    assert.match(fs.readFileSync(path.join(PLUGIN, 'commands', c), 'utf8'), /HTML-escaped .* decode those five before showing or writing it, `&amp;` last/, c);
+  }
+});

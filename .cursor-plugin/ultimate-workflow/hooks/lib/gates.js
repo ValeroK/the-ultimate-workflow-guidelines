@@ -147,7 +147,7 @@ function preEditGate(state, input) {
  * Steps aside once the run has escalated, because at that point the human is
  * being asked to decide, not to run tests again.
  */
-function stopGate(state) {
+function stopGate(state, opts = {}) {
   const { stage, data } = state;
   if (stage === 'none') return ALLOW;
   if (data.escalated === true) return ALLOW;
@@ -161,9 +161,34 @@ function stopGate(state) {
   const cmd = data.test_command || data.build_command;
   if (!cmd) return ALLOW;
 
-  return deny(
-    `Gate G3: source changed since the last green verification. Run \`${cmd}\` and get it passing before ending the turn.`
-  );
+  // The plugin's verify.js runs only the tests related to the change, or the full suite when the
+  // narrow run cannot be trusted; any passing run of it clears this gate (4.1.1).
+  const how = opts.verifyScript
+    ? `Run \`${opts.verifyScript}\` (the tests related to your changes, or the full suite when it must) and get it passing before ending the turn.`
+    : `Run \`${cmd}\` and get it passing before ending the turn.`;
+  return deny(`Gate G3: source changed since the last green verification. ${how}`);
+}
+
+/**
+ * G7 -- no commit until a passing full test run covers these exact changes (4.1.1).
+ *
+ * While working, G3 accepts the related tests; the full suite runs once, here. `ev` is gathered
+ * by verify.fullEvidence: the fingerprint of the uncommitted changes and the last full run's
+ * record. Any edit after the run changes the fingerprint. Docs-only and empty commits come with
+ * `skip`. No test_command: nothing to run, so it steps aside, like G3.
+ */
+function fullSuiteGate(state, ev, script) {
+  // Feature work only, like G6's plan check: at bootstrap the gates write their state into PRD.md,
+  // which is part of the fingerprinted changes, so a record could never be current there.
+  if (!state || state.stage !== 'feature') return ALLOW;
+  const cmd = state.data && state.data.test_command;
+  if (!cmd || !ev || ev.skip) return ALLOW;
+  const run = script ? `\`${script} --full\`` : `\`${cmd}\``;
+  const r = ev.record;
+  const full = r && r.mode === 'full' && r.passed === true;
+  if (full && r.fingerprint === ev.hash) return ALLOW;
+  if (full) return deny(`Gate G7: the changes have changed since the last passing full test suite run. Run ${run} once, then commit again.`);
+  return deny(`Gate G7: no passing full test suite run covers these changes (only related tests ran, or none, or the last full run failed). Run ${run} once, then commit again.`);
 }
 
 /**
@@ -299,6 +324,7 @@ module.exports = {
   stopGate,
   isCommitCommand,
   commitGate,
+  fullSuiteGate,
   roundCap,
   phasePointer,
 };

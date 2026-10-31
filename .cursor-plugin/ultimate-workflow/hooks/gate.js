@@ -20,6 +20,11 @@ const { dispatch } = require('./lib/dispatch.js');
 const heartbeat = require('./lib/heartbeat.js');
 const gatesLib = require('./lib/gates.js');
 const experts = require('../experts/experts.js');
+const verify = require('./verify.js');
+
+// How the gates' messages name the runner: forward slashes work for node on every OS, and
+// keep a Windows path from reaching a JSON string with bare backslashes.
+const VERIFY_SCRIPT = `node "${path.join(__dirname, 'verify.js').replace(/\\/g, '/')}"`;
 
 function readStdin() {
   return new Promise((resolve) => {
@@ -76,18 +81,38 @@ async function main() {
   // Reading the working tree is not free, so the commit evidence is gathered only
   // for the one event that needs it. Any failure leaves it undefined, which allows.
   let commitEvidence;
+  let verifyEvidence;
   if (ev.event === 'preTool' && ev.tool === 'shell' && gatesLib.isCommitCommand(ev.command)) {
     try {
       commitEvidence = experts.commitEvidence(cwd, state.file && state.stage === 'feature' ? state.file : '');
     } catch {
       commitEvidence = undefined;
     }
+    if (state.data.test_command) {
+      try {
+        verifyEvidence = verify.fullEvidence(cwd);
+      } catch {
+        verifyEvidence = undefined;
+      }
+    }
   }
 
   const result = dispatch(ev, state, {
     workflowsAvailable: workflowsAvailable(cwd, process.env),
     commitEvidence,
+    verifyEvidence,
+    verifyScript: VERIFY_SCRIPT,
   });
+
+  // A full run of the configured command typed directly (not through verify.js, which records
+  // its own) is recorded for G7, passing or failing, against the changes as they are now.
+  if (result.verified && result.verified.kind === 'full' && state.data.test_command && !/hooks[\\/]verify\.js\b/.test(ev.command || '')) {
+    try {
+      verify.recordFull(cwd, { passed: result.verified.passed, command: String(ev.command) });
+    } catch {
+      // Not recorded means the commit asks for a full run again; never a block from here.
+    }
+  }
 
   if (result.patch && state.file) {
     try {

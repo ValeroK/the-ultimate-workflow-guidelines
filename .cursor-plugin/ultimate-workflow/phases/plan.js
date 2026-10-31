@@ -236,7 +236,7 @@ ${failed.length ? `\nNOTE: these readers failed and their ground is uncovered: $
 
 Produce the complete plan document as markdown, following this shape:
 
-- YAML front matter: phase, plan_confirmed (false), tests_confirmed (false), test_command (the project's real verification command if the readers found one, otherwise empty), verify_rounds (0), last_verify (unrun), dirty (false), escalated (false)
+- YAML front matter: phase, plan_confirmed (false), tests_confirmed (false), test_command (the project's real full verification command if the readers found one, otherwise empty), test_related_command (the same runner narrowed to the changed code, with {files} for the changed files or {tests} for the test files that use them, when the runner supports it: for example \`npx vitest related --run {files}\`, \`npx jest --findRelatedTests {files}\`, \`pytest {tests}\`, \`node --test {tests}\`; otherwise empty, and every run is the full suite), full_suite_paths (empty unless the readers found shared code whose change should always run the full suite: comma-separated globs), verify_rounds (0), last_verify (unrun), dirty (false), escalated (false)
 - Feature description and goal
 - Goal / success criteria, in verifiable terms
 - Files explored, as a table of path and why it matters

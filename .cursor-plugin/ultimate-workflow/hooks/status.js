@@ -20,6 +20,7 @@ const gates = require('./lib/gates.js');
 const heartbeat = require('./lib/heartbeat.js');
 const fs = require('node:fs');
 const expertsLib = require('../experts/experts.js');
+const verify = require('./verify.js');
 
 const out = [];
 const say = (s = '') => out.push(s);
@@ -61,6 +62,21 @@ function expertsReport(cwd, state) {
  * to survive the failure too, or every consumer reading `blocking.blocked` gets
  * `undefined` on the one path that needed it.
  */
+/**
+ * The last full test run, for G7 (4.1.1): 'never', 'fresh' (passed, at the current changes),
+ * 'stale' (passed, but the changes moved since), 'failed', or 'n/a' (no test_command, or nothing
+ * that needs one: docs-only or no changes).
+ */
+function fullVerifyReport(cwd, state) {
+  if (state.stage === 'none' || !state.data.test_command) return 'n/a';
+  const ev = verify.fullEvidence(cwd);
+  if (ev.skip) return 'n/a';
+  const r = ev.record;
+  if (!r || r.mode !== 'full') return 'never';
+  if (r.passed !== true) return 'failed';
+  return r.fingerprint === ev.hash ? 'fresh' : 'stale';
+}
+
 function report(cwd, env) {
   const disabled = stateLib.gatesDisabled(env);
   const liveness = heartbeat.liveness(heartbeat.read(cwd), { disabled });
@@ -84,6 +100,7 @@ function report(cwd, env) {
       blocking: { blocked: reason !== null, reason },
       experts: expertsReport(cwd, state),
       g3Active: state.stage !== 'none' && Boolean(state.data.test_command || state.data.build_command),
+      fullVerify: fullVerifyReport(cwd, state),
     };
   } catch (err) {
     return {
@@ -94,6 +111,7 @@ function report(cwd, env) {
       blocking: { blocked: false, reason: null },
       experts: null,
       g3Active: false,
+      fullVerify: 'n/a',
       error: err && err.message ? err.message : 'unknown error',
     };
   }
@@ -153,6 +171,17 @@ function reportState(r) {
     say(`         available: ${e.available.join(', ') || 'none'}`);
     if (e.openFindings > 0) say(`         open high-confidence findings: ${e.openFindings} (node experts/experts.js findings)`);
     say(`         commit: ${e.commit.allowed ? 'allowed now' : `BLOCKED -- ${e.commit.reason}`}`);
+  }
+
+  if (r.fullVerify && r.fullVerify !== 'n/a') {
+    const says = {
+      never: 'NONE yet for these changes -- a commit is blocked by G7 until `node hooks/verify.js --full` passes',
+      fresh: 'passed, and covers the current changes',
+      stale: 'passed, but the changes moved since -- a commit is blocked by G7 until it runs again',
+      failed: 'FAILED -- a commit is blocked by G7 until it passes',
+    };
+    say('');
+    say(`Full test run: ${says[r.fullVerify]}`);
   }
 
   // G3 cannot fire without a command to verify with, and the shipped plan

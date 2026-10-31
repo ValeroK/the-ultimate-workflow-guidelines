@@ -12,10 +12,26 @@ Lifecycle hooks read a small YAML block at the top of `PRD.md` or `PLAN-<feature
 |---|---|
 | G1 | No source edit before the plan is confirmed |
 | G2 | No implementation before the tests are confirmed — test files exempt, that is the point |
-| G3 | No finishing a turn with unverified changes |
+| G3 | No finishing a turn with unverified changes. The related tests are enough (`node hooks/verify.js`); so is the full `test_command` |
 | G4 | Three failed verification rounds escalates to you |
 | G5 | One line per prompt naming the current stage, so it survives a trimmed history |
 | G6 | No source edit until the plan records which domain experts apply (`experts: []` counts), and no `git commit` until the experts have re-checked and reviewed the current changes. A high-confidence expert finding blocks it until fixed or dismissed by the user |
+| G7 | No `git commit` until a passing FULL test run covers the current changes (`node hooks/verify.js --full`, or `test_command` typed whole). An edit after the run makes it stale; docs-only and empty commits are exempt; feature work only (a `PLAN-*.md`); no `test_command`, no check |
+
+### Which tests run when (4.1.1)
+
+Until 4.1.1, G3 asked for the whole suite at the end of every turn, so a one-line change waited for every test. Now `node hooks/verify.js` decides from the uncommitted changes:
+
+| Situation | What runs |
+|---|---|
+| While working (G3, each build round) | Only the tests related to the change: `test_related_command` from the plan, with `{files}` (the changed files) or `{tests}` (the changed test files and the tests that import or use a changed file) |
+| No `test_related_command`, a template with neither placeholder, no git, or no related test found | The full suite (as before 4.1.1) |
+| A manifest or lockfile, compiler or test-runner config, test setup, CI file, a path in `full_suite_paths`, or more than 20 files changed | The full suite |
+| The end of a build | The full suite, once (`verify.js --full`); the build's round is green only if it passed |
+| Before a commit (G7) | A passing full run must exist at the current fingerprint of the changes |
+| Only documentation changed | Nothing |
+
+Only a real full run counts for G7: `verify.js --full`, or `test_command` as the whole last command (after `cd x &&`). `npm test -- one.test.ts` or `npm test | tail` narrow or mask the run, so they clear G3 but never G7. The model never passes a file list: the changed files come from git. Examples of `test_related_command`: `npx vitest related --run {files}`, `npx jest --findRelatedTests {files}`, `pytest {tests}`, `node --test {tests}`.
 
 They are **completely inert** in a repo with no `PRD.md` and no `PLAN-*.md`, so trivial work in an unmanaged project is never blocked. They fail open: an internal error blocks nothing.
 
@@ -66,6 +82,7 @@ Exit is always 0, blocking or not, so it stays usable under `set -e`.
   "state":    { "plan_confirmed": false },   // the plan's front matter, present keys only
   "blocking": { "blocked": true, "reason": "Gate G1: ..." },
   "g3Active": true,
+  "fullVerify": "never|fresh|stale|failed|n/a", // the last full test run, for G7
   "experts":  {                              // null outside a feature
     "decided": true, "selected": ["security"], "available": ["architect", "developer", "quality", "security", "softarch"],
     "openFindings": 0,                       // high-confidence findings still open

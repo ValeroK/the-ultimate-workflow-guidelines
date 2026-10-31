@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.1] - 2026-10-31
+
+### Changed
+
+- **The tests the change needs, not the whole suite after every edit.** Since 4.1.0 turned the gates on, G3 asked for the full `test_command` at the end of every turn, and each build round ran it too, so a one-line change waited for every test. `node hooks/verify.js` now decides from the uncommitted changes: only the related tests (`test_related_command` in the plan, with `{files}` or `{tests}`) while working; the full suite when there is no related command, no git or no related test, when a manifest, lockfile, compiler or runner config, test setup, CI file or a `full_suite_paths` path changed, or more than 20 files did. G3 accepts a passing related run. The build's rounds run it, and a round is green only after one full run passes (`verify.js --full`). The plan proposes `test_related_command`; a plan without it behaves as before. `hooks/lib/selection.js`, `hooks/verify.js`.
+- **`npm test -- one.test.ts` no longer counts as the full suite.** The verify command was matched by substring; now only `verify.js --full`, or `test_command` as the whole last command, is a full run (`dispatch.verifyKind`).
+
+### Added
+
+- **G7: no commit until a passing full test run covers the current changes.** The full suite runs once here instead of at every turn end. A full run is recorded with the fingerprint of the changes in `.ultimate-workflow/verify.json`; an edit after it makes it stale. Docs-only and empty commits are exempt (a `requirements.txt` change is not docs); no `test_command`, no check. `status.js` shows `fullVerify` (never, fresh, stale, failed). Tests: `hooks/lib/selection.test.js`, `hooks/verify.test.js`, `dispatch.test.js`, `status.test.js`, `evals/experts/stage-script.test.js`, each safeguard mutation-checked.
+
 ## [4.1.0] - 2026-10-30
 
 ### Changed

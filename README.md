@@ -233,7 +233,7 @@ Claude Code can run the five commands as real scripts, so the ordering is guaran
 
 Cursor keeps most of what matters: separate jobs, clean context each time, and only one of them able to write. What it loses is the guarantee, and its rule file says so plainly rather than implying otherwise.
 
-There's an enforcement layer for Claude Code — hooks that block an edit before the plan is confirmed, a commit before the domain experts have reviewed it, and so on. It's **on by default** since 4.1.0 (`ULTIMATE_WORKFLOW_GATES=off` turns it off) and does nothing in a repo with no `PRD.md` or `PLAN-*.md`; details and the honest limits are in **[docs/gates.md](docs/gates.md)**.
+There's an enforcement layer for Claude Code — hooks that block an edit before the plan is confirmed, a commit before the domain experts have reviewed it or before a full test run covers it, and so on. While working, only the tests related to the change run; the full suite runs at the end of a build and before a commit. It's **on by default** since 4.1.0 (`ULTIMATE_WORKFLOW_GATES=off` turns it off) and does nothing in a repo with no `PRD.md` or `PLAN-*.md`; details and the honest limits are in **[docs/gates.md](docs/gates.md)**.
 
 ## Layout
 

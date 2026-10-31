@@ -124,6 +124,7 @@ Existing project:         /ultimate-workflow:feature <what you want>           -
 
 - They act only in a folder that has a `PRD.md` or a `PLAN-*.md`.
 - There, Claude cannot edit code before you confirm the plan, or commit before the experts check passes.
+- While Claude works, only the tests related to the change run. The full suite runs once at the end of a build and once before each commit, and whenever config, a lockfile or many files changed. Set `test_related_command` in the plan (it proposes one) to get this; without it every run is the full suite.
 - A block message names the step to run; normally `feature` has already run it.
 - Turn them off: set `ULTIMATE_WORKFLOW_GATES=off`.
 - Check they are working: `node hooks/status.js` in the plugin folder says `live`.

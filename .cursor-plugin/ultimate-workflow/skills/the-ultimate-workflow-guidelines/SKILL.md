@@ -163,7 +163,8 @@ They read a small YAML front-matter block at the top of `PRD.md` (bootstrap) or 
 
 - No source edit lands before `plan_confirmed: true`.
 - No implementation lands before `tests_confirmed: true`. Test files are exempt -- that is the point.
-- A turn cannot end while source has changed since the last green verification. Set `test_command` in the front matter so the gate can name it when it blocks.
+- A turn cannot end while source has changed since the last green verification. The tests related to the change are enough: `node hooks/verify.js` runs them (from `test_related_command`), or the full `test_command` when config, a lockfile or more than 20 files changed, or no related test is found.
+- No `git commit` until a passing full run (`node hooks/verify.js --full`) covers the current changes (G7). The full suite runs there, and once at the end of a build, not after every edit.
 - Three failing verification rounds escalate to the user through the blocker protocol in step 5.
 - No source edit before the plan records which domain experts apply, and no `git commit` until they have reviewed the current changes (`/ultimate-workflow:experts`) with no high-confidence finding left open.
 

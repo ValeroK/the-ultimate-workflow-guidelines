@@ -47,6 +47,8 @@ Cursor has subagents but no scriptable orchestrator, so the phases are invoked r
 
 Hold the sequence yourself: wait for every parallel agent before synthesising, stop at both confirmation points, and stop after three failed verification rounds rather than trying a fourth.
 
+Run the tests the change needs: while iterating, only the tests related to the changed files; the full suite once when the work is done and before every commit, and whenever config, a lockfile, test setup or many files changed. When unsure, run the full suite.
+
 ## When to skip
 
 Three tiers, chosen by `/ultimate-workflow:feature` (or by you when running phases by hand):

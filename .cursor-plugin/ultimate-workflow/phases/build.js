@@ -35,6 +35,9 @@ const agentName = (name) => (String(name).includes(':') ? name : AGENT_NAMESPACE
 const ROUND_CAP = 3
 const planFile = (args && args.plan) || ''
 const command = (args && args.command) || ''
+// 4.1.1: the plugin's verify.js, set by experts.js script when the plan names its test_command.
+// Each round runs the tests related to the change; at green, the full suite once.
+const verify = (args && typeof args.verify === 'string' && args.verify.trim()) || ''
 // Standing briefs from the experts that declare the build stage, found by the command in code
 // (this script cannot read files) and passed in as [{ name, text }]. Anything malformed is dropped,
 // not guessed at.
@@ -79,6 +82,7 @@ const BUILT = {
     notDone: { type: 'array', items: { type: 'string' }, description: 'Deliberately left undone, and why' },
     noticed: { type: 'array', items: { type: 'string' }, description: 'Worth a later change; not done now' },
     failureOutput: { type: 'string', description: 'Verbatim, when not green' },
+    fullSuiteGreen: { type: 'boolean', description: 'True only if the full run (verify --full) was run after the last change and passed' },
     summary: { type: 'string' },
   },
 }
@@ -172,7 +176,11 @@ while (round < ROUND_CAP) {
   const attempt = await agent(
     `${locate} ${EXPERT_NOTE}${BRIEF}
 
-Write the minimal implementation that makes the tests pass. Run \`${testCommand}\` and report whether it is green.
+Write the minimal implementation that makes the tests pass. ${
+  verify
+    ? `After each change run \`${verify}\`: it runs the tests related to what you changed, or the full suite when the change needs it, and says which. Do not run the full suite by hand while iterating. When it passes, run \`${verify} --full\` once. Report green only if that full run passed after your last change, and set fullSuiteGreen to say so.`
+    : `Run \`${testCommand}\` and report whether it is green.`
+}
 ${
   diagnosis
     ? `\nThis is attempt ${round}. A previous attempt failed and a fresh reader diagnosed it:\n${JSON.stringify(diagnosis, null, 2)}\n\nUse that diagnosis. Do not re-derive it, and do not repeat the fix that already failed.`
@@ -193,9 +201,11 @@ When not green, include the failure output verbatim.`,
   }
 
   last = attempt
-  history.push({ round, green: attempt.green, summary: attempt.summary })
+  // With verify.js, green means the full suite passed at the end, not only the related tests.
+  const green = attempt.green === true && (!verify || attempt.fullSuiteGreen === true)
+  history.push({ round, green, summary: attempt.summary, ...(attempt.green && !green ? { note: 'reported green without a passing full run' } : {}) })
 
-  if (attempt.green) {
+  if (green) {
     log(`Green on round ${round}`)
     return {
       ok: true,
@@ -223,7 +233,7 @@ When not green, include the failure output verbatim.`,
     `An implementation attempt failed. Diagnose it from the evidence, nothing else.
 
 FAILURE OUTPUT
-${attempt.failureOutput || '(none captured)'}
+${attempt.failureOutput || (attempt.green ? 'The round reported green but no passing full run (verify --full) after its last change.' : '(none captured)')}
 
 WHAT WAS CHANGED
 ${JSON.stringify(attempt.filesChanged, null, 2)}

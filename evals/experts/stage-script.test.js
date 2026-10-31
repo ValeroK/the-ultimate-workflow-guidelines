@@ -128,3 +128,45 @@ test('the five phase commands allow one retry only for a run that started no age
     assert.match(fs.readFileSync(path.join(PLUGIN, 'commands', `${c}.md`), 'utf8'), sentence, c);
   }
 });
+
+// 4.1.1: related tests while iterating, the full suite once at green.
+test('T24 build: with a test_command the rounds run verify.js and --full at green; green needs the full run', async () => {
+  const dir = tmp();
+  fs.writeFileSync(path.join(dir, 'PLAN-x.md'), '---\ntest_command: npm test\n---\n# plan\n');
+  const g = put(dir, 'build.args.json', { plan: 'PLAN-x.md', verify: 'echo injected' });
+  const r = cli(dir, 'script', '--phase', 'build', '--args-file', g, '--file', `briefs=${put(dir, 'briefs.json', [])}`);
+  assert.equal(r.status, 0, r.stderr);
+  const text = fs.readFileSync(JSON.parse(r.stdout).scriptPath, 'utf8');
+  const embedded = JSON.parse(/const EMBEDDED_ARGS = (.*)/.exec(text)[1]);
+  assert.match(embedded.verify, /^node ".*\/hooks\/verify\.js" --plan "PLAN-x\.md"$/, 'chosen in code, a typed one replaced');
+  assert.ok(!embedded.verify.includes('\\'), 'forward slashes only');
+
+  const build = path.join(PLUGIN, 'phases', 'build.js');
+  const wrote = { filesWritten: ['a.test.js'], testsFailAsExpected: true, testCommand: 'npm test', summary: 's' };
+  const run = async (attempt) => loadWorkflow(build)({ plan: 'PLAN-x.md', verify: embedded.verify, briefs: [] }, async (c) => {
+    if (c.label === 'write-tests') return wrote;
+    if (c.label.startsWith('attempt-')) return attempt;
+    if (c.label.startsWith('diagnose-')) return { cause: 'c', signature: 'same', suggestedFix: 'f', confidence: 'high' };
+    return null;
+  });
+  const ok = await run({ green: true, fullSuiteGreen: true, filesChanged: ['a.js'], summary: 's' });
+  assert.equal(ok.result.green, true);
+  assert.match(ok.calls.find((c) => c.label === 'attempt-1').prompt, /--full\` once/);
+  const narrow = await run({ green: true, fullSuiteGreen: false, filesChanged: ['a.js'], summary: 's' });
+  assert.notEqual(narrow.result.green, true, 'related-only green is not green');
+
+  // no test_command in the plan: no verify, the old full command each round
+  fs.writeFileSync(path.join(dir, 'PLAN-x.md'), '---\nplan_confirmed: true\n---\n');
+  const r2 = cli(dir, 'script', '--phase', 'build', '--args-file', g, '--file', `briefs=${put(dir, 'briefs.json', [])}`);
+  const e2 = JSON.parse(/const EMBEDDED_ARGS = (.*)/.exec(fs.readFileSync(JSON.parse(r2.stdout).scriptPath, 'utf8'))[1]);
+  assert.equal(e2.verify, undefined);
+});
+
+test('T25 the plan prompt asks for test_related_command; the template carries both new keys', async () => {
+  const respond = async (c) => (c.label === 'synthesise' ? null : { slice: 's', patterns: [], reusable: [], constraints: [], notCovered: 'n' });
+  const p = await loadWorkflow(path.join(PLUGIN, 'phases', 'plan.js'))({ feature: 'x', available: [], skills: {} }, respond);
+  assert.match(p.calls.find((c) => c.label === 'synthesise').prompt, /test_related_command .*\{files\}.*\{tests\}/);
+  const tpl = fs.readFileSync(path.join(PLUGIN, 'skills', 'the-ultimate-workflow-guidelines', 'references', 'plan-template.md'), 'utf8');
+  assert.match(tpl, /^test_related_command: ""$/m);
+  assert.match(tpl, /^full_suite_paths: ""$/m);
+});

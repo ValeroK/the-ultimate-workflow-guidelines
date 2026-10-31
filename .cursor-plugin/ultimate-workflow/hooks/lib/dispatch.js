@@ -9,14 +9,30 @@ const { canBlockWrite } = require('./adapters.js');
 
 const WRITE_TOOLS = new Set(['write', 'edit', 'multiedit']);
 
-/** Did this shell command run the project's verification? */
-function isVerifyCommand(command, state) {
+const VERIFY_SCRIPT = /hooks[\\/]verify\.js\b/;
+const reEscape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * What kind of verification this shell command ran: 'full', 'related' or null (none).
+ *
+ * Full is only the plugin's `verify.js --full`, or the configured command as the whole of the
+ * last simple command (after `cd x &&` and the like), with nothing appended. Anything else that
+ * contains the configured command -- `npm test -- one.test.ts`, `npm test 2>&1 | tail` -- narrows
+ * or masks the run and is related: it still clears G3, never the commit check. Until 4.1.1 every
+ * such run counted as the whole suite, because this was a bare substring match.
+ */
+function verifyKind(command, state) {
   const cmd = String(command || '').trim();
-  if (!cmd) return false;
-  const configured = state.data.test_command || state.data.build_command;
-  if (!configured) return false;
-  // Substring rather than equality: agents wrap commands in cd, &&, and quotes.
-  return cmd.includes(String(configured).trim());
+  if (!cmd) return null;
+  if (VERIFY_SCRIPT.test(cmd)) return /(^|\s)--full(\s|$)/.test(cmd) ? 'full' : 'related';
+  const configured = String(state.data.test_command || state.data.build_command || '').trim();
+  if (!configured || !cmd.includes(configured)) return null;
+  return new RegExp(`(^|&&|;|\\|\\||\\()\\s*${reEscape(configured)}\\s*\\)?\\s*$`).test(cmd) ? 'full' : 'related';
+}
+
+/** Did this shell command run the project's verification, whole or narrowed? */
+function isVerifyCommand(command, state) {
+  return verifyKind(command, state) !== null;
 }
 
 // A `looksLikeShellWrite` heuristic used to live here, marking the tree dirty
@@ -45,8 +61,13 @@ function dispatch(ev, state, opts = {}) {
   if (!ev || !ev.event) return allow;
   if (state.stage === 'none') return allow;
 
-  // --- G6: no commit before the domain experts have reviewed these changes --
+  // --- G7, G6: no commit before a full test run, and before the experts, cover these changes --
   if (ev.event === 'preTool' && ev.tool === 'shell' && gates.isCommitCommand(ev.command)) {
+    const tests = gates.fullSuiteGate(state, opts.verifyEvidence, opts.verifyScript);
+    if (!tests.allow) {
+      if (!canBlockWrite(ev.vendor)) return { kind: 'allow', note: 'detect-only on this vendor', reason: tests.reason };
+      return { kind: 'deny', reason: tests.reason };
+    }
     // The evidence is gathered by the entry point, only for a commit, because it
     // reads the working tree. Without it there is nothing to judge, so allow.
     if (!opts.commitEvidence) return allow;
@@ -92,7 +113,8 @@ function dispatch(ev, state, opts = {}) {
   if ((ev.event === 'postTool' || ev.event === 'postToolFailure') && ev.tool === 'shell') {
     // Any other shell command is left alone. See the note above on why guessing
     // whether one wrote a file was abandoned.
-    if (!isVerifyCommand(ev.command, state)) return allow;
+    const kind = verifyKind(ev.command, state);
+    if (!kind) return allow;
 
     // Pass or fail must come from every signal available, not from the event
     // name alone.
@@ -111,15 +133,17 @@ function dispatch(ev, state, opts = {}) {
     // now means failure.
     const passed = !(ev.event === 'postToolFailure' || opts.failed === true || ev.ok === false);
     const result = gates.roundCap(state, { passed });
+    const verified = { kind, passed };
 
     if (result.escalated && !result.alreadyEscalated) {
       return {
         kind: 'context',
         patch: result.patch,
+        verified,
         text: `[ultimate-workflow] Verification failed ${result.patch.verify_rounds} times. Stop here. State the problem, what changed between rounds, and the failure signature; present 2-3 options with tradeoffs; wait for the user.`,
       };
     }
-    return { kind: 'allow', patch: result.patch };
+    return { kind: 'allow', patch: result.patch, verified };
   }
 
   // --- G3: stop ------------------------------------------------------------
@@ -129,7 +153,7 @@ function dispatch(ev, state, opts = {}) {
     // which burns the loop_limit and pesters the user.
     if (ev.status && ev.status !== 'completed') return allow;
 
-    const verdict = gates.stopGate(state);
+    const verdict = gates.stopGate(state, { verifyScript: opts.verifyScript });
 
     // A recorded violation is checked BEFORE stopGate's verdict, not after it.
     //
@@ -165,4 +189,4 @@ function dispatch(ev, state, opts = {}) {
   return allow;
 }
 
-module.exports = { dispatch, isVerifyCommand };
+module.exports = { dispatch, isVerifyCommand, verifyKind };

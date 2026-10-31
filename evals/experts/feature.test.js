@@ -72,3 +72,15 @@ test('no doc still says the gates are opt-in or off by default', () => {
   }
   assert.match(read('docs/gates.md'), /\*\*on by default\*\*/);
 });
+
+// 4.1.1: related tests while working, the full suite at the end of a build and before a commit.
+test('T26 the docs say related tests while working and a full run before a commit (G7)', () => {
+  const gatesDoc = read('docs/gates.md');
+  assert.match(gatesDoc, /^\| G7 \| No `git commit` until a passing FULL test run/m);
+  assert.match(gatesDoc, /^\| G3 \| .*related tests are enough/m);
+  assert.match(gatesDoc, /^### Which tests run when/m);
+  assert.match(read(P + 'skills/the-ultimate-workflow-guidelines/SKILL.md'), /verify\.js --full/);
+  assert.match(read(P + 'rules/the-ultimate-workflow-guidelines.mdc'), /only the tests related to the changed files; the full suite once/);
+  assert.match(read('HOW-TO-USE.md'), /test_related_command/);
+  assert.match(read(P + 'skills/the-ultimate-workflow-guidelines/references/plan-template.md'), /test_related_command/);
+});

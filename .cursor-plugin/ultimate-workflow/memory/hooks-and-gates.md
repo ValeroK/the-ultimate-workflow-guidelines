@@ -31,6 +31,7 @@ Seven of the nine defects found while building the gates were in the vendor wire
 
 ## Common operations
 
+- **G3 takes the related tests; G7 takes only a real full run (4.1.1).** `verify.js` picks related or full (`hooks/lib/selection.js`, pure) and records a full run, passing or failing, in `.ultimate-workflow/verify.json` with the fingerprint of the uncommitted changes; G7 compares it at commit, beside G6, with G6's exemptions. `dispatch.verifyKind` decides what a shell command was: full only for `verify.js --full` or `test_command` as the whole last simple command; before 4.1.1 `isVerifyCommand` was a bare substring match, so `npm test -- one.test.ts` counted as the whole suite. A full `test_command` typed directly is recorded by `gate.js` on PostToolUse. `requirements.txt` ends in a documentation extension: the config check runs before the docs filter, and G7 does not treat it as docs-only.
 - **Check the gates are live:** `node hooks/status.js`, as its own shell command. Run in the same command as the test suite it shows stale state, because the verify gate's `PostToolUse` fires only after the whole command completes.
 - **Qualify a new host:** register `hooks/dev/record.js`, run a real session that reads, writes, and fails a command, then write the adapter against the captured fixtures. Use `hooks/dev/deny-probe.js` to check whether a pre-tool deny is actually honoured for writes before claiming preventive gates.
 

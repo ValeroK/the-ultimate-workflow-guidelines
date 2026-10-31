@@ -40,6 +40,7 @@ const crypto = require('node:crypto');
 const { spawnSync } = require('node:child_process');
 
 const gates = require('../hooks/lib/gates.js');
+const stateLib = require('../hooks/lib/state.js');
 
 const PLUGIN_ROOT = path.join(__dirname, '..');
 const STAGES = ['plan', 'tests', 'review'];
@@ -1014,6 +1015,21 @@ function stageScript(pluginRoot, cwd, phaseName, { argsFile = '', files = [], me
     if (!v || typeof v !== 'object' || Array.isArray(v)) throw new Error(`${argsFile} must hold a JSON object`);
     Object.assign(args, v);
   }
+  // 4.1.1: the build's rounds run the related tests and one full run at green, through the
+  // plugin's verify.js, when the plan names its test_command. Chosen here, in code, so a model
+  // never types the path (and a Windows path never reaches a JSON string with bare backslashes).
+  if (phaseName === 'build') {
+    delete args.verify;
+    const planRel = typeof args.plan === 'string' ? args.plan : '';
+    let data = {};
+    try {
+      if (planRel) data = stateLib.parseFrontMatter(fs.readFileSync(path.resolve(cwd, planRel), 'utf8')).data;
+    } catch {}
+    if (data.test_command) {
+      const fwd = (p) => p.replace(/\\/g, '/');
+      args.verify = `node "${fwd(path.join(pluginRoot, 'hooks', 'verify.js'))}" --plan "${fwd(planRel)}"`;
+    }
+  }
   const text = fs.readFileSync(src, 'utf8');
   const meta = /^export const meta = \{[\s\S]*?^\}\r?\n/m.exec(text);
   if (!meta || meta.index !== 0) throw new Error(`phases/${phaseName}.js does not start with its meta block`);
@@ -1190,6 +1206,7 @@ module.exports = {
   fingerprint,
   prepare,
   splitByFile,
+  dependentsOf,
   computeDelta,
   keepFromLastCheck,
   stageScript,

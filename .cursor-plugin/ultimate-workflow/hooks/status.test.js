@@ -181,7 +181,7 @@ test('status writes nothing at all', () => {
 // allowed only by editing that plan and the key-set test below in one commit.
 
 // `experts` was added with the G6 commit gate: additive, null outside a feature.
-const JSON_KEYS = ['blocking', 'experts', 'file', 'g3Active', 'liveness', 'stage', 'state'];
+const JSON_KEYS = ['blocking', 'experts', 'file', 'fullVerify', 'g3Active', 'liveness', 'stage', 'state'];
 
 function frontMatter(lines) {
   return `---\n${lines.join('\n')}\n---\n`;
@@ -594,4 +594,24 @@ test('the human report says when the experts decision is missing, because that i
   const out = runStatus(dir).stdout;
   assert.match(out, /Experts:/);
   assert.match(out, /NO DECISION/);
+});
+
+test('T23 --json reports the last full test run: n/a, never, fresh, stale', () => {
+  const dir = tmpdir();
+  const g = (...a) => spawnSync('git', a, { cwd: dir, encoding: 'utf8' });
+  g('init', '-q');
+  g('config', 'user.email', 't@t');
+  g('config', 'user.name', 't');
+  fs.writeFileSync(path.join(dir, 'a.js'), 'x\n');
+  g('add', '-A');
+  g('commit', '-q', '-m', 'init');
+  fs.writeFileSync(path.join(dir, 'PLAN-x.md'), '---\nplan_confirmed: true\ntests_confirmed: true\n---\n');
+  assert.equal(runJson(dir).json.fullVerify, 'n/a', 'no test_command');
+  fs.writeFileSync(path.join(dir, 'PLAN-x.md'), '---\nplan_confirmed: true\ntests_confirmed: true\ntest_command: node -v\n---\n');
+  fs.appendFileSync(path.join(dir, 'a.js'), 'y\n');
+  assert.equal(runJson(dir).json.fullVerify, 'never');
+  spawnSync(process.execPath, [path.join(__dirname, 'verify.js'), '--full'], { cwd: dir, encoding: 'utf8' });
+  assert.equal(runJson(dir).json.fullVerify, 'fresh');
+  fs.appendFileSync(path.join(dir, 'a.js'), 'z\n');
+  assert.equal(runJson(dir).json.fullVerify, 'stale');
 });

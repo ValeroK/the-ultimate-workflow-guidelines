@@ -514,3 +514,90 @@ test('G6 on a commit does not disturb the write gates', () => {
   assert.equal(denied.kind, 'deny');
   assert.match(denied.reason, /Gate G6/);
 });
+
+// --- 4.1.1: related runs while working, a full run before a commit ------------------
+
+const { verifyKind } = require('./dispatch.js');
+const VERIFY = 'node "/plugins/ultimate-workflow/hooks/verify.js"';
+
+test('T15 only a real full run counts as full; narrowed runs are related, others nothing', () => {
+  const s = feature({ test_command: 'npm test' });
+  for (const c of ['npm test', 'cd /proj && npm test', '  npm test  ', `${VERIFY} --full`, 'node C:\\x\\hooks\\verify.js --full']) {
+    assert.equal(verifyKind(c, s), 'full', c);
+  }
+  for (const c of ['npm test -- one.test.ts', 'npm test 2>&1 | tail -20', `${VERIFY}`, 'node hooks/verify.js --plan PLAN-x.md']) {
+    assert.equal(verifyKind(c, s), 'related', c);
+  }
+  for (const c of ['npx vitest related --run src/a.ts', 'git status', 'echo npm']) {
+    assert.equal(verifyKind(c, s), null, c);
+  }
+  // a test_command that is itself a chain is matched whole, not split
+  const chain = feature({ test_command: 'npm run build && npm test' });
+  assert.equal(verifyKind('npm run build && npm test', chain), 'full');
+  assert.equal(verifyKind('npm test', chain), null);
+  assert.equal(verifyKind('npm test', feature({})), null);
+});
+
+test('T16 a passing related verify.js run clears dirty; a failing one counts a G4 round', () => {
+  const s = feature({ test_command: 'npm test', dirty: true, verify_rounds: 0 });
+  const ok = dispatch(ev({ event: 'postTool', tool: 'shell', command: VERIFY, path: null }), s);
+  assert.equal(ok.patch.dirty, false);
+  assert.deepEqual(ok.verified, { kind: 'related', passed: true });
+  const bad = dispatch(ev({ event: 'postTool', tool: 'shell', command: VERIFY, path: null, ok: false }), s);
+  assert.equal(bad.patch.verify_rounds, 1);
+  assert.deepEqual(bad.verified, { kind: 'related', passed: false });
+});
+
+test('G3 names the verify script when the hook knows it', () => {
+  const s = feature({ test_command: 'npm test', dirty: true });
+  const r = dispatch(ev({ event: 'stop', tool: null, path: null, status: 'completed' }), s, { verifyScript: VERIFY });
+  assert.equal(r.kind, 'stopBlock');
+  assert.ok(r.reason.includes(VERIFY), r.reason);
+});
+
+const tested = feature({ plan_confirmed: true, tests_confirmed: true, experts: '[security]', test_command: 'npm test' });
+const fresh = { hash: 'h1', record: { mode: 'full', passed: true, fingerprint: 'h1' } };
+
+test('T17 a commit with a passing full run at the current fingerprint passes the test check', () => {
+  assert.equal(dispatch(commit(), tested, { commitEvidence: goodEvidence, verifyEvidence: fresh }).kind, 'allow');
+});
+
+test('T18 a commit after only related runs (no full record) is refused, naming verify.js --full', () => {
+  const r = dispatch(commit(), tested, { commitEvidence: goodEvidence, verifyEvidence: { hash: 'h1', record: null }, verifyScript: VERIFY });
+  assert.equal(r.kind, 'deny');
+  assert.match(r.reason, /full test suite/);
+  assert.ok(r.reason.includes(`${VERIFY} --full`), r.reason);
+});
+
+test('T19 an edit after the full run makes it stale; a failed full run never counts', () => {
+  const stale = dispatch(commit(), tested, { commitEvidence: goodEvidence, verifyEvidence: { hash: 'h2', record: fresh.record } });
+  assert.equal(stale.kind, 'deny');
+  assert.match(stale.reason, /changed since/);
+  const failed = dispatch(commit(), tested, { commitEvidence: goodEvidence, verifyEvidence: { hash: 'h1', record: { ...fresh.record, passed: false } } });
+  assert.equal(failed.kind, 'deny');
+  const related = dispatch(commit(), tested, { commitEvidence: goodEvidence, verifyEvidence: { hash: 'h1', record: { ...fresh.record, mode: 'related' } } });
+  assert.equal(related.kind, 'deny');
+});
+
+test('T20 a docs-only or empty commit is not held by the test check', () => {
+  assert.equal(dispatch(commit(), tested, { commitEvidence: goodEvidence, verifyEvidence: { skip: 'only documentation changed' } }).kind, 'allow');
+  assert.equal(dispatch(commit(), tested, { commitEvidence: goodEvidence, verifyEvidence: { skip: 'nothing to commit' } }).kind, 'allow');
+});
+
+test('T21 no test_command: the test check steps aside', () => {
+  const noCmd = feature({ plan_confirmed: true, tests_confirmed: true, experts: '[security]' });
+  assert.equal(dispatch(commit(), noCmd, { commitEvidence: goodEvidence, verifyEvidence: { hash: 'h1', record: null } }).kind, 'allow');
+});
+
+test('the test check runs before G6, and Cursor gets a note, not a deny', () => {
+  const r = dispatch(commit(), tested, { commitEvidence: staleEvidence, verifyEvidence: { hash: 'h1', record: null } });
+  assert.match(r.reason, /full test suite/);
+  const c = dispatch(commit({ vendor: 'cursor' }), tested, { commitEvidence: goodEvidence, verifyEvidence: { hash: 'h1', record: null } });
+  assert.equal(c.kind, 'allow');
+  assert.match(c.note, /detect-only/);
+});
+
+test('G7 applies to feature work only: at bootstrap the gates write PRD.md, so a record could never be current', () => {
+  const prd = { stage: 'bootstrap', file: 'PRD.md', data: { prd_confirmed: true, design_confirmed: true, test_command: 'npm test' } };
+  assert.equal(dispatch(commit(), prd, { verifyEvidence: { hash: 'h1', record: null } }).kind, 'allow');
+});

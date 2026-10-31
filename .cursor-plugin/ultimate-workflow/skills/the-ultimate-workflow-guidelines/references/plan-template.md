@@ -3,6 +3,8 @@ phase: plan
 plan_confirmed: false
 tests_confirmed: false
 test_command: ""
+test_related_command: ""
+full_suite_paths: ""
 verify_rounds: 0
 last_verify: unrun
 dirty: false
@@ -13,6 +15,11 @@ escalated: false
 > gates maintain it; edit `plan_confirmed` and `tests_confirmed` only when the
 > user has actually confirmed that stage. Set `test_command` to the project's
 > real verification command -- the stop gate quotes it back when it blocks.
+> `test_related_command` (optional) is the same runner narrowed to the change, with
+> `{files}` or `{tests}`: `node hooks/verify.js` then runs only the related tests
+> while you work, and the full suite once before a commit (G7), at the end of a
+> build, and whenever config, a lockfile or more than 20 files changed.
+> `full_suite_paths` (optional, comma-separated globs) always runs the full suite.
 > Gates do nothing at all if this file is absent, so trivial work is unaffected.
 
 # PLAN: <feature>

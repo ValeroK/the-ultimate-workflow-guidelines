@@ -162,3 +162,57 @@ test('V10 a lock left by a dead process is taken over, the run goes ahead, and t
   assert.equal(fs.existsSync(path.join(dir, 'ran')), true);
   assert.equal(fs.existsSync(lockFile(dir)), false);
 });
+
+// --- the plan the commands work on is the plan the gates read ---------------------------
+
+const EXPERTS_CLI = path.join(PLUGIN, 'experts', 'experts.js');
+const pointer = (dir) => path.join(dir, '.ultimate-workflow', 'active-plan');
+
+function twoPlans() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'uw-rewash-active-'));
+  made.push(dir);
+  const plan = (name, front, mtime) => {
+    const f = path.join(dir, name);
+    fs.writeFileSync(f, `---\n${front}\n---\n`);
+    fs.utimesSync(f, mtime, mtime);
+  };
+  plan('PLAN-mine.md', 'phase: build\ntest_command: mine', new Date(1000e9));
+  plan('PLAN-other.md', 'phase: plan\ntest_command: other', new Date(2000e9));
+  return dir;
+}
+
+test('V11 the gates read the plan a command last worked on, not the newest one', () => {
+  const dir = twoPlans();
+  assert.equal(path.basename(stateLib.readState(dir).file), 'PLAN-other.md', 'without a pointer: the newest');
+  fs.mkdirSync(path.dirname(pointer(dir)), { recursive: true });
+  fs.writeFileSync(pointer(dir), 'PLAN-mine.md\n');
+  const s = stateLib.readState(dir);
+  assert.equal(s.stage, 'feature');
+  assert.equal(path.basename(s.file), 'PLAN-mine.md');
+  assert.equal(s.data.test_command, 'mine');
+});
+
+test('V12 a pointer to a finished, missing or non-plan file is ignored', () => {
+  const dir = twoPlans();
+  fs.mkdirSync(path.dirname(pointer(dir)), { recursive: true });
+  for (const bad of ['PLAN-gone.md', '../PLAN-mine.md', 'README.md', '']) {
+    fs.writeFileSync(pointer(dir), bad);
+    assert.equal(path.basename(stateLib.readState(dir).file), 'PLAN-other.md', JSON.stringify(bad));
+  }
+  fs.writeFileSync(path.join(dir, 'PLAN-mine.md'), '---\nphase: done\n---\n');
+  fs.writeFileSync(pointer(dir), 'PLAN-mine.md');
+  assert.equal(path.basename(stateLib.readState(dir).file), 'PLAN-other.md');
+});
+
+test('V13 an experts.js command given --plan, and a phase script, record the plan they work on', () => {
+  const dir = twoPlans();
+  const r = spawnSync(process.execPath, [EXPERTS_CLI, 'brief', '--plan', 'PLAN-mine.md'], { cwd: dir, encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(fs.readFileSync(pointer(dir), 'utf8').trim(), 'PLAN-mine.md');
+  fs.rmSync(pointer(dir));
+  fs.mkdirSync(path.join(dir, '.ultimate-workflow', 'run'), { recursive: true });
+  fs.writeFileSync(path.join(dir, '.ultimate-workflow', 'run', 'a.json'), JSON.stringify({ plan: 'PLAN-mine.md' }));
+  const s = spawnSync(process.execPath, [EXPERTS_CLI, 'script', '--phase', 'tests', '--args-file', '.ultimate-workflow/run/a.json'], { cwd: dir, encoding: 'utf8' });
+  assert.equal(s.status, 0, s.stderr);
+  assert.equal(fs.readFileSync(pointer(dir), 'utf8').trim(), 'PLAN-mine.md');
+});

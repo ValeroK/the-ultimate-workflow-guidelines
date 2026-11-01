@@ -106,7 +106,34 @@ function activePlanFiles(dir) {
   });
 }
 
+const ACTIVE_PLAN = path.join('.ultimate-workflow', 'active-plan');
+const isPlanName = (name) => /^PLAN-[^/\\]+\.md$/i.test(name);
+
+/**
+ * The plan the commands last worked on (4.1.2): `experts.js` writes its name whenever it is given
+ * `--plan`, and a phase script writes it for its plan. A hook gets no arguments, so this is how
+ * the gates follow the same plan as the commands instead of guessing by modification time. A
+ * pointer to a missing, finished or non-plan file is ignored.
+ */
+function pointedPlanFile(dir) {
+  const name = (readIfPresent(path.join(dir, ACTIVE_PLAN)) || '').trim();
+  if (!isPlanName(name)) return null;
+  const file = path.join(dir, name);
+  return activePlanFiles(dir).find((f) => path.basename(f) === name) ? file : null;
+}
+
+/** Record the plan a command works on, for the gates. A path outside the root or not a plan is ignored. */
+function setActivePlan(dir, plan) {
+  const name = String(plan || '').replace(/\\/g, '/').replace(/^\.\//, '');
+  if (!isPlanName(name) || !fs.existsSync(path.join(dir, name))) return false;
+  fs.mkdirSync(path.join(dir, '.ultimate-workflow'), { recursive: true });
+  fs.writeFileSync(path.join(dir, ACTIVE_PLAN), `${name}\n`);
+  return true;
+}
+
 function newestPlanFile(dir) {
+  const pointed = pointedPlanFile(dir);
+  if (pointed) return pointed;
   const files = activePlanFiles(dir);
   if (files.length === 0) return null;
   return files
@@ -222,6 +249,8 @@ module.exports = {
   patchState,
   listPlanFiles,
   activePlanFiles,
+  pointedPlanFile,
+  setActivePlan,
   handoffComplete,
   resolveStage,
   readState,

@@ -33,7 +33,7 @@ Until 4.1.1, G3 asked for the whole suite at the end of every turn, so a one-lin
 
 Files that tools rewrite on every run (a test-timing file, a live database) go in the plan's `volatile_paths` (comma-separated globs, 4.1.2). They are left out of the changes everywhere, so a test run that rewrites them makes neither G6's experts review nor G7's full run stale. Run the full tests before the experts check (`/ultimate-workflow:experts` does), so nothing the tests write lands after the review.
 
-A plan whose front matter says `phase: done` is ignored: the gates read the newest plan that is not done (4.1.2). Mark it done after its commit has landed, never before, or that commit skips G6 and G7.
+The gates read the plan the commands last worked on: `experts.js` records it in `.ultimate-workflow/active-plan` whenever it is given `--plan`, and so does every phase script (4.1.2). Without that record, they read the newest plan that is not done. A plan whose front matter says `phase: done` is ignored either way. Mark it done after its commit has landed, never before, or that commit skips G6 and G7.
 
 Only a real full run counts for G7: `verify.js --full`, or `test_command` as the whole last command (after `cd x &&`). `npm test -- one.test.ts` or `npm test | tail` narrow or mask the run, so they clear G3 but never G7. The model never passes a file list: the changed files come from git. Examples of `test_related_command`: `npx vitest related --run {files}`, `npx jest --findRelatedTests {files}`, `pytest {tests}`, `node --test {tests}`.
 

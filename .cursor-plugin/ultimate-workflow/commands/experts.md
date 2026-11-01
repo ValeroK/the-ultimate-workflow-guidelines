@@ -7,12 +7,14 @@ argument-hint: "[--plan <plan file>]"
 
 This is the review command with only the domain experts running, which is fast enough to do before every commit. When the commit gate refuses a `git commit` with "Gate G6", this is the command it means; run it without asking the user, then commit again.
 
-Read `${CLAUDE_PLUGIN_ROOT}/commands/review.md` and follow it exactly, with these differences:
+**First, when the plan has a `test_command`, run the full tests:** `node "${CLAUDE_PLUGIN_ROOT}/hooks/verify.js" --full`, and fix them until they pass. A commit needs both a passing full run (G7) and this check (G6) on the same changes; a test run that rewrites files after the experts have reviewed would make their review stale and cost a whole recheck. Files a test run always rewrites belong in the plan's `volatile_paths`.
+
+Then read `${CLAUDE_PLUGIN_ROOT}/commands/review.md` and follow it exactly, with these differences:
 
 - the range is always `working` (the uncommitted changes);
 - step 3's prepare is `prepare --range working --delta > .ultimate-workflow/run/prepare.json` (the `--delta` is required here). When the last experts check covers the earlier changes, it narrows each of those experts to the files that changed since and the files in the diff that use them, and their findings on other files carry forward. Tell the user which: `delta` (the files, and the chain count) or `deltaRefused` (the reason it reviews everything this time). Nothing else changes: the record is still for the current changes;
 - pass `"expertsOnly": true`, so the four core lenses do not run;
-- the plan file is the one in `$ARGUMENTS`, or the single `PLAN-*.md` at the root, or none.
+- the plan file is the one in `$ARGUMENTS`, or the single `PLAN-*.md` at the root not marked `phase: done`, or none.
 - the ledger step uses `--phase experts`, and records no catches.
 
 If `record` printed open findings, do not run `check` yet and do not commit: follow "High-confidence findings are raised and resolved" in the review command. Raise each finding to the user and wait for their decision. You may not skip this because the commit was the goal.

@@ -133,7 +133,7 @@ if (resume) log(`Resumed at the implementation, tests not rewritten: ${resume.re
 const tests = resume ? { filesWritten: resume.testFiles, testsFailAsExpected: true, testCommand: command } : await agent(
   `${locate} ${EXPERT_NOTE}${BRIEF}
 
-Write the tests from its confirmed Tests section. Only the tests. Do not write the implementation yet.
+Write the tests from its confirmed Tests section. Only the tests. Do not write the implementation yet. Never stage or commit: the user commits the whole change after the experts check.
 
 Then RUN them and confirm they FAIL.
 
@@ -186,6 +186,8 @@ ${
     ? `\nThis is attempt ${round}. A previous attempt failed and a fresh reader diagnosed it:\n${JSON.stringify(diagnosis, null, 2)}\n\nUse that diagnosis. Do not re-derive it, and do not repeat the fix that already failed.`
     : ''
 }
+
+Never stage or commit, not even part of the work: the user commits the whole change after the experts check, and a partial commit is refused by the gates.
 
 Smallest change that works. Nothing beyond the plan. Do not improve adjacent code, reformat untouched lines, or rename anything not in scope -- every changed line must trace to a plan item.
 

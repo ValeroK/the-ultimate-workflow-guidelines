@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.2] - 2026-11-01
+
+Fixes from the re-wash value report (36 runs; the experts checks were 85% of the tokens).
+
+### Fixed
+
+- **A file that tools rewrite no longer makes the checks stale.** The plan's `volatile_paths` (comma-separated globs) is left out of the changes everywhere they are read: the G6 and G7 fingerprints, the experts' diff, the related-test selection. In the re-wash, `test_times.json` was rewritten by every green test run and the live database by the workforce, so the experts' evidence kept going stale (wf_0a32826c, wf_d1344de4). With 4.1.1's G7, a full test run after the experts check would have staled it on every commit. `/ultimate-workflow:experts` now runs `verify.js --full` first.
+- **At review, skills load from keywords in code, not in documents.** A document's added lines no longer count for `added:` selectors. Nine skills (multi-tenancy, AWS messaging, RAG, agent loops and others) loaded on every review of the UI rework and were never cited. Plan, tests and build selection, which read the plan's text, are unchanged.
+- **A finished plan stops steering the gates.** A plan with `phase: done` is ignored; the newest plan not done is the active one. The newest plan by time was a closed one, which demanded the frontend expert on a change with no UI (wf_4b7e2093). `/feature` marks a plan done after its commit lands, never before.
+- **The build never commits.** Its agents are told never to stage or commit; one tried to commit part of a card and was refused by G6 (wf_bee713be).
+- **One test run at a time.** `verify.js` waits while another run holds `.ultimate-workflow/verify.lock` and takes over a lock left by a dead run; two overlapping runs had failed timing-sensitive tests (wf_4f7aeb20). Runs that bypass `verify.js` are not covered.
+
+Tests: `evals/experts/rewash.test.js`, every safeguard mutation-checked.
+
 ## [4.1.1] - 2026-10-31
 
 ### Changed

@@ -7,7 +7,7 @@ argument-hint: "<plan file>"
 
 ## Before the workflow
 
-The plan file is the one the user named. Otherwise, if exactly one `PLAN-*.md` exists at the repository root, use it. If several exist and none was named, ask which; never pick by modification time.
+The plan file is the one the user named. Otherwise, if exactly one `PLAN-*.md` at the repository root is not marked `phase: done`, use it. If several exist and none was named, ask which; never pick by modification time.
 
 Find the experts, in code:
 

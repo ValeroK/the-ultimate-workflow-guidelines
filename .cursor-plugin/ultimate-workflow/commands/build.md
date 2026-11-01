@@ -7,7 +7,7 @@ argument-hint: "<plan file; required if more than one PLAN-*.md exists>"
 
 ## Before the workflow: the plan, then the standing briefs and their skills
 
-1. **The plan file.** The one the user named. Otherwise, if exactly one `PLAN-*.md` exists at the repository root, use it. If several exist and none was named, ask which; never pick by modification time.
+1. **The plan file.** The one the user named. Otherwise, if exactly one `PLAN-*.md` at the repository root is not marked `phase: done`, use it. If several exist and none was named, ask which; never pick by modification time.
 2. **The briefs.** The workflow script cannot read the filesystem, so the briefs, and the skills each one selects for this plan, are found here, in code. Run:
 
    `mkdir -p .ultimate-workflow/run`, then `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" brief --plan <plan file> > .ultimate-workflow/run/briefs.json`. When the plan is split into cards and this build is one of them, add `--section "<the card's heading>"`: the skills are then chosen from that card's section, so a brief another card needs (a CI job, a migration) does not load here.

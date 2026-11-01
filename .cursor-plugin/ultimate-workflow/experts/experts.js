@@ -312,11 +312,17 @@ function readSkill(pluginRoot, name) {
 function parseDiff(diff) {
   const files = new Set();
   const added = [];
+  // Keywords count only in code (4.1.2): a document that mentions tenants, judges or embeddings
+  // loaded those skills on every review of a UI change in the re-wash, and none was ever cited.
+  // Documentation files are still listed, so a file selector can match them.
+  let inDoc = false;
   for (const line of String(diff).split(/\r?\n/)) {
     const g = /^diff --git a\/(.+?) b\/(.+)$/.exec(line);
-    if (g) files.add(g[2]);
-    else if (line.startsWith('+++ b/')) files.add(line.slice(6));
-    else if (line.startsWith('+') && !line.startsWith('+++')) added.push(line.slice(1));
+    if (g) {
+      files.add(g[2]);
+      inDoc = gates.isDocPath(g[2]);
+    } else if (line.startsWith('+++ b/')) files.add(line.slice(6));
+    else if (line.startsWith('+') && !line.startsWith('+++') && !inDoc) added.push(line.slice(1));
   }
   return { files: [...files], text: added.join('\n') };
 }
@@ -486,7 +492,7 @@ function git(cwd, args) {
 
 // What the evidence is about must not change when the evidence is written, so the
 // evidence directory and the plan file (which gains an `experts:` line) are outside it.
-const EXCLUDES = [':(exclude).ultimate-workflow', ':(exclude)PLAN-*.md'];
+const BASE_EXCLUDES = [':(exclude).ultimate-workflow', ':(exclude)PLAN-*.md'];
 // The same diff text whatever the user's git config says (diff.noprefix, diff.mnemonicPrefix,
 // color.diff=always, an external diff tool): skill selection reads the a/ and b/ paths.
 const DIFF_FORMAT = ['--no-color', '--no-ext-diff', '--src-prefix=a/', '--dst-prefix=b/'];
@@ -502,10 +508,28 @@ function hasHead(cwd) {
 }
 
 /** The uncommitted changes as one diff, new files included, and the paths in it. */
+/**
+ * `volatile_paths` from the active plan (4.1.2): files that tools rewrite on every run, such as a
+ * test-timing file or a live database. Left out of the changes, so they move no fingerprint (G6,
+ * G7), reach no expert and pick no test. Comma-separated globs, `**` across folders.
+ */
+function volatileExcludes(cwd) {
+  let value = '';
+  try {
+    value = stateLib.readState(cwd).data.volatile_paths || '';
+  } catch {}
+  return String(value)
+    .split(',')
+    .map((g) => g.trim().replace(/\\/g, '/').replace(/^\.\//, ''))
+    .filter(Boolean)
+    .map((g) => `:(exclude,glob)${g}`);
+}
+
 function workingChanges(cwd) {
   // Before the first commit there is no HEAD to diff against, and the empty tree is not an
   // object a fresh repository has. What would be committed is the index, so use that.
   const heads = hasHead(cwd);
+  const EXCLUDES = [...BASE_EXCLUDES, ...volatileExcludes(cwd)];
   const tracked = heads
     ? git(cwd, ['diff', ...DIFF_FORMAT, '--binary', 'HEAD', '--', '.', ...EXCLUDES])
     : git(cwd, ['diff', ...DIFF_FORMAT, '--cached', '--binary', '--', '.', ...EXCLUDES]) + git(cwd, ['diff', ...DIFF_FORMAT, '--binary', '--', '.', ...EXCLUDES]);
@@ -513,7 +537,7 @@ function workingChanges(cwd) {
     ? git(cwd, ['diff', '--name-only', 'HEAD', '--', '.', ...EXCLUDES])
     : git(cwd, ['diff', '--cached', '--name-only', '--', '.', ...EXCLUDES]) + git(cwd, ['diff', '--name-only', '--', '.', ...EXCLUDES]);
   const files = names.split(/\r?\n/).filter(Boolean);
-  const untracked = git(cwd, ['ls-files', '--others', '--exclude-standard']).split(/\r?\n/).filter((p) => p && !ignored(p));
+  const untracked = git(cwd, ['ls-files', '--others', '--exclude-standard', '--', '.', ...EXCLUDES]).split(/\r?\n/).filter((p) => p && !ignored(p));
   let diff = tracked;
   for (const p of untracked) {
     files.push(p);

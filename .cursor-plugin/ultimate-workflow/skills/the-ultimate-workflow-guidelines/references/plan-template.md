@@ -5,6 +5,7 @@ tests_confirmed: false
 test_command: ""
 test_related_command: ""
 full_suite_paths: ""
+volatile_paths: ""
 verify_rounds: 0
 last_verify: unrun
 dirty: false
@@ -20,6 +21,11 @@ escalated: false
 > while you work, and the full suite once before a commit (G7), at the end of a
 > build, and whenever config, a lockfile or more than 20 files changed.
 > `full_suite_paths` (optional, comma-separated globs) always runs the full suite.
+> `volatile_paths` (optional, comma-separated globs): files that tools rewrite on every
+> run (a test-timing file, a live database). They do not count as changes, so they
+> never make the experts' review or the full test run look out of date.
+> When the feature's commit has landed, set `phase: done`: the gates then ignore this
+> file and read the next plan. Never before the commit.
 > Gates do nothing at all if this file is absent, so trivial work is unaffected.
 
 # PLAN: <feature>

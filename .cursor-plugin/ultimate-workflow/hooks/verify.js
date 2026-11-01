@@ -24,6 +24,63 @@ const { isDocPath } = require('./lib/gates.js');
 const experts = require('../experts/experts.js');
 
 const RECORD = path.join('.ultimate-workflow', 'verify.json');
+const LOCK = path.join('.ultimate-workflow', 'verify.lock');
+
+function alive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    return err.code === 'EPERM';
+  }
+}
+
+const sleep = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+
+/**
+ * One test run at a time (4.1.2): in the re-wash a full suite overlapped another run and failed
+ * two timing-sensitive tests. Waits while a live run holds the lock, takes over a lock whose
+ * process is gone, and gives up after ULTIMATE_WORKFLOW_VERIFY_WAIT_S (default 1200). Covers runs
+ * through verify.js only. Returns a release function, or null when it gave up.
+ */
+function acquireLock(cwd, env = process.env) {
+  const file = path.join(cwd, LOCK);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const limit = Number(env.ULTIMATE_WORKFLOW_VERIFY_WAIT_S) > 0 ? Number(env.ULTIMATE_WORKFLOW_VERIFY_WAIT_S) : 1200;
+  const until = Date.now() + limit * 1000;
+  let told = false;
+  for (;;) {
+    try {
+      fs.writeFileSync(file, JSON.stringify({ pid: process.pid, at: new Date().toISOString() }), { flag: 'wx' });
+      return () => {
+        try {
+          fs.unlinkSync(file);
+        } catch {}
+      };
+    } catch (err) {
+      if (err.code !== 'EEXIST') return () => {};
+    }
+    let holder = null;
+    try {
+      holder = JSON.parse(fs.readFileSync(file, 'utf8'));
+    } catch {}
+    if (!holder || !Number.isInteger(holder.pid) || !alive(holder.pid)) {
+      try {
+        fs.unlinkSync(file);
+      } catch {}
+      continue;
+    }
+    if (Date.now() >= until) {
+      console.error(`verify: another test run (process ${holder.pid}, since ${holder.at}) is still going after ${limit}s. Nothing was run; try again when it ends.`);
+      return null;
+    }
+    if (!told) {
+      console.log(`verify: waiting for another test run (process ${holder.pid}) to finish`);
+      told = true;
+    }
+    sleep(1000);
+  }
+}
 
 function readRecord(cwd) {
   try {
@@ -113,10 +170,17 @@ function main(argv, cwd = process.cwd()) {
     console.log(`verify: nothing to run (${choice.reason})`);
     return 0;
   }
+  const release = acquireLock(cwd);
+  if (!release) return 3;
   console.log(`verify: ${choice.mode} because ${choice.reason}`);
   console.log(`verify: ${choice.command}`);
-  const r = spawnSync(choice.command, { cwd, shell: true, stdio: 'inherit' });
-  const code = r.status === null ? 1 : r.status;
+  let code;
+  try {
+    const r = spawnSync(choice.command, { cwd, shell: true, stdio: 'inherit' });
+    code = r.status === null ? 1 : r.status;
+  } finally {
+    release();
+  }
   if (choice.mode === 'full') {
     try {
       recordFull(cwd, { passed: code === 0, command: choice.command });
@@ -130,4 +194,4 @@ function main(argv, cwd = process.cwd()) {
 
 if (require.main === module) process.exit(main(process.argv.slice(2)));
 
-module.exports = { main, readRecord, recordFull, fullEvidence, relatedTests, RECORD };
+module.exports = { main, readRecord, recordFull, fullEvidence, relatedTests, acquireLock, RECORD, LOCK };

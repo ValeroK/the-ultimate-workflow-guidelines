@@ -93,8 +93,21 @@ function listPlanFiles(dir) {
     .map((f) => path.join(dir, f));
 }
 
+/**
+ * Plans still in progress: front matter `phase: done` marks a finished one (4.1.2). In the re-wash
+ * the newest plan by time was a closed one, and it demanded the frontend expert on a change with
+ * no UI. `/feature` sets `phase: done` after the commit lands, never before: a plan marked done
+ * before its commit would switch off G6 and G7 for that commit.
+ */
+function activePlanFiles(dir) {
+  return listPlanFiles(dir).filter((f) => {
+    const text = readIfPresent(f);
+    return text === null || String(parseFrontMatter(text).data.phase || '').trim().toLowerCase() !== 'done';
+  });
+}
+
 function newestPlanFile(dir) {
-  const files = listPlanFiles(dir);
+  const files = activePlanFiles(dir);
   if (files.length === 0) return null;
   return files
     .map((f) => ({ f, m: fs.statSync(f).mtimeMs }))
@@ -155,7 +168,7 @@ function handoffComplete(dir) {
  *                planning a feature, you are doing feature work.
  */
 function resolveStage(dir) {
-  if (listPlanFiles(dir).length > 0) return 'feature';
+  if (activePlanFiles(dir).length > 0) return 'feature';
   if (fs.existsSync(path.join(dir, 'PRD.md'))) {
     return handoffComplete(dir) ? 'none' : 'bootstrap';
   }
@@ -208,6 +221,7 @@ module.exports = {
   serializeFrontMatter,
   patchState,
   listPlanFiles,
+  activePlanFiles,
   handoffComplete,
   resolveStage,
   readState,

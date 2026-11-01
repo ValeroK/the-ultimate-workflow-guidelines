@@ -1042,6 +1042,11 @@ function stageScript(pluginRoot, cwd, phaseName, { argsFile = '', files = [], me
   // 4.1.1: the build's rounds run the related tests and one full run at green, through the
   // plugin's verify.js, when the plan names its test_command. Chosen here, in code, so a model
   // never types the path (and a Windows path never reaches a JSON string with bare backslashes).
+  if (typeof args.plan === 'string') {
+    try {
+      stateLib.setActivePlan(cwd, args.plan);
+    } catch {}
+  }
   if (phaseName === 'build') {
     delete args.verify;
     const planRel = typeof args.plan === 'string' ? args.plan : '';
@@ -1125,6 +1130,12 @@ function main(argv) {
     }
   }
   const o = parseArgs(argv);
+  // The gates follow the plan the commands work on (4.1.2): record it whenever one is named.
+  if (o.plan) {
+    try {
+      stateLib.setActivePlan(process.cwd(), o.plan);
+    } catch {}
+  }
   const needPlan = () => {
     if (!o.plan) fail(`${o.cmd} needs --plan <plan file> (nothing here picks "the newest PLAN-*.md")`);
     return o.plan;

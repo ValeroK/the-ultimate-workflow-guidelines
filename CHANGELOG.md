@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.2.0] - 2026-11-02
+
+Spend fewer tokens where they are really spent. On the-ceo since 2026-10-28 (15.35B tokens, from the transcripts): main conversations 73%,
+hand-started helper agents 18%, build agents 5%, experts checks 4%; 97% of all of it was context re-sent on every turn. The ledger had shown the experts
+at 85%, because it counted workflow agents only and not the re-sent context.
+
+### Added
+
+- **A reminder when a conversation grows long.** Past 150k tokens of context, and again every further 150k, the prompt hook adds one line suggesting `/handoff` and a new session. Never blocks. `ULTIMATE_WORKFLOW_CONTEXT_REMINDER` (tokens, `0` off). `hooks/lib/context.js`.
+- **`experts.js usage`, and `/ultimate-workflow:value` uses it:** reads Claude Code's transcripts and reports main conversations and agents apart, by role, with new input, cache write, cache read and output. `experts/usage.js`.
+
+### Changed
+
+- **The agents that only search and read run on Haiku:** the plan's area readers and harvest's three gatherers (`model: haiku`, `effort: low`); one that returns nothing is retried on the session model. Nothing that decides, writes, reviews or judges changed model. `ULTIMATE_WORKFLOW_READER_MODEL` (`inherit` to turn it off).
+- **Test runs print a summary, the failure lines and the tail;** the whole output goes to `.ultimate-workflow/verify.log`. `ULTIMATE_WORKFLOW_VERIFY_FULL_OUTPUT=1` streams it as before.
+- **The workflow says to run long test-and-fix loops and wide searches in a helper agent**, and bring back only the result (skill, Cursor rule, `/feature`).
+
+Tests: `evals/experts/tokens.test.js`.
+
 ## [4.1.2] - 2026-11-01
 
 Fixes from the re-wash value report (36 runs; the experts checks were 85% of the tokens).

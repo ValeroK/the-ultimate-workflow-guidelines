@@ -17,6 +17,26 @@ const AGENT_NAMESPACE = args && typeof args.agentNamespace === 'string' ? args.a
 const agentName = (name) => (String(name).includes(':') ? name : AGENT_NAMESPACE + name)
 // --- end agent names ---
 
+// --- reader model (identical in plan and harvest; a test holds them to it) ---
+// 4.2.0: the agents that only search and read run on a smaller model, chosen in code. `experts.js
+// script` passes ULTIMATE_WORKFLOW_READER_MODEL as args.readerModel ("inherit" turns it off). A
+// reader that returns nothing with the override is asked once more on the session model, so an
+// install without that model loses nothing.
+const READER_MODEL = args && typeof args.readerModel === 'string' && args.readerModel.trim() ? (args.readerModel.trim() === 'inherit' ? '' : args.readerModel.trim()) : 'haiku'
+const asReader = async (prompt, opts) => {
+  if (!READER_MODEL) return agent(prompt, opts)
+  let first = null
+  try {
+    first = await agent(prompt, { ...opts, model: READER_MODEL, effort: 'low' })
+  } catch {
+    first = null
+  }
+  if (first) return first
+  log(`${opts.label}: no answer on ${READER_MODEL}; retried on the session model`)
+  return agent(prompt, opts)
+}
+// --- end reader model ---
+
 // Step 6 of the workflow -- writing down what was learned -- is its weakest
 // step in practice, because it happens at the end of a long session when
 // context is full and attention is gone. This runs it with fresh eyes reading
@@ -104,7 +124,7 @@ phase('Read')
 
 const [fromPlan, fromHistory, existing] = await parallel([
   () =>
-    agent(
+    asReader(
       `Read every PLAN-*.md file in this repository. Concentrate on the "Blockers hit" and "Implementation notes" sections: a blocker is a recorded moment where reality contradicted an assumption, which is the richest source of durable lessons there is.
 
 Extract candidate lessons. For each, cite the plan file and section it came from.
@@ -114,7 +134,7 @@ ${NO_QUOTA}`,
     ),
 
   () =>
-    agent(
+    asReader(
       `Review the git history and diff for ${scope} (range: ${range}; if that range is invalid, fall back to the last 20 commits and say so).
 
 Look for lessons in what actually changed and in what the commit messages say about why. A commit that fixes something subtle, reverses an earlier decision, or documents a surprise is worth more than a large but routine diff.
@@ -126,7 +146,7 @@ ${NO_QUOTA}`,
     ),
 
   () =>
-    agent(
+    asReader(
       `Inventory what this repository has ALREADY recorded, so a later step can avoid proposing duplicates.
 
 Read: the "## Gotchas" section of CLAUDE.md, the memory.md index if present, and every memory/*.md topical if present.

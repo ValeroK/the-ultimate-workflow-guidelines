@@ -49,6 +49,8 @@ Stop and hand over to the user, with what happened and what you need, only for:
 
 Anything else (choosing the next phase, the ledger step, the experts check before a commit) is yours to do without asking.
 
+Run repeated test-and-fix loops and wide searches inside a helper agent (or a phase) and bring back only the result: a long main conversation re-sends its whole context on every call, which made main conversations 73% of the tokens on a real project. When the conversation grows long, a reminder appears; at the next stopping point suggest `/handoff` and a new session.
+
 ## 4. At the end
 
 For a roadmap milestone, mark it done in `ROADMAP.md` and add a dated entry to `progress.md` (what was built, what was decided, what is next), so the next session starts at the next milestone.

@@ -21,6 +21,36 @@ const heartbeat = require('./lib/heartbeat.js');
 const gatesLib = require('./lib/gates.js');
 const experts = require('../experts/experts.js');
 const verify = require('./verify.js');
+const contextLib = require('./lib/context.js');
+const os = require('node:os');
+
+/**
+ * The reminder to start a new session when the conversation's context is large (4.2.0). Once per
+ * 150k band per session; the band reached is kept in the system temp folder, so a project that
+ * does not use the workflow gets no files. Never blocks, never throws.
+ */
+function contextReminder(ev, env) {
+  try {
+    if (ev.event !== 'prompt' || !ev.transcriptPath) return null;
+    const threshold = contextLib.threshold(env);
+    if (!(threshold > 0)) return null;
+    const tokens = contextLib.lastContextTokens(contextLib.readTail(ev.transcriptPath));
+    if (!tokens) return null;
+    const key = String(ev.sessionId || ev.transcriptPath).replace(/[^A-Za-z0-9_-]/g, '_').slice(-120);
+    const file = path.join(os.tmpdir(), 'ultimate-workflow-reminders', `${key}.json`);
+    let last = 0;
+    try {
+      last = JSON.parse(fs.readFileSync(file, 'utf8')).band || 0;
+    } catch {}
+    const d = contextLib.decide({ tokens, threshold, lastBand: last });
+    if (!d.remind) return null;
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, JSON.stringify({ band: d.band, tokens, at: new Date().toISOString() }));
+    return contextLib.reminderText(tokens);
+  } catch {
+    return null;
+  }
+}
 
 // How the gates' messages name the runner: forward slashes work for node on every OS, and
 // keep a Windows path from reaching a JSON string with bare backslashes.
@@ -97,12 +127,18 @@ async function main() {
     }
   }
 
-  const result = dispatch(ev, state, {
+  const reminder = contextReminder(ev, process.env);
+  let result = dispatch(ev, state, {
     workflowsAvailable: workflowsAvailable(cwd, process.env),
     commitEvidence,
     verifyEvidence,
     verifyScript: VERIFY_SCRIPT,
   });
+
+  if (reminder) {
+    if (result.kind === 'context') result = { ...result, text: `${result.text}\n${reminder}` };
+    else if (result.kind === 'allow') result = { ...result, kind: 'context', text: reminder };
+  }
 
   // A full run of the configured command typed directly (not through verify.js, which records
   // its own) is recorded for G7, passing or failing, against the changes as they are now.

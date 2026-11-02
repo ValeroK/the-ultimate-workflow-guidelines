@@ -25,6 +25,22 @@ const experts = require('../experts/experts.js');
 
 const RECORD = path.join('.ultimate-workflow', 'verify.json');
 const LOCK = path.join('.ultimate-workflow', 'verify.lock');
+const LOG = path.join('.ultimate-workflow', 'verify.log');
+const FAILURE_LINE = /\b(fail(ed|ure|ing)?|error|not ok|assert\w*)\b/i;
+
+/** The lines worth reading: up to 60 that look like failures, then the last 30 (80 on a failure), without repeats. */
+function shortOutput(output, code) {
+  const lines = String(output).replace(/\r/g, '').split('\n');
+  while (lines.length && lines[lines.length - 1] === '') lines.pop();
+  const tailCount = code === 0 ? 30 : 80;
+  const tailStart = Math.max(0, lines.length - tailCount);
+  const failures = lines.slice(0, tailStart).filter((l) => FAILURE_LINE.test(l) && !/^\s*#?\s*fail\s+0\b/i.test(l)).slice(0, 60);
+  const out = [];
+  if (failures.length) out.push('verify: lines that look like failures:', ...failures, 'verify: last lines:');
+  else if (tailStart > 0) out.push(`verify: (${tailStart} earlier lines left out)`);
+  out.push(...lines.slice(tailStart));
+  return out.join('\n');
+}
 
 function alive(pid) {
   try {
@@ -176,8 +192,25 @@ function main(argv, cwd = process.cwd()) {
   console.log(`verify: ${choice.command}`);
   let code;
   try {
-    const r = spawnSync(choice.command, { cwd, shell: true, stdio: 'inherit' });
-    code = r.status === null ? 1 : r.status;
+    if (process.env.ULTIMATE_WORKFLOW_VERIFY_FULL_OUTPUT === '1') {
+      const r = spawnSync(choice.command, { cwd, shell: true, stdio: 'inherit' });
+      code = r.status === null ? 1 : r.status;
+    } else {
+      // 4.2.0: a full suite prints thousands of lines, and whatever lands in the conversation is
+      // re-sent on every later turn. The whole output goes to a file; the conversation gets the
+      // failure lines and the tail.
+      const r = spawnSync(choice.command, { cwd, shell: true, encoding: 'utf8', maxBuffer: 512 * 1024 * 1024 });
+      code = r.status === null ? 1 : r.status;
+      const output = `${r.stdout || ''}${r.stderr || ''}`;
+      console.log(shortOutput(output, code));
+      try {
+        fs.mkdirSync(path.join(cwd, '.ultimate-workflow'), { recursive: true });
+        fs.writeFileSync(path.join(cwd, LOG), output);
+        console.log(`verify: full output (${output.split('\n').length} lines) in ${LOG.replace(/\\/g, '/')}`);
+      } catch {
+        console.log('verify: the full output could not be saved');
+      }
+    }
   } finally {
     release();
   }
@@ -194,4 +227,4 @@ function main(argv, cwd = process.cwd()) {
 
 if (require.main === module) process.exit(main(process.argv.slice(2)));
 
-module.exports = { main, readRecord, recordFull, fullEvidence, relatedTests, acquireLock, RECORD, LOCK };
+module.exports = { main, readRecord, recordFull, fullEvidence, relatedTests, acquireLock, shortOutput, RECORD, LOCK, LOG };

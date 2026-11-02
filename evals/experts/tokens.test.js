@@ -192,10 +192,11 @@ function transcripts() {
   const proj = path.join(root, 'C--Users-a-the-ceo');
   fs.mkdirSync(path.join(proj, 'sess1', 'subagents'), { recursive: true });
   const line = (type, extra) => JSON.stringify({ type, ...extra });
-  const assistant = (u) => line('assistant', { message: { usage: u, content: [{ type: 'tool_use', name: 'Bash' }] } });
+  const assistant = (u, model = 'claude-opus-5-5') => line('assistant', { message: { model, usage: u, content: [{ type: 'tool_use', name: 'Bash' }] } });
   fs.writeFileSync(path.join(proj, 'sess1.jsonl'), [line('user', { message: { content: 'build the thing' } }), assistant({ input_tokens: 10, cache_creation_input_tokens: 100, cache_read_input_tokens: 9000, output_tokens: 90 })].join('\n'));
   fs.writeFileSync(path.join(proj, 'sess1', 'subagents', 'agent-1.jsonl'), [line('user', { message: { content: 'x You are the frontend domain expert. y' } }), assistant({ input_tokens: 5, cache_creation_input_tokens: 50, cache_read_input_tokens: 900, output_tokens: 45 })].join('\n'));
-  fs.writeFileSync(path.join(proj, 'sess1', 'subagents', 'agent-2.jsonl'), [line('user', { message: { content: 'Try to REFUTE each finding below.' } }), assistant({ input_tokens: 1, cache_creation_input_tokens: 9, cache_read_input_tokens: 80, output_tokens: 10 })].join('\n'));
+  fs.writeFileSync(path.join(proj, 'sess1', 'subagents', 'agent-2.jsonl'), [line('user', { message: { content: 'Try to REFUTE each finding below.' } }), assistant({ input_tokens: 1, cache_creation_input_tokens: 9, cache_read_input_tokens: 80, output_tokens: 10 }, 'claude-sonnet-5-5')].join('\n'));
+  fs.writeFileSync(path.join(proj, 'sess1', 'subagents', 'agent-3.jsonl'), [line('user', { message: { content: 'Read src/a.ts and report what it constrains for a change described as "x".' } }), assistant({ input_tokens: 2, cache_creation_input_tokens: 8, cache_read_input_tokens: 40, output_tokens: 0 }, 'claude-haiku-5-5')].join('\n'));
   fs.mkdirSync(path.join(root, 'C--Users-a-other'));
   fs.writeFileSync(path.join(root, 'C--Users-a-other', 's.jsonl'), assistant({ input_tokens: 1, cache_creation_input_tokens: 1, cache_read_input_tokens: 1, output_tokens: 1 }));
   return root;
@@ -206,10 +207,10 @@ test('T5 usage: main conversations and agents apart, the cache share, the roles,
   const s = usage.summarize(usage.scan({ root, match: 'ceo' }));
   assert.equal(s.main.tokens, 9200);
   assert.equal(s.main.turns, 1);
-  assert.equal(s.agents.tokens, 1000 + 100);
+  assert.equal(s.agents.tokens, 1000 + 100 + 50);
   assert.equal(s.byRole['expert:frontend'].tokens, 1000);
   assert.equal(s.byRole.skeptic.tokens, 100);
-  assert.equal(Math.round(s.cacheShare * 100), Math.round(((9000 + 900 + 80) / 10300) * 100));
+  assert.equal(Math.round(s.cacheShare * 100), Math.round(((9000 + 900 + 80 + 40) / 10350) * 100));
   assert.equal(usage.summarize(usage.scan({ root, projects: true })).projects.length, 2);
   assert.equal(usage.scan({ root, since: Date.now() + 86400000 }).length, 0);
 });
@@ -237,4 +238,34 @@ test('T6 the docs: loops in agents, value runs usage, the reminder', () => {
   assert.match(read('commands/feature.md'), rule);
   assert.match(read('commands/value.md'), /experts\.js" usage/);
   assert.match(fs.readFileSync(path.join(PLUGIN, '..', '..', 'HOW-TO-USE.md'), 'utf8'), /150k/);
+});
+
+// The value report takes its cost from the transcripts, grouped into phases, never from the ledger's tokens.
+test('T7 usage groups the roles into phases whose tokens add up to the total, with shares', () => {
+  const s = usage.summarize(usage.scan({ root: transcripts(), match: 'ceo' }));
+  const p = s.phases;
+  assert.equal(p.main.tokens, 9200);
+  assert.equal(p.expertsCheck.tokens, 1100, 'experts + skeptic + recheck');
+  assert.equal(p.build.tokens, 0);
+  assert.equal(p.readers.tokens, 50, 'plan readers and harvest gatherers');
+  assert.equal(p.otherAgents.tokens, 0);
+  assert.equal(p.main.tokens + p.expertsCheck.tokens + p.build.tokens + p.readers.tokens + p.otherAgents.tokens, s.tokens);
+  assert.equal(Math.round(p.expertsCheck.share * 1000), Math.round((1100 / 10350) * 1000));
+});
+
+test('T9 usage reports which model ran each role and each phase, by tokens', () => {
+  const s = usage.summarize(usage.scan({ root: transcripts(), match: 'ceo' }));
+  assert.deepEqual(s.byRole.reader.models, { 'claude-haiku-5-5': 50 });
+  assert.deepEqual(s.byRole['expert:frontend'].models, { 'claude-opus-5-5': 1000 });
+  assert.deepEqual(s.phases.expertsCheck.models, { 'claude-opus-5-5': 1000, 'claude-sonnet-5-5': 100 });
+  assert.deepEqual(s.main.models, { 'claude-opus-5-5': 9200 });
+  assert.equal(usage.role('Inventory what this repository has ALREADY recorded, so a later step'), 'harvest-reader');
+});
+
+test('T8 value.md takes cost from the usage phases and never reports a ledger token share', () => {
+  const v = read('commands/value.md');
+  assert.match(v, /`phases`/);
+  assert.match(v, /never report the ledger's tokens as a share/i);
+  assert.match(v, /per confirmed unique catch[^.]*`phases\.expertsCheck`/);
+  assert.match(v, /which model ran each/i);
 });

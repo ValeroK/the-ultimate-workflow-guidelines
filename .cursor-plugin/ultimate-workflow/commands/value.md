@@ -23,12 +23,12 @@ It reads Claude Code's own transcripts for this project (add `--match <part of t
 
 ## Report
 
-1. **Cost:** from the usage report first: main conversations against agents, the share that was re-sent context (`cacheShare`), and the roles; then the ledger's tokens, time and runs per phase, labelled as workflow agents only.
+1. **Cost:** from the usage report only. A table of `phases` (main conversations, experts check, build, readers, other agents): tokens and `share` of the total; then `cacheShare`, the share that was context re-sent on every turn. Then which model ran each step: for every phase and role, its `models` (tokens per model), so a step expected on Haiku shows whether it ran there. From the ledger take runs and time per phase, never tokens: never report the ledger's tokens as a share of anything, because they cover workflow agents only and leave out the re-sent context.
 2. **Catches:** per stage (total, confirmed, refuted, open) and by origin. Then the experts' unique catches, those no draft check, critic or core lens caught: confirmed, refuted and `precision` (confirmed over confirmed plus refuted; `null` until one is judged). List the open ones with their ids, so the user can confirm or refute them.
 3. **Review:** findings by basis and `skillShare`, the share that cites a skill; then `neverCited`, the skills loaded on every review run and cited on none.
 4. **Workarounds:** each with its phase and run. These are plugin problems, not the user's.
 
-Then, in at most three sentences: where the cost went (a main conversation far larger than the agents means long sessions: suggest `/handoff` and new sessions), and whether the experts' catches and the skills' citations justify it. Two signals are worth naming: a high cost with few confirmed unique catches, and skills that load on every run and are never cited.
+Then, in at most three sentences: where the cost went (a main conversation far larger than the agents means long sessions: suggest `/handoff` and new sessions), and whether the experts' catches and the skills' citations justify it. The cost per confirmed unique catch is `phases.expertsCheck` tokens divided by the confirmed unique catches; say it is computed from the transcripts. Two signals are worth naming: a high cost with few confirmed unique catches, and skills that load on every run and are never cited.
 
 ## Limits to state
 

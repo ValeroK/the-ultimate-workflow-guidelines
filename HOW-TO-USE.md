@@ -114,7 +114,7 @@ Existing project:         /ultimate-workflow:feature <what you want>           -
 | `/ultimate-workflow:review` | Review the whole change |
 | `/ultimate-workflow:experts` | Experts check before a commit |
 | `/ultimate-workflow:harvest` | Save the lessons from a finished feature |
-| `/ultimate-workflow:value` | What the workflow cost and what it caught |
+| `/ultimate-workflow:value` | What the workflow cost (main conversations included, by step and by model) and what it caught |
 | `/ultimate-workflow:expert-attribution` | Which expert skill a finding came from (rarely needed) |
 | `/handoff` | Ending a session with work in flight: writes a note for the next session |
 

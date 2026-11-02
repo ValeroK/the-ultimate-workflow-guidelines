@@ -45,6 +45,8 @@ function role(firstPrompt) {
   if (/minimal implementation/.test(t)) return 'implementer';
   if (/Write the tests from its confirmed/.test(t)) return 'write-tests';
   if (/Diagnose it from the evidence/.test(t)) return 'diagnose';
+  if (/and report what it constrains for a change described as/.test(t)) return 'reader';
+  if (/^\s*(Read every PLAN-\*\.md file|Review the git history and diff for|Inventory what this repository has ALREADY recorded)/.test(t)) return 'harvest-reader';
   return 'other';
 }
 
@@ -62,7 +64,7 @@ function scan({ root, match = '', since = 0, projects = false } = {}) {
       continue;
     }
     if (since && st.mtimeMs < since) continue;
-    const r = { file, project, main: !/[\\/]subagents[\\/]/.test(file), turns: 0, input: 0, cacheWrite: 0, cacheRead: 0, output: 0, first: '' };
+    const r = { file, project, main: !/[\\/]subagents[\\/]/.test(file), turns: 0, input: 0, cacheWrite: 0, cacheRead: 0, output: 0, models: {}, first: '' };
     let text;
     try {
       text = fs.readFileSync(file, 'utf8');
@@ -85,6 +87,9 @@ function scan({ root, match = '', since = 0, projects = false } = {}) {
         r.cacheWrite += msg.usage.cache_creation_input_tokens || 0;
         r.cacheRead += msg.usage.cache_read_input_tokens || 0;
         r.output += msg.usage.output_tokens || 0;
+        const m = msg.model || 'unknown';
+        const t = (msg.usage.input_tokens || 0) + (msg.usage.cache_creation_input_tokens || 0) + (msg.usage.cache_read_input_tokens || 0) + (msg.usage.output_tokens || 0);
+        r.models[m] = (r.models[m] || 0) + t;
       }
     }
     if (r.turns === 0) continue;
@@ -97,29 +102,41 @@ function scan({ root, match = '', since = 0, projects = false } = {}) {
 }
 
 function summarize(rows) {
-  const blank = () => ({ count: 0, turns: 0, input: 0, cacheWrite: 0, cacheRead: 0, output: 0, tokens: 0 });
+  const blank = () => ({ count: 0, turns: 0, input: 0, cacheWrite: 0, cacheRead: 0, output: 0, tokens: 0, models: {} });
   const add = (s, r) => {
     s.count += 1;
     for (const k of ['turns', 'input', 'cacheWrite', 'cacheRead', 'output', 'tokens']) s[k] += r[k];
+    for (const [m, t] of Object.entries(r.models || {})) s.models[m] = (s.models[m] || 0) + t;
     return s;
   };
+  // The workflow's steps, so a report never has to reach for the ledger's tokens to say what a phase cost.
+  const PHASE_OF = (role) =>
+    role === 'main' ? 'main'
+      : role.startsWith('expert:') || role === 'skeptic' || role === 'recheck' ? 'expertsCheck'
+      : ['implementer', 'write-tests', 'diagnose'].includes(role) ? 'build'
+      : role === 'reader' || role === 'harvest-reader' ? 'readers'
+      : 'otherAgents';
+  const phases = { main: blank(), expertsCheck: blank(), build: blank(), readers: blank(), otherAgents: blank() };
   const main = blank();
   const agents = blank();
   const byRole = {};
   const projects = {};
   for (const r of rows) {
     add(r.main ? main : agents, r);
+    add(phases[PHASE_OF(r.role)], r);
     if (!r.main) add((byRole[r.role] = byRole[r.role] || blank()), r);
     const p = (projects[r.project] = projects[r.project] || { project: r.project, main: 0, agents: 0 });
     p[r.main ? 'main' : 'agents'] += r.tokens;
   }
   const tokens = main.tokens + agents.tokens;
+  for (const p of Object.values(phases)) p.share = tokens ? p.tokens / tokens : 0;
   return {
     tokens,
     cacheShare: tokens ? (main.cacheRead + agents.cacheRead) / tokens : 0,
     main,
     agents,
     byRole,
+    phases,
     projects: Object.values(projects).sort((a, b) => b.main + b.agents - (a.main + a.agents)),
     note: 'cacheRead is context re-sent on every turn, priced at about a tenth of new input; the ledger counts workflow agents only',
   };

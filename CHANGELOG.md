@@ -13,7 +13,7 @@ at 85%, because it counted workflow agents only and not the re-sent context.
 ### Added
 
 - **A reminder when a conversation grows long.** Past 150k tokens of context, and again every further 150k, the prompt hook adds one line suggesting `/handoff` and a new session. Never blocks. `ULTIMATE_WORKFLOW_CONTEXT_REMINDER` (tokens, `0` off). `hooks/lib/context.js`.
-- **`experts.js usage`, and `/ultimate-workflow:value` uses it:** reads Claude Code's transcripts and reports main conversations and agents apart, by role, with new input, cache write, cache read and output. `experts/usage.js`.
+- **`experts.js usage`, and `/ultimate-workflow:value` uses it:** reads Claude Code's transcripts and reports main conversations and agents apart, by role, with new input, cache write, cache read and output, grouped into `phases` (main conversations, experts check, build, readers, other agents) with each one's share of the total, and which model ran each phase and role (tokens per model). The value report takes its cost from these only: it never reports the ledger's tokens as a share (they cover workflow agents only and leave out the re-sent context, which had shown the experts check at 86% when the transcripts showed about 5%), and it computes the cost per confirmed unique catch from the transcripts. `experts/usage.js`.
 
 ### Changed
 

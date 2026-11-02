@@ -81,6 +81,8 @@ The Workflow *operationalizes* the Principles — each step cites the principle 
 
 **Entry point:** for any feature request or PRD, run `/ultimate-workflow:feature <what you want>`. It picks the tier (see [*How much of the workflow*](#how-much-of-the-workflow-skip-light-or-full)), runs the phase commands in order, and stops only at the two confirmations, a blocking finding or a real failure. The phase commands stay available one at a time.
 
+**Tokens.** Run repeated test-and-fix loops and wide searches inside a helper agent (or a phase) and bring back only the result: a long main conversation re-sends its whole context on every call, which made main conversations 73% of the tokens on a real project. Test runs through `node hooks/verify.js` print a summary and the failures; the whole output is in `.ultimate-workflow/verify.log`. Past 150k tokens of context a reminder suggests `/handoff` and a new session.
+
 ### How to stop and ask
 
 Several steps below say "stop and ask", "confirm with the user", or "raise questions". Do **not** surface those as free-form prose — invoke the host's structured ask-user tool:

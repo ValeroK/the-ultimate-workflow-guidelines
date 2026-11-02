@@ -18,6 +18,26 @@ const AGENT_NAMESPACE = args && typeof args.agentNamespace === 'string' ? args.a
 const agentName = (name) => (String(name).includes(':') ? name : AGENT_NAMESPACE + name)
 // --- end agent names ---
 
+// --- reader model (identical in plan and harvest; a test holds them to it) ---
+// 4.2.0: the agents that only search and read run on a smaller model, chosen in code. `experts.js
+// script` passes ULTIMATE_WORKFLOW_READER_MODEL as args.readerModel ("inherit" turns it off). A
+// reader that returns nothing with the override is asked once more on the session model, so an
+// install without that model loses nothing.
+const READER_MODEL = args && typeof args.readerModel === 'string' && args.readerModel.trim() ? (args.readerModel.trim() === 'inherit' ? '' : args.readerModel.trim()) : 'haiku'
+const asReader = async (prompt, opts) => {
+  if (!READER_MODEL) return agent(prompt, opts)
+  let first = null
+  try {
+    first = await agent(prompt, { ...opts, model: READER_MODEL, effort: 'low' })
+  } catch {
+    first = null
+  }
+  if (first) return first
+  log(`${opts.label}: no answer on ${READER_MODEL}; retried on the session model`)
+  return agent(prompt, opts)
+}
+// --- end reader model ---
+
 // Exploration is the breadth-shaped part of planning: several independent
 // readers over different slices, each with a clean context, rather than one
 // agent accumulating everything it has read into a window that gets worse the
@@ -200,7 +220,7 @@ const readers = [
 
 const slices = await parallel(
   readers.map((r) => () =>
-    agent(
+    asReader(
       `${r.prompt}
 
 Report what someone about to build this would need to know: the patterns they must follow, the utilities that already exist so they are not rewritten, and the constraints that are not obvious from reading the code once.

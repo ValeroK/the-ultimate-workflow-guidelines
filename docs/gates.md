@@ -18,6 +18,10 @@ Lifecycle hooks read a small YAML block at the top of `PRD.md` or `PLAN-<feature
 | G6 | No source edit until the plan records which domain experts apply (`experts: []` counts), and no `git commit` until the experts have re-checked and reviewed the current changes. A high-confidence expert finding blocks it until fixed or dismissed by the user |
 | G7 | No `git commit` until a passing FULL test run covers the current changes (`node hooks/verify.js --full`, or `test_command` typed whole). An edit after the run makes it stale; docs-only and empty commits are exempt; feature work only (a `PLAN-*.md`); no `test_command`, no check |
 
+### The long-conversation reminder (4.2.0)
+
+Not a gate: on each prompt the hook reads the last turn's context size from the end of the transcript, and past 150k tokens (and again every further 150k) adds one line suggesting `/handoff` and a new session. It never blocks, runs in any repository while the gates are on, and keeps its state in the system temp folder. `ULTIMATE_WORKFLOW_CONTEXT_REMINDER` sets the size in tokens; `0` turns it off.
+
 ### Which tests run when (4.1.1)
 
 Until 4.1.1, G3 asked for the whole suite at the end of every turn, so a one-line change waited for every test. Now `node hooks/verify.js` decides from the uncommitted changes:

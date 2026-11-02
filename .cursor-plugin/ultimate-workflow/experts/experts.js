@@ -1042,6 +1042,12 @@ function stageScript(pluginRoot, cwd, phaseName, { argsFile = '', files = [], me
   // 4.1.1: the build's rounds run the related tests and one full run at green, through the
   // plugin's verify.js, when the plan names its test_command. Chosen here, in code, so a model
   // never types the path (and a Windows path never reaches a JSON string with bare backslashes).
+  // 4.2.0: the model for the agents that only search and read (plan readers, harvest gatherers).
+  if (phaseName === 'plan' || phaseName === 'harvest') {
+    const reader = process.env.ULTIMATE_WORKFLOW_READER_MODEL;
+    if (typeof reader === 'string' && reader.trim()) args.readerModel = reader.trim();
+    else delete args.readerModel;
+  }
   if (typeof args.plan === 'string') {
     try {
       stateLib.setActivePlan(cwd, args.plan);
@@ -1122,6 +1128,13 @@ function parseArgs(argv) {
 
 function main(argv) {
   const out = (v) => process.stdout.write(`${JSON.stringify(v)}\n`);
+  if (argv[0] === 'usage') {
+    try {
+      return require('./usage.js').cli(argv.slice(1), process.cwd(), out, fail);
+    } catch (err) {
+      return fail(err.message);
+    }
+  }
   if (argv[0] === 'ledger') {
     try {
       return require('./ledger.js').cli(argv.slice(1), process.cwd(), out, fail);

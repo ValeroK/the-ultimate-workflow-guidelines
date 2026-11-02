@@ -165,6 +165,8 @@ function normalize(payload) {
     command: input.command || null,
     status: payload.status || null,
     ok,
+    transcriptPath: payload.transcript_path || null,
+    sessionId: payload.session_id || payload.conversation_id || null,
   };
 }
 

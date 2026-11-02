@@ -127,6 +127,9 @@ Existing project:         /ultimate-workflow:feature <what you want>           -
 - While Claude works, only the tests related to the change run. The full suite runs once at the end of a build and once before each commit, and whenever config, a lockfile or many files changed. Set `test_related_command` in the plan (it proposes one) to get this; without it every run is the full suite.
 - Files your tests or app rewrite on every run (a timing file, a local database) go in the plan's `volatile_paths`, so they never make a check look out of date.
 - When a feature's commit has landed, its plan is marked `phase: done` and the gates stop reading it (`feature` does this).
+- When a conversation passes about 150k tokens of context, a reminder suggests finishing the step, running `/handoff` and starting a new session. Every turn re-sends the whole conversation, so long sessions cost the most. Change it with `ULTIMATE_WORKFLOW_CONTEXT_REMINDER` (tokens; `0` turns it off).
+- Test runs print only a summary and the failures; the whole output is in `.ultimate-workflow/verify.log` (`ULTIMATE_WORKFLOW_VERIFY_FULL_OUTPUT=1` shows everything).
+- The agents that only search and read files run on Haiku (`ULTIMATE_WORKFLOW_READER_MODEL=inherit` keeps them on your model).
 - A block message names the step to run; normally `feature` has already run it.
 - Turn them off: set `ULTIMATE_WORKFLOW_GATES=off`.
 - Check they are working: `node hooks/status.js` in the plugin folder says `live`.

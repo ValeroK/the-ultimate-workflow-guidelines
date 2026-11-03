@@ -48,6 +48,16 @@ function withoutIdentity(fn) {
 }
 
 /**
+ * Starts a merge and leaves it uncommitted. Git refuses to start even `--no-commit` without an
+ * identity (as on a CI runner), so it gets one for this call, and the test fails here, loudly,
+ * if no merge is in progress afterwards: a gate test on a merge that never began proves nothing.
+ */
+function startMerge(dir, ...args) {
+  git(dir, '-c', 'user.name=t', '-c', 'user.email=t@t', 'merge', '--no-commit', '--no-ff', ...args);
+  assert.ok(fs.existsSync(path.join(dir, '.git', 'MERGE_HEAD')), 'the merge did not start');
+}
+
+/**
  * rewash has its own commit; main has others (reviewed elsewhere). The merge of main into
  * rewash is started and left uncommitted. `conflict` makes both sides edit src/f1.js;
  * `docsOnly` makes main change nothing but NOTES.md.
@@ -77,7 +87,7 @@ function mergeRepo({ conflict = false, docsOnly = false, front = [] } = {}) {
   git(dir, 'add', '-A');
   git(dir, 'commit', '-q', '-m', 'main work, reviewed there');
   git(dir, 'checkout', '-q', 'rewash');
-  git(dir, 'merge', '--no-commit', '--no-ff', 'main');
+  startMerge(dir, 'main');
   fs.writeFileSync(
     path.join(dir, 'PLAN-x.md'),
     `---\n${['plan_confirmed: true', 'tests_confirmed: true', 'experts: []', 'test_command: node full.js', ...front].join('\n')}\n---\n`
@@ -173,7 +183,7 @@ test('T4b a full run on one merge does not cover a different merge whose combine
   fs.writeFileSync(path.join(dir, 'src', 'f2.js'), "export const a2 = 'a later change on main'\n");
   git(dir, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-am', 'later main work');
   git(dir, 'checkout', '-q', 'rewash');
-  git(dir, 'merge', '--no-commit', '--no-ff', 'main');
+  startMerge(dir, 'main');
   assert.deepEqual(withoutIdentity(() => experts.workingChanges(dir)).files, [], 'another clean merge: still nothing new for the experts');
   assert.match(hook(dir, 'git commit -m merge'), /Gate G7/, 'but its tree was never tested');
 });
@@ -181,7 +191,7 @@ test('T4b a full run on one merge does not cover a different merge whose combine
 test('T5 a merge that changes nothing in the tree, or only documents, is not held by G7', () => {
   const same = mergeRepo();
   git(same, 'merge', '--abort');
-  git(same, 'merge', '-s', 'ours', '--no-commit', '--no-ff', 'main');
+  startMerge(same, '-s', 'ours', 'main');
   const e = withoutIdentity(() => verifyLib.fullEvidence(same));
   assert.ok(e.skip, `merge -s ours: ${JSON.stringify(e)}`);
   const docs = mergeRepo({ docsOnly: true });

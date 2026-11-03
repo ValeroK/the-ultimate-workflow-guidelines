@@ -130,6 +130,8 @@ Existing project:         /ultimate-workflow:feature <what you want>           -
 - When a conversation passes about 150k tokens of context, a reminder suggests finishing the step, running `/handoff` and starting a new session. Every turn re-sends the whole conversation, so long sessions cost the most. Change it with `ULTIMATE_WORKFLOW_CONTEXT_REMINDER` (tokens; `0` turns it off).
 - Test runs print only a summary and the failures; the whole output is in `.ultimate-workflow/verify.log` (`ULTIMATE_WORKFLOW_VERIFY_FULL_OUTPUT=1` shows everything).
 - The agents that only search and read files run on Haiku (`ULTIMATE_WORKFLOW_READER_MODEL=inherit` keeps them on your model).
+- Committing a merge asks the experts to review only what is new in it (a clean merge: nothing) and still needs a passing full test run on the merged tree.
+- After a test run that rewrote files, `verify.js` prints the `volatile_paths:` line to add to the plan.
 - A block message names the step to run; normally `feature` has already run it.
 - Turn them off: set `ULTIMATE_WORKFLOW_GATES=off`.
 - Check they are working: `node hooks/status.js` in the plugin folder says `live`.

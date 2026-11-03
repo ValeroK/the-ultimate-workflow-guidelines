@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.2.1] - 2026-11-03
+
+From card 7 of the re-wash: a merge of origin/main (36 files, all reviewed on main) was refused by G6, and the experts had to be run again or the user had to commit by hand.
+
+### Fixed
+
+- **A merge reviews only what is new in it.** While a merge is being committed, the changes the gates look at are its combined diff (what is in neither parent): empty for a clean merge, only the resolution for a conflict. Unresolved conflicts or unstaged edits fall back to the whole diff. A changed-only recheck is refused during a merge. `experts.mergeInfo`.
+- **G7 judges a merge by its tree.** A full run is recorded against the tree that will be committed, so a clean merge's empty diff cannot make one merge's test run cover another. A merge whose tree equals HEAD's, or differs only in documents, is not held.
+
+### Added
+
+- **A test run names the files it rewrote.** After a run, `verify.js` lists tracked or new files the run changed that the plan does not list, with the `volatile_paths:` line to add; the G6 and G7 refusals for a fingerprint that moved point at `volatile_paths` too. In the re-wash `test_times.json` forced a recheck of 815k tokens with nothing to find, after `volatile_paths` had been added to the plugin.
+
+Tests: `evals/experts/merge.test.js`, each safeguard mutation-checked.
+
 ## [4.2.0] - 2026-11-02
 
 Spend fewer tokens where they are really spent. On the-ceo since 2026-10-28 (15.35B tokens, from the transcripts): main conversations 73%,

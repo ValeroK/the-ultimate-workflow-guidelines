@@ -26,6 +26,35 @@ const experts = require('../experts/experts.js');
 const RECORD = path.join('.ultimate-workflow', 'verify.json');
 const LOCK = path.join('.ultimate-workflow', 'verify.lock');
 const LOG = path.join('.ultimate-workflow', 'verify.log');
+/** Per-file patches of the changes right now, or null when git cannot say. */
+function snapshot(cwd) {
+  try {
+    return experts.splitByFile(experts.workingChanges(cwd).diff);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Files a test run rewrote that the plan does not yet list as volatile (4.2.1). A file that
+ * every green run rewrites moves the fingerprint, so the experts' review and the full-run record
+ * both look out of date after a run that changed no code; in the re-wash that cost rechecks of
+ * 815k tokens with nothing to find. Said once after the run, with the line to add.
+ */
+function rewriteHint(cwd, before, data) {
+  const after = snapshot(cwd);
+  if (!before || !after) return '';
+  const names = [...after.keys()].filter((f) => !f.startsWith('.ultimate-workflow/') && before.get(f) !== after.get(f));
+  if (names.length === 0) return '';
+  const listed = String(data.volatile_paths || '').split(',').map((x) => x.trim()).filter(Boolean);
+  const shown = names.slice(0, 10).join(', ');
+  return [
+    `verify: the run rewrote ${names.length} file${names.length === 1 ? '' : 's'} (${shown}${names.length > 10 ? ', ...' : ''}).`,
+    `verify: if you do not edit ${names.length === 1 ? 'it' : 'them'} yourself, add to the plan's front matter:  volatile_paths: ${[...listed, ...names.slice(0, 10)].join(', ')}`,
+    "verify: otherwise each run makes the experts' review and the full-run record look out of date.",
+  ].join('\n');
+}
+
 const FAILURE_LINE = /\b(fail(ed|ure|ing)?|error|not ok|assert\w*)\b/i;
 
 /** The lines worth reading: up to 60 that look like failures, then the last 30 (80 on a failure), without repeats. */
@@ -110,7 +139,7 @@ function readRecord(cwd) {
 function recordFull(cwd, { passed, command }) {
   const file = path.join(cwd, RECORD);
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  const rec = { mode: 'full', passed: passed === true, fingerprint: experts.fingerprint(cwd), command, at: new Date().toISOString() };
+  const rec = { mode: 'full', passed: passed === true, fingerprint: experts.testFingerprint(cwd), command, at: new Date().toISOString() };
   fs.writeFileSync(file, `${JSON.stringify(rec, null, 2)}\n`);
   return rec;
 }
@@ -119,10 +148,18 @@ function recordFull(cwd, { passed, command }) {
 function fullEvidence(cwd) {
   try {
     const changes = experts.workingChanges(cwd);
+    if (changes.merge) {
+      // A merge is judged on the tree it will commit, not on its combined diff (which is empty
+      // for a clean merge whose tree has still never been tested).
+      const m = changes.merge;
+      if (m.tree === m.headTree || m.vsHead.length === 0) return { skip: 'a merge that changes nothing in the tree' };
+      if (m.vsHead.every((f) => isDocPath(f) && !ALWAYS_FULL.some((re) => re.test(f)))) return { skip: 'only documentation changed' };
+      return { hash: experts.testFingerprint(cwd), record: readRecord(cwd) };
+    }
     if (changes.files.length === 0) return { skip: 'nothing to commit' };
     // `requirements.txt` ends in a documentation extension and still changes what the tests run against.
     if (changes.files.every((f) => isDocPath(f) && !ALWAYS_FULL.some((re) => re.test(f)))) return { skip: 'only documentation changed' };
-    return { hash: experts.fingerprint(cwd), record: readRecord(cwd) };
+    return { hash: experts.testFingerprint(cwd), record: readRecord(cwd) };
   } catch {
     return { skip: 'the working tree could not be inspected' };
   }
@@ -188,6 +225,7 @@ function main(argv, cwd = process.cwd()) {
   }
   const release = acquireLock(cwd);
   if (!release) return 3;
+  const before = snapshot(cwd);
   console.log(`verify: ${choice.mode} because ${choice.reason}`);
   console.log(`verify: ${choice.command}`);
   let code;
@@ -221,6 +259,8 @@ function main(argv, cwd = process.cwd()) {
       console.error('verify: the result could not be recorded, so a commit will ask for a full run again');
     }
   }
+  const hint = rewriteHint(cwd, before, data);
+  if (hint) console.log(hint);
   console.log(`verify: ${choice.mode} run ${code === 0 ? 'passed' : `failed (exit ${code})`}`);
   return code;
 }

@@ -187,7 +187,7 @@ function fullSuiteGate(state, ev, script) {
   const r = ev.record;
   const full = r && r.mode === 'full' && r.passed === true;
   if (full && r.fingerprint === ev.hash) return ALLOW;
-  if (full) return deny(`Gate G7: the changes have changed since the last passing full test suite run. Run ${run} once, then commit again.`);
+  if (full) return deny(`Gate G7: the changes have changed since the last passing full test suite run. Run ${run} once, then commit again. ${VOLATILE_HINT}`);
   return deny(`Gate G7: no passing full test suite run covers these changes (only related tests ran, or none, or the last full run failed). Run ${run} once, then commit again.`);
 }
 
@@ -222,12 +222,18 @@ function isCommitCommand(command) {
  * fires again. The final set may not drop an expert the plan named: the re-check can
  * only add, and this is where that is held to account rather than trusted.
  */
+// A fingerprint that moved with no code edit is usually a file the tests or the app rewrite (4.2.1).
+const VOLATILE_HINT = 'If you have not changed code since, a file your tests or app rewrite is moving it: list that file in the plan\'s `volatile_paths` (verify.js names the files a run rewrote).';
+
 function commitGate(ev) {
   if (!ev || ev.skip) return ALLOW;
   const how = 'Run /ultimate-workflow:experts, which re-asks which domain experts apply (it can only add) and runs them, then commit again.';
 
-  if (!ev.recheck || ev.recheck.hash !== ev.hash) {
+  if (!ev.recheck) {
     return deny(`Gate G6: the domain experts have not been re-checked against these changes. ${how}`);
+  }
+  if (ev.recheck.hash !== ev.hash) {
+    return deny(`Gate G6: the domain experts have not been re-checked against these changes. ${how} ${VOLATILE_HINT}`);
   }
   const final = ev.recheck.final || [];
   const dropped = (ev.planExperts || []).filter((n) => !final.includes(n));

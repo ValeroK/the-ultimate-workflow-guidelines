@@ -525,7 +525,49 @@ function volatileExcludes(cwd) {
     .map((g) => `:(exclude,glob)${g}`);
 }
 
+/**
+ * A merge that is about to be committed (4.2.1), described by what is new in it.
+ *
+ * `git commit` finishing a merge commits the index. Most of that is the other branch's commits,
+ * which were reviewed where they were made; asking the experts to review them again cost a card
+ * 36 files and about a million tokens, or a stop for the user. What is new is what is in neither
+ * parent: Git's combined diff of the merge, empty for a clean merge, and only the resolution for
+ * a conflict. It is taken from a temporary commit with both parents (one unreferenced object, with
+ * a fixed identity so no configuration is read) built from the tree the index would commit.
+ *
+ * Returns null whenever the merge is not plainly "the index is what will be committed": no merge
+ * in progress, unresolved conflicts, or tracked edits not yet staged. Callers then use the whole
+ * diff against HEAD, so every doubt resolves to reviewing more.
+ */
+function mergeInfo(cwd) {
+  try {
+    git(cwd, ['rev-parse', '-q', '--verify', 'MERGE_HEAD']);
+  } catch {
+    return null;
+  }
+  try {
+    const ex = [...BASE_EXCLUDES, ...volatileExcludes(cwd)];
+    if (git(cwd, ['diff', '--name-only', '--diff-filter=U']).trim()) return null;
+    const unstaged = spawnSync('git', ['diff', '--quiet', '--', '.', ...ex], { cwd });
+    if (unstaged.status !== 0) return null;
+    const tree = git(cwd, ['write-tree']).trim();
+    const headTree = git(cwd, ['rev-parse', 'HEAD^{tree}']).trim();
+    const who = { GIT_AUTHOR_NAME: 'ultimate-workflow', GIT_AUTHOR_EMAIL: 'uw@localhost', GIT_COMMITTER_NAME: 'ultimate-workflow', GIT_COMMITTER_EMAIL: 'uw@localhost' };
+    const probe = spawnSync('git', ['commit-tree', tree, '-p', 'HEAD', '-p', 'MERGE_HEAD', '-m', 'ultimate-workflow merge probe'], { cwd, encoding: 'utf8', env: { ...process.env, ...who } });
+    if (probe.status !== 0) return null;
+    const shown = spawnSync('git', ['show', '--cc', '--format=', '--no-color', '--no-ext-diff', probe.stdout.trim(), '--', '.', ...ex], { cwd, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
+    if (shown.status !== 0) return null;
+    const files = [...new Set([...shown.stdout.matchAll(/^diff --(?:cc|combined) (.+)$/gm)].map((m) => m[1]))];
+    const vsHead = git(cwd, ['diff', '--name-only', '--cached', 'HEAD', '--', '.', ...ex]).split(/\r?\n/).filter(Boolean);
+    return { tree, headTree, diff: shown.stdout, files, vsHead };
+  } catch {
+    return null;
+  }
+}
+
 function workingChanges(cwd) {
+  const merge = mergeInfo(cwd);
+  if (merge) return { diff: merge.diff, files: merge.files, untracked: [], merge: { tree: merge.tree, headTree: merge.headTree, vsHead: merge.vsHead } };
   // Before the first commit there is no HEAD to diff against, and the empty tree is not an
   // object a fresh repository has. What would be committed is the index, so use that.
   const heads = hasHead(cwd);
@@ -555,6 +597,15 @@ function workingChanges(cwd) {
 
 const sha = (text) => crypto.createHash('sha256').update(text).digest('hex');
 const fingerprint = (cwd) => sha(workingChanges(cwd).diff);
+/**
+ * What a full test run is recorded against. A merge is the tree that will be committed (its
+ * combined diff can be empty while the tree still has never been tested); anything else is the
+ * fingerprint of the changes.
+ */
+const testFingerprint = (cwd) => {
+  const m = mergeInfo(cwd);
+  return m ? `merge:${m.tree}` : fingerprint(cwd);
+};
 
 // ---- the changed-only recheck (decided 2026-10-29) ----
 //
@@ -686,6 +737,7 @@ function keepFromLastCheck(cwd, changes) {
  * exactly that base, or nothing is narrowed.
  */
 function computeDelta(cwd, changes) {
+  if (changes.merge) return { refused: 'a merge reviews everything it adds, not a changed-only part of it' };
   const recheck = readJson(evidenceFile(cwd, 'review', '_recheck'));
   if (!recheck || !recheck.hash) return { refused: 'no earlier experts check to compare against' };
   const base = recheck.hash;
@@ -984,7 +1036,7 @@ function commitEvidence(cwd, planFile, pluginRoot = PLUGIN_ROOT) {
     const available = list(pluginRoot).experts.map((e) => e.name);
     if (available.length === 0) return { skip: 'no experts are installed' };
     const changes = workingChanges(cwd);
-    if (changes.files.length === 0) return { skip: 'nothing to commit' };
+    if (changes.files.length === 0) return { skip: changes.merge ? 'a merge that adds nothing beyond its parents' : 'nothing to commit' };
     if (changes.files.every((f) => gates.isDocPath(f))) return { skip: 'only documentation changed' };
 
     const recheck = readJson(evidenceFile(cwd, 'review', '_recheck'));
@@ -1252,6 +1304,8 @@ module.exports = {
   selectIntoPlan,
   workingChanges,
   fingerprint,
+  testFingerprint,
+  mergeInfo,
   prepare,
   splitByFile,
   dependentsOf,

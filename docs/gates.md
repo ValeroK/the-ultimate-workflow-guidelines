@@ -18,6 +18,23 @@ Lifecycle hooks read a small YAML block at the top of `PRD.md` or `PLAN-<feature
 | G6 | No source edit until the plan records which domain experts apply (`experts: []` counts), and no `git commit` until the experts have re-checked and reviewed the current changes. A high-confidence expert finding blocks it until fixed or dismissed by the user |
 | G7 | No `git commit` until a passing FULL test run covers the current changes (`node hooks/verify.js --full`, or `test_command` typed whole). An edit after the run makes it stale; docs-only and empty commits are exempt; feature work only (a `PLAN-*.md`); no `test_command`, no check |
 
+### Merges (4.2.1)
+
+Committing a merge used to ask the experts to review everything the other branch brought in, which was reviewed where it was made: 36 files and about a million tokens on one card, or a stop for the user. Now, while a merge is being committed (`MERGE_HEAD` exists, no unresolved conflicts, tracked files in the working tree equal to the index), the changes the gates look at are the merge's **combined diff**: what is in neither parent. A clean merge has none, so G6 has nothing to review; a hand-resolved conflict shows only the resolution. If anything is unclear (an unresolved conflict, an edit not yet staged), the whole diff against HEAD is used, so doubt means reviewing more. A changed-only recheck is refused during a merge.
+
+G7 still applies, on the **tree** that will be committed: a merge's combined diff can be empty while its tree has never been tested. A merge whose tree equals HEAD's, or differs only in documents, is not held.
+
+To see what is new in a merge before committing, in PowerShell with the merge staged:
+
+```
+$c = git commit-tree (git write-tree) -p HEAD -p MERGE_HEAD -m tmp
+git show --cc --format= $c
+```
+
+`git merge` that commits by itself is not seen by the hooks, which only see `git commit`.
+
+**Files a test run rewrites.** After a run, `verify.js` names any file the run rewrote that the plan does not list, with the exact `volatile_paths:` line to add. A refusal from G6 (stale evidence) or G7 (moved fingerprint) points at `volatile_paths` too, since a fingerprint that moved with no code edit is usually such a file.
+
 ### The long-conversation reminder (4.2.0)
 
 Not a gate: on each prompt the hook reads the last turn's context size from the end of the transcript, and past 150k tokens (and again every further 150k) adds one line suggesting `/handoff` and a new session. It never blocks, runs in any repository while the gates are on, and keeps its state in the system temp folder. `ULTIMATE_WORKFLOW_CONTEXT_REMINDER` sets the size in tokens; `0` turns it off.

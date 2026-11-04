@@ -1,0 +1,19 @@
+{
+  "session_id": "session-id",
+  "transcript_path": "C:/home/.claude/projects/proj/session/subagents/workflows/wf_test",
+  "cwd": "C:/proj",
+  "prompt_id": "uuid",
+  "permission_mode": "acceptEdits",
+  "agent_id": "a228af79d4568cbe3",
+  "agent_type": "workflow-subagent",
+  "effort": {
+    "level": "medium"
+  },
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Write",
+  "tool_input": {
+    "file_path": "C:/proj\\a.txt",
+    "content": "alpha"
+  },
+  "tool_use_id": "toolu_01Rrf772P2wuShfFGGvgrXfm"
+}

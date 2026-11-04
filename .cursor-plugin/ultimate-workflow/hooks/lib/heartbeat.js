@@ -65,6 +65,8 @@ function record(cwd, entry) {
       stage: entry.stage,
       decision: entry.decision,
     };
+    // A gate that stepped aside says so; otherwise a deferral looks like a gate that did nothing.
+    if (entry.deferred && typeof entry.deferred === 'object') trimmed.deferred = entry.deferred;
 
     const recent = [...current.recent, trimmed].slice(-MAX_RECENT);
 

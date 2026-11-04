@@ -1,0 +1,27 @@
+{
+  "session_id": "session-id",
+  "transcript_path": "C:/home/.claude/projects/proj/session/subagents/workflows/wf_test",
+  "cwd": "C:/proj",
+  "prompt_id": "uuid",
+  "permission_mode": "acceptEdits",
+  "effort": {
+    "level": "medium"
+  },
+  "hook_event_name": "PostToolUse",
+  "tool_name": "Workflow",
+  "tool_input": {
+    "script": "export const meta = {\n  name: 'hook-experiment',\n  description: 'Run two agents in parallel: one writes a.txt, one runs a 40-second sleep command',\n  phases: [{ title: 'Run' }]\n}\n\nconst results = await parallel([\n  () => agent('Use the Write tool to create a file named a.txt containing the word alpha. Then reply done.', { label: 'write-a', phase: 'Run' }),\n  () => agent('Run the shell command: node -e \"setTimeout(()=>{},40000)\" . Then reply done.', { label: 'sleep-40s', phase: 'Run' })\n])\n\nreturn results\n"
+  },
+  "tool_response": {
+    "status": "async_launched",
+    "taskId": "w2fghywnb",
+    "taskType": "local_workflow",
+    "workflowName": "hook-experiment",
+    "runId": "wf_2118af8a-f1c",
+    "summary": "Run two agents in parallel: one writes a.txt, one runs a 40-second sleep command",
+    "transcriptDir": "C:/home/.claude/projects/proj/session/subagents/workflows/wf_test",
+    "scriptPath": "C:/home/.claude/projects/proj/session/subagents/workflows/wf_test"
+  },
+  "tool_use_id": "toolu_01ERJfRvTVAYAUTvQyMmqkFm",
+  "duration_ms": 3
+}

@@ -77,9 +77,28 @@ function fullVerifyReport(cwd, state) {
   return r.fingerprint === ev.hash ? 'fresh' : 'stale';
 }
 
+/**
+ * Whether G3 stepped aside at the most recent Stop because a workflow was still running. Read from
+ * the heartbeat, since a Stop payload is only visible to the hook; a later Stop that was not
+ * deferred clears it, so this never reports a deferral that ended.
+ */
+function deferralReport(hbData) {
+  const stops = (hbData.recent || []).filter((e) => e && e.event === 'stop');
+  const last = stops[stops.length - 1];
+  if (!last || !last.deferred) return null;
+  return {
+    gate: last.deferred.gate || 'G3',
+    workflowId: last.deferred.workflowId || null,
+    workflowName: last.deferred.workflowName || null,
+    at: last.at || null,
+  };
+}
+
 function report(cwd, env) {
   const disabled = stateLib.gatesDisabled(env);
-  const liveness = heartbeat.liveness(heartbeat.read(cwd), { disabled });
+  const hbData = heartbeat.read(cwd);
+  const liveness = heartbeat.liveness(hbData, { disabled });
+  const deferral = deferralReport(hbData);
 
   try {
     const state = stateLib.readState(cwd);
@@ -101,6 +120,7 @@ function report(cwd, env) {
       experts: expertsReport(cwd, state),
       g3Active: state.stage !== 'none' && Boolean(state.data.test_command || state.data.build_command),
       fullVerify: fullVerifyReport(cwd, state),
+      deferral,
     };
   } catch (err) {
     return {
@@ -112,6 +132,7 @@ function report(cwd, env) {
       experts: null,
       g3Active: false,
       fullVerify: 'n/a',
+      deferral,
       error: err && err.message ? err.message : 'unknown error',
     };
   }
@@ -157,6 +178,14 @@ function reportState(r) {
   if (present.length) {
     say('State:');
     for (const [k, v] of present) say(`         ${k}: ${v}`);
+  }
+
+  // A gate that stepped aside must say so, or it reads as a gate that did nothing.
+  if (r.deferral) {
+    const what = r.deferral.workflowName || r.deferral.workflowId || 'a workflow';
+    say('');
+    say(`${r.deferral.gate} deferred: the last turn ended while ${what} was still running.`);
+    say('         It applies again at the first turn end after the workflow finishes.');
   }
 
   say('');

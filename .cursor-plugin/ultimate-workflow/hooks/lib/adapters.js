@@ -167,6 +167,11 @@ function normalize(payload) {
     ok,
     transcriptPath: payload.transcript_path || null,
     sessionId: payload.session_id || payload.conversation_id || null,
+    // The host's list of background work (a Stop payload), and which workflow subagent made a
+    // tool call. Recorded in fixtures/claude-code/workflow/; absent on other hosts.
+    backgroundTasks: Array.isArray(payload.background_tasks) ? payload.background_tasks : null,
+    agentId: payload.agent_id || null,
+    agentType: payload.agent_type || null,
   };
 }
 

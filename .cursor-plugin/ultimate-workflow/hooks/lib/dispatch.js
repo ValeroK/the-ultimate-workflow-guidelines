@@ -30,6 +30,15 @@ function verifyKind(command, state) {
   return new RegExp(`(^|&&|;|\\|\\||\\()\\s*${reEscape(configured)}\\s*\\)?\\s*$`).test(cmd) ? 'full' : 'related';
 }
 
+/**
+ * The first workflow the host reports as running, or null. Anything else (a missing or malformed
+ * list, a finished entry, another kind of background task) is not a reason to defer anything.
+ */
+function runningWorkflow(tasks) {
+  if (!Array.isArray(tasks)) return null;
+  return tasks.find((t) => t && typeof t === 'object' && t.type === 'workflow' && t.status === 'running') || null;
+}
+
 /** Did this shell command run the project's verification, whole or narrowed? */
 function isVerifyCommand(command, state) {
   return verifyKind(command, state) !== null;
@@ -176,6 +185,18 @@ function dispatch(ev, state, opts = {}) {
     }
 
     if (verdict.allow) return allow;
+
+    // A workflow is still running (a build, usually): its edits are in progress, so a verify now
+    // would run half-built code. The host reports it in `background_tasks`; the next Stop, after
+    // the workflow ends, carries an empty list and G3 applies as it always did. G7 and G6 still
+    // guard the commit. After the violation check on purpose: that one is a different problem.
+    const running = runningWorkflow(ev.backgroundTasks);
+    if (running) {
+      return {
+        kind: 'allow',
+        deferred: { gate: 'G3', workflowId: running.id || null, workflowName: running.name || running.description || null },
+      };
+    }
     return { kind: 'stopBlock', reason: verdict.reason };
   }
 

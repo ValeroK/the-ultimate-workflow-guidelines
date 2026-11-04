@@ -168,6 +168,7 @@ async function main() {
       vendor: ev.vendor,
       stage: state.stage,
       decision: result.kind,
+      deferred: result.deferred,
     });
   } catch {
     // Diagnostics must never affect a decision.

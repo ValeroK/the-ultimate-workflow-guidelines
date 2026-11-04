@@ -1,0 +1,17 @@
+{
+  "session_id": "session-id",
+  "transcript_path": "C:/home/.claude/projects/proj/session/subagents/workflows/wf_test",
+  "cwd": "C:/proj",
+  "prompt_id": "uuid",
+  "permission_mode": "acceptEdits",
+  "effort": {
+    "level": "medium"
+  },
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Write",
+  "tool_input": {
+    "file_path": "C:/proj\\main.txt2",
+    "content": "main\n"
+  },
+  "tool_use_id": "toolu_01YDTVhU84magZtNAhtCuFDw"
+}

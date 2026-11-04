@@ -123,6 +123,23 @@ const locate = planFile
   ? `Read ${planFile}.`
   : 'Find the active PLAN-*.md in this repository -- the most recently modified one -- and read it.'
 
+// --- build model (PLAN-run-records.md, W1) ---
+// The agents that write the tests and the code run on Sonnet unless told otherwise, and the
+// diagnosis on the session model. `experts.js script` passes ULTIMATE_WORKFLOW_BUILD_MODEL as
+// args.implementerModel; a build.args.json value wins. "inherit" means the session model. Before
+// this, every card needed a hand patch of the agent() options to set the model.
+const MODEL_OK = /^(inherit|sonnet|opus|haiku|claude-[a-z0-9.-]+)$/
+const modelArg = (v, fallback) => (v === undefined || v === null || v === '' ? fallback : v)
+const IMPLEMENTER_MODEL = modelArg(args && args.implementerModel, 'sonnet')
+const DIAGNOSER_MODEL = modelArg(args && args.diagnoserModel, 'inherit')
+const modelOpt = (m) => (m === 'inherit' ? {} : { model: m })
+for (const [key, value] of [['implementerModel', IMPLEMENTER_MODEL], ['diagnoserModel', DIAGNOSER_MODEL]]) {
+  if (typeof value !== 'string' || !MODEL_OK.test(value)) {
+    return { ok: false, error: `args.${key} is ${JSON.stringify(value)}: expected inherit, sonnet, opus, haiku or a claude-* model id. Nothing was started.` }
+  }
+}
+// --- end build model ---
+
 phase('Tests')
 
 if (resume && (!command || !resume.reason)) {
@@ -140,7 +157,7 @@ Then RUN them and confirm they FAIL.
 A new test that passes before the implementation exists is testing nothing, and it is invisible afterwards -- a green suite looks the same whether its tests constrain the behaviour or merely coexist with it. If any new test passes now, list it in unexpectedlyPassing and say so plainly. That is a finding, not a convenience.
 
 Report the project's real verification command as testCommand.`,
-  { agentType: agentName('uw-implementer'), label: 'write-tests', phase: 'Tests', schema: WROTE }
+  { agentType: agentName('uw-implementer'), label: 'write-tests', phase: 'Tests', schema: WROTE, ...modelOpt(IMPLEMENTER_MODEL) }
 )
 
 if (!tests) {
@@ -194,7 +211,7 @@ Smallest change that works. Nothing beyond the plan. Do not improve adjacent cod
 Never make a test pass by weakening it. Deleting an assertion or special-casing the test input converts a failing test into a lie that outlives you. If a test is genuinely wrong, say so and leave it failing.
 
 When not green, include the failure output verbatim.`,
-    { agentType: agentName('uw-implementer'), label: `attempt-${round}`, phase: round === 1 ? 'Implement' : 'Verify', schema: BUILT }
+    { agentType: agentName('uw-implementer'), label: `attempt-${round}`, phase: round === 1 ? 'Implement' : 'Verify', schema: BUILT, ...modelOpt(IMPLEMENTER_MODEL) }
   )
 
   if (!attempt) {
@@ -243,7 +260,7 @@ ${JSON.stringify(attempt.filesChanged, null, 2)}
 Read the relevant code and tests. Say what is actually wrong -- not what might be. Give the failure a short stable signature so a repeat can be recognised as no progress.
 
 If the TEST looks wrong rather than the code, say so: that is a legitimate outcome and needs a human, not another attempt.`,
-    { agentType: agentName('uw-reviewer'), label: `diagnose-${round}`, phase: 'Verify', schema: DIAGNOSIS }
+    { agentType: agentName('uw-reviewer'), label: `diagnose-${round}`, phase: 'Verify', schema: DIAGNOSIS, ...modelOpt(DIAGNOSER_MODEL) }
   )
 
   const priorSignature = diagnosis && diagnosis.signature

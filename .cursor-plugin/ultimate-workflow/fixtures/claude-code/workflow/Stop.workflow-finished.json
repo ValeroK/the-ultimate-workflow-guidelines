@@ -1,0 +1,15 @@
+{
+  "session_id": "session-id",
+  "transcript_path": "C:/home/.claude/projects/proj/session/subagents/workflows/wf_test",
+  "cwd": "C:/proj",
+  "prompt_id": "uuid",
+  "permission_mode": "acceptEdits",
+  "effort": {
+    "level": "medium"
+  },
+  "hook_event_name": "Stop",
+  "stop_hook_active": false,
+  "last_assistant_message": "The background workflow (run `wf_2118af8a-f1c`) finished. Both agents reported `done`, with no errors.\n\nYour scratch repo doesn't have a file named `a.txt` in the working directory, so I haven't verified that the first agent wrote it. The `main.txt2` file I created earlier is in place.",
+  "background_tasks": [],
+  "session_crons": []
+}

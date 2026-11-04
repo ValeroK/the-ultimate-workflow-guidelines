@@ -1,0 +1,23 @@
+{
+  "session_id": "session-id",
+  "transcript_path": "C:/home/.claude/projects/proj/session/subagents/workflows/wf_test",
+  "cwd": "C:/proj",
+  "prompt_id": "uuid",
+  "permission_mode": "acceptEdits",
+  "effort": {
+    "level": "medium"
+  },
+  "hook_event_name": "Stop",
+  "stop_hook_active": false,
+  "last_assistant_message": "launched",
+  "background_tasks": [
+    {
+      "id": "w2fghywnb",
+      "type": "workflow",
+      "status": "running",
+      "description": "Run two agents in parallel: one writes a.txt, one runs a 40-second sleep command",
+      "name": "hook-experiment"
+    }
+  ],
+  "session_crons": []
+}

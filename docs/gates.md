@@ -18,6 +18,12 @@ Lifecycle hooks read a small YAML block at the top of `PRD.md` or `PLAN-<feature
 | G6 | No source edit until the plan records which domain experts apply (`experts: []` counts), and no `git commit` until the experts have re-checked and reviewed the current changes. A high-confidence expert finding blocks it until fixed or dismissed by the user |
 | G7 | No `git commit` until a passing FULL test run covers the current changes (`node hooks/verify.js --full`, or `test_command` typed whole). An edit after the run makes it stale; docs-only and empty commits are exempt; feature work only (a `PLAN-*.md`); no `test_command`, no check |
 
+### G3 and a running workflow
+
+G3 used to fire at the end of the main session's turn while a build workflow was still editing, which forced a verify of half-built code (twice per card in the re-wash). Claude Code lists running background work in the Stop payload's `background_tasks`. While it holds a workflow with `status: "running"`, G3 steps aside for that Stop. The next Stop after the workflow ends carries an empty list, and G3 applies as it always did; G7 and G6 guard the commit throughout. A gate violation already recorded still blocks. A missing or malformed list defers nothing.
+
+The deferral is never silent: the heartbeat entry carries `deferred`, and `status.js` prints "G3 deferred: ..." (and `deferral` in `--json`) until a later Stop is not deferred. There is no time limit, because the host is the authority on whether the run is alive and one agent command can run for hours without any hook event. If a run is stuck, stop it in the host; the status line shows which one G3 is waiting for. Recorded payloads (Claude Code 2.1.316): `fixtures/claude-code/workflow/`. `background_tasks` is documented in the hooks reference (Stop input, with `workflow` listed as a type); a workflow that failed or was stopped had left the list by the next Stop in the recordings, so G3 applied at once. Only `status: "running"` defers; the other status values are not documented.
+
 ### Merges (4.2.1)
 
 Committing a merge used to ask the experts to review everything the other branch brought in, which was reviewed where it was made: 36 files and about a million tokens on one card, or a stop for the user. Now, while a merge is being committed (`MERGE_HEAD` exists, no unresolved conflicts, tracked files in the working tree equal to the index), the changes the gates look at are the merge's **combined diff**: what is in neither parent. A clean merge has none, so G6 has nothing to review; a hand-resolved conflict shows only the resolution. If anything is unclear (an unresolved conflict, an edit not yet staged), the whole diff against HEAD is used, so doubt means reviewing more. A changed-only recheck is refused during a merge.
@@ -108,6 +114,7 @@ Exit is always 0, blocking or not, so it stays usable under `set -e`.
   "blocking": { "blocked": true, "reason": "Gate G1: ..." },
   "g3Active": true,
   "fullVerify": "never|fresh|stale|failed|n/a", // the last full test run, for G7
+  "deferral": null,                          // or { "gate": "G3", "workflowId": "...", "workflowName": "...", "at": "..." }
   "experts":  {                              // null outside a feature
     "decided": true, "selected": ["security"], "available": ["architect", "developer", "quality", "security", "softarch"],
     "openFindings": 0,                       // high-confidence findings still open

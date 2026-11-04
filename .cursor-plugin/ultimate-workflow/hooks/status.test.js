@@ -181,7 +181,7 @@ test('status writes nothing at all', () => {
 // allowed only by editing that plan and the key-set test below in one commit.
 
 // `experts` was added with the G6 commit gate: additive, null outside a feature.
-const JSON_KEYS = ['blocking', 'experts', 'file', 'fullVerify', 'g3Active', 'liveness', 'stage', 'state'];
+const JSON_KEYS = ['blocking', 'deferral', 'experts', 'file', 'fullVerify', 'g3Active', 'liveness', 'stage', 'state'];
 
 function frontMatter(lines) {
   return `---\n${lines.join('\n')}\n---\n`;

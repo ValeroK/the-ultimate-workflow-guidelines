@@ -43,11 +43,39 @@ const basisKind = (f) => (/^(skill|reference|general)\b/.exec(String(f.basis || 
 const basisSkill = (f) => (basisKind(f) === 'skill' ? String(f.basis).trim().slice(6).split('#')[0].trim() : null);
 
 /**
+ * The phase result inside whatever was saved. The Workflow tool's output file is a wrapper
+ * ({ summary, agentCount, logs, result, ... }) and the command says to save it as returned, so the
+ * wrapper is accepted and its `result` (an object, or the same object as JSON text) is used. A phase
+ * result always has a boolean `ok`; anything without one is refused, because reading a wrapper as the
+ * result once wrote a row with ok:false, green:false and rounds:null for a build that had succeeded.
+ */
+function unwrapResult(raw) {
+  let r = raw;
+  for (let depth = 0; depth < 3; depth++) {
+    if (typeof r === 'string') {
+      try {
+        r = JSON.parse(r);
+      } catch {
+        break;
+      }
+    }
+    if (!r || typeof r !== 'object' || Array.isArray(r)) break;
+    if (typeof r.ok === 'boolean') return r;
+    if (!('result' in r)) break;
+    r = r.result;
+  }
+  throw new Error(
+    'the --result file is not a phase result: it has no boolean "ok", at the top or inside a Workflow wrapper\'s "result". Save the Workflow tool\'s output file as returned.'
+  );
+}
+
+/**
  * One phase run. `row` holds what only the session saw (run id, agents, tokens, duration,
  * workarounds); `result` is the workflow's own result, read from its file, from which the experts,
  * skills, findings and cases are taken, so nothing about them is retyped.
  */
-function addRun(cwd, phase, row, result) {
+function addRun(cwd, phase, row, rawResult) {
+  const result = rawResult === null || rawResult === undefined ? null : unwrapResult(rawResult);
   if (!PHASES.includes(phase)) throw new Error(`unknown phase "${phase}" (expected ${PHASES.join(', ')})`);
   if (!row || typeof row !== 'object') throw new Error('the row must be a JSON object');
   if (typeof row.runId !== 'string' || !row.runId.trim()) throw new Error('the row needs runId (the Workflow run id)');

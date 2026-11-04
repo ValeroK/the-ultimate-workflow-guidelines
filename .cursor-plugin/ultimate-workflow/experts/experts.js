@@ -1100,6 +1100,12 @@ function stageScript(pluginRoot, cwd, phaseName, { argsFile = '', files = [], me
     if (typeof reader === 'string' && reader.trim()) args.readerModel = reader.trim();
     else delete args.readerModel;
   }
+  // The model for the build's test writer and implementer (PLAN-run-records.md, W1). A value
+  // in the arguments file wins; the environment only fills in when there is none.
+  if (phaseName === 'build') {
+    const impl = process.env.ULTIMATE_WORKFLOW_BUILD_MODEL;
+    if (args.implementerModel === undefined && typeof impl === 'string' && impl.trim()) args.implementerModel = impl.trim();
+  }
   if (typeof args.plan === 'string') {
     try {
       stateLib.setActivePlan(cwd, args.plan);

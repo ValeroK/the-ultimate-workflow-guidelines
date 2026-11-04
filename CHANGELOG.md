@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+From the re-wash trace (cards 8a to 11, `.ultimate-workflow/session-trace.md`) and `internal/plans/PLAN-run-records.md`: fewer hand steps, and gates that act on facts the host reports.
+
+### Fixed
+
+- **The gates find the project root first.** A hook fires in whatever folder the host's shell is in, and the plan was read from exactly that folder, so from a subfolder every gate saw no plan and allowed, and the heartbeat was written into the subfolder, where a test guarding that tree failed on it in every worktree. `gate.js` and `status.js` use the nearest ancestor holding a plan or a `.git` entry; a stray `.ultimate-workflow` folder is deliberately not a marker.
+- **`ledger add` takes the Workflow wrapper and refuses what is not a phase result.** The commands say to save the result as returned, but it was read as the phase result itself, so a successful build became a row with `ok:false`, `green:false` and `rounds:null`. The wrapper's `result` is used now, and a file with no boolean `ok` is refused with nothing appended.
+
+### Added
+
+- **G3 defers while a workflow is running.** The Stop payload's `background_tasks` lists running background work; while it holds a workflow, G3 steps aside for that Stop, so it no longer forces a verify of half-built code. It applies again at the first Stop after the workflow ends. A recorded gate violation still blocks, and a missing or malformed list defers nothing. The deferral is recorded in the heartbeat and shown by `status.js` (`deferral` in `--json`). Payloads recorded from Claude Code 2.1.316 are in `fixtures/claude-code/workflow/`.
+- **The build's model is a setting.** `implementerModel` and `diagnoserModel` in `build.args.json` (`inherit`, `sonnet`, `opus`, `haiku` or a `claude-*` id), and `ULTIMATE_WORKFLOW_BUILD_MODEL` for the implementer; a bad value is refused before any agent starts.
+
+### Changed
+
+- **The build's test writer and implementer run on Sonnet by default** (the diagnosis stays on the session model). Set `implementerModel: "inherit"` to keep the session model.
+
+Tests: `hooks/lib/workflow-defer.test.js`, `hooks/lib/root.test.js`, `evals/experts/run-records.test.js`.
+
 ## [4.2.1] - 2026-11-03
 
 From card 7 of the re-wash: a merge of origin/main (36 files, all reviewed on main) was refused by G6, and the experts had to be run again or the user had to commit by hand.

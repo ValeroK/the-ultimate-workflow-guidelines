@@ -6,6 +6,7 @@
 //   node hooks/verify.js           the tests related to the uncommitted changes, or the full suite
 //                                  when the narrow run cannot be trusted (hooks/lib/selection.js)
 //   node hooks/verify.js --full    the full suite (test_command), recorded for the commit check
+//   node hooks/verify.js --full --if-stale   the same, unless a passing full run already covers the current changes
 //   --plan <file>                  read this plan's front matter instead of the newest PLAN-*.md
 //
 // The model passes no file list: the changed files come from git, so a run always covers the
@@ -178,16 +179,20 @@ function relatedTests(cwd, changes) {
 }
 
 function parseArgs(argv) {
-  const out = { full: false, plan: '' };
+  const out = { full: false, ifStale: false, plan: '' };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--full') out.full = true;
+    else if (argv[i] === '--if-stale') out.ifStale = true;
     else if (argv[i] === '--plan') out.plan = argv[++i] || '';
   }
   return out;
 }
 
-function main(argv, cwd = process.cwd()) {
+function main(argv, startDir = process.cwd()) {
   const opts = parseArgs(argv);
+  // The plan, the record and the test command all belong to the project root: G7 reads the record
+  // there, so a run started from a subfolder would otherwise leave one where nothing looks.
+  const cwd = stateLib.projectRoot(startDir);
   let data;
   if (opts.plan) {
     try {
@@ -202,6 +207,26 @@ function main(argv, cwd = process.cwd()) {
   if (!data.test_command) {
     console.error('verify: no test_command in the plan front matter (PLAN-*.md or PRD.md). Set it to the full test command, then run this again.');
     return 2;
+  }
+
+  if (opts.ifStale && !opts.full) {
+    console.error('verify: --if-stale only goes with --full.');
+    return 2;
+  }
+  // --full --if-stale: a repeat of a run that already passed is not worth a second suite. Only a
+  // passing full run of this same command, made on exactly the current changes, counts; a skipped
+  // run writes nothing, so the record keeps saying when the suite really ran.
+  if (opts.full && opts.ifStale) {
+    const ev = fullEvidence(cwd);
+    if (ev.skip) {
+      console.log(`verify: nothing to run (${ev.skip})`);
+      return 0;
+    }
+    const r = ev.record;
+    if (r && r.mode === 'full' && r.passed === true && r.fingerprint === ev.hash && r.command === String(data.test_command).trim()) {
+      console.log(`verify: a passing full run (${r.at}) already covers these changes; nothing to run`);
+      return 0;
+    }
   }
 
   let choice;

@@ -1113,11 +1113,23 @@ function stageScript(pluginRoot, cwd, phaseName, { argsFile = '', files = [], me
   }
   if (phaseName === 'build') {
     delete args.verify;
-    const planRel = typeof args.plan === 'string' ? args.plan : '';
+    let planRel = typeof args.plan === 'string' ? args.plan : '';
     let data = {};
     try {
       if (planRel) data = stateLib.parseFrontMatter(fs.readFileSync(path.resolve(cwd, planRel), 'utf8')).data;
     } catch {}
+    // Arguments that name no plan (a build started with only a command, as in the re-wash) used to
+    // get no verify command at all, so the build's closing full run never happened. The active plan
+    // is the one the gates already follow.
+    if (!planRel) {
+      try {
+        const active = stateLib.readState(cwd);
+        if (active.stage === 'feature' && active.file) {
+          planRel = path.relative(cwd, active.file);
+          data = active.data;
+        }
+      } catch {}
+    }
     if (data.test_command) {
       const fwd = (p) => p.replace(/\\/g, '/');
       args.verify = `node "${fwd(path.join(pluginRoot, 'hooks', 'verify.js'))}" --plan "${fwd(planRel)}"`;

@@ -7,7 +7,7 @@ argument-hint: "[--plan <plan file>]"
 
 This is the review command with only the domain experts running, which is fast enough to do before every commit. When the commit gate refuses a `git commit` with "Gate G6", this is the command it means; run it without asking the user, then commit again.
 
-**First, when the plan has a `test_command`, run the full tests:** `node "${CLAUDE_PLUGIN_ROOT}/hooks/verify.js" --full`, and fix them until they pass. A commit needs both a passing full run (G7) and this check (G6) on the same changes; a test run that rewrites files after the experts have reviewed would make their review stale and cost a whole recheck. Files a test run always rewrites belong in the plan's `volatile_paths`.
+**First, when the plan has a `test_command`, run the full tests:** `node "${CLAUDE_PLUGIN_ROOT}/hooks/verify.js" --full --if-stale`, and fix them until they pass. It does nothing, and says so, when a passing full run (the build's last one, for example) already covers these exact changes. A commit needs both a passing full run (G7) and this check (G6) on the same changes; a test run that rewrites files after the experts have reviewed would make their review stale and cost a whole recheck. Files a test run always rewrites belong in the plan's `volatile_paths`.
 
 Then read `${CLAUDE_PLUGIN_ROOT}/commands/review.md` and follow it exactly, with these differences:
 

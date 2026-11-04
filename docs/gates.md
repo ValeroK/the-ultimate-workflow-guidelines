@@ -18,6 +18,10 @@ Lifecycle hooks read a small YAML block at the top of `PRD.md` or `PLAN-<feature
 | G6 | No source edit until the plan records which domain experts apply (`experts: []` counts), and no `git commit` until the experts have re-checked and reviewed the current changes. A high-confidence expert finding blocks it until fixed or dismissed by the user |
 | G7 | No `git commit` until a passing FULL test run covers the current changes (`node hooks/verify.js --full`, or `test_command` typed whole). An edit after the run makes it stale; docs-only and empty commits are exempt; feature work only (a `PLAN-*.md`); no `test_command`, no check |
 
+### One full run, not three
+
+A passing `verify.js --full` is recorded with the fingerprint of the changes it covered, and G7 accepts it for exactly those changes. `verify.js --full --if-stale` asks for a full run only when none covers the current changes: the record must be a passing full run of the plan's own `test_command` on exactly the current changes, otherwise the suite runs as usual. A skipped run says so and writes nothing, and to G3 it still reads as a full verification. `/ultimate-workflow:experts` uses it, so the build's last full run, the experts check and the commit do not each run the suite. `verify.js` also works at the project root now, so a run started in a subfolder leaves its record where G7 looks. A build whose arguments name no plan takes its verify command from the active plan; before, it got none and its closing full run never happened.
+
 ### G3 and a running workflow
 
 G3 used to fire at the end of the main session's turn while a build workflow was still editing, which forced a verify of half-built code (twice per card in the re-wash). Claude Code lists running background work in the Stop payload's `background_tasks`. While it holds a workflow with `status: "running"`, G3 steps aside for that Stop. The next Stop after the workflow ends carries an empty list, and G3 applies as it always did; G7 and G6 guard the commit throughout. A gate violation already recorded still blocks. A missing or malformed list defers nothing.

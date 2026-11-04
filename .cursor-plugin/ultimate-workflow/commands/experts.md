@@ -20,6 +20,8 @@ Then read `${CLAUDE_PLUGIN_ROOT}/commands/review.md` and follow it exactly, with
 
 Run `record`, `check` and `git commit` each as a separate command, never chained with `&&` or `;`. The commit gate judges the whole command before any part of it runs, so a `record` chained in front of `git commit` cannot satisfy it and the commit is refused (it cost a round trip in the re-wash).
 
+`record` also prints `concerns` (a count) and `concernList`: worries the experts could not call findings, each with its reason. Show them to the user and offer the follow-up list; they never block the commit.
+
 If `record` printed open findings, do not run `check` yet and do not commit: follow "High-confidence findings are raised and resolved" in the review command. Raise each finding to the user and wait for their decision. You may not skip this because the commit was the goal.
 
 When the evidence is recorded and nothing is open, confirm it with `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" check [--plan <plan file>]`. It prints `{"ok":true}` and exits 0 when the commit gate would allow a commit now, and prints the reason and exits 1 when it would not. Report that result. If it is blocked, the reason names what is missing; do not commit, and do not edit evidence files by hand.

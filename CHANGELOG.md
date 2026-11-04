@@ -9,8 +9,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 - **Experts per card.** A card may carry `experts: [..]` (`card-add --experts`), a subset of the plan's own line. The commit is held to that set when every changed file (leaving out the plan, the tool folder and tests) is covered by cards that name their experts, and to the plan's line otherwise, so an edit outside the card restores the full panel. `read --plan` prints `effective`, `status.js` shows the narrowing, and the G6 message names the card.
+- **Concerns.** The experts' protocol no longer says to leave out anything rated below 8; at review such a worry goes in `concerns` (at most three, each with the reason it is not a finding) instead of only in the lensVerdict. Items without a text or a reason are dropped and counted. The evidence, the ledger and the review and experts commands carry them; they never block a commit.
 
-Tests: `evals/experts/card-experts.test.js`.
+Tests: `evals/experts/card-experts.test.js`, `evals/experts/concerns.test.js`.
 
 ## [4.4.0] - 2026-11-04
 

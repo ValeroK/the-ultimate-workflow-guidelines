@@ -1067,7 +1067,7 @@ function record(cwd, stage, result, { planFile = '', pluginRoot = PLUGIN_ROOT } 
       hash,
       failedElsewhere: (lane.failed || []).length > 0,
       skills: lane.skillsLoaded && Array.isArray(lane.skillsLoaded[name]) ? lane.skillsLoaded[name] : [],
-      ...(stage === 'review' ? { findings: mine } : {}),
+      ...(stage === 'review' ? { findings: mine, concerns: (Array.isArray(lane.concerns) ? lane.concerns : []).filter((c) => c && c.expert === name) } : {}),
       ...(narrowed ? { delta: { base: delta.base, files: delta.files || [], removed: delta.removed || [], chain: Number(delta.chain) || 1 } } : {}),
     });
   }
@@ -1077,7 +1077,8 @@ function record(cwd, stage, result, { planFile = '', pluginRoot = PLUGIN_ROOT } 
   const all = found.concat(...Object.values(carried));
   const open = all.filter((f) => blocking(f) && !readWaivers(cwd)[f.id]);
   const basisProblems = found.filter((f) => f.basisCheck && f.basisCheck !== 'ok').map((f) => `${f.id} ${f.expert} ${f.file}:${f.line}: basis ${f.basis ? `"${f.basis}"` : '(none)'} is ${f.basisCheck}`);
-  return { stage, recorded: lane.ran || [], failed: lane.failed || [], hash, plan, findings: found.length, open, ...(basisProblems.length > 0 ? { basisProblems } : {}) };
+  const concerns = stage === 'review' ? (Array.isArray(lane.concerns) ? lane.concerns.filter((c) => c && (lane.ran || []).includes(c.expert)) : []) : [];
+  return { stage, recorded: lane.ran || [], failed: lane.failed || [], hash, plan, findings: found.length, open, ...(stage === 'review' ? { concerns: concerns.length, ...(concerns.length > 0 ? { concernList: concerns } : {}) } : {}), ...(basisProblems.length > 0 ? { basisProblems } : {}) };
 }
 
 /** What the commit gate needs to decide, gathered once. Fails open to a skip. */

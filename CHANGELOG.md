@@ -12,12 +12,14 @@ From the re-wash trace: the same suite ran again and again on unchanged code.
 
 - **`verify.js --full --if-stale`** runs the full suite only when no passing full run of the plan's `test_command` covers the current changes; otherwise it says so and writes nothing. `/ultimate-workflow:experts` uses it.
 
+- **Cards in a plan, written by a command.** `experts.js card-add` writes a card (`name`, `title`, `paths`, `carried`) into the plan's `## Cards` section, `brief --card` reads it (names are matched whole; a `Card N` heading still works), and `scope` lists the changed files that no card path covers, from git and not from the agent's report. Before, the card heading and the carried items were typed into the plan by hand before every build, and a file belonging to the next card could be edited without anyone seeing.
+
 ### Fixed
 
 - **`verify.js` works at the project root.** Started in a subfolder it read the plan and wrote its record there, where G7 never looks; `--plan` paths are relative to the root.
 - **A build whose arguments name no plan gets its verify command from the active plan.** Before, `experts.js script` left it empty, so the build's closing full run never happened.
 
-Tests: `evals/experts/verify-fresh.test.js`.
+Tests: `evals/experts/verify-fresh.test.js`, `evals/experts/cards.test.js`.
 
 ## [4.3.0] - 2026-11-04
 

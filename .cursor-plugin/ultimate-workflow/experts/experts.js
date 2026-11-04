@@ -19,6 +19,9 @@
 //   node experts.js list                                    available experts, as JSON
 //   node experts.js brief   [--plan P]                      the standing brief of every expert that declares the build stage,
 //                                                           with the skills each one selects for the plan
+//   node experts.js card-add --plan P --name N --title T --paths G[,G] [--carried X[;X]]   add a card to the plan's Cards section
+//   node experts.js brief   --plan P --card N               the briefs for one card of the plan (its Cards entry, or a "Card N" heading)
+//   node experts.js scope   --plan P --card N [--result R]  the changed files outside the card's paths, from git
 //   node experts.js skills  --stage plan                    the skills each planning expert may be given, for the plan workflow to offer
 //   node experts.js skills  --stage tests --plan P          the skills chosen from the plan for each expert that joins the tests stage
 //   node experts.js read    --plan P                        the plan's experts
@@ -1187,6 +1190,12 @@ function parseArgs(argv) {
     else if (a === '--cwd') o.cwd = need();
     else if (a === '--phase') o.phase = need();
     else if (a === '--section') o.section = need();
+    else if (a === '--card') o.card = need();
+    else if (a === '--name') o.name = need();
+    else if (a === '--title') o.title = need();
+    else if (a === '--paths') o.paths = need();
+    else if (a === '--carried') o.carried = need();
+    else if (a === '--result') o.result = need();
     else if (a === '--delta') o.delta = true;
     else if (a === '--args-file') o.argsFile = need();
     else if (a === '--file') o.files.push(need());
@@ -1232,6 +1241,18 @@ function main(argv) {
     }
     if (o.cmd === 'brief') {
       let planText = o.plan ? fs.readFileSync(o.plan, 'utf8') : null;
+      if (o.card && o.section) fail('brief takes --card or --section, not both');
+      if (o.card) {
+        if (planText === null) fail('brief --card needs --plan');
+        const cardsLib = require('./cards.js');
+        const card = cardsLib.findCard(planText, o.card);
+        const text = card ? cardsLib.cardText(card) : cardsLib.headingCardText(planText, o.card);
+        if (text === null) {
+          const known = cardsLib.parseCards(planText).map((c) => c.name);
+          fail(`no card "${o.card}" in ${o.plan} (${known.length ? `cards: ${known.join(', ')}` : 'it has no Cards section'}). Add it with: experts.js card-add --plan ${o.plan} --name ${o.card} --title <title> --paths <globs>`);
+        }
+        planText = text;
+      }
       if (o.section) {
         if (planText === null) fail('brief --section needs --plan');
         planText = planSection(planText, o.section);
@@ -1280,6 +1301,45 @@ function main(argv) {
       if (!o.phase) fail('script needs --phase <plan|tests|build|review|harvest>');
       return out(stageScript(o.pluginRoot, o.cwd, o.phase, { argsFile: o.argsFile, files: o.files, merges: o.merges }));
     }
+    if (o.cmd === 'card-add') {
+      if (!o.plan) fail('card-add needs --plan');
+      const cardsLib = require('./cards.js');
+      const file = path.resolve(o.cwd, o.plan);
+      const next = cardsLib.addCard(fs.readFileSync(file, 'utf8'), {
+        name: o.name,
+        title: o.title,
+        paths: String(o.paths || '').split(',').map((s) => s.trim()).filter(Boolean),
+        carried: String(o.carried || '').split(';').map((s) => s.trim()).filter(Boolean),
+      });
+      fs.writeFileSync(file, next);
+      return out({ ok: true, plan: o.plan, card: cardsLib.findCard(next, o.name) });
+    }
+    if (o.cmd === 'scope') {
+      if (!o.plan || !o.card) fail('scope needs --plan and --card');
+      const cardsLib = require('./cards.js');
+      const card = cardsLib.findCard(fs.readFileSync(path.resolve(o.cwd, o.plan), 'utf8'), o.card);
+      if (!card) fail(`no card "${o.card}" in ${o.plan}`);
+      if (card.paths.length === 0) fail(`card ${card.name} lists no paths, so there is nothing to compare the changes with`);
+      const fwd = (p) => String(p).replace(/\\/g, '/');
+      const rel = (p) => fwd(path.isAbsolute(p) ? path.relative(o.cwd, p) : p).replace(/^\.\//, '');
+      // Not scope: the plan the gates rewrite every turn, the plugin's own folder, and the tests the
+      // build's test step wrote (they sit wherever the project keeps tests, not under the card).
+      const skip = new Set([rel(path.resolve(o.cwd, o.plan))]);
+      let testFiles = [];
+      if (o.result) {
+        let parsed;
+        try {
+          parsed = require('./ledger.js').unwrapResult(JSON.parse(fs.readFileSync(path.resolve(o.cwd, o.result), 'utf8').replace(/^\uFEFF/, '')));
+        } catch (err) {
+          fail(`${o.result} is not a saved build result (${err.message})`);
+        }
+        testFiles = [...(parsed.testFiles || []), ...(parsed.filesWritten || [])].filter((f) => typeof f === 'string').map(rel);
+        for (const f of testFiles) skip.add(f);
+      }
+      const changed = workingChanges(o.cwd).files.map(rel).filter((f) => !skip.has(f) && !f.startsWith('.ultimate-workflow/'));
+      const outside = cardsLib.outOfScope(changed, card.paths, globToRegExp);
+      return out({ card: card.name, title: card.title, paths: card.paths, changed: changed.length, outOfScope: outside, testsExcluded: testFiles.length });
+    }
     if (o.cmd === 'check') {
       const evidence = commitEvidence(o.cwd, o.plan, o.pluginRoot);
       const verdict = gates.commitGate(evidence);
@@ -1290,7 +1350,7 @@ function main(argv) {
   } catch (err) {
     fail(err.message);
   }
-  return fail(`unknown command: ${o.cmd || '(none)'} (expected list, brief, skills, read, select, prepare, record, check, findings, resolve, attribution, fingerprint, script, ledger)`);
+  return fail(`unknown command: ${o.cmd || '(none)'} (expected list, brief, skills, read, select, prepare, record, check, findings, resolve, attribution, fingerprint, script, ledger, card-add, scope)`);
 }
 
 module.exports = {

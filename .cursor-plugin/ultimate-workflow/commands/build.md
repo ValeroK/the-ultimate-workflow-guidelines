@@ -10,7 +10,7 @@ argument-hint: "<plan file; required if more than one PLAN-*.md exists>"
 1. **The plan file.** The one the user named. Otherwise, if exactly one `PLAN-*.md` at the repository root is not marked `phase: done`, use it. If several exist and none was named, ask which; never pick by modification time.
 2. **The briefs.** The workflow script cannot read the filesystem, so the briefs, and the skills each one selects for this plan, are found here, in code. Run:
 
-   `mkdir -p .ultimate-workflow/run`, then `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" brief --plan <plan file> > .ultimate-workflow/run/briefs.json`. When the plan is split into cards and this build is one of them, add `--section "<the card's heading>"`: the skills are then chosen from that card's section, so a brief another card needs (a CI job, a migration) does not load here.
+   `mkdir -p .ultimate-workflow/run`, then `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" brief --plan <plan file> > .ultimate-workflow/run/briefs.json`. When the plan is split into cards and this build is one of them, record the card once, with a command and not by editing the plan: `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" card-add --plan <plan file> --name <card name> --title "<what the card does>" --paths "<globs the card may change, comma separated>" [--carried "<item; item>"]` (it adds a line to the plan's `## Cards` section, creating it when needed), then add `--card <card name>` to the brief command: the skills are chosen from that card's title, paths and carried items, so a brief another card needs (a CI job, a migration) does not load here. A plan that only has a `Card <name>` heading works with `--card` too, and `--section "<heading>"` still works as before.
 
    It writes a JSON array of `{ "name", "text", "skills" }`, one per expert that declares the `build` stage; `skills` holds the skill texts chosen from the files and text of the plan. An empty array is fine and means no expert has a brief. Show the user anything the script prints on stderr: a brief that is missing or too large is left out, a skill that did not fit is named, and a plan that names no file gets only the skills every build gets.
 
@@ -35,6 +35,8 @@ One exception: if the run failed before any agent started (0 agents, and an inpu
 
 Report what landed and whether verification is green. Say which briefs and skills were loaded (`briefsLoaded`, `skillsLoaded`), so it is visible when none were. If the run escalated, present the blocker with options and **stop** -- do not pick one. Never report green without having seen the verification output.
 
+
+When the build was one card of a split plan, check what it touched, from git and not from what the agent says: `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" scope --plan <plan file> --card <card name> --result .ultimate-workflow/run/build.result.json`. Tell the user every file in `outOfScope` (changed, and under none of the card's paths; the plan, the plugin folder and the tests this build wrote are left out). It is a report, not a block: a file may rightly belong to the card, in which case add its path to the card.
 
 ## Record the run in the ledger
 

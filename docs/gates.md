@@ -18,6 +18,18 @@ Lifecycle hooks read a small YAML block at the top of `PRD.md` or `PLAN-<feature
 | G6 | No source edit until the plan records which domain experts apply (`experts: []` counts), and no `git commit` until the experts have re-checked and reviewed the current changes. A high-confidence expert finding blocks it until fixed or dismissed by the user |
 | G7 | No `git commit` until a passing FULL test run covers the current changes (`node hooks/verify.js --full`, or `test_command` typed whole). An edit after the run makes it stale; docs-only and empty commits are exempt; feature work only (a `PLAN-*.md`); no `test_command`, no check |
 
+### Cards in a plan
+
+A plan split into cards lists them in a `## Cards` section, one bullet per card, written by `experts.js card-add` and not by hand:
+
+```
+- 8a: Command Deck routes
+  paths: dashboard/src/app/skills/**, README.md
+  carried: an item left over from the card before; another
+```
+
+`brief --card 8a` chooses the briefs and skills from that entry (a plan with only a `Card 8a` heading still works; names are matched whole, so `8` is not `8a`). After the build, `scope --plan P --card 8a --result .ultimate-workflow/run/build.result.json` prints the files git says changed that no `paths` glob covers (`**` and a trailing `/**` cover folders below). The agent's own list of changed files is not used. The plan, `.ultimate-workflow/` and the tests the build wrote are left out. It reports; it blocks nothing.
+
 ### One full run, not three
 
 A passing `verify.js --full` is recorded with the fingerprint of the changes it covered, and G7 accepts it for exactly those changes. `verify.js --full --if-stale` asks for a full run only when none covers the current changes: the record must be a passing full run of the plan's own `test_command` on exactly the current changes, otherwise the suite runs as usual. A skipped run says so and writes nothing, and to G3 it still reads as a full verification. `/ultimate-workflow:experts` uses it, so the build's last full run, the experts check and the commit do not each run the suite. `verify.js` also works at the project root now, so a run started in a subfolder leaves its record where G7 looks. A build whose arguments name no plan takes its verify command from the active plan; before, it got none and its closing full run never happened.

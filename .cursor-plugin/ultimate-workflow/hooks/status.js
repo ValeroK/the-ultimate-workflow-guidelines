@@ -109,7 +109,9 @@ function report(cwd, env) {
     // Ask the real gates rather than reimplementing their logic here.
     const edit = gates.preEditGate(state, { path: 'src/example.js' });
     const stop = gates.stopGate(state);
-    const reason = !edit.allow ? edit.reason : !stop.allow ? stop.reason : null;
+    // A deferred G3 is not a blocker: the report below says it is deferred, and listing it here as
+    // well sent a session off to verify half-built code while the workflow was still running.
+    const reason = !edit.allow ? edit.reason : !stop.allow && !deferral ? stop.reason : null;
 
     return {
       liveness,

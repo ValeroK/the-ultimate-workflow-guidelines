@@ -173,3 +173,31 @@ test('status.js shows no deferral once a later Stop was not deferred', () => {
   const j = JSON.parse(spawnSync(process.execPath, [status, '--json'], { cwd: dir, encoding: 'utf8' }).stdout);
   assert.equal(j.deferral, null);
 });
+
+test('status.js does not call G3 a blocker while it is deferred, and does again once it is not', () => {
+  const dir = project({ plan_confirmed: true, tests_confirmed: true, experts: '[]', dirty: true, test_command: 'node --version' });
+  const status = path.join(__dirname, '..', 'status.js');
+  const run = () => JSON.parse(spawnSync(process.execPath, [status, '--json'], { cwd: dir, encoding: 'utf8' }).stdout);
+
+  runGate({ ...fixture('Stop.workflow-running.json'), cwd: dir });
+  const deferred = run();
+  assert.equal(deferred.deferral.gate, 'G3');
+  assert.equal(deferred.blocking.blocked, false, 'a deferred G3 is not blocking, and saying so sent a session off to verify half-built code');
+  const text = spawnSync(process.execPath, [status], { cwd: dir, encoding: 'utf8' }).stdout;
+  assert.doesNotMatch(text, /Gate G3: source changed/);
+
+  runGate({ ...fixture('Stop.workflow-finished.json'), cwd: dir });
+  const after = run();
+  assert.equal(after.deferral, null);
+  assert.equal(after.blocking.blocked, true);
+  assert.match(after.blocking.reason, /Gate G3/);
+});
+
+test('a G1 or G2 block is still reported while G3 is deferred', () => {
+  const dir = project({ plan_confirmed: false, tests_confirmed: false, dirty: true, test_command: 'node --version' });
+  runGate({ ...fixture('Stop.workflow-running.json'), cwd: dir });
+  const status = path.join(__dirname, '..', 'status.js');
+  const j = JSON.parse(spawnSync(process.execPath, [status, '--json'], { cwd: dir, encoding: 'utf8' }).stdout);
+  assert.equal(j.blocking.blocked, true);
+  assert.match(j.blocking.reason, /plan_confirmed/);
+});

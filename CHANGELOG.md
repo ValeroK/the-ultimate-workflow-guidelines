@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [4.3.0] - 2026-11-04
 
 From the re-wash trace (cards 8a to 11, `.ultimate-workflow/session-trace.md`) and `internal/plans/PLAN-run-records.md`: fewer hand steps, and gates that act on facts the host reports.
 

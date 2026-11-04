@@ -105,7 +105,10 @@ async function main() {
 
   if (stateLib.gatesDisabled(process.env)) return { stdout: null, exit: 0 };
 
-  const cwd = ev.cwd || process.cwd();
+  // Everything below -- the plan, the evidence, the heartbeat, the paths an edit is judged by --
+  // is read at the project root, not at the folder the host's shell happened to be in.
+  const cwd = stateLib.projectRoot(ev.cwd || process.cwd());
+  ev.cwd = cwd;
   const state = stateLib.readState(cwd);
 
   // Reading the working tree is not free, so the commit evidence is gathered only

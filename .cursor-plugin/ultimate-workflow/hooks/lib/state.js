@@ -202,6 +202,27 @@ function resolveStage(dir) {
   return 'none';
 }
 
+/**
+ * The project root for a hook that fired in `dir`: the nearest folder, going up, that holds a
+ * plan (PLAN-*.md or PRD.md) or a `.git` entry (a directory, or the file a worktree has); `dir`
+ * itself when there is none. A host fires hooks with whatever folder its shell is in, and the plan
+ * is read from exactly the folder given, so from a subfolder every gate saw "no plan" and allowed,
+ * and the heartbeat was written there. `.ultimate-workflow` is deliberately not a marker: one stray
+ * write would otherwise make its own folder the root from then on.
+ */
+function projectRoot(dir) {
+  if (typeof dir !== 'string' || dir === '') return dir;
+  let cur = dir;
+  for (;;) {
+    if (listPlanFiles(cur).length > 0 || fs.existsSync(path.join(cur, 'PRD.md')) || fs.existsSync(path.join(cur, '.git'))) {
+      return cur;
+    }
+    const up = path.dirname(cur);
+    if (up === cur) return dir;
+    cur = up;
+  }
+}
+
 function readState(dir) {
   const stage = resolveStage(dir);
 
@@ -253,6 +274,7 @@ module.exports = {
   setActivePlan,
   handoffComplete,
   resolveStage,
+  projectRoot,
   readState,
   gatesEnabled,
   gatesDisabled,

@@ -223,7 +223,7 @@ function reportState(r) {
   }
 }
 
-const r = report(process.cwd(), process.env);
+const r = report(stateLib.projectRoot(process.cwd()), process.env);
 
 if (process.argv.slice(2).includes('--json')) {
   process.stdout.write(`${JSON.stringify(r)}\n`);

@@ -27,7 +27,12 @@ which is why UI-only cards ran nine-way experts checks: that is a plan decision,
 Acceptance run (real hooks, `claude -p`, Claude Code 2.1.316, only this branch's gate): a Stop while the
 workflow ran was allowed with `deferred: G3` in the heartbeat; the first Stop after it ended was blocked by G3
 (the subagent's edit had marked the tree dirty), the model ran the test command, and the next Stop was allowed.
-Not yet done: the same on a real build in an interactive session, and a workflow that is stopped or fails.
+Two more runs, same setup (`claude -p`, 2.1.316, haiku), 2026-11-04:
+- A workflow that fails after its agent returns (host status `failed`): the first Stop deferred; the first Stop after the failure had an empty `background_tasks`, so G3 applied at once. Nothing stale was left behind.
+- A workflow stopped with `TaskStop` (host status `killed`/`stopped`): the next Stop had an empty list and G3 applied at once.
+- In both, G3 then blocked every Stop until the model ran the test command (this test told it not to); the host ended the session after 9 consecutive blocks. That is G3's existing behavior, unchanged by W2.
+
+Interactive mode: not run from here (no terminal to drive). The hooks reference documents `background_tasks` in the Stop input and in SubagentStop input ("distinguish 'session is done' from 'session is paused waiting for background work'"), with `id`, `type` (`workflow` is listed), `status`, `description` and `name` for workflows, empty when nothing is in flight, "present when the task registry is reachable". It says nothing that separates interactive from `-p`, so the same behavior is expected, but it is not shown. Status values other than `running` are not documented; only `running` defers. Manual check, once, in an interactive session with this plugin: start a build, let the turn end, run `node hooks/status.js` and look for "G3 deferred".
 
 Full suite on this branch against a clean origin/main: 921 tests; the only failures are the 13 that already
 fail there (merge tests T1 to T7, which vary from run to run, and skill-contract tests).

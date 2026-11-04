@@ -7,6 +7,7 @@
 //   - 8a: Command Deck routes
 //     paths: dashboard/src/app/skills/**, README.md
 //     carried: an item left over from the card before; another
+//     experts: [frontend, quality]
 //
 // The name is matched whole, so `8` is not `8a`. `paths` are globs relative to the project root and
 // bound what the card may change; `carried` lists work handed over from an earlier card. A command
@@ -15,12 +16,15 @@
 
 const NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const ITEM = /^[-*]\s+([A-Za-z0-9][A-Za-z0-9._-]*):(?:\s+(.*))?$/;
-const FIELD = /^[ \t]+(paths|carried):\s*(.*)$/i;
+const FIELD = /^[ \t]+(paths|carried|experts):\s*(.*)$/i;
 const HEADING = /^(#{1,6})\s+(.*?)\s*#*\s*$/;
 
 const lines = (text) => String(text || '').split(/\r?\n/);
 const eolOf = (text) => (String(text).includes('\r\n') ? '\r\n' : '\n');
 const split = (value, sep) => value.split(sep).map((s) => s.trim()).filter(Boolean);
+// `experts: [a, b]` or `experts: a, b`; `[]` (or nothing after the colon) is the empty list, a decision
+// of its own and not the same as no field at all.
+const expertList = (value) => split(value.replace(/^\[|\]$/g, ''), ',');
 
 /** The first `## Cards` heading's line range: [first line after it, line after the last of its content). */
 function cardsRange(all) {
@@ -59,7 +63,9 @@ function parseCards(planText) {
     if (!cur) continue;
     const field = FIELD.exec(line);
     if (field) {
-      if (field[1].toLowerCase() === 'paths') cur.paths.push(...split(field[2], ','));
+      const key = field[1].toLowerCase();
+      if (key === 'paths') cur.paths.push(...split(field[2], ','));
+      else if (key === 'experts') cur.experts = expertList(field[2]);
       else cur.carried.push(...split(field[2], ';'));
       continue;
     }
@@ -117,7 +123,7 @@ const cleanPath = (p) => String(p).trim().replace(/\\/g, '/').replace(/^\.\//, '
  * end when there is none. Throws, changing nothing, on a bad name, no paths, a path outside the
  * project, or a name already taken.
  */
-function addCard(planText, { name, title, paths = [], carried = [] }) {
+function addCard(planText, { name, title, paths = [], carried = [], experts = null }) {
   if (!NAME.test(String(name || ''))) throw new Error(`card name "${name}" must be letters, digits, dot, dash or underscore, with no spaces or colon`);
   const t = String(title || '').replace(/\s+/g, ' ').trim();
   if (!t) throw new Error('a card needs a --title');
@@ -131,6 +137,7 @@ function addCard(planText, { name, title, paths = [], carried = [] }) {
   const item = [`- ${name}: ${t}`, `  paths: ${ps.join(', ')}`];
   const c = carried.map((x) => String(x).replace(/\s+/g, ' ').trim()).filter(Boolean);
   if (c.length) item.push(`  carried: ${c.join('; ')}`);
+  if (Array.isArray(experts)) item.push(`  experts: [${experts.join(', ')}]`);
 
   const all = lines(planText);
   const range = cardsRange(all);
@@ -150,18 +157,19 @@ function addCard(planText, { name, title, paths = [], carried = [] }) {
  * (`*` within a segment, `**/` across folders); a path ending in `/**` or `/` covers everything
  * below it.
  */
-function outOfScope(files, paths, makeRegExp) {
-  const globs = paths.map(cleanPath);
-  const covers = (file) =>
-    globs.some((g) => {
-      if (g.endsWith('/**')) {
-        const dir = g.slice(0, -3);
-        return file === dir || file.startsWith(`${dir}/`);
-      }
-      if (g.endsWith('/')) return file.startsWith(g);
-      return makeRegExp(g).test(file);
-    });
-  return files.map(cleanPath).filter((f) => !covers(f));
+function covers(paths, file, makeRegExp) {
+  return paths.map(cleanPath).some((g) => {
+    if (g.endsWith('/**')) {
+      const dir = g.slice(0, -3);
+      return file === dir || file.startsWith(`${dir}/`);
+    }
+    if (g.endsWith('/')) return file.startsWith(g);
+    return makeRegExp(g).test(file);
+  });
 }
 
-module.exports = { parseCards, findCard, cardText, headingCardText, addCard, outOfScope, NAME };
+function outOfScope(files, paths, makeRegExp) {
+  return files.map(cleanPath).filter((f) => !covers(paths, f, makeRegExp));
+}
+
+module.exports = { parseCards, findCard, cardText, headingCardText, addCard, outOfScope, covers, cleanPath, NAME };

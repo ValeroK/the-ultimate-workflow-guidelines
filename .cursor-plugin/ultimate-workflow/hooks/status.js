@@ -46,6 +46,14 @@ function expertsReport(cwd, state) {
       decided: parsed.present,
       selected: parsed.experts,
       available: expertsLib.list().experts.map((e) => e.name),
+      effective: (() => {
+        try {
+          const e = expertsLib.effectiveExperts(cwd, state.file);
+          return { source: e.source, cards: e.cards, experts: e.experts, planExperts: e.planExperts, ...(e.reason ? { reason: e.reason } : {}) };
+        } catch {
+          return null;
+        }
+      })(),
       openFindings: (evidence.open || []).length,
       commit: verdict.allow ? { allowed: true, reason: null } : { allowed: false, reason: verdict.reason },
     };
@@ -199,6 +207,9 @@ function reportState(r) {
     say('');
     say('Experts:');
     say(`         ${e.decided ? `decided: [${e.selected.join(', ')}]` : 'NO DECISION recorded in the plan (source edits are blocked by G6)'}`);
+    if (e.effective && e.effective.source === 'cards') {
+      say(`         card ${e.effective.cards.join(', ')}: [${e.effective.experts.join(', ')}] (plan: ${e.effective.planExperts.length}) -- the commit is held to these`);
+    }
     say(`         available: ${e.available.join(', ') || 'none'}`);
     if (e.openFindings > 0) say(`         open high-confidence findings: ${e.openFindings} (node experts/experts.js findings)`);
     say(`         commit: ${e.commit.allowed ? 'allowed now' : `BLOCKED -- ${e.commit.reason}`}`);

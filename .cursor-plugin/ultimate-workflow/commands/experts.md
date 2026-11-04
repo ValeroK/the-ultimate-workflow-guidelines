@@ -15,6 +15,7 @@ Then read `${CLAUDE_PLUGIN_ROOT}/commands/review.md` and follow it exactly, with
 - step 3's prepare is `prepare --range working --delta > .ultimate-workflow/run/prepare.json` (the `--delta` is required here). When the last experts check covers the earlier changes, it narrows each of those experts to the files that changed since and the files in the diff that use them, and their findings on other files carry forward. Tell the user which: `delta` (the files, and the chain count) or `deltaRefused` (the reason it reviews everything this time). Nothing else changes: the record is still for the current changes;
 - pass `"expertsOnly": true`, so the four core lenses do not run;
 - the plan file is the one in `$ARGUMENTS`, or the single `PLAN-*.md` at the root not marked `phase: done`, or none.
+- the experts are the `effective` set from `read`, and you tell the user which ran and why: `effective.source` is `cards` when the change sits inside cards that name their experts (say which cards), or `plan` (say `effective.reason`, for example a file no card covers, which brings the whole plan's list back). The commit gate holds the commit to the same set;
 - the ledger step uses `--phase experts`, and records no catches.
 
 Run `record`, `check` and `git commit` each as a separate command, never chained with `&&` or `;`. The commit gate judges the whole command before any part of it runs, so a `record` chained in front of `git commit` cannot satisfy it and the commit is refused (it cost a round trip in the re-wash).

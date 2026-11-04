@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Experts per card.** A card may carry `experts: [..]` (`card-add --experts`), a subset of the plan's own line. The commit is held to that set when every changed file (leaving out the plan, the tool folder and tests) is covered by cards that name their experts, and to the plan's line otherwise, so an edit outside the card restores the full panel. `read --plan` prints `effective`, `status.js` shows the narrowing, and the G6 message names the card.
+
+Tests: `evals/experts/card-experts.test.js`.
+
 ## [4.4.0] - 2026-11-04
 
 From the re-wash trace: the same suite ran again and again on unchanged code.

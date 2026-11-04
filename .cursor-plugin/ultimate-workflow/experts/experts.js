@@ -485,6 +485,53 @@ function selectIntoPlan(planFile, additions, availableNames) {
   return { file: planFile, experts: merged.experts, added: merged.added, wrote: next !== text };
 }
 
+/**
+ * The experts this change is held to (item 7 of the re-wash review). The plan's `experts:` line is the
+ * default. A card in the plan's Cards section may carry its own `experts:` field, and that narrows the
+ * set only when it is certain which card the change belongs to, worked out from the changed files at
+ * the moment of use and never from a pointer that can go stale:
+ *   - every changed file, leaving out the plan, `.ultimate-workflow/` and test files, is covered by the
+ *     paths of at least one card;
+ *   - every card that covers one carries the field, and each field names only installed experts that are
+ *     also in the plan's line.
+ * Several cards give the union of their fields. Anything else -- a file no card covers, a card with no
+ * field, a field that is not a subset, no Cards section, no changes -- is the plan's line, unchanged,
+ * and `reason` says why. `files` can be passed by a caller that already has the working changes.
+ */
+function effectiveExperts(cwd, planFile, pluginRoot = PLUGIN_ROOT, files = null) {
+  const cardsLib = require('./cards.js');
+  const planText = fs.readFileSync(planFile, 'utf8');
+  const parsed = readExperts(planText);
+  const planExperts = parsed.error ? [] : parsed.experts;
+  const plan = (reason) => ({ experts: planExperts, source: 'plan', cards: [], planExperts, ...(reason ? { reason } : {}) });
+  if (parsed.error || !parsed.present) return plan('the plan records no experts line');
+  const cardList = cardsLib.parseCards(planText);
+  if (cardList.length === 0) return plan('the plan has no Cards section');
+
+  const fwd = (p) => String(p).replace(/\\/g, '/');
+  const planRel = fwd(path.relative(cwd, path.resolve(cwd, planFile)));
+  const changed = (files || workingChanges(cwd).files)
+    .map(fwd)
+    .filter((f) => f !== planRel && !f.startsWith('.ultimate-workflow/') && !gates.isTestPath(f));
+  if (changed.length === 0) return plan('nothing changed beyond the plan, the tests and the tool files');
+
+  const used = [];
+  for (const f of changed) {
+    const covering = cardList.filter((c) => c.paths.length > 0 && cardsLib.covers(c.paths, f, globToRegExp));
+    if (covering.length === 0) return plan(`no card covers ${f}`);
+    for (const c of covering) if (!used.includes(c)) used.push(c);
+  }
+  const installed = new Set(list(pluginRoot).experts.map((e) => e.name));
+  const union = new Set();
+  for (const c of used) {
+    if (c.experts === undefined) return plan(`card ${c.name} has no experts field`);
+    const bad = c.experts.filter((n) => !installed.has(n) || !planExperts.includes(n));
+    if (bad.length > 0) return plan(`card ${c.name} names ${bad.join(', ')}, which is not an installed expert in the plan's line`);
+    for (const n of c.experts) union.add(n);
+  }
+  return { experts: planExperts.filter((n) => union.has(n)), source: 'cards', cards: used.map((c) => c.name), planExperts };
+}
+
 // ---- the working tree ----
 
 function git(cwd, args) {
@@ -1049,13 +1096,17 @@ function commitEvidence(cwd, planFile, pluginRoot = PLUGIN_ROOT) {
       if (r && r.hash) records[name] = r.hash;
     }
     let planExperts = [];
+    let cards = [];
     if (planFile) {
-      const parsed = readExperts(fs.readFileSync(planFile, 'utf8'));
-      if (!parsed.error) planExperts = parsed.experts;
+      try {
+        const eff = effectiveExperts(cwd, planFile, pluginRoot, changes.files);
+        planExperts = eff.experts;
+        cards = eff.cards;
+      } catch {}
     }
     const hash = sha(changes.diff);
     const open = allFindings(cwd, hash, available).filter((f) => f.current && blocking(f) && !f.waived);
-    return { hash, recheck: recheck ? { hash: recheck.hash, final: recheck.final || [] } : null, records, planExperts, available, open };
+    return { hash, recheck: recheck ? { hash: recheck.hash, final: recheck.final || [] } : null, records, planExperts, cards, available, open };
   } catch {
     return { skip: 'the working tree could not be inspected' };
   }
@@ -1195,6 +1246,7 @@ function parseArgs(argv) {
     else if (a === '--title') o.title = need();
     else if (a === '--paths') o.paths = need();
     else if (a === '--carried') o.carried = need();
+    else if (a === '--experts') o.experts = need();
     else if (a === '--result') o.result = need();
     else if (a === '--delta') o.delta = true;
     else if (a === '--args-file') o.argsFile = need();
@@ -1273,7 +1325,11 @@ function main(argv) {
     if (o.cmd === 'read') {
       const r = readExperts(fs.readFileSync(needPlan(), 'utf8'));
       if (r.error) fail(r.error);
-      return out({ file: o.plan, present: r.present, experts: r.experts });
+      let effective = { experts: r.experts, source: 'plan', cards: [], planExperts: r.experts };
+      try {
+        effective = effectiveExperts(o.cwd, path.resolve(o.cwd, needPlan()), o.pluginRoot);
+      } catch {}
+      return out({ file: o.plan, present: r.present, experts: r.experts, effective });
     }
     if (o.cmd === 'select') {
       if (o.add === null) fail('select needs --add a,b (use --add "" to record that none apply)');
@@ -1305,7 +1361,20 @@ function main(argv) {
       if (!o.plan) fail('card-add needs --plan');
       const cardsLib = require('./cards.js');
       const file = path.resolve(o.cwd, o.plan);
+      let cardExperts = null;
+      if (o.experts !== undefined) {
+        const names = o.experts.trim() === 'none' ? [] : String(o.experts).split(',').map((s) => s.trim()).filter(Boolean);
+        const inPlan = readExperts(fs.readFileSync(file, 'utf8'));
+        if (!inPlan.present || inPlan.error) fail(`the plan records no experts yet, so a card cannot narrow them. Record them first: node experts.js select --plan ${o.plan} --add <names> (or --add "" for none)`);
+        const installed = list(o.pluginRoot).experts.map((e) => e.name);
+        const unknown = names.filter((n) => !installed.includes(n));
+        if (unknown.length > 0) fail(`unknown expert(s): ${unknown.join(', ')} (installed: ${installed.join(', ')})`);
+        const outside = names.filter((n) => !inPlan.experts.includes(n));
+        if (outside.length > 0) fail(`${outside.join(', ')} is not in the plan's experts [${inPlan.experts.join(', ')}]. A card can only narrow the plan's list; add them to the plan first with select.`);
+        cardExperts = names;
+      }
       const next = cardsLib.addCard(fs.readFileSync(file, 'utf8'), {
+        experts: cardExperts,
         name: o.name,
         title: o.title,
         paths: String(o.paths || '').split(',').map((s) => s.trim()).filter(Boolean),
@@ -1378,6 +1447,7 @@ module.exports = {
   expertsFor,
   mergeAdd,
   readExperts,
+  effectiveExperts,
   setExperts,
   selectIntoPlan,
   workingChanges,

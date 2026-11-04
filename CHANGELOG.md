@@ -14,12 +14,17 @@ From the re-wash trace: the same suite ran again and again on unchanged code.
 
 - **Cards in a plan, written by a command.** `experts.js card-add` writes a card (`name`, `title`, `paths`, `carried`) into the plan's `## Cards` section, `brief --card` reads it (names are matched whole; a `Card N` heading still works), and `scope` lists the changed files that no card path covers, from git and not from the agent's report. Before, the card heading and the carried items were typed into the plan by hand before every build, and a file belonging to the next card could be edited without anyone seeing.
 
+### Changed
+
+- **The build command says to end the turn after launching the workflow and not to poll.** The host sends a task notification when the run finishes, and G3 waits for a running workflow since 4.3.0, so there is nothing to watch. In the re-wash, 5-minute progress checks over a 9-hour build were about a hundred turns, each re-sending a 150k-token conversation.
+- **The experts command says `record`, `check` and `git commit` are separate commands.** The commit gate judges the whole command before any part runs, so a `record` chained before the commit was refused.
+
 ### Fixed
 
 - **`verify.js` works at the project root.** Started in a subfolder it read the plan and wrote its record there, where G7 never looks; `--plan` paths are relative to the root.
 - **A build whose arguments name no plan gets its verify command from the active plan.** Before, `experts.js script` left it empty, so the build's closing full run never happened.
 
-Tests: `evals/experts/verify-fresh.test.js`, `evals/experts/cards.test.js`.
+Tests: `evals/experts/verify-fresh.test.js`, `evals/experts/cards.test.js`, `evals/experts/guidance.test.js`.
 
 ## [4.3.0] - 2026-11-04
 

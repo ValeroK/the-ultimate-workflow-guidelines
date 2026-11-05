@@ -184,6 +184,20 @@ const FINDINGS = {
       type: 'string',
       description: 'One sentence on the change through this lens, INCLUDING when nothing was found',
     },
+    concerns: {
+      type: 'array',
+      description: 'Domain experts: a worry that is not a finding (rated below 8, or no failure path you can show). At most three. Each says why it is not a finding.',
+      items: {
+        type: 'object',
+        required: ['text', 'reason'],
+        properties: {
+          text: { type: 'string', description: 'The worry, in one sentence' },
+          reason: { type: 'string', description: 'Why it is not a finding: its confidence, or what you could not show' },
+          file: { type: 'string' },
+          line: { type: 'integer' },
+        },
+      },
+    },
     findings: {
       type: 'array',
       items: {
@@ -332,6 +346,28 @@ const expertFindings = (list, status) =>
   list
     .filter((f) => reviewingNames.includes(f.lens))
     .map((f) => ({ expert: f.lens, file: f.file, line: f.line, what: f.what, confidence: f.confidence, ...(f.severity ? { severity: f.severity } : {}), ...(typeof f.basis === 'string' ? { basis: f.basis } : {}), ...(typeof f.basisQuote === 'string' ? { basisQuote: f.basisQuote } : {}), status }))
+// W4: what an expert worried about without being able to call it a finding. The schema marks each
+// item's text and reason as required, but the check that counts is here, where it is tested: an
+// item without both is dropped and counted, an expert keeps three, and a core lens's are ignored.
+const CONCERN_CAP = 3
+let laneConcernsDropped = 0
+const laneConcerns = []
+lenses.forEach((lens, i) => {
+  const r = lensResults[i]
+  if (!r || !reviewingNames.includes(lens)) return
+  const valid = []
+  for (const c of Array.isArray(r.concerns) ? r.concerns : []) {
+    const text = c && typeof c.text === 'string' ? c.text.trim() : ''
+    const reason = c && typeof c.reason === 'string' ? c.reason.trim() : ''
+    if (!text || !reason) {
+      laneConcernsDropped += 1
+      continue
+    }
+    valid.push({ expert: lens, text, reason, ...(typeof c.file === 'string' && c.file ? { file: c.file } : {}), ...(Number.isInteger(c.line) ? { line: c.line } : {}) })
+  }
+  laneConcerns.push(...valid.slice(0, CONCERN_CAP))
+  laneConcernsDropped += Math.max(0, valid.length - CONCERN_CAP)
+})
 const lane = (found = []) => ({
   stage: 'review',
   available: available.map((e) => e.name),
@@ -344,6 +380,8 @@ const lane = (found = []) => ({
   failed: reviewingNames.filter((n) => failedLenses.includes(n)),
   recheck,
   findings: found,
+  concerns: laneConcerns,
+  concernsDropped: laneConcernsDropped,
   ...(usedDelta.length ? { delta: { base: deltaArgs.base, files: deltaArgs.files, removed: deltaArgs.removed || [], chain: deltaArgs.chain, experts: usedDelta } } : {}),
   ...(recheckFailed ? { recheckFailed: true } : {}),
   ...(notInstalled.length ? { ignoredUnknown: notInstalled } : {}),

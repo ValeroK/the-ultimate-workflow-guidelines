@@ -115,6 +115,7 @@ function addRun(cwd, phase, row, rawResult) {
       findings: found.length,
       byBasis,
       uncited: Object.fromEntries(Object.entries(loaded).map(([n, list]) => [n, (list || []).filter((s) => !(cited[n] && cited[n].has(s)))])),
+      concerns: Array.isArray(lane.concerns) ? lane.concerns.length : 0,
       core: Array.isArray(result && result.findings) ? result.findings.filter((f) => !(lane.ran || []).includes(f.lens)).length : 0,
       ...(lane.delta ? { delta: { files: (lane.delta.files || []).length, chain: lane.delta.chain || 1 } } : {}),
     };
@@ -230,4 +231,4 @@ function cli(argv, cwd, out, fail) {
   return fail(`ledger: unknown subcommand ${sub || '(none)'} (expected add, catch, confirm, refute, report)`);
 }
 
-module.exports = { PHASES, file, readAll, addRun, addCatch, settleCatch, report, cli };
+module.exports = { PHASES, file, readAll, addRun, addCatch, settleCatch, report, unwrapResult, cli };

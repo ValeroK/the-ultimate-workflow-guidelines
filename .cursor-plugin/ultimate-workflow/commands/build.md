@@ -10,7 +10,7 @@ argument-hint: "<plan file; required if more than one PLAN-*.md exists>"
 1. **The plan file.** The one the user named. Otherwise, if exactly one `PLAN-*.md` at the repository root is not marked `phase: done`, use it. If several exist and none was named, ask which; never pick by modification time.
 2. **The briefs.** The workflow script cannot read the filesystem, so the briefs, and the skills each one selects for this plan, are found here, in code. Run:
 
-   `mkdir -p .ultimate-workflow/run`, then `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" brief --plan <plan file> > .ultimate-workflow/run/briefs.json`. When the plan is split into cards and this build is one of them, add `--section "<the card's heading>"`: the skills are then chosen from that card's section, so a brief another card needs (a CI job, a migration) does not load here.
+   `mkdir -p .ultimate-workflow/run`, then `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" brief --plan <plan file> > .ultimate-workflow/run/briefs.json`. When the plan is split into cards and this build is one of them, record the card once, with a command and not by editing the plan: `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" card-add --plan <plan file> --name <card name> --title "<what the card does>" --paths "<globs the card may change, comma separated>" [--carried "<item; item>"]` (it adds a line to the plan's `## Cards` section, creating it when needed), then (add `--experts <names>` to narrow the experts for this card to some of the plan's own, or `--experts none`; leave it out to keep the plan's list), then add `--card <card name>` to the brief command: the skills are chosen from that card's title, paths and carried items, so a brief another card needs (a CI job, a migration) does not load here. A plan that only has a `Card <name>` heading works with `--card` too, and `--section "<heading>"` still works as before.
 
    It writes a JSON array of `{ "name", "text", "skills" }`, one per expert that declares the `build` stage; `skills` holds the skill texts chosen from the files and text of the plan. An empty array is fine and means no expert has a brief. Show the user anything the script prints on stderr: a brief that is missing or too large is left out, a skill that did not fit is named, and a plan that names no file gets only the skills every build gets.
 
@@ -24,6 +24,8 @@ argument-hint: "<plan file; required if more than one PLAN-*.md exists>"
 2. Run `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" script --phase build --args-file .ultimate-workflow/run/build.args.json --file briefs=.ultimate-workflow/run/briefs.json`. It writes `.ultimate-workflow/run/build.js` with those arguments built in, and prints its `scriptPath`.
 3. Call the **Workflow** tool once, with `scriptPath` set to the path that command printed and no `args`. Do not pass the arguments yourself and do not copy or edit the script: the tool will not load a script from the plugin's own folder, and arguments a model retypes are no longer the text the code chose.
 
+**While it runs, end your turn.** The Workflow tool returns at once and the run goes on in the background; the host sends a task notification when it finishes, and that wakes the session. So after the call, tell the user the build is running (and how long a build of this size usually takes) and end your turn. Do not poll the journal, the agent transcripts or `git status`, and do not arm periodic progress checks: each one is another turn that re-sends the whole conversation, and a build of an hour or more costs a hundred of them. G3 (verify before finishing) waits for a running workflow, so ending the turn does not force a test run on half-built code. If the user asks for updates at an interval, give them and say what they cost; if nothing has arrived well past the time you gave, look once.
+
 Domain experts do not write code. If the plan has an "Expert input" section, the workflow tells the implementer that its constraints are requirements. A standing brief is different: it applies to every build, whether or not the expert was selected at plan time, and it says how to write, never what to build. The experts check the result at review, against what they required.
 
 Call it once. Do not re-implement the phase inline, and do not run it a second
@@ -35,6 +37,8 @@ One exception: if the run failed before any agent started (0 agents, and an inpu
 
 Report what landed and whether verification is green. Say which briefs and skills were loaded (`briefsLoaded`, `skillsLoaded`), so it is visible when none were. If the run escalated, present the blocker with options and **stop** -- do not pick one. Never report green without having seen the verification output.
 
+
+When the build was one card of a split plan, check what it touched, from git and not from what the agent says: `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" scope --plan <plan file> --card <card name> --result .ultimate-workflow/run/build.result.json`. Tell the user every file in `outOfScope` (changed, and under none of the card's paths; the plan, the plugin folder and the tests this build wrote are left out). It is a report, not a block: a file may rightly belong to the card, in which case add its path to the card.
 
 ## Record the run in the ledger
 

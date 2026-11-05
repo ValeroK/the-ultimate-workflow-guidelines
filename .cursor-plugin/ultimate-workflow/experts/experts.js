@@ -19,6 +19,9 @@
 //   node experts.js list                                    available experts, as JSON
 //   node experts.js brief   [--plan P]                      the standing brief of every expert that declares the build stage,
 //                                                           with the skills each one selects for the plan
+//   node experts.js card-add --plan P --name N --title T --paths G[,G] [--carried X[;X]]   add a card to the plan's Cards section
+//   node experts.js brief   --plan P --card N               the briefs for one card of the plan (its Cards entry, or a "Card N" heading)
+//   node experts.js scope   --plan P --card N [--result R]  the changed files outside the card's paths, from git
 //   node experts.js skills  --stage plan                    the skills each planning expert may be given, for the plan workflow to offer
 //   node experts.js skills  --stage tests --plan P          the skills chosen from the plan for each expert that joins the tests stage
 //   node experts.js read    --plan P                        the plan's experts
@@ -480,6 +483,53 @@ function selectIntoPlan(planFile, additions, availableNames) {
   const next = setExperts(text, merged.experts);
   if (next !== text) fs.writeFileSync(planFile, next);
   return { file: planFile, experts: merged.experts, added: merged.added, wrote: next !== text };
+}
+
+/**
+ * The experts this change is held to (item 7 of the re-wash review). The plan's `experts:` line is the
+ * default. A card in the plan's Cards section may carry its own `experts:` field, and that narrows the
+ * set only when it is certain which card the change belongs to, worked out from the changed files at
+ * the moment of use and never from a pointer that can go stale:
+ *   - every changed file, leaving out the plan, `.ultimate-workflow/` and test files, is covered by the
+ *     paths of at least one card;
+ *   - every card that covers one carries the field, and each field names only installed experts that are
+ *     also in the plan's line.
+ * Several cards give the union of their fields. Anything else -- a file no card covers, a card with no
+ * field, a field that is not a subset, no Cards section, no changes -- is the plan's line, unchanged,
+ * and `reason` says why. `files` can be passed by a caller that already has the working changes.
+ */
+function effectiveExperts(cwd, planFile, pluginRoot = PLUGIN_ROOT, files = null) {
+  const cardsLib = require('./cards.js');
+  const planText = fs.readFileSync(planFile, 'utf8');
+  const parsed = readExperts(planText);
+  const planExperts = parsed.error ? [] : parsed.experts;
+  const plan = (reason) => ({ experts: planExperts, source: 'plan', cards: [], planExperts, ...(reason ? { reason } : {}) });
+  if (parsed.error || !parsed.present) return plan('the plan records no experts line');
+  const cardList = cardsLib.parseCards(planText);
+  if (cardList.length === 0) return plan('the plan has no Cards section');
+
+  const fwd = (p) => String(p).replace(/\\/g, '/');
+  const planRel = fwd(path.relative(cwd, path.resolve(cwd, planFile)));
+  const changed = (files || workingChanges(cwd).files)
+    .map(fwd)
+    .filter((f) => f !== planRel && !f.startsWith('.ultimate-workflow/') && !gates.isTestPath(f));
+  if (changed.length === 0) return plan('nothing changed beyond the plan, the tests and the tool files');
+
+  const used = [];
+  for (const f of changed) {
+    const covering = cardList.filter((c) => c.paths.length > 0 && cardsLib.covers(c.paths, f, globToRegExp));
+    if (covering.length === 0) return plan(`no card covers ${f}`);
+    for (const c of covering) if (!used.includes(c)) used.push(c);
+  }
+  const installed = new Set(list(pluginRoot).experts.map((e) => e.name));
+  const union = new Set();
+  for (const c of used) {
+    if (c.experts === undefined) return plan(`card ${c.name} has no experts field`);
+    const bad = c.experts.filter((n) => !installed.has(n) || !planExperts.includes(n));
+    if (bad.length > 0) return plan(`card ${c.name} names ${bad.join(', ')}, which is not an installed expert in the plan's line`);
+    for (const n of c.experts) union.add(n);
+  }
+  return { experts: planExperts.filter((n) => union.has(n)), source: 'cards', cards: used.map((c) => c.name), planExperts };
 }
 
 // ---- the working tree ----
@@ -1017,7 +1067,7 @@ function record(cwd, stage, result, { planFile = '', pluginRoot = PLUGIN_ROOT } 
       hash,
       failedElsewhere: (lane.failed || []).length > 0,
       skills: lane.skillsLoaded && Array.isArray(lane.skillsLoaded[name]) ? lane.skillsLoaded[name] : [],
-      ...(stage === 'review' ? { findings: mine } : {}),
+      ...(stage === 'review' ? { findings: mine, concerns: (Array.isArray(lane.concerns) ? lane.concerns : []).filter((c) => c && c.expert === name) } : {}),
       ...(narrowed ? { delta: { base: delta.base, files: delta.files || [], removed: delta.removed || [], chain: Number(delta.chain) || 1 } } : {}),
     });
   }
@@ -1027,7 +1077,8 @@ function record(cwd, stage, result, { planFile = '', pluginRoot = PLUGIN_ROOT } 
   const all = found.concat(...Object.values(carried));
   const open = all.filter((f) => blocking(f) && !readWaivers(cwd)[f.id]);
   const basisProblems = found.filter((f) => f.basisCheck && f.basisCheck !== 'ok').map((f) => `${f.id} ${f.expert} ${f.file}:${f.line}: basis ${f.basis ? `"${f.basis}"` : '(none)'} is ${f.basisCheck}`);
-  return { stage, recorded: lane.ran || [], failed: lane.failed || [], hash, plan, findings: found.length, open, ...(basisProblems.length > 0 ? { basisProblems } : {}) };
+  const concerns = stage === 'review' ? (Array.isArray(lane.concerns) ? lane.concerns.filter((c) => c && (lane.ran || []).includes(c.expert)) : []) : [];
+  return { stage, recorded: lane.ran || [], failed: lane.failed || [], hash, plan, findings: found.length, open, ...(stage === 'review' ? { concerns: concerns.length, ...(concerns.length > 0 ? { concernList: concerns } : {}) } : {}), ...(basisProblems.length > 0 ? { basisProblems } : {}) };
 }
 
 /** What the commit gate needs to decide, gathered once. Fails open to a skip. */
@@ -1046,13 +1097,17 @@ function commitEvidence(cwd, planFile, pluginRoot = PLUGIN_ROOT) {
       if (r && r.hash) records[name] = r.hash;
     }
     let planExperts = [];
+    let cards = [];
     if (planFile) {
-      const parsed = readExperts(fs.readFileSync(planFile, 'utf8'));
-      if (!parsed.error) planExperts = parsed.experts;
+      try {
+        const eff = effectiveExperts(cwd, planFile, pluginRoot, changes.files);
+        planExperts = eff.experts;
+        cards = eff.cards;
+      } catch {}
     }
     const hash = sha(changes.diff);
     const open = allFindings(cwd, hash, available).filter((f) => f.current && blocking(f) && !f.waived);
-    return { hash, recheck: recheck ? { hash: recheck.hash, final: recheck.final || [] } : null, records, planExperts, available, open };
+    return { hash, recheck: recheck ? { hash: recheck.hash, final: recheck.final || [] } : null, records, planExperts, cards, available, open };
   } catch {
     return { skip: 'the working tree could not be inspected' };
   }
@@ -1113,11 +1168,23 @@ function stageScript(pluginRoot, cwd, phaseName, { argsFile = '', files = [], me
   }
   if (phaseName === 'build') {
     delete args.verify;
-    const planRel = typeof args.plan === 'string' ? args.plan : '';
+    let planRel = typeof args.plan === 'string' ? args.plan : '';
     let data = {};
     try {
       if (planRel) data = stateLib.parseFrontMatter(fs.readFileSync(path.resolve(cwd, planRel), 'utf8')).data;
     } catch {}
+    // Arguments that name no plan (a build started with only a command, as in the re-wash) used to
+    // get no verify command at all, so the build's closing full run never happened. The active plan
+    // is the one the gates already follow.
+    if (!planRel) {
+      try {
+        const active = stateLib.readState(cwd);
+        if (active.stage === 'feature' && active.file) {
+          planRel = path.relative(cwd, active.file);
+          data = active.data;
+        }
+      } catch {}
+    }
     if (data.test_command) {
       const fwd = (p) => p.replace(/\\/g, '/');
       args.verify = `node "${fwd(path.join(pluginRoot, 'hooks', 'verify.js'))}" --plan "${fwd(planRel)}"`;
@@ -1175,6 +1242,13 @@ function parseArgs(argv) {
     else if (a === '--cwd') o.cwd = need();
     else if (a === '--phase') o.phase = need();
     else if (a === '--section') o.section = need();
+    else if (a === '--card') o.card = need();
+    else if (a === '--name') o.name = need();
+    else if (a === '--title') o.title = need();
+    else if (a === '--paths') o.paths = need();
+    else if (a === '--carried') o.carried = need();
+    else if (a === '--experts') o.experts = need();
+    else if (a === '--result') o.result = need();
     else if (a === '--delta') o.delta = true;
     else if (a === '--args-file') o.argsFile = need();
     else if (a === '--file') o.files.push(need());
@@ -1220,6 +1294,18 @@ function main(argv) {
     }
     if (o.cmd === 'brief') {
       let planText = o.plan ? fs.readFileSync(o.plan, 'utf8') : null;
+      if (o.card && o.section) fail('brief takes --card or --section, not both');
+      if (o.card) {
+        if (planText === null) fail('brief --card needs --plan');
+        const cardsLib = require('./cards.js');
+        const card = cardsLib.findCard(planText, o.card);
+        const text = card ? cardsLib.cardText(card) : cardsLib.headingCardText(planText, o.card);
+        if (text === null) {
+          const known = cardsLib.parseCards(planText).map((c) => c.name);
+          fail(`no card "${o.card}" in ${o.plan} (${known.length ? `cards: ${known.join(', ')}` : 'it has no Cards section'}). Add it with: experts.js card-add --plan ${o.plan} --name ${o.card} --title <title> --paths <globs>`);
+        }
+        planText = text;
+      }
       if (o.section) {
         if (planText === null) fail('brief --section needs --plan');
         planText = planSection(planText, o.section);
@@ -1240,7 +1326,11 @@ function main(argv) {
     if (o.cmd === 'read') {
       const r = readExperts(fs.readFileSync(needPlan(), 'utf8'));
       if (r.error) fail(r.error);
-      return out({ file: o.plan, present: r.present, experts: r.experts });
+      let effective = { experts: r.experts, source: 'plan', cards: [], planExperts: r.experts };
+      try {
+        effective = effectiveExperts(o.cwd, path.resolve(o.cwd, needPlan()), o.pluginRoot);
+      } catch {}
+      return out({ file: o.plan, present: r.present, experts: r.experts, effective });
     }
     if (o.cmd === 'select') {
       if (o.add === null) fail('select needs --add a,b (use --add "" to record that none apply)');
@@ -1268,6 +1358,58 @@ function main(argv) {
       if (!o.phase) fail('script needs --phase <plan|tests|build|review|harvest>');
       return out(stageScript(o.pluginRoot, o.cwd, o.phase, { argsFile: o.argsFile, files: o.files, merges: o.merges }));
     }
+    if (o.cmd === 'card-add') {
+      if (!o.plan) fail('card-add needs --plan');
+      const cardsLib = require('./cards.js');
+      const file = path.resolve(o.cwd, o.plan);
+      let cardExperts = null;
+      if (o.experts !== undefined) {
+        const names = o.experts.trim() === 'none' ? [] : String(o.experts).split(',').map((s) => s.trim()).filter(Boolean);
+        const inPlan = readExperts(fs.readFileSync(file, 'utf8'));
+        if (!inPlan.present || inPlan.error) fail(`the plan records no experts yet, so a card cannot narrow them. Record them first: node experts.js select --plan ${o.plan} --add <names> (or --add "" for none)`);
+        const installed = list(o.pluginRoot).experts.map((e) => e.name);
+        const unknown = names.filter((n) => !installed.includes(n));
+        if (unknown.length > 0) fail(`unknown expert(s): ${unknown.join(', ')} (installed: ${installed.join(', ')})`);
+        const outside = names.filter((n) => !inPlan.experts.includes(n));
+        if (outside.length > 0) fail(`${outside.join(', ')} is not in the plan's experts [${inPlan.experts.join(', ')}]. A card can only narrow the plan's list; add them to the plan first with select.`);
+        cardExperts = names;
+      }
+      const next = cardsLib.addCard(fs.readFileSync(file, 'utf8'), {
+        experts: cardExperts,
+        name: o.name,
+        title: o.title,
+        paths: String(o.paths || '').split(',').map((s) => s.trim()).filter(Boolean),
+        carried: String(o.carried || '').split(';').map((s) => s.trim()).filter(Boolean),
+      });
+      fs.writeFileSync(file, next);
+      return out({ ok: true, plan: o.plan, card: cardsLib.findCard(next, o.name) });
+    }
+    if (o.cmd === 'scope') {
+      if (!o.plan || !o.card) fail('scope needs --plan and --card');
+      const cardsLib = require('./cards.js');
+      const card = cardsLib.findCard(fs.readFileSync(path.resolve(o.cwd, o.plan), 'utf8'), o.card);
+      if (!card) fail(`no card "${o.card}" in ${o.plan}`);
+      if (card.paths.length === 0) fail(`card ${card.name} lists no paths, so there is nothing to compare the changes with`);
+      const fwd = (p) => String(p).replace(/\\/g, '/');
+      const rel = (p) => fwd(path.isAbsolute(p) ? path.relative(o.cwd, p) : p).replace(/^\.\//, '');
+      // Not scope: the plan the gates rewrite every turn, the plugin's own folder, and the tests the
+      // build's test step wrote (they sit wherever the project keeps tests, not under the card).
+      const skip = new Set([rel(path.resolve(o.cwd, o.plan))]);
+      let testFiles = [];
+      if (o.result) {
+        let parsed;
+        try {
+          parsed = require('./ledger.js').unwrapResult(JSON.parse(fs.readFileSync(path.resolve(o.cwd, o.result), 'utf8').replace(/^\uFEFF/, '')));
+        } catch (err) {
+          fail(`${o.result} is not a saved build result (${err.message})`);
+        }
+        testFiles = [...(parsed.testFiles || []), ...(parsed.filesWritten || [])].filter((f) => typeof f === 'string').map(rel);
+        for (const f of testFiles) skip.add(f);
+      }
+      const changed = workingChanges(o.cwd).files.map(rel).filter((f) => !skip.has(f) && !f.startsWith('.ultimate-workflow/'));
+      const outside = cardsLib.outOfScope(changed, card.paths, globToRegExp);
+      return out({ card: card.name, title: card.title, paths: card.paths, changed: changed.length, outOfScope: outside, testsExcluded: testFiles.length });
+    }
     if (o.cmd === 'check') {
       const evidence = commitEvidence(o.cwd, o.plan, o.pluginRoot);
       const verdict = gates.commitGate(evidence);
@@ -1278,7 +1420,7 @@ function main(argv) {
   } catch (err) {
     fail(err.message);
   }
-  return fail(`unknown command: ${o.cmd || '(none)'} (expected list, brief, skills, read, select, prepare, record, check, findings, resolve, attribution, fingerprint, script, ledger)`);
+  return fail(`unknown command: ${o.cmd || '(none)'} (expected list, brief, skills, read, select, prepare, record, check, findings, resolve, attribution, fingerprint, script, ledger, card-add, scope)`);
 }
 
 module.exports = {
@@ -1306,6 +1448,7 @@ module.exports = {
   expertsFor,
   mergeAdd,
   readExperts,
+  effectiveExperts,
   setExperts,
   selectIntoPlan,
   workingChanges,

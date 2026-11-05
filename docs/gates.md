@@ -18,6 +18,30 @@ Lifecycle hooks read a small YAML block at the top of `PRD.md` or `PLAN-<feature
 | G6 | No source edit until the plan records which domain experts apply (`experts: []` counts), and no `git commit` until the experts have re-checked and reviewed the current changes. A high-confidence expert finding blocks it until fixed or dismissed by the user |
 | G7 | No `git commit` until a passing FULL test run covers the current changes (`node hooks/verify.js --full`, or `test_command` typed whole). An edit after the run makes it stale; docs-only and empty commits are exempt; feature work only (a `PLAN-*.md`); no `test_command`, no check |
 
+### Cards in a plan
+
+A plan split into cards lists them in a `## Cards` section, one bullet per card, written by `experts.js card-add` and not by hand:
+
+```
+- 8a: Command Deck routes
+  paths: dashboard/src/app/skills/**, README.md
+  carried: an item left over from the card before; another
+```
+
+`brief --card 8a` chooses the briefs and skills from that entry (a plan with only a `Card 8a` heading still works; names are matched whole, so `8` is not `8a`). After the build, `scope --plan P --card 8a --result .ultimate-workflow/run/build.result.json` prints the files git says changed that no `paths` glob covers (`**` and a trailing `/**` cover folders below). The agent's own list of changed files is not used. The plan, `.ultimate-workflow/` and the tests the build wrote are left out. It reports; it blocks nothing.
+
+### Concerns
+
+The experts' protocol used to say to leave out anything rated below 8, so a worry that was real but not provable went into the one-sentence `lensVerdict` and nowhere the gate or the user would see it (the quality expert's "one real hole" on card 9 of the re-wash). At review an expert now lists such a worry in `concerns`, at most three, each with the reason it is not a finding. `review.js` keeps the items that have both a text and a reason, counts the rest in `expertLane.concernsDropped`, and ignores a core lens's. `record` stores them in the expert's evidence and prints them, the ledger's review row counts them, and the review and experts commands list them for the user. A concern never blocks a commit; judging the open catches in the ledger is not part of this.
+
+### Experts per card
+
+A card may carry its own experts: `experts: [frontend, quality]` under its entry, written with `card-add --experts frontend,quality` (or `--experts none` for the empty list). The plan's `experts:` line stays the default and the ceiling: a card's names must be installed experts that are also in that line, and `card-add` refuses anything else. Which set applies is worked out from the changed files at the moment of use, not from a pointer: leave out the plan, `.ultimate-workflow/` and test files, and if every remaining file is covered by the paths of cards that all carry the field, the commit is held to the union of those cards' experts. A file no card covers, a card with no field, a field that is not a subset, or no Cards section gives the plan's line, unchanged, so an edit outside the card brings the full panel back by itself. `experts.js read --plan P` prints both (`experts`, `effective` with its `source`, `cards` and `reason`), `status.js` shows the narrowing, and the G6 message names the card. The limit: the field is written by the session, so a card with a wide `paths` glob and a narrow field can still under-review; the subset rule and the visibility are the guard, not proof. The recheck can still add experts, and the experts kept from the last check are added to the set, never taken from it.
+
+### One full run, not three
+
+A passing `verify.js --full` is recorded with the fingerprint of the changes it covered, and G7 accepts it for exactly those changes. `verify.js --full --if-stale` asks for a full run only when none covers the current changes: the record must be a passing full run of the plan's own `test_command` on exactly the current changes, otherwise the suite runs as usual. A skipped run says so and writes nothing, and to G3 it still reads as a full verification. `/ultimate-workflow:experts` uses it, so the build's last full run, the experts check and the commit do not each run the suite. `verify.js` also works at the project root now, so a run started in a subfolder leaves its record where G7 looks. A build whose arguments name no plan takes its verify command from the active plan; before, it got none and its closing full run never happened.
+
 ### G3 and a running workflow
 
 G3 used to fire at the end of the main session's turn while a build workflow was still editing, which forced a verify of half-built code (twice per card in the re-wash). Claude Code lists running background work in the Stop payload's `background_tasks`. While it holds a workflow with `status: "running"`, G3 steps aside for that Stop. The next Stop after the workflow ends carries an empty list, and G3 applies as it always did; G7 and G6 guard the commit throughout. A gate violation already recorded still blocks. A missing or malformed list defers nothing.

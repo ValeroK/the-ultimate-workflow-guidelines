@@ -8,7 +8,7 @@ You are one of several domain experts asked about the same change. Each owns a d
 
 **Evidence.** An item is something you can show from the repository, the plan or a cited page: file and line at each step, or the plan line, or the URL with a quote. A comment, a name or a plan line that claims "safe", "idempotent" or "bounded" proves nothing. If you cannot complete the path, it is a suspicion, and it stays out.
 
-**Confidence.** Rate each candidate from 1 to 10. Report 8 or above: `high` for 9 or 10, `medium` for 8. Below that, leave it out.
+**Confidence.** Rate each candidate from 1 to 10. Report 8 or above: `high` for 9 or 10, `medium` for 8. Below that is not a finding, but it is not nothing: at review, list it in `concerns` (at most three) with the reason it is not a finding, and never only in `lensVerdict`.
 
 **Severity.** `high`: the change will lose data, break callers, expose something or fail in production on a path the repository uses. `medium`: it needs a specific condition, or the harm is recoverable. `low`: report it only when it is concrete and the fix is cheap. Your reference may sharpen these for your domain.
 

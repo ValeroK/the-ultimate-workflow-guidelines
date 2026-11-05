@@ -4,6 +4,39 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.5.0] - 2026-11-05
+
+### Added
+
+- **Experts per card.** A card may carry `experts: [..]` (`card-add --experts`), a subset of the plan's own line. The commit is held to that set when every changed file (leaving out the plan, the tool folder and tests) is covered by cards that name their experts, and to the plan's line otherwise, so an edit outside the card restores the full panel. `read --plan` prints `effective`, `status.js` shows the narrowing, and the G6 message names the card.
+- **Concerns.** The experts' protocol no longer says to leave out anything rated below 8; at review such a worry goes in `concerns` (at most three, each with the reason it is not a finding) instead of only in the lensVerdict. Items without a text or a reason are dropped and counted. The evidence, the ledger and the review and experts commands carry them; they never block a commit.
+
+Tests: `evals/experts/card-experts.test.js`, `evals/experts/concerns.test.js`.
+
+## [4.4.0] - 2026-11-04
+
+Released together with 4.5.0: there is no v4.4.0 tag.
+
+From the re-wash trace: the same suite ran again and again on unchanged code.
+
+### Added
+
+- **`verify.js --full --if-stale`** runs the full suite only when no passing full run of the plan's `test_command` covers the current changes; otherwise it says so and writes nothing. `/ultimate-workflow:experts` uses it.
+
+- **Cards in a plan, written by a command.** `experts.js card-add` writes a card (`name`, `title`, `paths`, `carried`) into the plan's `## Cards` section, `brief --card` reads it (names are matched whole; a `Card N` heading still works), and `scope` lists the changed files that no card path covers, from git and not from the agent's report. Before, the card heading and the carried items were typed into the plan by hand before every build, and a file belonging to the next card could be edited without anyone seeing.
+
+### Changed
+
+- **The build command says to end the turn after launching the workflow and not to poll.** The host sends a task notification when the run finishes, and G3 waits for a running workflow since 4.3.0, so there is nothing to watch. In the re-wash, 5-minute progress checks over a 9-hour build were about a hundred turns, each re-sending a 150k-token conversation.
+- **The experts command says `record`, `check` and `git commit` are separate commands.** The commit gate judges the whole command before any part runs, so a `record` chained before the commit was refused.
+
+### Fixed
+
+- **`verify.js` works at the project root.** Started in a subfolder it read the plan and wrote its record there, where G7 never looks; `--plan` paths are relative to the root.
+- **A build whose arguments name no plan gets its verify command from the active plan.** Before, `experts.js script` left it empty, so the build's closing full run never happened.
+
+Tests: `evals/experts/verify-fresh.test.js`, `evals/experts/cards.test.js`, `evals/experts/guidance.test.js`.
+
 ## [4.3.0] - 2026-11-04
 
 From the re-wash trace (cards 8a to 11, `.ultimate-workflow/session-trace.md`) and `internal/plans/PLAN-run-records.md`: fewer hand steps, and gates that act on facts the host reports.

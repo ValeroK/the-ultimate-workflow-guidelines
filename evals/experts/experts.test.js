@@ -489,7 +489,10 @@ test('cli select and read round-trip, and an unknown name exits 2 with the file 
 
   const ok = cli(dir, ['select', '--plan', plan, '--add', 'security']);
   assert.strictEqual(ok.status, 0, ok.stderr);
-  assert.deepStrictEqual(JSON.parse(cli(dir, ['read', '--plan', plan]).stdout), { file: plan, present: true, experts: ['security'] });
+  const read = JSON.parse(cli(dir, ['read', '--plan', plan]).stdout);
+  assert.deepStrictEqual({ file: read.file, present: read.present, experts: read.experts }, { file: plan, present: true, experts: ['security'] });
+  // Without cards, the effective set is the plan's own line (item 7 adds `effective`).
+  assert.deepStrictEqual({ source: read.effective.source, experts: read.effective.experts }, { source: 'plan', experts: ['security'] });
 
   const none = cli(dir, ['select', '--plan', plan]);
   assert.strictEqual(none.status, 2, '--add is required, so forgetting it is not "none apply"');

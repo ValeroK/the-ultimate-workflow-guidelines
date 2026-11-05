@@ -238,7 +238,8 @@ function commitGate(ev) {
   const final = ev.recheck.final || [];
   const dropped = (ev.planExperts || []).filter((n) => !final.includes(n));
   if (dropped.length > 0) {
-    return deny(`Gate G6: the re-check dropped ${dropped.join(', ')}, which the plan named. Experts can be added, never removed. ${how}`);
+    const who = ev.cards && ev.cards.length > 0 ? `card ${ev.cards.join(', ')} names` : 'the plan named';
+    return deny(`Gate G6: the re-check dropped ${dropped.join(', ')}, which ${who}. Experts can be added, never removed. ${how}`);
   }
   const missing = final.filter((n) => (ev.records || {})[n] !== ev.hash);
   if (missing.length > 0) {

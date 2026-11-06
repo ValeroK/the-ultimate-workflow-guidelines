@@ -67,6 +67,7 @@ const FAILURE_LINE = /\b(fail(ed|ure|ing)?|error|not ok|assert\w*)\b/i;
 // on that list, and fails naming the ones that are not.
 
 const BASELINE = path.join('.ultimate-workflow', 'baseline.json');
+const SELF = `node "${__filename.split(path.sep).join('/')}"`;
 
 /** A test name as it compares: no timing in brackets, one space between words. */
 function cleanName(s) {
@@ -240,7 +241,7 @@ function captureBaseline(cwd, data) {
   } else if (found.recognised) {
     console.log(`verify: baseline: ${found.names.length} test${found.names.length === 1 ? '' : 's'} fail before any change:`);
     for (const n of found.names) console.log(`  - ${n}`);
-    console.log('verify: baseline: show these to the user. If they accept them as known, run: node hooks/verify.js --accept-baseline');
+    console.log('verify: baseline: show these to the user. If they accept them as known, run: ' + SELF + ' --accept-baseline');
   } else {
     const why = abnormal
       ? 'the run was cut short (killed, timed out or out of buffer), so its output is partial'
@@ -248,7 +249,7 @@ function captureBaseline(cwd, data) {
         ? 'no failing test name was recognised in the output'
         : `the ${found.names.length} test name${found.names.length === 1 ? '' : 's'} found do not account for every failure${found.unexplained.length ? ` (${found.unexplained[0]})` : found.declared !== null ? ` (the runner reports ${found.declared})` : ''}`;
     console.log(`verify: baseline: the suite fails (exit ${code}) and ${why} (${LOG.replace(/\\/g, '/')}).`);
-    console.log('verify: baseline: read that file, write the failing tests one per line to a file, show them to the user, then run: node hooks/verify.js --accept-baseline --failures-file <file>');
+    console.log('verify: baseline: read that file, write the failing tests one per line to a file, show them to the user, then run: ' + SELF + ' --accept-baseline --failures-file <file>');
   }
   return 0;
 }
@@ -257,7 +258,7 @@ function captureBaseline(cwd, data) {
 function acceptBaseline(cwd, opts) {
   const b = readBaseline(cwd);
   if (!b) {
-    console.error('verify: no baseline to accept. Run node hooks/verify.js --baseline first.');
+    console.error('verify: no baseline to accept. Run ' + SELF + ' --baseline first.');
     return 2;
   }
   let failures = b.failures;
@@ -367,7 +368,7 @@ function readRecord(cwd) {
 }
 
 /** Write the outcome of a full run, against the changes as they are after it ran. */
-function recordFull(cwd, { passed, command, verdict = null }) {
+function recordFull(cwd, { passed, command, verdict = null, acceptedAt = '' }) {
   const file = path.join(cwd, RECORD);
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const rec = { mode: 'full', passed: passed === true, fingerprint: experts.testFingerprint(cwd), command, at: new Date().toISOString() };
@@ -376,6 +377,7 @@ function recordFull(cwd, { passed, command, verdict = null }) {
     rec.knownFailures = verdict.known.length;
     rec.newFailures = verdict.newFailures;
     rec.fixedFailures = verdict.fixed.length;
+    if (acceptedAt) rec.baselineAcceptedAt = acceptedAt;
   }
   fs.writeFileSync(file, `${JSON.stringify(rec, null, 2)}\n`);
   return rec;
@@ -531,14 +533,18 @@ function main(argv, startDir = process.cwd()) {
   // A full run that failed is judged against the accepted baseline, when there is one for this
   // command and this starting commit. Output that was not captured cannot be judged.
   let verdict = null;
+  let acceptedBaseline = null;
   if (choice.mode === 'full' && code !== 0 && !abnormal) {
     const baseline = readBaseline(cwd);
-    if (baselineApplies(baseline, cwd, choice.command)) verdict = judge(code, fullOutput, baseline);
+    if (baselineApplies(baseline, cwd, choice.command)) {
+      verdict = judge(code, fullOutput, baseline);
+      acceptedBaseline = baseline;
+    }
   }
   const passedFull = code === 0 || Boolean(verdict && verdict.passed);
   if (choice.mode === 'full') {
     try {
-      recordFull(cwd, { passed: passedFull, command: choice.command, verdict });
+      recordFull(cwd, { passed: passedFull, command: choice.command, verdict, acceptedAt: acceptedBaseline ? acceptedBaseline.acceptedAt : '' });
     } catch {
       console.error('verify: the result could not be recorded, so a commit will ask for a full run again');
     }
@@ -548,6 +554,10 @@ function main(argv, startDir = process.cwd()) {
   if (verdict && verdict.passed) {
     const fixed = verdict.fixed.length ? `; ${verdict.fixed.length} of the known failures now pass` : '';
     console.log(`verify: full run passed with ${verdict.known.length} known failure${verdict.known.length === 1 ? '' : 's'} (the accepted baseline) and 0 new${fixed}`);
+    // Said again every time it is relied on, so an accept nobody meant to give shows up in the build report.
+    console.log(`verify: accepted${acceptedBaseline && acceptedBaseline.acceptedAt ? ` on ${acceptedBaseline.acceptedAt}` : ''}; these tests were not run to green:`);
+    for (const n of verdict.known.slice(0, 20)) console.log(`  - ${n}`);
+    if (verdict.known.length > 20) console.log(`  ... and ${verdict.known.length - 20} more (see .ultimate-workflow/baseline.json)`);
     return 0;
   }
   if (verdict && verdict.unrecognised) {

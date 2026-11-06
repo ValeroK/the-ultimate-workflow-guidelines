@@ -44,7 +44,7 @@ One exception: if the run failed before any agent started (0 agents, and an inpu
 
 ## When it returns
 
-Report what landed and whether verification is green; when it is green with known failures, say how many (the full run's output says "N known failures ... and 0 new"). Say which briefs and skills were loaded (`briefsLoaded`, `skillsLoaded`), so it is visible when none were. If the run escalated, present the blocker with options and **stop** -- do not pick one. Never report green without having seen the verification output.
+Report what landed and whether verification is green; when it is green with known failures, say how many and name them, with the time they were accepted (the full run's output says "N known failures ... and 0 new" and lists them). Accepting is a rule in this command and not something the code can check, so this is where an accept the user did not give would show: if the list is not the one the user was shown, say so plainly. Say which briefs and skills were loaded (`briefsLoaded`, `skillsLoaded`), so it is visible when none were. If the run escalated, present the blocker with options and **stop** -- do not pick one. Never report green without having seen the verification output.
 
 
 When the build was one card of a split plan, check what it touched, from git and not from what the agent says: `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" scope --plan <plan file> --card <card name> --result .ultimate-workflow/run/build.result.json`. Tell the user every file in `outOfScope` (changed, and under none of the card's paths; the plan, the plugin folder and the tests this build wrote are left out). It is a report, not a block: a file may rightly belong to the card, in which case add its path to the card.

@@ -142,6 +142,7 @@ test('--baseline records the tests that fail before any change, and does not acc
   assert.match(r.stdout, /2 tests fail before any change/);
   assert.match(r.stdout, /- alpha test/);
   assert.match(r.stdout, /- beta test/);
+  assert.ok(r.stdout.replace(/\\/g, '/').includes(`node "${VERIFY.replace(/\\/g, '/')}" --accept-baseline`), 'the hint is a command that works from the project, with the real script path');
   const b = baseline(dir);
   assert.deepStrictEqual(b.failures, ['alpha test', 'beta test'], 'sorted, no timings');
   assert.strictEqual(b.accepted, false);
@@ -241,7 +242,8 @@ test('--accept-baseline needs a baseline', () => {
   const dir = repo();
   const r = run(dir, ['--accept-baseline']);
   assert.strictEqual(r.status, 2);
-  assert.match(r.stderr, /Run node hooks\/verify\.js --baseline first/);
+  assert.match(r.stderr, /--baseline first/);
+  assert.ok(r.stderr.replace(/\\/g, '/').includes(VERIFY.replace(/\\/g, '/')), 'the hint names the real script, not a relative path that does not exist in the project');
 });
 
 // ---- judging a full run against it -----------------------------------------------------
@@ -258,10 +260,16 @@ test('a full run whose only failures are the accepted ones passes, and says how 
   const r = run(dir, ['--full']);
   assert.strictEqual(r.status, 0, r.stdout + r.stderr);
   assert.match(r.stdout, /full run passed with 2 known failures \(the accepted baseline\) and 0 new/);
+  // The audit trail: every pass that leans on the baseline names the tests and when they were accepted.
+  assert.match(r.stdout, /verify: accepted on \d{4}-\d{2}-\d{2}T[^;]*; these tests were not run to green:/);
+  assert.match(r.stdout, /^ {2}- alpha$/m);
+  assert.match(r.stdout, /^ {2}- beta$/m);
   const rec = record(dir);
   assert.strictEqual(rec.passed, true);
   assert.strictEqual(rec.knownFailures, 2);
   assert.deepStrictEqual(rec.newFailures, []);
+  assert.strictEqual(rec.baselineAcceptedAt, baseline(dir).acceptedAt, 'the record says when the list was accepted');
+  assert.ok(rec.baselineAcceptedAt);
 });
 
 test('a pass that rests on the baseline is a pass for the commit check too (--if-stale sees it)', () => {

@@ -14,6 +14,15 @@ argument-hint: "<plan file; required if more than one PLAN-*.md exists>"
 
    It writes a JSON array of `{ "name", "text", "skills" }`, one per expert that declares the `build` stage; `skills` holds the skill texts chosen from the files and text of the plan. An empty array is fine and means no expert has a brief. Show the user anything the script prints on stderr: a brief that is missing or too large is left out, a skill that did not fit is named, and a plan that names no file gets only the skills every build gets.
 
+3. **The starting state of the suite: tests that already fail.** A build counts as green only when the full suite passes, so a suite that was already red could never get there, and a change that was fine would stop at the first full run. Take the baseline now, before any test or code is written, while the tree is still as the user left it: `node "${CLAUDE_PLUGIN_ROOT}/hooks/verify.js" --baseline --plan <plan file>`. If `.ultimate-workflow/baseline.json` already exists, was accepted and was taken at the current commit (a resumed build), keep it and do not take another.
+
+   - The suite passes: nothing to do. It prints that there is nothing to accept.
+   - Tests fail and it lists them: show the user the list in plain words (which tests, that they fail before this change, and that the build will not touch them), then ask **one** question with the host's ask-user tool: do these count as known failures? The option to accept goes first. On yes run `node "${CLAUDE_PLUGIN_ROOT}/hooks/verify.js" --accept-baseline --plan <plan file>`; it records them and lists them in the plan under "Known failures". On no, stop and tell the user the suite has to be green or the failures accepted before a build can finish. Never accept them yourself.
+   - It fails but names no test: read `.ultimate-workflow/verify.log`, write the failing tests one per line to `.ultimate-workflow/run/known.txt`, show that list to the user and ask the same question; on yes run `--accept-baseline --failures-file .ultimate-workflow/run/known.txt`. If you cannot tell which tests failed, say so and ask the user; do not guess.
+   - It refuses because source files have already changed: those failures could be the change's own. Tell the user and ask how to proceed.
+
+   From then on a full run passes while only the accepted tests fail, and fails naming any other failing test. The commit check reads the same result.
+
 ## Run the phase
 
 1. With the Write tool, write `.ultimate-workflow/run/build.args.json`: `{ "plan": "<the plan file from step 1>" }`, plus `"command"` if the user gave a verification command.
@@ -35,7 +44,7 @@ One exception: if the run failed before any agent started (0 agents, and an inpu
 
 ## When it returns
 
-Report what landed and whether verification is green. Say which briefs and skills were loaded (`briefsLoaded`, `skillsLoaded`), so it is visible when none were. If the run escalated, present the blocker with options and **stop** -- do not pick one. Never report green without having seen the verification output.
+Report what landed and whether verification is green; when it is green with known failures, say how many and name them, with the time they were accepted (the full run's output says "N known failures ... and 0 new" and lists them). Accepting is a rule in this command and not something the code can check, so this is where an accept the user did not give would show: if the list is not the one the user was shown, say so plainly. Say which briefs and skills were loaded (`briefsLoaded`, `skillsLoaded`), so it is visible when none were. If the run escalated, present the blocker with options and **stop** -- do not pick one. Never report green without having seen the verification output.
 
 
 When the build was one card of a split plan, check what it touched, from git and not from what the agent says: `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" scope --plan <plan file> --card <card name> --result .ultimate-workflow/run/build.result.json`. Tell the user every file in `outOfScope` (changed, and under none of the card's paths; the plan, the plugin folder and the tests this build wrote are left out). It is a report, not a block: a file may rightly belong to the card, in which case add its path to the card.

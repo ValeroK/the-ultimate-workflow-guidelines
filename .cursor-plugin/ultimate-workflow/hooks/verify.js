@@ -58,6 +58,237 @@ function rewriteHint(cwd, before, data) {
 
 const FAILURE_LINE = /\b(fail(ed|ure|ing)?|error|not ok|assert\w*)\b/i;
 
+// ---- failures that were there before the change (the baseline) ----
+//
+// A full run counts as passed when it exits 0. A suite that already had failing tests could never
+// do that, so a build stopped on a change that was fine. The baseline is the list of tests that
+// fail before anything is written: taken once at the start of a build, shown to the user, and
+// counted only after the user accepts it. A later full run then passes when every failing test is
+// on that list, and fails naming the ones that are not.
+
+const BASELINE = path.join('.ultimate-workflow', 'baseline.json');
+const SELF = `node "${__filename.split(path.sep).join('/')}"`;
+
+/** A test name as it compares: no timing in brackets, one space between words. */
+function cleanName(s) {
+  return String(s).replace(/\s*\(\s*\d+(\.\d+)?\s*m?s\s*\)\s*$/i, '').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * The failing tests named in a runner's output, sorted and without repeats or timings. Patterns:
+ * node:test (the spec reporter's cross mark), TAP "not ok", pytest "FAILED path::name", go
+ * "--- FAIL: Name", cargo "test name ... FAILED", jest (a bullet or a ballot x).
+ *
+ * `recognised` is the safe-side answer to "do these names account for this failed run?". It is
+ * false, and the names must not be trusted, when the run failed and (a) nothing matched, (b) the
+ * runner's own summary counts more failures than names were found (a failure this parser cannot
+ * see), or (c) the output shows a failure that is not a test: a build or collection error, a run
+ * stopped at the first failure, a coverage threshold. Without that a known failing test next to
+ * an unseen new one would pass. A runner with no summary line (go) relies on (a) and (c).
+ * The symbols are written as escapes so no such character sits in this file.
+ */
+function extractFailures(output, code) {
+  const names = new Set();
+  const add = (n) => {
+    const c = cleanName(n);
+    if (!c || /^(failing tests?|failures?|errors?)\s*:?$/i.test(c) || /^console\b/i.test(c)) return;
+    names.add(c);
+  };
+  let declared = null;
+  let cargoFailed = 0;
+  const raise = (n) => {
+    declared = declared === null ? n : Math.max(declared, n);
+  };
+  const unexplained = [];
+  for (const raw of String(output).replace(/\r/g, '').split('\n')) {
+    const line = raw.trim();
+    let m;
+    if ((m = /^\u2716\s+(.*)$/.exec(line))) add(m[1]);
+    else if ((m = /^not ok \d+\s*-?\s*(.*)$/.exec(line))) add(m[1]);
+    else if ((m = /^FAILED\s+(.+)$/.exec(line))) {
+      // pytest: "FAILED path::name - message". unittest ends with "FAILED (failures=1)", which is no test.
+      const name = m[1].split(/\s+-\s/)[0].trim();
+      if (/::|\.py\b/.test(name)) add(name);
+    } else if ((m = /^---\s+FAIL:\s+(\S+)/.exec(line))) add(m[1]);
+    else if ((m = /^test\s+(\S+)\s+\.\.\.\s+FAILED\b/.exec(line))) add(m[1]);
+    else if ((m = /^[\u25CF\u2715]\s+(.*)$/.exec(line))) add(m[1]);
+    if ((m = /^(?:\u2139|#)\s*fail\s+(\d+)\s*$/.exec(line))) raise(Number(m[1]));
+    else if ((m = /^=+.*\b(\d+) failed\b/.exec(line))) raise(Number(m[1]));
+    else if ((m = /^Tests:.*?\b(\d+) failed\b/.exec(line))) raise(Number(m[1]));
+    else if ((m = /^test result: FAILED\..*?;\s*(\d+) failed/.exec(line))) cargoFailed += Number(m[1]);
+    if (
+      /\[(?:build|setup) failed\]/.test(line) ||
+      /^ERROR\s+\S+\.py\b/.test(line) ||
+      /^=+.*\b[1-9]\d* errors?\b/.test(line) ||
+      /\berror\[E\d+\]/.test(line) ||
+      /stopping after \d+ failures?|^Interrupted:/i.test(line) ||
+      /coverage threshold .* not met/i.test(line)
+    ) {
+      unexplained.push(line.slice(0, 120));
+    }
+  }
+  if (cargoFailed > 0) raise(cargoFailed);
+  const sorted = [...names].sort();
+  const accounted = sorted.length > 0 && (declared === null || sorted.length >= declared) && unexplained.length === 0;
+  return { names: sorted, declared, unexplained, recognised: code === 0 || accounted };
+}
+
+function readBaseline(cwd) {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(cwd, BASELINE), 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function headSha(cwd) {
+  const r = spawnSync('git', ['rev-parse', 'HEAD'], { cwd, encoding: 'utf8' });
+  return r.status === 0 ? r.stdout.trim() : '';
+}
+
+/** A baseline counts only when accepted, for this command, and taken at the commit the work started from. */
+function baselineApplies(baseline, cwd, command) {
+  return Boolean(baseline) && baseline.accepted === true && Array.isArray(baseline.failures) && baseline.command === command && baseline.head === headSha(cwd);
+}
+
+/**
+ * Whether a full run that exited `code` with `output` passes against an accepted baseline.
+ * Never passes a failed run whose failing tests cannot be told apart, and never passes one with a
+ * failing test that was not on the list. A listed test that no longer fails is `fixed`.
+ */
+function judge(code, output, baseline) {
+  const known = baseline && Array.isArray(baseline.failures) ? baseline.failures : [];
+  if (code === 0) return { passed: true, known: [], fixed: known, newFailures: [], unrecognised: false };
+  const found = extractFailures(output, code);
+  if (!found.recognised) return { passed: false, known: [], fixed: [], newFailures: [], unrecognised: true };
+  const newFailures = found.names.filter((n) => !known.includes(n));
+  return {
+    passed: newFailures.length === 0,
+    known: found.names.filter((n) => known.includes(n)),
+    fixed: known.filter((n) => !found.names.includes(n)),
+    newFailures,
+    unrecognised: false,
+  };
+}
+
+/** Set `key: value` in a document's front matter, keeping its line endings; unchanged when it has none. */
+function setFrontLine(text, key, value) {
+  const m = /^(﻿?---[ \t]*\r?\n)([\s\S]*?)(\r?\n---[ \t]*(?:\r?\n|$))/.exec(text);
+  if (!m) return text;
+  const eol = m[1].endsWith('\r\n') ? '\r\n' : '\n';
+  const re = new RegExp(`^${key}[ \\t]*:.*$`, 'm');
+  const block = re.test(m[2]) ? m[2].replace(re, `${key}: ${value}`) : `${m[2]}${eol}${key}: ${value}`;
+  return m[1] + block + m[3] + text.slice(m[0].length);
+}
+
+/** Put the accepted list in the plan as a "Known failures" section, replacing an earlier one. */
+function writeKnownFailures(planFile, names) {
+  let text = fs.readFileSync(planFile, 'utf8');
+  const eol = /\r\n/.test(text) ? '\r\n' : '\n';
+  text = setFrontLine(text, 'known_failures', names.length);
+  const section = `## Known failures${eol}${eol}Tests that failed before this change and that the user accepted as known. A full run passes while only these fail.${eol}${eol}${names.map((n) => `- ${n}`).join(eol)}${eol}`;
+  const re = /^## Known failures[ \t]*\r?\n[\s\S]*?(?=^## |(?![\s\S]))/m;
+  // When another heading follows, a blank line stays between the list and it.
+  text = re.test(text)
+    ? text.replace(re, (match, offset) => section + (text.slice(offset + match.length).startsWith('## ') ? eol : ''))
+    : `${text.replace(/\s+$/, '')}${eol}${eol}${section}`;
+  fs.writeFileSync(planFile, text);
+}
+
+/** Source changes (documents and the plan do not count): a baseline must be taken before any. */
+function sourceChanges(cwd) {
+  const changes = experts.workingChanges(cwd);
+  return changes.files.filter((f) => !(isDocPath(f) && !ALWAYS_FULL.some((re) => re.test(f))));
+}
+
+/** --baseline: run the full suite on the tree as it is, before any test or code is written. */
+function captureBaseline(cwd, data) {
+  let source;
+  try {
+    source = sourceChanges(cwd);
+  } catch {
+    console.error('verify: --baseline could not read the changes from git, so it cannot tell whether the tree is still untouched.');
+    return 2;
+  }
+  if (source.length > 0) {
+    console.error(`verify: --baseline is taken before any test or code is written, and these source files already changed: ${source.slice(0, 8).join(', ')}${source.length > 8 ? ', ...' : ''}. Their failures could be the change's own, so no baseline is recorded; ask the user how to proceed.`);
+    return 2;
+  }
+  const command = String(data.test_command).trim();
+  const release = acquireLock(cwd);
+  if (!release) return 3;
+  let code;
+  let output;
+  let abnormal = false;
+  try {
+    const r = spawnSync(command, { cwd, shell: true, encoding: 'utf8', maxBuffer: 512 * 1024 * 1024 });
+    code = r.status === null ? 1 : r.status;
+    // Killed by a signal, timed out, out of buffer: the output is partial, so no list can be trusted.
+    abnormal = r.status === null || Boolean(r.error);
+    output = `${r.stdout || ''}${r.stderr || ''}`;
+  } finally {
+    release();
+  }
+  fs.mkdirSync(path.join(cwd, '.ultimate-workflow'), { recursive: true });
+  fs.writeFileSync(path.join(cwd, LOG), output);
+  const found = extractFailures(output, code);
+  if (abnormal) found.recognised = false;
+  const rec = { command, head: headSha(cwd), exit: code, failures: found.names, recognised: found.recognised, accepted: code === 0, at: new Date().toISOString() };
+  fs.writeFileSync(path.join(cwd, BASELINE), `${JSON.stringify(rec, null, 2)}\n`);
+  console.log(`verify: baseline: ${command}`);
+  if (code === 0) {
+    console.log('verify: baseline: the suite passes before any change; there is nothing to accept.');
+  } else if (found.recognised) {
+    console.log(`verify: baseline: ${found.names.length} test${found.names.length === 1 ? '' : 's'} fail before any change:`);
+    for (const n of found.names) console.log(`  - ${n}`);
+    console.log('verify: baseline: show these to the user. If they accept them as known, run: ' + SELF + ' --accept-baseline');
+  } else {
+    const why = abnormal
+      ? 'the run was cut short (killed, timed out or out of buffer), so its output is partial'
+      : found.names.length === 0
+        ? 'no failing test name was recognised in the output'
+        : `the ${found.names.length} test name${found.names.length === 1 ? '' : 's'} found do not account for every failure${found.unexplained.length ? ` (${found.unexplained[0]})` : found.declared !== null ? ` (the runner reports ${found.declared})` : ''}`;
+    console.log(`verify: baseline: the suite fails (exit ${code}) and ${why} (${LOG.replace(/\\/g, '/')}).`);
+    console.log('verify: baseline: read that file, write the failing tests one per line to a file, show them to the user, then run: ' + SELF + ' --accept-baseline --failures-file <file>');
+  }
+  return 0;
+}
+
+/** --accept-baseline: the user has seen the list and accepts it; it is recorded in the plan too. */
+function acceptBaseline(cwd, opts) {
+  const b = readBaseline(cwd);
+  if (!b) {
+    console.error('verify: no baseline to accept. Run ' + SELF + ' --baseline first.');
+    return 2;
+  }
+  let failures = b.failures;
+  if (opts.failuresFile) {
+    try {
+      failures = [...new Set(fs.readFileSync(path.resolve(cwd, opts.failuresFile), 'utf8').split(/\r?\n/).map(cleanName).filter(Boolean))].sort();
+    } catch (err) {
+      console.error(`verify: cannot read ${opts.failuresFile}: ${err.message}`);
+      return 2;
+    }
+    if (failures.length === 0) {
+      console.error(`verify: ${opts.failuresFile} names no failing test.`);
+      return 2;
+    }
+  } else if (b.exit !== 0 && !b.recognised) {
+    console.error('verify: the failing tests were not recognised in the baseline output. Pass the list with --failures-file <file> (one test per line).');
+    return 2;
+  }
+  const rec = { ...b, failures, recognised: true, accepted: true, acceptedAt: new Date().toISOString() };
+  fs.writeFileSync(path.join(cwd, BASELINE), `${JSON.stringify(rec, null, 2)}\n`);
+  const planFile = opts.plan ? path.resolve(cwd, opts.plan) : (stateLib.readState(cwd).file ? path.resolve(cwd, stateLib.readState(cwd).file) : '');
+  if (planFile && /(^|[\\/])PLAN-[^\\/]+\.md$/i.test(planFile) && fs.existsSync(planFile)) {
+    writeKnownFailures(planFile, failures);
+    console.log(`verify: baseline accepted: ${failures.length} known failure${failures.length === 1 ? '' : 's'}, listed in ${path.basename(planFile)}.`);
+  } else {
+    console.log(`verify: baseline accepted: ${failures.length} known failure${failures.length === 1 ? '' : 's'}. No PLAN-*.md was found to list them in.`);
+  }
+  return 0;
+}
+
 /** The lines worth reading: up to 60 that look like failures, then the last 30 (80 on a failure), without repeats. */
 function shortOutput(output, code) {
   const lines = String(output).replace(/\r/g, '').split('\n');
@@ -137,10 +368,17 @@ function readRecord(cwd) {
 }
 
 /** Write the outcome of a full run, against the changes as they are after it ran. */
-function recordFull(cwd, { passed, command }) {
+function recordFull(cwd, { passed, command, verdict = null, acceptedAt = '' }) {
   const file = path.join(cwd, RECORD);
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const rec = { mode: 'full', passed: passed === true, fingerprint: experts.testFingerprint(cwd), command, at: new Date().toISOString() };
+  // A pass that leans on the accepted baseline says so, so the commit check and the report show it.
+  if (verdict && !verdict.unrecognised) {
+    rec.knownFailures = verdict.known.length;
+    rec.newFailures = verdict.newFailures;
+    rec.fixedFailures = verdict.fixed.length;
+    if (acceptedAt) rec.baselineAcceptedAt = acceptedAt;
+  }
   fs.writeFileSync(file, `${JSON.stringify(rec, null, 2)}\n`);
   return rec;
 }
@@ -179,9 +417,12 @@ function relatedTests(cwd, changes) {
 }
 
 function parseArgs(argv) {
-  const out = { full: false, ifStale: false, plan: '' };
+  const out = { full: false, ifStale: false, plan: '', baseline: false, acceptBaseline: false, failuresFile: '' };
   for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === '--full') out.full = true;
+    if (argv[i] === '--baseline') out.baseline = true;
+    else if (argv[i] === '--accept-baseline') out.acceptBaseline = true;
+    else if (argv[i] === '--failures-file') out.failuresFile = argv[++i] || '';
+    else if (argv[i] === '--full') out.full = true;
     else if (argv[i] === '--if-stale') out.ifStale = true;
     else if (argv[i] === '--plan') out.plan = argv[++i] || '';
   }
@@ -208,6 +449,13 @@ function main(argv, startDir = process.cwd()) {
     console.error('verify: no test_command in the plan front matter (PLAN-*.md or PRD.md). Set it to the full test command, then run this again.');
     return 2;
   }
+
+  if (opts.baseline && opts.acceptBaseline) {
+    console.error('verify: --baseline and --accept-baseline are two steps; run --baseline, show the user the list, then --accept-baseline.');
+    return 2;
+  }
+  if (opts.baseline) return captureBaseline(cwd, data);
+  if (opts.acceptBaseline) return acceptBaseline(cwd, opts);
 
   if (opts.ifStale && !opts.full) {
     console.error('verify: --if-stale only goes with --full.');
@@ -254,6 +502,8 @@ function main(argv, startDir = process.cwd()) {
   console.log(`verify: ${choice.mode} because ${choice.reason}`);
   console.log(`verify: ${choice.command}`);
   let code;
+  let fullOutput = '';
+  let abnormal = false;
   try {
     if (process.env.ULTIMATE_WORKFLOW_VERIFY_FULL_OUTPUT === '1') {
       const r = spawnSync(choice.command, { cwd, shell: true, stdio: 'inherit' });
@@ -264,7 +514,10 @@ function main(argv, startDir = process.cwd()) {
       // failure lines and the tail.
       const r = spawnSync(choice.command, { cwd, shell: true, encoding: 'utf8', maxBuffer: 512 * 1024 * 1024 });
       code = r.status === null ? 1 : r.status;
+      // Killed by a signal, timed out, out of buffer: the output is partial and is never judged.
+      abnormal = r.status === null || Boolean(r.error);
       const output = `${r.stdout || ''}${r.stderr || ''}`;
+      fullOutput = output;
       console.log(shortOutput(output, code));
       try {
         fs.mkdirSync(path.join(cwd, '.ultimate-workflow'), { recursive: true });
@@ -277,19 +530,47 @@ function main(argv, startDir = process.cwd()) {
   } finally {
     release();
   }
+  // A full run that failed is judged against the accepted baseline, when there is one for this
+  // command and this starting commit. Output that was not captured cannot be judged.
+  let verdict = null;
+  let acceptedBaseline = null;
+  if (choice.mode === 'full' && code !== 0 && !abnormal) {
+    const baseline = readBaseline(cwd);
+    if (baselineApplies(baseline, cwd, choice.command)) {
+      verdict = judge(code, fullOutput, baseline);
+      acceptedBaseline = baseline;
+    }
+  }
+  const passedFull = code === 0 || Boolean(verdict && verdict.passed);
   if (choice.mode === 'full') {
     try {
-      recordFull(cwd, { passed: code === 0, command: choice.command });
+      recordFull(cwd, { passed: passedFull, command: choice.command, verdict, acceptedAt: acceptedBaseline ? acceptedBaseline.acceptedAt : '' });
     } catch {
       console.error('verify: the result could not be recorded, so a commit will ask for a full run again');
     }
   }
   const hint = rewriteHint(cwd, before, data);
   if (hint) console.log(hint);
-  console.log(`verify: ${choice.mode} run ${code === 0 ? 'passed' : `failed (exit ${code})`}`);
+  if (verdict && verdict.passed) {
+    const fixed = verdict.fixed.length ? `; ${verdict.fixed.length} of the known failures now pass` : '';
+    console.log(`verify: full run passed with ${verdict.known.length} known failure${verdict.known.length === 1 ? '' : 's'} (the accepted baseline) and 0 new${fixed}`);
+    // Said again every time it is relied on, so an accept nobody meant to give shows up in the build report.
+    console.log(`verify: accepted${acceptedBaseline && acceptedBaseline.acceptedAt ? ` on ${acceptedBaseline.acceptedAt}` : ''}; these tests were not run to green:`);
+    for (const n of verdict.known.slice(0, 20)) console.log(`  - ${n}`);
+    if (verdict.known.length > 20) console.log(`  ... and ${verdict.known.length - 20} more (see .ultimate-workflow/baseline.json)`);
+    return 0;
+  }
+  if (verdict && verdict.unrecognised) {
+    console.log(`verify: full run failed (exit ${code}) and the failing tests could not be told apart from the accepted baseline, so it does not pass`);
+  } else if (verdict) {
+    console.log(`verify: full run failed (exit ${code}): ${verdict.newFailures.length} failing test${verdict.newFailures.length === 1 ? ' is' : 's are'} not in the accepted baseline:`);
+    for (const n of verdict.newFailures.slice(0, 20)) console.log(`  - ${n}`);
+  } else {
+    console.log(`verify: ${choice.mode} run ${code === 0 ? 'passed' : `failed (exit ${code})`}`);
+  }
   return code;
 }
 
 if (require.main === module) process.exit(main(process.argv.slice(2)));
 
-module.exports = { main, readRecord, recordFull, fullEvidence, relatedTests, acquireLock, shortOutput, RECORD, LOCK, LOG };
+module.exports = { main, readRecord, recordFull, fullEvidence, relatedTests, acquireLock, shortOutput, extractFailures, readBaseline, baselineApplies, judge, setFrontLine, RECORD, LOCK, LOG, BASELINE };

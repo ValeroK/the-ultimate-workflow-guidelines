@@ -23,6 +23,8 @@ When unsure between light and full, choose full.
 
 ## 2. Run the phases
 
+At each stop for the user, follow what `plan.md` and `tests.md` say: the document is written by code from the Workflow output file and shown in the plan view (never summarised from the cut-off completion notice), and the open questions are raised one at a time, each with the issue, what each answer changes, and the pros and cons.
+
 **Light**
 1. `plan.md`, with an empty expert list: pass `available` as `[]`, so no expert is consulted at plan. After the user confirms, record `experts: []` with `experts.js select --plan <plan file> --add ""`. **Stop for the user's confirmation of the plan.**
 2. `tests.md`. The critics and the experts that join the tests stage (quality always does) still run: on real cards this stage caught most of the defects. **Stop for the user's confirmation of the Tests section.**

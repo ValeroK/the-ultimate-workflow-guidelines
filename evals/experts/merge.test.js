@@ -65,6 +65,9 @@ function startMerge(dir, ...args) {
 function mergeRepo({ conflict = false, docsOnly = false, front = [] } = {}) {
   const dir = tmp('repo');
   git(dir, 'init', '-q', '-b', 'main');
+  // Not the machine's line-ending setting: these tests call the plugin under a git with no system
+  // config, so a repo built under autocrlf=true (the Windows default) would look modified to it.
+  git(dir, 'config', 'core.autocrlf', 'false');
   git(dir, 'config', 'user.email', 't@t');
   git(dir, 'config', 'user.name', 't');
   fs.mkdirSync(path.join(dir, 'src'));
@@ -206,6 +209,9 @@ test('T5 a merge that changes nothing in the tree, or only documents, is not hel
 function rewriteRepo(command, front = []) {
   const dir = tmp('rewrite');
   git(dir, 'init', '-q', '-b', 'main');
+  // Not the machine's line-ending setting: these tests call the plugin under a git with no system
+  // config, so a repo built under autocrlf=true (the Windows default) would look modified to it.
+  git(dir, 'config', 'core.autocrlf', 'false');
   git(dir, 'config', 'user.email', 't@t');
   git(dir, 'config', 'user.name', 't');
   fs.writeFileSync(path.join(dir, 'test_times.json'), '{}\n');

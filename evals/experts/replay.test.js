@@ -81,7 +81,10 @@ test('answering each round and running again walks the real plan workflow to the
   assert.deepStrictEqual(r.out.pending.map((p) => [p.label, p.agentType]), [['plan:security', 'uw-expert-security']]);
   const task = fs.readFileSync(r.out.pending[0].taskFile, 'utf8');
   assert.match(task, /# Security expert/, 'the expert\'s own definition is the role');
-  assert.ok(task.includes(path.join(PLUGIN, 'experts', 'security', 'references', 'plan.md')), 'and it is pointed at its plan reference');
+  // The script joins the folder and the file name with "/", so on Windows the task mixes separators;
+  // compare with one kind on every platform.
+  const slashed = (p) => p.replace(/\\/g, '/');
+  assert.ok(slashed(task).includes(slashed(path.join(PLUGIN, 'experts', 'security', 'references', 'plan.md'))), 'and it is pointed at its plan reference');
   assert.match(task, /read-only shell commands/);
   answer(r.out.pending[0], INPUT);
   r = s.run('plan');

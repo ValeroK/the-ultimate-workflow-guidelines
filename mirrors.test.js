@@ -209,6 +209,34 @@ test('the phase scripts are not in a workflows/ folder, so only the commands rea
   assert.equal(fs.existsSync(pjoin('workflows')), false);
 });
 
+// A phase result is read from the Workflow tool's output file, never from its completion notice:
+// the notice is cut off when the result is large, and a model that reads only the notice shows a
+// partial plan, test plan, finding list or proposal list as whole. Wording cannot be proven by a
+// test, so this only keeps the instruction from being dropped from one command in a later edit.
+test('every command that presents a workflow result reads it from the output file, not the notice', () => {
+  for (const p of ['plan', 'tests', 'review', 'harvest']) {
+    const text = fs.readFileSync(pjoin('commands', `${p}.md`), 'utf8');
+    assert.match(text, /output file/, `${p}.md never mentions the Workflow output file`);
+    assert.match(text, /never (present it |present the plan |work |summarise)[^.]*notice|notice[^.]*never summarise|never from (its|the Workflow tool's) completion notice/i, `${p}.md does not say to avoid the completion notice`);
+    assert.match(text, /say so and stop/, `${p}.md has no stop for an unreadable output file`);
+  }
+  for (const [p, field] of [['plan', 'planMarkdown'], ['tests', 'testsMarkdown']]) {
+    const text = fs.readFileSync(pjoin('commands', `${p}.md`), 'utf8');
+    assert.ok(text.includes(`experts/experts.js" present --result`), `${p}.md does not write the document with experts.js present`);
+    assert.ok(text.includes(`--field ${field}`), `${p}.md does not name the ${field} field`);
+    assert.ok(text.includes('ExitPlanMode'), `${p}.md does not use the plan view`);
+    assert.ok(text.includes('--result <the output file>'), `${p}.md records the experts lane from a retyped notice, not --result`);
+  }
+});
+
+test('plan, tests and feature raise open questions one at a time', () => {
+  for (const p of ['plan', 'tests', 'feature']) {
+    const text = fs.readFileSync(pjoin('commands', `${p}.md`), 'utf8');
+    assert.match(text, /one at a time|one per turn/, `${p}.md does not say to raise open questions one at a time`);
+    assert.match(text, /pros and cons/, `${p}.md does not ask for the pros and cons`);
+  }
+});
+
 test('no command points at a script that does not exist', () => {
   const dir = pjoin('commands');
   for (const f of fs.readdirSync(dir).filter((x) => x.endsWith('.md'))) {

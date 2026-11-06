@@ -137,6 +137,8 @@ ${NO_QUOTA}`,
     asReader(
       `Review the git history and diff for ${scope} (range: ${range}; if that range is invalid, fall back to the last 20 commits and say so).
 
+The work is usually not committed yet when this runs, so a commit range alone can be empty. Read the uncommitted work as part of the same change: \`git status --short\`, \`git diff HEAD\`, and every new untracked file that status lists (open it). Say in your answer which of the two you found the lesson in, the commits or the uncommitted work.
+
 Look for lessons in what actually changed and in what the commit messages say about why. A commit that fixes something subtle, reverses an earlier decision, or documents a surprise is worth more than a large but routine diff.
 
 For each candidate, cite the commit sha or file path.

@@ -5,7 +5,7 @@ argument-hint: "[feature name]"
 
 # Phase: harvest
 
-Optional feature name. If empty, harvest the current branch against its merge base.
+Optional feature name. If empty, harvest the current branch against its merge base. Harvest normally runs before the commit, so the readers also read the uncommitted work (`git status`, `git diff HEAD`, new files) whatever the range is: an empty `origin/main..HEAD` does not mean there is nothing to learn from.
 
 1. With the Write tool, write `.ultimate-workflow/run/harvest.args.json`: `{ "scope": "<the feature name, or the current branch>" }`, plus `"range"` if the branch's merge base is not `origin/main` (for example `<merge base>..HEAD`).
 2. Run `mkdir -p .ultimate-workflow/run` if needed, then `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" script --phase harvest --args-file .ultimate-workflow/run/harvest.args.json`. It writes `.ultimate-workflow/run/harvest.js` with those arguments built in, and prints its `scriptPath`.
@@ -19,6 +19,8 @@ One exception: if the run failed before any agent started (0 agents, and an inpu
 ## When it returns
 
 Present the proposals grouped by destination and **stop**. Apply nothing without the user accepting it -- a proposal you have to accept is a proposal you actually read.
+
+**Present them from the Workflow tool's output file, never from its completion notice.** A large result is cut off in the notice, and proposals read from cut-off text are a partial list shown as whole. The notice names the output file, which holds the complete result (the phase result is under `result`). Read all of it with the Read tool, paging with `offset` and `limit` until the end. If the notice names no output file, or the file cannot be read to the end, say so and stop: never summarise the notice, and do not run the phase again.
 
 
 ## Record the run in the ledger

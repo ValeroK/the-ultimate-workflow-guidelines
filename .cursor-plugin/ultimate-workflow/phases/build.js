@@ -210,6 +210,8 @@ Smallest change that works. Nothing beyond the plan. Do not improve adjacent cod
 
 Never make a test pass by weakening it. Deleting an assertion or special-casing the test input converts a failing test into a lie that outlives you. If a test is genuinely wrong, say so and leave it failing.
 
+Some tests may have been failing before this change and been accepted by the user as known (the plan lists them under "Known failures"). They are not yours: do not edit, skip or work around them. The full run already allows exactly those, and it says "N known failures ... and 0 new" when only they fail; any other failing test is yours.
+
 When not green, include the failure output verbatim.`,
     { agentType: agentName('uw-implementer'), label: `attempt-${round}`, phase: round === 1 ? 'Implement' : 'Verify', schema: BUILT, ...modelOpt(IMPLEMENTER_MODEL) }
   )

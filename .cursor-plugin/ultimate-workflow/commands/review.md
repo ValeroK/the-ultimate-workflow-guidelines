@@ -32,9 +32,11 @@ One exception: if the run failed before any agent started (0 agents, and an inpu
 
 ## After the workflow
 
-Record the evidence, in code. Build a JSON object with `"ok": true` and the `expertLane` exactly as the workflow returned it (do not edit it), and run
-`node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" record --stage review [--plan <plan file>]`
-with it on standard input. It writes one record per expert that ran, against the fingerprint from step 3, and adds any expert the recheck found to the plan's `experts:` line. If `expertLane.recheckFailed` is true, say so: the commit gate will not be satisfied until the recheck succeeds.
+**Work from the Workflow tool's output file, never from its completion notice.** A large result is cut off in the notice, and findings read from cut-off text are a partial list shown as whole. The notice names the output file, which holds the complete result (the phase result is under `result`). Read all of it with the Read tool, paging with `offset` and `limit` until the end; the lists below come from it. If the notice names no output file, or the file cannot be read to the end, say so and stop: never summarise the notice, and do not run the phase again.
+
+Record the evidence, in code. The experts' lane is read from that file, not retyped:
+`node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" record --stage review [--plan <plan file>] --result <the output file>`.
+It writes one record per expert that ran, against the fingerprint from step 3, and adds any expert the recheck found to the plan's `experts:` line. If `expertLane.recheckFailed` is true, say so: the commit gate will not be satisfied until the recheck succeeds.
 
 ## High-confidence findings are raised and resolved
 

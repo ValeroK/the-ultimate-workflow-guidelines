@@ -521,6 +521,26 @@ test('cli record reads the workflow result from stdin, and says why when it refu
   assert.strictEqual(noStage.status, 2);
 });
 
+test('cli record --result reads the Workflow output file whole, wrapper and all, and refuses one it cannot use', () => {
+  const dir = repo();
+  cli(dir, ['prepare']);
+  const file = path.join(dir, 'review.result.json');
+  fs.writeFileSync(file, JSON.stringify({ summary: 's', agentCount: 2, logs: [], result: reviewResult() }, null, 2));
+  const ok = cli(dir, ['record', '--stage', 'review', '--result', file]);
+  assert.strictEqual(ok.status, 0, ok.stderr);
+  assert.deepStrictEqual(JSON.parse(ok.stdout).recorded, ['security']);
+
+  const missing = cli(dir, ['record', '--stage', 'review', '--result', path.join(dir, 'absent.json')]);
+  assert.strictEqual(missing.status, 2);
+  assert.match(missing.stderr, /record --result could not use/);
+  assert.strictEqual(missing.stdout, '');
+
+  fs.writeFileSync(file, '{"summary":"s","result":{"ok":true,"expertLane":{"stage":"review"');
+  const cut = cli(dir, ['record', '--stage', 'review', '--result', file]);
+  assert.strictEqual(cut.status, 2, 'a result cut off mid-way is refused, not recorded');
+  assert.match(cut.stderr, /not a phase result/);
+});
+
 test('cli check exits 0 with ok when a commit would be allowed and 1 with the reason when it would not', () => {
   const { dir, plan } = ready();
   const blocked = cli(dir, ['check', '--plan', plan]);

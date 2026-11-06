@@ -5,7 +5,7 @@ argument-hint: "[feature name]"
 
 # Phase: harvest
 
-Optional feature name. If empty, harvest the current branch against its merge base.
+Optional feature name. If empty, harvest the current branch against its merge base. Harvest normally runs before the commit, so the readers also read the uncommitted work (`git status`, `git diff HEAD`, new files) whatever the range is: an empty `origin/main..HEAD` does not mean there is nothing to learn from.
 
 1. With the Write tool, write `.ultimate-workflow/run/harvest.args.json`: `{ "scope": "<the feature name, or the current branch>" }`, plus `"range"` if the branch's merge base is not `origin/main` (for example `<merge base>..HEAD`).
 2. Run `mkdir -p .ultimate-workflow/run` if needed, then `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" script --phase harvest --args-file .ultimate-workflow/run/harvest.args.json`. It writes `.ultimate-workflow/run/harvest.js` with those arguments built in, and prints its `scriptPath`.

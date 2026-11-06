@@ -26,6 +26,21 @@ function isDocPath(p) {
 }
 
 /**
+ * The plugin's own scratch folder, `.ultimate-workflow/run/`: the phase commands write their
+ * arguments and the ledger row there with the Write tool (`tests.args.json`, `plan.row.json`), and
+ * must be able to once a plan is accepted and before the tests are confirmed. It is not source.
+ * Only that folder: the evidence the commit gate reads (`.ultimate-workflow/experts/`, the
+ * snapshots) stays gated, so a Write cannot forge it. Any `.` or `..` segment disqualifies the
+ * path, so `.ultimate-workflow/run/../experts/x.json` does not slip through.
+ */
+function isRunPath(p) {
+  const parts = segments(p);
+  if (parts.length < 3) return false;
+  if (parts.some((s) => s === '.' || s === '..')) return false;
+  return parts[0].toLowerCase() === '.ultimate-workflow' && parts[1].toLowerCase() === 'run';
+}
+
+/**
  * Whether a path is test code.
  *
  * The trap this must avoid is "test" as a substring: `latest.js`, `contest.ts`,
@@ -99,6 +114,7 @@ function preEditGate(state, input) {
   if (target === null || target === '') return ALLOW;
 
   if (isDocPath(target)) return ALLOW;
+  if (isRunPath(target)) return ALLOW;
 
   if (stage === 'bootstrap') {
     if (data.prd_confirmed !== true) {
@@ -326,6 +342,7 @@ function phasePointer(state, input) {
 module.exports = {
   toProjectPath,
   isDocPath,
+  isRunPath,
   isTestPath,
   preEditGate,
   stopGate,

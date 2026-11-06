@@ -25,6 +25,43 @@ test('isDocPath does not classify source as documentation', () => {
   }
 });
 
+// The phase commands write their arguments and the ledger row into `.ultimate-workflow/run/` with
+// the Write tool. Found in a real run: with the plan accepted and tests not yet confirmed, G2 refused
+// `plan.row.json` and `tests.args.json`, so the tests phase could not even start.
+test('G2 and G1 let the plugin write its own run files, in every stage', () => {
+  const awaitingTests = featureState({ plan_confirmed: true, tests_confirmed: false });
+  const awaitingPlan = featureState({ plan_confirmed: false });
+  for (const state of [awaitingTests, awaitingPlan, bootstrapState({ prd_confirmed: false })]) {
+    for (const p of ['.ultimate-workflow/run/tests.args.json', '.ultimate-workflow/run/plan.row.json', '.ultimate-workflow/run/deep/er/x.js']) {
+      assert.equal(gates.preEditGate(state, { path: p }).allow, true, `${state.stage}: ${p}`);
+    }
+  }
+  // An absolute Windows path inside the project reduces to the same relative path.
+  const abs = gates.preEditGate(awaitingTests, { path: 'C:\\proj\\.ultimate-workflow\\run\\plan.row.json', cwd: 'C:\\proj' });
+  assert.equal(abs.allow, true);
+});
+
+test('the run-folder exemption does not open the evidence the commit gate reads, or anything else', () => {
+  const state = featureState({ plan_confirmed: true, tests_confirmed: false, experts: [] });
+  for (const p of [
+    '.ultimate-workflow/experts/review/security.json',
+    '.ultimate-workflow/snapshots/abc.diff',
+    '.ultimate-workflow/active-plan',
+    '.ultimate-workflow/run',
+    '.ultimate-workflow/runs/x.json',
+    '.ultimate-workflow/run/../experts/review/security.json',
+    '.ultimate-workflow/./experts/x.json',
+    'src/.ultimate-workflow/run/x.json',
+    'src/a.js',
+  ]) {
+    const r = gates.preEditGate(state, { path: p });
+    assert.equal(r.allow, false, p);
+    assert.match(r.reason, /Gate G2/, p);
+  }
+  assert.equal(gates.isRunPath('.ultimate-workflow/run/x.json'), true);
+  assert.equal(gates.isRunPath('.ultimate-workflow/RUN/x.json'), true, 'Windows paths are case-insensitive');
+});
+
 test('isTestPath recognises the common test conventions', () => {
   for (const p of [
     'hooks/lib/state.test.js',

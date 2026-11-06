@@ -28,7 +28,13 @@
 //   node experts.js select  --plan P --add a,b              add experts to the plan (never removes)
 //   node experts.js prepare [--range working|A..B]          save the diff, fingerprint the tree
 //   node experts.js record  --stage S [--plan P] < result   record a workflow result as evidence
-//   node experts.js check   [--plan P]                      would the commit gate allow a commit now
+//   node experts.js record  --stage S [--plan P] --result R  the same, read from the Workflow output file R (never retype the result)
+//   node experts.js present --result R --field F --out P [--append] [--confirm plan_confirmed|tests_confirmed]
+//   node experts.js present --from T --out P [--append] [--confirm ...]
+//                                                           write a text field of the Workflow output file R (or the text file T) to P, whole and
+//                                                           entity-decoded; --append adds it to the end of P; --confirm sets that front matter
+//                                                           line to true in the file written
+//   node experts.js check   [--plan P]                    would the commit gate allow a commit now
 //   node experts.js findings                                high-confidence findings still open, and which are dismissed
 //   node experts.js attribution                             per expert: skills loaded, findings by basis, skills never cited
 //   node experts.js resolve --id ID --reason "..."          dismiss one, on the user's word and in their words
@@ -471,6 +477,83 @@ function setExperts(text, names) {
   const line = `experts: [${names.join(', ')}]`;
   if (EXPERTS_LINE.test(fm.block)) return fm.bom + fm.open + fm.block.replace(EXPERTS_LINE, line) + fm.after;
   return fm.bom + fm.open + fm.block + line + fm.eol + fm.after;
+}
+
+// ---- a document out of a workflow result ----
+
+/** The five entities some installs return in markdown; `&amp;` goes last so `&amp;lt;` stays `&lt;`. */
+function decodeEntities(text) {
+  return text.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
+}
+
+/**
+ * Whether a text came back HTML-escaped as a whole: it holds an entity, and no raw `<`, `>` or
+ * bare `&` anywhere (an escaped text has none, a plain one that merely mentions `&amp;` or
+ * contains a `Map<string>` does). Decoding anything else would corrupt a plan about HTML.
+ */
+function looksEscaped(text) {
+  return /&(?:amp|lt|gt|quot|#39);/.test(text) && !/[<>]/.test(text) && !/&(?!amp;|lt;|gt;|quot;|#39;)/.test(text);
+}
+
+/** Turn the plan's `plan_confirmed: false` into true. Throws when the front matter has no such key. */
+function setConfirmed(text, key) {
+  const fm = frontmatter(text);
+  const line = new RegExp(`^${key}[ \\t]*:[ \\t]*(true|false)[ \\t]*$`, 'm');
+  if (!fm || !line.test(fm.block)) throw new Error(`the document has no \`${key}:\` line in its front matter to confirm`);
+  return fm.bom + fm.open + fm.block.replace(line, `${key}: true`) + fm.after;
+}
+
+/**
+ * Write one text field of a workflow result to a file, from the Workflow tool's complete output
+ * file on disk. The notification the session gets is cut off when the result is large, so the plan
+ * is never carried through the model: this reads the whole file, takes the field, decodes the
+ * entities and writes it. Anything short of the full text is an error, never a partial document.
+ * `confirm` sets the `plan_confirmed` (or `tests_confirmed`) line to true in what is written.
+ */
+function present(opts) {
+  const { result: resultFile = '', field = '', out: outFile = '', from = '', confirm = '', append = false, cwd = process.cwd() } = opts || {};
+  if (!outFile) throw new Error('present needs --out <file to write>');
+  const at = (p) => path.resolve(cwd, p);
+  let text;
+  if (from) {
+    if (resultFile || field) throw new Error('present takes --from, or --result with --field, not both');
+    try {
+      text = fs.readFileSync(at(from), 'utf8');
+    } catch (err) {
+      throw new Error(`cannot read ${from}: ${err.message}`);
+    }
+    if (text.trim() === '') throw new Error(`${from} is empty, so there is no document to write`);
+  } else {
+    if (!resultFile) throw new Error('present needs --result <the Workflow output file> (or --from <a text file>)');
+    if (!field) throw new Error('present needs --field <planMarkdown|testsMarkdown>');
+    let raw;
+    try {
+      raw = fs.readFileSync(at(resultFile), 'utf8');
+    } catch (err) {
+      throw new Error(`cannot read the Workflow output file ${resultFile}: ${err.message}`);
+    }
+    const result = require('./ledger.js').unwrapResult(raw);
+    if (result.ok !== true) throw new Error('the workflow result is not ok, so there is no document to write');
+    const value = result[field];
+    if (typeof value !== 'string' || value.trim() === '') throw new Error(`the workflow result has no "${field}" text`);
+    text = looksEscaped(value) ? decodeEntities(value) : value;
+  }
+  if (append) {
+    let existing;
+    try {
+      existing = fs.readFileSync(at(outFile), 'utf8');
+    } catch (err) {
+      throw new Error(`--append needs ${outFile} to exist: ${err.message}`);
+    }
+    // Keep the file's own line endings: appended text in a CRLF plan is CRLF, not a mix.
+    const eol = existing.includes('\r\n') ? '\r\n' : '\n';
+    text = `${existing.replace(/\s+$/, '')}${eol}${eol}${text.replace(/\r?\n/g, eol)}`;
+  }
+  if (confirm) text = setConfirmed(text, confirm);
+  fs.mkdirSync(path.dirname(at(outFile)), { recursive: true });
+  fs.writeFileSync(at(outFile), text);
+  const headings = text.split(/\r?\n/).filter((l) => /^#{1,6}\s/.test(l));
+  return { out: outFile, chars: text.length, bytes: Buffer.byteLength(text), lastHeading: headings.length ? headings[headings.length - 1] : '', confirmed: Boolean(confirm), appended: Boolean(append) };
 }
 
 /** Add to a plan's experts. Returns what changed; a human's entries are always kept. */
@@ -1249,6 +1332,11 @@ function parseArgs(argv) {
     else if (a === '--carried') o.carried = need();
     else if (a === '--experts') o.experts = need();
     else if (a === '--result') o.result = need();
+    else if (a === '--field') o.field = need();
+    else if (a === '--out') o.out = need();
+    else if (a === '--confirm') o.confirm = need();
+    else if (a === '--from') o.from = need();
+    else if (a === '--append') o.append = true;
     else if (a === '--delta') o.delta = true;
     else if (a === '--args-file') o.argsFile = need();
     else if (a === '--file') o.files.push(need());
@@ -1341,13 +1429,23 @@ function main(argv) {
     if (o.cmd === 'record') {
       if (!o.stage) fail('record needs --stage plan|tests|review');
       let result;
-      try {
-        result = JSON.parse(fs.readFileSync(0, 'utf8'));
-      } catch {
-        fail('record reads the workflow result as JSON on standard input');
+      if (o.result) {
+        // The Workflow tool's output file, whole: nothing is retyped from the (cut-off) notification.
+        try {
+          result = require('./ledger.js').unwrapResult(fs.readFileSync(o.result, 'utf8'));
+        } catch (err) {
+          fail(`record --result could not use ${o.result}: ${err.message}`);
+        }
+      } else {
+        try {
+          result = JSON.parse(fs.readFileSync(0, 'utf8'));
+        } catch {
+          fail('record reads the workflow result as JSON on standard input, or from the Workflow output file with --result <file>');
+        }
       }
       return out(record(o.cwd, o.stage, result, { planFile: o.plan, pluginRoot: o.pluginRoot }));
     }
+    if (o.cmd === 'present') return out(present({ result: o.result, field: o.field, out: o.out, from: o.from, confirm: o.confirm, append: o.append, cwd: o.cwd }));
     if (o.cmd === 'findings') {
       const names = list(o.pluginRoot).experts.map((e) => e.name);
       return out({ findings: allFindings(o.cwd, fingerprint(o.cwd), names).filter((f) => blocking(f)) });
@@ -1420,7 +1518,7 @@ function main(argv) {
   } catch (err) {
     fail(err.message);
   }
-  return fail(`unknown command: ${o.cmd || '(none)'} (expected list, brief, skills, read, select, prepare, record, check, findings, resolve, attribution, fingerprint, script, ledger, card-add, scope)`);
+  return fail(`unknown command: ${o.cmd || '(none)'} (expected list, brief, skills, read, select, prepare, record, check, findings, resolve, attribution, fingerprint, script, ledger, card-add, scope, present)`);
 }
 
 module.exports = {
@@ -1435,6 +1533,9 @@ module.exports = {
   SKILLS_BYTES,
   skillsCap,
   parseSelector,
+  present,
+  decodeEntities,
+  looksEscaped,
   matches,
   parseSkillsFile,
   skillsAt,

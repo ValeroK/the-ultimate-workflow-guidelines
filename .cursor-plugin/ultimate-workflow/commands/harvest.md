@@ -20,6 +20,8 @@ One exception: if the run failed before any agent started (0 agents, and an inpu
 
 Present the proposals grouped by destination and **stop**. Apply nothing without the user accepting it -- a proposal you have to accept is a proposal you actually read.
 
+**Present them from the Workflow tool's output file, never from its completion notice.** A large result is cut off in the notice, and proposals read from cut-off text are a partial list shown as whole. The notice names the output file, which holds the complete result (the phase result is under `result`). Read all of it with the Read tool, paging with `offset` and `limit` until the end. If the notice names no output file, or the file cannot be read to the end, say so and stop: never summarise the notice, and do not run the phase again.
+
 
 ## Record the run in the ledger
 

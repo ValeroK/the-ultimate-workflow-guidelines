@@ -79,7 +79,8 @@ test('plan: a selected expert is consulted as its own agent type, pointed at its
   assert.deepStrictEqual(result.expertLane.selected, ['security']);
   assert.deepStrictEqual(result.expertLane.ran, ['security']);
   assert.deepStrictEqual(result.expertLane.added, ['security']);
-  assert.strictEqual(result.expertInput[0].expert, 'security');
+  assert.match(result.planMarkdown, /### security\n/, 'the expert input is in the plan text');
+  assert.ok(!('expertInput' in result), 'the expert input is not returned a second time, which doubled the size of the result');
 });
 
 test('plan: an expert\'s questions for the user join the open questions, labelled with who asked', async () => {

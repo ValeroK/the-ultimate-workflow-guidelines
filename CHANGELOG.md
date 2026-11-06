@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **A large phase result no longer turns into a summary.** The Workflow tool's completion notice is cut off when the result is large (a real plan result was 61,970 bytes and about 38 KB of it never reached the session), so the model presented part of the plan. The commands now work from the Workflow output file, which always holds the whole result: `experts.js present` writes the plan (or the Tests section) from it, decoded and whole, or fails; `plan` and `tests` show it in the host's plan view (`ExitPlanMode`) and print it in full where there is none; `review` and `harvest` read the file to the end; `record --result` reads the experts' lane from the file instead of a retyped copy. Accepting the plan in the plan view is the confirmation and sets `plan_confirmed`.
+- The plan result no longer returns the experts' input a second time (`expertInput` is removed; the same text is in `planMarkdown` under "Expert input"). Sizes of the Workflow output file: 61,970 bytes before (four experts) and 27,404 bytes after on a smaller two-expert run, so the two are not like for like. The notice is still cut off (7,603 characters on that run); the plan now reaches the user through the file, not the notice.
+
+### Changed
+
+- The tests stop shows the plan and the Tests section together in the plan view, and confirms them as one document.
+- Open questions at the plan and tests stops (the plan's and the experts') are raised one at a time, each with the issue, what each answer changes, and the pros and cons.
+
 ## [4.5.0] - 2026-11-05
 
 ### Added

@@ -248,8 +248,13 @@ test('prepare warns when untracked files make up most of a large diff, and names
   assert.ok(p.untrackedHeavy.share > 0.9);
 });
 
-test('plan and tests commands decode HTML-escaped markdown before writing it', () => {
+// Since the plan is written by `experts.js present` from the Workflow output file, the decoding is
+// done in code (and tested in present.test.js), not by a model following a sentence. The commands
+// must still send the document through it, and say that it decodes.
+test('plan and tests commands write the document with experts.js present, which decodes HTML-escaped markdown', () => {
   for (const c of ['plan.md', 'tests.md']) {
-    assert.match(fs.readFileSync(path.join(PLUGIN, 'commands', c), 'utf8'), /HTML-escaped .* decode those five before showing or writing it, `&amp;` last/, c);
+    const text = fs.readFileSync(path.join(PLUGIN, 'commands', c), 'utf8');
+    assert.ok(text.includes('experts.js" present --result'), `${c} does not write the document with present`);
+    assert.match(text, /decodes the five HTML entities/, c);
   }
 });

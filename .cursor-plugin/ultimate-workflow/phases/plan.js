@@ -284,7 +284,6 @@ const currentExperts = asList(args && args.experts)
 let planMarkdown = plan.planMarkdown
 const openQuestions = [...(plan.openQuestions || [])]
 let expertLane
-const expertInput = []
 
 if (!args || args.available === undefined || args.available === null) {
   expertLane = { stage: 'plan', skipped: 'args.available was not passed, so domain experts were not considered. Run "node experts/experts.js list" and pass it.' }
@@ -373,7 +372,6 @@ Say what your domain requires of this plan that it does not yet say. Read the co
         return
       }
       ran.push(e.name)
-      expertInput.push({ expert: e.name, ...r })
       ;(r.questions || []).forEach((q) => openQuestions.push(`[${e.name}] ${q}`))
       const list = (title, items) => (items && items.length ? `**${title}**\n${items.map((x) => `- ${x}`).join('\n')}\n` : '')
       sections.push(`### ${e.name}\n\n${r.summary}\n\n${list('Constraints', r.constraints)}${list('Risks', r.risks)}${list('Questions for you', r.questions)}`.trimEnd())
@@ -404,7 +402,6 @@ return {
   openQuestions,
   planMarkdown,
   expertLane,
-  expertInput,
   note:
-    'Nothing was written. Review the plan, then save it as PLAN-<feature>.md. Set plan_confirmed to true only after you have actually confirmed it.',
+    'Nothing was written. The expert input is already inside planMarkdown, so it is not returned a second time. Write the plan from the Workflow output file with `experts.js present`, and set plan_confirmed to true only after the user has accepted it.',
 }

@@ -82,7 +82,7 @@ test('review: skills come in list order, and what does not fit under the cap is 
 test('review: the injected text is the skill file itself, not a summary of it', () => {
   const go = review({ 'x.go': ['x'] }).skills.find((s) => s.name === 'go-craft');
   const raw = fs.readFileSync(path.join(PLUGIN, 'experts', 'skills', 'go-craft', 'skill.md'), 'utf8');
-  assert.equal(go.text, raw.replace(/^---\n[\s\S]*?\n---\n/, '').trim(), 'the body, without the frontmatter that only code reads');
+  assert.equal(go.text, raw.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, '').trim(), 'the body, without the frontmatter that only code reads');
   assert.ok(!go.text.startsWith('---') && go.text.startsWith('# '));
 });
 

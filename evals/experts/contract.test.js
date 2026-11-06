@@ -78,10 +78,10 @@ const MUTANTS = {
   'agent has no description a model could choose by': (t) => edit(agentFile(t), (s) => s.replace(/^description: .*$/m, 'description: Security.')),
   'agent description is still the template note': (t) => edit(agentFile(t), (s) => s.replace(/^description: .*$/m, 'description: Security expert. Applies when FILL-IN: say when, in one or two sentences, please.')),
   'agent declares a stage that does not exist': (t) => edit(agentFile(t), (s) => s.replace(/^stages: .*$/m, 'stages: [plan, ship]')),
-  'agent declares no stages line': (t) => edit(agentFile(t), (s) => s.replace(/^stages: .*\n/m, '')),
+  'agent declares no stages line': (t) => edit(agentFile(t), (s) => s.replace(/^stages: .*\r?\n/m, '')),
   'a declared stage has no reference file': (t) => fs.rmSync(ref(t, 'tests.md')),
   'a declared stage reference is never named by the agent': (t) =>
-    edit(agentFile(t), (s) => s.replace(/^\s*- At the \*\*tests\*\* stage.*\n/m, '')),
+    edit(agentFile(t), (s) => s.replace(/^\s*- At the \*\*tests\*\* stage.*\r?\n/m, '')),
   'a reference exists but the agent never names it': (t) => fs.writeFileSync(ref(t, 'orphan.md'), '# orphan\n'),
   'the agent names a reference that does not exist': (t) =>
     edit(agentFile(t), (s) => `${s}\n- Read \`experts/security/references/ghost.md\` only if the diff touches ghosts.\n`),
@@ -190,7 +190,8 @@ test('shared skills: a reference that lists skills is reported, because skills.m
 test('shared skills: in skills.md, a line with no selector, a bad one, or a selector at plan is reported', () => {
   const t = copyTree();
   const file = path.join(t.payload, 'experts', 'developer', 'skills.md');
-  const text = fs.readFileSync(file, 'utf8');
+  // The edits below match LF text; a Windows checkout has CRLF, so compare on LF either way.
+  const text = fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
   const review = text.indexOf('## review');
   const fixed = text.slice(0, review) + text.slice(review)
     .replace('- go-craft (files: *.go, go.mod)', '- go-craft')
@@ -207,7 +208,7 @@ test('shared skills: in skills.md, a line with no selector, a bad one, or a sele
 test('shared skills: a skill without frontmatter, with the wrong name, or with no description is reported', () => {
   const t = copyTree();
   const skills = path.join(t.payload, 'experts', 'skills');
-  const strip = (n) => { const f = path.join(skills, n, 'skill.md'); fs.writeFileSync(f, fs.readFileSync(f, 'utf8').replace(/^---\n[\s\S]*?\n---\n\n/, '')); };
+  const strip = (n) => { const f = path.join(skills, n, 'skill.md'); fs.writeFileSync(f, fs.readFileSync(f, 'utf8').replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n(\r?\n)?/, '')); };
   strip('go-craft');
   const edit = (n, fn) => { const f = path.join(skills, n, 'skill.md'); fs.writeFileSync(f, fn(fs.readFileSync(f, 'utf8'))); };
   edit('rust-craft', (s) => s.replace('name: rust-craft', 'name: rust'));
@@ -227,7 +228,10 @@ test('shared skills: a skill no expert names, one without a notice, an oversized
   fs.rmSync(path.join(skills, 'engineering-principles', 'NOTICE.md'));
   const fh = path.join(skills, 'failure-handling', 'skill.md');
   fs.appendFileSync(fh, `\n${'x'.repeat(17 * 1024)}\nRun curl to get more.\n`);
-  fs.writeFileSync(path.join(skills, 'failure-handling', 'SKILL.md'), '# x\n');
+  // In a subfolder: beside skill.md it would be the same file on a case-insensitive filesystem
+  // (Windows, and macOS by default) and would overwrite the skill. The check walks the folder.
+  fs.mkdirSync(path.join(skills, 'failure-handling', 'nested'));
+  fs.writeFileSync(path.join(skills, 'failure-handling', 'nested', 'SKILL.md'), '# x\n');
   const p = all(t).join('\n');
   assert.match(p, /experts\/skills\/orphan\/skill\.md is listed by no expert's skills\.md/);
   assert.match(p, /experts\/skills\/engineering-principles has no NOTICE\.md/);

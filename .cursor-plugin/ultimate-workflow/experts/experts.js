@@ -1232,7 +1232,12 @@ function stageScript(pluginRoot, cwd, phaseName, { argsFile = '', files = [], me
       stateLib.setActivePlan(cwd, args.plan);
     } catch {}
   }
-  if (phaseName === 'build') {
+  if (phaseName === 'run') Object.assign(args, runArgs(pluginRoot, cwd, args));
+  // The command that runs the autopilot steps, with the path written in here so no model types it.
+  if (phaseName === 'harvest') args.cli = `node "${path.join(pluginRoot, 'experts', 'experts.js').replace(/\\/g, '/')}"`;
+  if (phaseName === 'build' || phaseName === 'run') {
+    const impl = process.env.ULTIMATE_WORKFLOW_BUILD_MODEL;
+    if (phaseName === 'run' && args.implementerModel === undefined && typeof impl === 'string' && impl.trim()) args.implementerModel = impl.trim();
     delete args.verify;
     let planRel = typeof args.plan === 'string' ? args.plan : '';
     let data = {};
@@ -1282,6 +1287,79 @@ function stageScript(pluginRoot, cwd, phaseName, { argsFile = '', files = [], me
   return { scriptPath: file, bytes: Buffer.byteLength(out), keys: Object.keys(args).sort(), skills: skillNames, skillProblems: args.skillProblems || [] };
 }
 
+/**
+ * What the autopilot run's script needs, worked out here because the script can read nothing
+ * (PLAN-autopilot.md, W1). For each card of the plan: its fields, its context pack and preflight
+ * (`pack`), its build briefs and the review skills of the experts that may check it, both chosen
+ * from the card's planned files and text (the card's diff does not exist yet), and the experts it is
+ * held to. Skill texts go once into `skillTexts`; cards name them. `args` holds plan, feature and
+ * an optional resume ({ card, testFiles, reason } or { all: true }).
+ */
+function runArgs(pluginRoot, cwd, args) {
+  const autopilot = require('./autopilot.js');
+  const cardsLib = require('./cards.js');
+  if (typeof args.plan !== 'string' || !args.plan) throw new Error('script --phase run needs "plan" in the arguments file');
+  if (typeof args.feature !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(args.feature)) throw new Error('script --phase run needs "feature" (letters, digits, dot, dash, underscore) in the arguments file');
+  const planText = fs.readFileSync(path.resolve(cwd, args.plan), 'utf8');
+  const parsed = readExperts(planText);
+  const planExperts = parsed.error ? [] : parsed.experts;
+  const available = list(pluginRoot).experts;
+  const all = cardsLib.parseCards(planText);
+  if (all.length === 0) throw new Error(`${args.plan} has no ## Cards section: the run builds cards (add them with experts.js card-add)`);
+  // The run's base is where uw/run/<feature> started, kept for a resumed run so the review still covers every card.
+  const runFile = path.join(cwd, '.ultimate-workflow', 'run', args.feature, 'run.json');
+  let base = '';
+  try {
+    base = JSON.parse(fs.readFileSync(runFile, 'utf8')).base || '';
+  } catch {}
+  if (!base) {
+    base = git(cwd, ['rev-parse', 'HEAD']).trim();
+    fs.mkdirSync(path.dirname(runFile), { recursive: true });
+    fs.writeFileSync(runFile, `${JSON.stringify({ base, plan: args.plan, feature: args.feature, at: new Date().toISOString() }, null, 2)}\n`);
+  }
+  const skillTexts = {};
+  const keep = (skills) => skills.map((s) => {
+    skillTexts[s.name] = s.text;
+    return s.name;
+  });
+  const resumeCard = args.resume && typeof args.resume.card === 'string' ? args.resume.card : '';
+  const cards = all.map((c) => {
+    const ownSection = autopilot.sections(planText).find((h) => /^card\s/i.test(h.title) && new RegExp(`^card\\s+${c.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![A-Za-z0-9])`, 'i').test(h.title));
+    const tests = autopilot.testSection(planText, c.name, all.length);
+    const slice = (h) => (h ? planText.split(/\r?\n/).slice(h.start - 1, h.end).join('\n') : '');
+    const text = [cardsLib.cardText(c), slice(ownSection), slice(tests)].filter(Boolean).join('\n');
+    const change = { files: [...new Set([...planPaths(text), ...c.paths.filter((p) => !p.includes('*'))])], text };
+    const b = briefs(pluginRoot, { planText: text }).briefs.map((x) => ({ name: x.name, text: x.text, skills: keep(x.skills || []) }));
+    const experts = Array.isArray(c.experts) ? c.experts.filter((n) => planExperts.includes(n)) : planExperts;
+    const reviewSkills = {};
+    for (const e of available.filter((x) => x.stages.includes('review'))) {
+      const sel = selectSkills(pluginRoot, e.name, 'review', change);
+      if (sel.skills.length) reviewSkills[e.name] = keep(sel.skills);
+    }
+    let preflight;
+    if (c.committed) preflight = { ok: true, skipped: 'committed' };
+    else {
+      try {
+        preflight = autopilot.pack(cwd, { plan: args.plan, card: c.name, feature: args.feature, resume: resumeCard === c.name });
+      } catch (err) {
+        preflight = { ok: false, reason: `missing input: ${err.message}` };
+      }
+    }
+    return { name: c.name, title: c.title, paths: c.paths, depends: c.depends || [], carried: c.carried, experts, briefs: b, reviewSkills, preflight, ...(c.committed ? { committed: c.committed } : {}), ...(c.parked ? { parked: c.parked } : {}) };
+  });
+  const fwdPath = (p) => p.replace(/\\/g, '/');
+  return {
+    base,
+    cards,
+    skillTexts,
+    available,
+    protocol: protocolText(pluginRoot),
+    planBriefs: briefs(pluginRoot, { planText }).briefs.map((x) => ({ name: x.name, text: x.text, skills: keep(x.skills || []) })),
+    cli: `node "${fwdPath(path.join(pluginRoot, 'experts', 'experts.js'))}"`,
+    command: stateLib.parseFrontMatter(planText).data.test_command || '',
+  };
+}
+
 // ---- command line ----
 
 function fail(message) {
@@ -1313,6 +1391,7 @@ function parseArgs(argv) {
     else if (a === '--title') o.title = need();
     else if (a === '--paths') o.paths = need();
     else if (a === '--carried') o.carried = need();
+    else if (a === '--depends') o.depends = need();
     else if (a === '--experts') o.experts = need();
     else if (a === '--result') o.result = need();
     else if (a === '--field') o.field = need();
@@ -1341,6 +1420,14 @@ function main(argv) {
   if (argv[0] === 'ledger') {
     try {
       return require('./ledger.js').cli(argv.slice(1), process.cwd(), out, fail);
+    } catch (err) {
+      return fail(err.message);
+    }
+  }
+  // The autopilot run's card steps (4.7.0): pack, handoff, park, unpark, journal, card-commit, ...
+  if (require('./autopilot.js').COMMANDS.includes(argv[0])) {
+    try {
+      return require('./autopilot.js').cli(argv, process.cwd(), out, fail);
     } catch (err) {
       return fail(err.message);
     }
@@ -1461,6 +1548,7 @@ function main(argv) {
         title: o.title,
         paths: String(o.paths || '').split(',').map((s) => s.trim()).filter(Boolean),
         carried: String(o.carried || '').split(';').map((s) => s.trim()).filter(Boolean),
+        depends: String(o.depends || '').split(',').map((s) => s.trim()).filter(Boolean),
       });
       fs.writeFileSync(file, next);
       return out({ ok: true, plan: o.plan, card: cardsLib.findCard(next, o.name) });
@@ -1539,6 +1627,8 @@ module.exports = {
   mergeInfo,
   prepare,
   splitByFile,
+  exportedNames,
+  globToRegExp,
   dependentsOf,
   computeDelta,
   keepFromLastCheck,

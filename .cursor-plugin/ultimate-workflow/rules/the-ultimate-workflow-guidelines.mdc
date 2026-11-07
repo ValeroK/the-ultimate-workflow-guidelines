@@ -45,7 +45,7 @@ Cursor has subagents but no scriptable orchestrator, so the phases are invoked r
 
 **What it keeps:** a fresh context per phase, one narrow job per agent, and write access confined to the implementer.
 
-Hold the sequence yourself: wait for every parallel agent before synthesising, stop at both confirmation points, and stop after three failed verification rounds rather than trying a fourth.
+Hold the sequence yourself: wait for every parallel agent before synthesising, stop at both confirmation points, and stop after three failed verification rounds rather than trying a fourth. A plan split into cards runs one card per session here (Claude Code's `/ultimate-workflow:run` does them all in one unattended run): after each card's commit, leave the next session its handoff and journal lines with `experts.js handoff` and `journal add`, and tell the user the next card's command, as "Hosts without the Workflow tool" in `commands/run.md` says.
 
 Run repeated test-and-fix loops and wide searches inside a helper agent (or a phase) and bring back only the result: a long main conversation re-sends its whole context on every call, which made main conversations 73% of the tokens on a real project.
 

@@ -32,7 +32,6 @@ const agentName = (name) => (String(name).includes(':') ? name : AGENT_NAMESPACE
 // and the diff and nothing else, which is also what keeps the raw stack trace
 // out of the conversation entirely.
 
-const ROUND_CAP = 3
 const planFile = (args && args.plan) || ''
 const command = (args && args.command) || ''
 // 4.1.1: the plugin's verify.js, set by experts.js script when the plan names its test_command.
@@ -52,7 +51,50 @@ const skillsLoaded = briefs.flatMap((b) => skillsOf(b).map((s) => s.name)).filte
 const resume = args && args.resumeAt === 'implement'
   ? { reason: String(args.resumeReason || '').trim(), testFiles: (Array.isArray(args.testFiles) ? args.testFiles : []).filter((f) => typeof f === 'string') }
   : null
-const resumed = resume ? { resumedAt: 'implement', resumeReason: resume.reason } : {}
+
+// A standing brief is loaded on every build. It says how to write, never what to build, so the plan
+// still decides the scope.
+const BRIEF =
+  briefs.length === 0
+    ? ''
+    : `\n\nSTANDING BRIEF, from ${briefs.map((b) => b.name).join(', ')}. It applies to every line you write, and it adds no work: do nothing the plan did not ask for.\n\n${briefs.map((b) => b.text.trim()).join('\n\n')}\n${
+        skillsLoaded.length === 0
+          ? ''
+          : `\nSKILLS for this change (${skillsLoaded.join(', ')}), chosen from the plan's files and text. Most are written as review checks: write the code so that none of them would find anything. Like the brief, they add no work.\n\n${briefs
+              .flatMap(skillsOf)
+              .filter((s, i, all) => all.findIndex((x) => x.name === s.name) === i)
+              .map((s) => s.text.trim())
+              .join('\n\n')}\n`
+      }`
+
+const locate = planFile
+  ? `Read ${planFile}.`
+  : 'Find the active PLAN-*.md in this repository -- the most recently modified one -- and read it.'
+
+// --- build model (PLAN-run-records.md, W1) ---
+// The agents that write the tests and the code run on Sonnet unless told otherwise, and the
+// diagnosis on the session model. `experts.js script` passes ULTIMATE_WORKFLOW_BUILD_MODEL as
+// args.implementerModel; a build.args.json value wins. "inherit" means the session model. Before
+// this, every card needed a hand patch of the agent() options to set the model.
+const MODEL_OK = /^(inherit|sonnet|opus|haiku|claude-[a-z0-9.-]+)$/
+const modelArg = (v, fallback) => (v === undefined || v === null || v === '' ? fallback : v)
+const IMPLEMENTER_MODEL = modelArg(args && args.implementerModel, 'sonnet')
+const DIAGNOSER_MODEL = modelArg(args && args.diagnoserModel, 'inherit')
+const modelOpt = (m) => (m === 'inherit' ? {} : { model: m })
+for (const [key, value] of [['implementerModel', IMPLEMENTER_MODEL], ['diagnoserModel', DIAGNOSER_MODEL]]) {
+  if (typeof value !== 'string' || !MODEL_OK.test(value)) {
+    return { ok: false, error: `args.${key} is ${JSON.stringify(value)}: expected inherit, sonnet, opus, haiku or a claude-* model id. Nothing was started.` }
+  }
+}
+// --- end build model ---
+
+// --- build loop (identical in build.js and run.js; a test holds them equal) ---
+// The tests, proven red, then up to ROUND_CAP implementation rounds with a fresh diagnosis after
+// each failed one. One function so the build phase and every card of the autopilot run share it:
+// a hand copy would drift. It returns what the build phase returns. `o.locate` says what to read,
+// `o.brief` is the standing brief text, `o.label` and `o.phases` name the agents and their phase,
+// `o.setPhase` says whether to call phase(), and `o.commitRule` says who commits.
+const ROUND_CAP = 3
 
 const WROTE = {
   type: 'object',
@@ -104,98 +146,63 @@ const DIAGNOSIS = {
 const EXPERT_NOTE =
   'If the plan has an "Expert input" section, its constraints are requirements, not suggestions: meet each one, or stop and say which one you cannot meet and why. Do not drop one silently.'
 
-// A standing brief is loaded on every build. It says how to write, never what to build, so the plan
-// still decides the scope.
-const BRIEF =
-  briefs.length === 0
-    ? ''
-    : `\n\nSTANDING BRIEF, from ${briefs.map((b) => b.name).join(', ')}. It applies to every line you write, and it adds no work: do nothing the plan did not ask for.\n\n${briefs.map((b) => b.text.trim()).join('\n\n')}\n${
-        skillsLoaded.length === 0
-          ? ''
-          : `\nSKILLS for this change (${skillsLoaded.join(', ')}), chosen from the plan's files and text. Most are written as review checks: write the code so that none of them would find anything. Like the brief, they add no work.\n\n${briefs
-              .flatMap(skillsOf)
-              .filter((s, i, all) => all.findIndex((x) => x.name === s.name) === i)
-              .map((s) => s.text.trim())
-              .join('\n\n')}\n`
-      }`
+const TESTS_COMMIT_RULE = 'Never stage or commit: the user commits the whole change after the experts check.'
+const IMPLEMENT_COMMIT_RULE = 'Never stage or commit, not even part of the work: the user commits the whole change after the experts check, and a partial commit is refused by the gates.'
 
-const locate = planFile
-  ? `Read ${planFile}.`
-  : 'Find the active PLAN-*.md in this repository -- the most recently modified one -- and read it.'
+async function buildLoop(o) {
+  const label = o.label || ((s) => s)
+  const ph = o.phases || { tests: 'Tests', implement: 'Implement', verify: 'Verify' }
+  const resumed = o.resume ? { resumedAt: 'implement', resumeReason: o.resume.reason } : {}
+  const testsWhere = o.testsWhere || 'its confirmed Tests section'
+  const tests = o.resume ? { filesWritten: o.resume.testFiles, testsFailAsExpected: true, testCommand: o.command } : await agent(
+    `${o.locate} ${EXPERT_NOTE}${o.brief}
 
-// --- build model (PLAN-run-records.md, W1) ---
-// The agents that write the tests and the code run on Sonnet unless told otherwise, and the
-// diagnosis on the session model. `experts.js script` passes ULTIMATE_WORKFLOW_BUILD_MODEL as
-// args.implementerModel; a build.args.json value wins. "inherit" means the session model. Before
-// this, every card needed a hand patch of the agent() options to set the model.
-const MODEL_OK = /^(inherit|sonnet|opus|haiku|claude-[a-z0-9.-]+)$/
-const modelArg = (v, fallback) => (v === undefined || v === null || v === '' ? fallback : v)
-const IMPLEMENTER_MODEL = modelArg(args && args.implementerModel, 'sonnet')
-const DIAGNOSER_MODEL = modelArg(args && args.diagnoserModel, 'inherit')
-const modelOpt = (m) => (m === 'inherit' ? {} : { model: m })
-for (const [key, value] of [['implementerModel', IMPLEMENTER_MODEL], ['diagnoserModel', DIAGNOSER_MODEL]]) {
-  if (typeof value !== 'string' || !MODEL_OK.test(value)) {
-    return { ok: false, error: `args.${key} is ${JSON.stringify(value)}: expected inherit, sonnet, opus, haiku or a claude-* model id. Nothing was started.` }
-  }
-}
-// --- end build model ---
-
-phase('Tests')
-
-if (resume && (!command || !resume.reason)) {
-  return { ok: false, error: 'resumeAt "implement" needs command (the verification command) and resumeReason (the user\'s decision on the tests that already pass), so the skipped test step is on record. Nothing was implemented.' }
-}
-if (resume) log(`Resumed at the implementation, tests not rewritten: ${resume.reason}`)
-
-const tests = resume ? { filesWritten: resume.testFiles, testsFailAsExpected: true, testCommand: command } : await agent(
-  `${locate} ${EXPERT_NOTE}${BRIEF}
-
-Write the tests from its confirmed Tests section. Only the tests. Do not write the implementation yet. Never stage or commit: the user commits the whole change after the experts check.
+Write the tests from ${testsWhere}. Only the tests. Do not write the implementation yet. ${o.testsCommitRule || TESTS_COMMIT_RULE}
 
 Then RUN them and confirm they FAIL.
 
 A new test that passes before the implementation exists is testing nothing, and it is invisible afterwards -- a green suite looks the same whether its tests constrain the behaviour or merely coexist with it. If any new test passes now, list it in unexpectedlyPassing and say so plainly. That is a finding, not a convenience.
 
 Report the project's real verification command as testCommand.`,
-  { agentType: agentName('uw-implementer'), label: 'write-tests', phase: 'Tests', schema: WROTE, ...modelOpt(IMPLEMENTER_MODEL) }
-)
+    { agentType: agentName('uw-implementer'), label: label('write-tests'), phase: ph.tests, schema: WROTE, ...modelOpt(o.implementerModel) }
+  )
 
-if (!tests) {
-  return { ok: false, error: 'The test-writing step failed. Nothing was implemented.' }
-}
-
-const testCommand = command || tests.testCommand
-log(`${tests.filesWritten.length} test files written; verify command: ${testCommand}`)
-
-if (!tests.testsFailAsExpected) {
-  // Stop here deliberately. Implementing against tests that already pass means
-  // the loop below would go green on the first run and prove nothing at all.
-  return {
-    ok: false,
-    stoppedAt: 'Tests',
-    error: 'The new tests did not fail before implementation, so they cannot demonstrate the change works.',
-    unexpectedlyPassing: tests.unexpectedlyPassing || [],
-    filesWritten: tests.filesWritten,
-    hint: 'Either the behaviour already exists, or those tests have no real oracle. Both are worth knowing before writing code.',
+  if (!tests) {
+    return { ok: false, error: 'The test-writing step failed. Nothing was implemented.' }
   }
-}
 
-phase('Implement')
+  const testCommand = o.command || tests.testCommand
+  log(`${tests.filesWritten.length} test files written; verify command: ${testCommand}`)
 
-let round = 0
-let last = null
-let diagnosis = null
-const history = []
+  if (!tests.testsFailAsExpected) {
+    // Stop here deliberately. Implementing against tests that already pass means
+    // the loop below would go green on the first run and prove nothing at all.
+    return {
+      ok: false,
+      stoppedAt: 'Tests',
+      error: 'The new tests did not fail before implementation, so they cannot demonstrate the change works.',
+      unexpectedlyPassing: tests.unexpectedlyPassing || [],
+      filesWritten: tests.filesWritten,
+      hint: 'Either the behaviour already exists, or those tests have no real oracle. Both are worth knowing before writing code.',
+    }
+  }
 
-while (round < ROUND_CAP) {
-  round += 1
+  if (o.setPhase !== false) phase(ph.implement)
 
-  const attempt = await agent(
-    `${locate} ${EXPERT_NOTE}${BRIEF}
+  let round = 0
+  let last = null
+  let diagnosis = null
+  const history = []
+
+  while (round < ROUND_CAP) {
+    round += 1
+
+    const attempt = await agent(
+      `${o.locate} ${EXPERT_NOTE}${o.brief}
 
 Write the minimal implementation that makes the tests pass. ${
-  verify
-    ? `After each change run \`${verify}\`: it runs the tests related to what you changed, or the full suite when the change needs it, and says which. Do not run the full suite by hand while iterating. When it passes, run \`${verify} --full\` once. Report green only if that full run passed after your last change, and set fullSuiteGreen to say so.`
+  o.verify
+    ? `After each change run \`${o.verify}\`: it runs the tests related to what you changed, or the full suite when the change needs it, and says which. Do not run the full suite by hand while iterating. When it passes, run \`${o.verify} --full\` once. Report green only if that full run passed after your last change, and set fullSuiteGreen to say so.`
     : `Run \`${testCommand}\` and report whether it is green.`
 }
 ${
@@ -204,7 +211,7 @@ ${
     : ''
 }
 
-Never stage or commit, not even part of the work: the user commits the whole change after the experts check, and a partial commit is refused by the gates.
+${o.implementCommitRule || IMPLEMENT_COMMIT_RULE}
 
 Smallest change that works. Nothing beyond the plan. Do not improve adjacent code, reformat untouched lines, or rename anything not in scope -- every changed line must trace to a plan item.
 
@@ -213,45 +220,45 @@ Never make a test pass by weakening it. Deleting an assertion or special-casing 
 Some tests may have been failing before this change and been accepted by the user as known (the plan lists them under "Known failures"). They are not yours: do not edit, skip or work around them. The full run already allows exactly those, and it says "N known failures ... and 0 new" when only they fail; any other failing test is yours.
 
 When not green, include the failure output verbatim.`,
-    { agentType: agentName('uw-implementer'), label: `attempt-${round}`, phase: round === 1 ? 'Implement' : 'Verify', schema: BUILT, ...modelOpt(IMPLEMENTER_MODEL) }
-  )
+      { agentType: agentName('uw-implementer'), label: label(`attempt-${round}`), phase: round === 1 ? ph.implement : ph.verify, schema: BUILT, ...modelOpt(o.implementerModel) }
+    )
 
-  if (!attempt) {
-    history.push({ round, note: 'the implementer returned nothing' })
-    break
-  }
-
-  last = attempt
-  // With verify.js, green means the full suite passed at the end, not only the related tests.
-  const green = attempt.green === true && (!verify || attempt.fullSuiteGreen === true)
-  history.push({ round, green, summary: attempt.summary, ...(attempt.green && !green ? { note: 'reported green without a passing full run' } : {}) })
-
-  if (green) {
-    log(`Green on round ${round}`)
-    return {
-      ok: true,
-      green: true,
-      rounds: round,
-      testFiles: tests.filesWritten,
-      ...resumed,
-      briefsLoaded: briefs.map((b) => b.name),
-      skillsLoaded,
-      filesChanged: attempt.filesChanged,
-      notDone: attempt.notDone || [],
-      noticed: attempt.noticed || [],
-      history,
-      summary: attempt.summary,
+    if (!attempt) {
+      history.push({ round, note: 'the implementer returned nothing' })
+      break
     }
-  }
 
-  if (round >= ROUND_CAP) break
+    last = attempt
+    // With verify.js, green means the full suite passed at the end, not only the related tests.
+    const green = attempt.green === true && (!o.verify || attempt.fullSuiteGreen === true)
+    history.push({ round, green, summary: attempt.summary, ...(attempt.green && !green ? { note: 'reported green without a passing full run' } : {}) })
 
-  // Diagnose in a fresh context. The agent that just failed is holding its own
-  // wrong theories; a reader who has only the failure and the diff is better
-  // placed to see what it actually says. This is also what keeps the raw stack
-  // trace from ever reaching the conversation.
-  const next = await agent(
-    `An implementation attempt failed. Diagnose it from the evidence, nothing else.
+    if (green) {
+      log(`Green on round ${round}`)
+      return {
+        ok: true,
+        green: true,
+        rounds: round,
+        testFiles: tests.filesWritten,
+        ...resumed,
+        briefsLoaded: o.briefsLoaded || [],
+        skillsLoaded: o.skillsLoaded || [],
+        filesChanged: attempt.filesChanged,
+        notDone: attempt.notDone || [],
+        noticed: attempt.noticed || [],
+        history,
+        summary: attempt.summary,
+      }
+    }
+
+    if (round >= ROUND_CAP) break
+
+    // Diagnose in a fresh context. The agent that just failed is holding its own
+    // wrong theories; a reader who has only the failure and the diff is better
+    // placed to see what it actually says. This is also what keeps the raw stack
+    // trace from ever reaching the conversation.
+    const next = await agent(
+      `An implementation attempt failed. Diagnose it from the evidence, nothing else.
 
 FAILURE OUTPUT
 ${attempt.failureOutput || (attempt.green ? 'The round reported green but no passing full run (verify --full) after its last change.' : '(none captured)')}
@@ -262,47 +269,51 @@ ${JSON.stringify(attempt.filesChanged, null, 2)}
 Read the relevant code and tests. Say what is actually wrong -- not what might be. Give the failure a short stable signature so a repeat can be recognised as no progress.
 
 If the TEST looks wrong rather than the code, say so: that is a legitimate outcome and needs a human, not another attempt.`,
-    { agentType: agentName('uw-reviewer'), label: `diagnose-${round}`, phase: 'Verify', schema: DIAGNOSIS, ...modelOpt(DIAGNOSER_MODEL) }
-  )
+      { agentType: agentName('uw-reviewer'), label: label(`diagnose-${round}`), phase: ph.verify, schema: DIAGNOSIS, ...modelOpt(o.diagnoserModel) }
+    )
 
-  const priorSignature = diagnosis && diagnosis.signature
-  diagnosis = next
+    const priorSignature = diagnosis && diagnosis.signature
+    diagnosis = next
 
-  if (next && next.testMayBeWrong) {
-    return {
-      ok: false,
-      green: false,
-      stoppedAt: `round ${round}`,
-      reason: 'The diagnosis says the test may be wrong, not the code. That needs a decision, not another attempt.',
-      diagnosis: next,
-      history,
-      escalation: escalationText(round, next, history),
+    if (next && next.testMayBeWrong) {
+      return {
+        ok: false,
+        green: false,
+        stoppedAt: `round ${round}`,
+        reason: 'The diagnosis says the test may be wrong, not the code. That needs a decision, not another attempt.',
+        diagnosis: next,
+        history,
+        testFiles: tests.filesWritten,
+        escalation: escalationText(round, next, history),
+      }
+    }
+
+    if (next && priorSignature && next.signature === priorSignature) {
+      return {
+        ok: false,
+        green: false,
+        stoppedAt: `round ${round}`,
+        reason: 'The same failure signature twice running -- no progress. Stopping before the cap rather than spending another round on it.',
+        diagnosis: next,
+        history,
+        testFiles: tests.filesWritten,
+        escalation: escalationText(round, next, history),
+      }
     }
   }
 
-  if (next && priorSignature && next.signature === priorSignature) {
-    return {
-      ok: false,
-      green: false,
-      stoppedAt: `round ${round}`,
-      reason: 'The same failure signature twice running -- no progress. Stopping before the cap rather than spending another round on it.',
-      diagnosis: next,
-      history,
-      escalation: escalationText(round, next, history),
-    }
+  return {
+    ok: false,
+    green: false,
+    stoppedAt: `round ${round}`,
+    ...resumed,
+    reason: `Verification failed ${round} times. Round cap reached.`,
+    diagnosis,
+    history,
+    testFiles: tests.filesWritten,
+    lastFailure: last && last.failureOutput,
+    escalation: escalationText(round, diagnosis, history),
   }
-}
-
-return {
-  ok: false,
-  green: false,
-  stoppedAt: `round ${round}`,
-  ...resumed,
-  reason: `Verification failed ${round} times. Round cap reached.`,
-  diagnosis,
-  history,
-  lastFailure: last && last.failureOutput,
-  escalation: escalationText(round, diagnosis, history),
 }
 
 // The escalation is the blocker protocol the workflow already specifies:
@@ -326,3 +337,23 @@ function escalationText(rounds, dx, hist) {
     'Pick one. Do not start a fourth attempt without a decision.',
   ].join('\n')
 }
+// --- end build loop ---
+
+phase('Tests')
+
+if (resume && (!command || !resume.reason)) {
+  return { ok: false, error: 'resumeAt "implement" needs command (the verification command) and resumeReason (the user\'s decision on the tests that already pass), so the skipped test step is on record. Nothing was implemented.' }
+}
+if (resume) log(`Resumed at the implementation, tests not rewritten: ${resume.reason}`)
+
+return await buildLoop({
+  locate,
+  brief: BRIEF,
+  verify,
+  command,
+  resume,
+  implementerModel: IMPLEMENTER_MODEL,
+  diagnoserModel: DIAGNOSER_MODEL,
+  briefsLoaded: briefs.map((b) => b.name),
+  skillsLoaded,
+})

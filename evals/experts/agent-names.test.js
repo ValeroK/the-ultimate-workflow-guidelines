@@ -11,7 +11,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const PLUGIN = path.join(__dirname, '..', '..', '.cursor-plugin', 'ultimate-workflow');
-const WORKFLOWS = ['plan.js', 'tests.js', 'review.js', 'build.js', 'harvest.js'];
+const WORKFLOWS = ['plan.js', 'tests.js', 'review.js', 'build.js', 'harvest.js', 'run.js'];
 const read = (f) => fs.readFileSync(path.join(PLUGIN, 'phases', f), 'utf8');
 const block = (src) => {
   const a = src.indexOf('// --- agent names');

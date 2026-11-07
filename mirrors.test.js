@@ -193,7 +193,7 @@ test('the implementer never gains readonly', () => {
 // command with no script, or a script with no command, is an advertised feature
 // that is not there, which is the exact defect class this session kept finding.
 
-const PHASES = ['plan', 'tests', 'build', 'review', 'harvest'];
+const PHASES = ['plan', 'tests', 'build', 'review', 'harvest', 'run'];
 
 test('every advertised phase has both a command and a script', () => {
   for (const p of PHASES) {
@@ -286,7 +286,7 @@ test('each command declares a description, or the plugin lists it blank', () => 
 test('the phase count in the prose matches the number of phases that exist', () => {
   // "Five phases" appears in the README, both manifests, and both indexes.
   // If a sixth lands, this is the thing that notices.
-  assert.equal(PHASES.length, 5);
+  assert.equal(PHASES.length, 6);
   for (const rel of ['README.md', 'CLAUDE.md']) {
     const t = read(rel);
     if (/\bfive phases\b/i.test(t) || /\bFive phases\b/.test(t)) {

@@ -9,7 +9,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 
-const PHASES = ['plan', 'tests', 'build', 'review', 'experts', 'harvest'];
+const PHASES = ['plan', 'tests', 'build', 'review', 'experts', 'harvest', 'run'];
 const STAGES = ['plan', 'tests', 'build', 'review'];
 const ORIGIN = /^(expert:[a-z][a-z0-9-]*|critic|draft|lens:[a-z][a-z0-9-]*|user|build-agent)$/;
 const UNIQUE = ['yes', 'no', 'unknown'];
@@ -92,6 +92,8 @@ function addRun(cwd, phase, row, rawResult) {
     ...(typeof row.durationMs === 'number' ? { durationMs: row.durationMs } : {}),
     ...(typeof row.plan === 'string' && row.plan ? { plan: row.plan } : {}),
     ok: Boolean(result && result.ok),
+    // 4.7.0: a plan run the user threw away, or one run again, still cost its tokens; it is recorded, marked.
+    ...(row.abandoned === true ? { abandoned: true } : {}),
     workarounds: (Array.isArray(row.workarounds) ? row.workarounds : []).filter((w) => typeof w === 'string' && w.trim()),
     experts: { selected: lane.selected || [], ran: lane.ran || [], failed: lane.failed || [] },
     skillsLoaded: lane.skillsLoaded || (result && Array.isArray(result.skillsLoaded) ? { build: result.skillsLoaded } : {}),
@@ -120,7 +122,44 @@ function addRun(cwd, phase, row, rawResult) {
       ...(lane.delta ? { delta: { files: (lane.delta.files || []).length, chain: lane.delta.chain || 1 } } : {}),
     };
   }
-  return append(cwd, entry);
+  if (phase === 'run' && result) {
+    entry.run = {
+      feature: result.feature || null,
+      counts: result.counts || {},
+      cards: (result.cards || []).map((c) => ({ card: c.card, status: c.status, ...(c.build ? { rounds: c.build.rounds } : {}), ...(c.reason ? { reason: String(c.reason).slice(0, 200) } : {}) })),
+      ...(result.stopped ? { stopped: result.stopped } : {}),
+      harvest: result.harvest && result.harvest.branch ? result.harvest.branch : null,
+    };
+    // The run's experts checks, one lane per card, counted like an experts phase.
+    const lanes = (result.expertLanes || []).map((l) => l.lane || {});
+    entry.experts = { selected: [...new Set(lanes.flatMap((l) => l.selected || []))], ran: [...new Set(lanes.flatMap((l) => l.ran || []))], failed: [...new Set(lanes.flatMap((l) => l.failed || []))] };
+  }
+  const written = append(cwd, entry);
+  // Bug 1 (4.7.0): the review's and the experts check's findings were in the run row as a count and
+  // never as catches, so /value showed no review at all. Each finding that survived the skeptic is
+  // now a catch, open until the user or a test settles it; one already on record is not added twice.
+  for (const c of findingsAsCatches(phase, result)) {
+    if (!readAll(cwd).some((e) => e.kind === 'catch' && e.key === c.key)) append(cwd, { kind: 'catch', id: newId(), at: entry.at, ...c, unique: 'unknown', status: 'open', run: entry.id });
+  }
+  return written;
+}
+
+/** The findings a review, experts or run result holds, as catches: by whom, at which stage, and a key for duplicates. */
+function findingsAsCatches(phase, result) {
+  if (!result || !['review', 'experts', 'run'].includes(phase)) return [];
+  const key = (by, f) => crypto.createHash('sha256').update(`${by}|${f.file}|${String(f.what || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().slice(0, 120)}`).digest('hex').slice(0, 12);
+  const out = [];
+  const add = (by, f, extra = {}) => {
+    if (!f || typeof f.what !== 'string' || f.what.trim().length < 5) return;
+    out.push({ what: `${f.file ? `${f.file}${f.line ? `:${f.line}` : ''} ` : ''}${f.what.trim()}`, by, stage: 'review', key: key(by, f), ...(f.confidence ? { confidence: f.confidence } : {}), ...extra });
+  };
+  const lanes = phase === 'run' ? (result.expertLanes || []).map((l) => ({ lane: l.lane || {}, card: l.card })) : [{ lane: result.expertLane || {}, card: null }];
+  for (const { lane, card } of lanes) for (const f of lane.findings || []) add(`expert:${f.expert}`, f, { verdict: f.status || 'unverified', ...(card ? { card } : {}) });
+  const expertNames = new Set(lanes.flatMap(({ lane }) => lane.ran || []));
+  const review = phase === 'run' ? result.review || {} : result;
+  for (const f of review.findings || []) if (f.lens && !expertNames.has(f.lens)) add(`lens:${f.lens}`, f, { verdict: 'confirmed' });
+  for (const f of review.unverified || []) if (f.lens && !expertNames.has(f.lens)) add(`lens:${f.lens}`, f, { verdict: 'unverified' });
+  return out;
 }
 
 /** A catch: something an expert, a critic, a lens or the draft caught. Unconfirmed until evidence. */
@@ -157,6 +196,7 @@ function report(cwd) {
   for (const r of runs) {
     const p = (phases[r.phase] = phases[r.phase] || { runs: 0, tokens: 0, durationMs: 0, workarounds: 0 });
     p.runs += 1;
+    if (r.abandoned) p.abandoned = (p.abandoned || 0) + 1;
     p.tokens += r.tokens;
     p.durationMs += r.durationMs || 0;
     p.workarounds += (r.workarounds || []).length;
@@ -231,4 +271,4 @@ function cli(argv, cwd, out, fail) {
   return fail(`ledger: unknown subcommand ${sub || '(none)'} (expected add, catch, confirm, refute, report)`);
 }
 
-module.exports = { PHASES, file, readAll, addRun, addCatch, settleCatch, report, unwrapResult, cli };
+module.exports = { PHASES, file, readAll, addRun, addCatch, settleCatch, report, unwrapResult, findingsAsCatches, cli };

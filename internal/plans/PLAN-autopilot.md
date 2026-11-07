@@ -18,13 +18,13 @@
 | W2 context pack, handoff, cards fields | Done: `experts/autopilot.js` (`pack`, `handoff`), `cards.js` `depends`/`parked`/`committed`/`setField` (`evals/experts/autopilot.test.js`) |
 | W3 parked branches | Done: `park`, `unpark` (plumbing, no checkout; the plan file is kept across the reset) |
 | W4 run journal | Done: `journal add` (15 lines a card), `journal compact` (past 200 lines) |
-| W1 run command and run.js | Built and stub-tested (`evals/experts/run-phase.test.js`, mutation-checked); `card-commit`, `run-branch`, `run-report`, `script --phase run`; end-to-end run pending |
+| W1 run command and run.js | Done: `run.js` (stub-tested, mutation-checked), `commands/run.md`, `card-commit`, `run-branch`, `run-start`, `run-finish`, `run-report`, `script --phase run`; Full tier of `feature.md` uses it |
 | W5 harvest to a branch | Done: `harvest-branch`, `harvest.js` `mode: 'branch'`, and the run's own harvest step |
 | W6 ledger and usage fixes | Done (`evals/experts/autopilot-fixes.test.js`) |
 | W7 Windows and scanner fixes | Done: `bash -c` / `test_shell`, `ensure-ignored`, tests phase without plan mode, `abandoned: true` |
 | W8 hosts without the Workflow tool | Done: `commands/run.md` fallback, one line in `rules/the-ultimate-workflow-guidelines.mdc` |
 | W9 reminder at 80k | Done |
-| E2E recorded 4-card run | Not started |
+| E2E recorded 4-card run | Done: `evals/autopilot/` (1 card against 4 cards; main conversation 541,776 against 552,136 tokens, 1.02x, 10 turns each; all cards committed). Criterion 1 met |
 
 Baseline before any change (2026-11-07, 5de715c): full suite 1043 tests, 1039 pass, 0 fail, 4 skipped.
 

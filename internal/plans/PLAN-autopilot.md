@@ -144,6 +144,10 @@ Verify, on Claude Code (Windows, `claude -p` and the desktop app), in a scratch 
   sees the full-suite verify record. Record the hook payloads into `fixtures/claude-code/workflow/`.
 - The main session's Stop during the run is deferred by G3 on `background_tasks` (built in 4.2.x).
 - Whether a workflow agent can read files the script itself cannot (the script gets paths; agents read).
+- The same run started from a turn sent over Remote Control (phone or web driving the desktop session)
+  completes with no prompt. The desktop app refuses to start other sessions from such a turn
+  (seen 2026-11-07), which is one reason the design never starts sessions; S0 checks the Workflow tool
+  is not limited the same way.
 
 **Fallback if a long single workflow is not reliable:** the command calls the Workflow tool once per
 card with a per-card script and keeps only each card's one-line status in the conversation. The main

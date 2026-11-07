@@ -7,6 +7,7 @@ Recorded 2026-11-04 with Claude Code 2.1.316 (Windows, `claude -p`) while a two-
 - `Stop.workflow-finished.json`: the Stop after it finished; `background_tasks` is empty.
 - `PreToolUse.subagent-write.json`: an edit by a workflow subagent (`agent_id`, `agent_type`).
 - `PreToolUse.main-write-during-workflow.json`: an edit by the main session while the workflow ran (neither field).
+- `PreToolUse.subagent-git-commit.json`: a workflow agent's `git commit` (Claude Code 2.1.318, 2026-11-07, PLAN-autopilot.md S0); `agent_type` is now the plugin agent's name, not `workflow-subagent`.
 - `SubagentStop.json`, `PostToolUse.workflow-launch.json`: the completion and launch payloads.
 
 A Claude Code update can change these. Re-record, and update the version above.

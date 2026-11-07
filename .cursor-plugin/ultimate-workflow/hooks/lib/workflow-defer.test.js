@@ -201,3 +201,24 @@ test('a G1 or G2 block is still reported while G3 is deferred', () => {
   assert.equal(j.blocking.blocked, true);
   assert.match(j.blocking.reason, /plan_confirmed/);
 });
+
+// PLAN-autopilot.md, S0 (Claude Code 2.1.318): a workflow agent's own `git commit`. The commit
+// gates judge it like the main session's, so a run cannot commit around them.
+test('a workflow agent\'s git commit, as recorded, is held by G7 like any other', () => {
+  const ev = normalized('PreToolUse.subagent-git-commit.json');
+  assert.equal(ev.event, 'preTool');
+  assert.equal(ev.tool, 'shell');
+  const state = { stage: 'feature', file: 'PLAN-x.md', data: { plan_confirmed: true, tests_confirmed: true, test_command: 'node --test', experts: [] } };
+  const r = dispatch(ev, state, { verifyEvidence: { hash: 'h', record: null }, commitEvidence: { skip: 'n/a' } });
+  assert.equal(r.kind, 'deny');
+  assert.match(r.reason, /^Gate G7/);
+});
+
+test('a write into the plugin\'s run folder does not mark the tree dirty; a source write still does', () => {
+  const state = { stage: 'feature', file: 'PLAN-x.md', data: { plan_confirmed: true, tests_confirmed: true, test_command: 'node --test' } };
+  const at = (p) => ({ event: 'postTool', tool: 'write', vendor: 'claude', cwd: 'C:/work/repo', path: `C:/work/repo/${p}` });
+  assert.equal(dispatch(at('.ultimate-workflow/run/calc/harvest.json'), state).patch, undefined);
+  assert.equal(dispatch(at('.ultimate-workflow/run/calc/cards/a/journal.txt'), state).patch, undefined);
+  assert.equal(dispatch(at('.ultimate-workflow/experts/review/x.json'), state).patch.dirty, true, 'the evidence folder is not the run folder');
+  assert.equal(dispatch(at('src/a.js'), state).patch.dirty, true);
+});

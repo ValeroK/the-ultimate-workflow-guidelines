@@ -249,3 +249,25 @@ test('a fix-up card for a real defect whose tests pass first is still parked', a
   assert.equal(result.fixupCard.status, 'parked');
   assert.match(result.fixupCard.reason, /tests did not fail first/);
 });
+
+test('an expert a recheck adds on one card is held to on every later card, unless a card names its own', async () => {
+  const AV = [...AVAILABLE, { name: 'developer', agent: 'uw-expert-developer', description: 'code', stages: ['plan', 'review'] }];
+  const base = responder();
+  const calls = [];
+  const r = async (c) => {
+    calls.push(c);
+    if (c.label === 'a:recheck') return { experts: [{ name: 'developer', why: 'code' }] };
+    if (/:developer$/.test(c.label)) return { lensVerdict: 'ok', findings: [] };
+    if (/:commit$/.test(c.label)) {
+      const lane = JSON.parse(/<<<CONTENT\n([\s\S]*?)\nCONTENT>>>/.exec(c.prompt)[1]).expertLane;
+      return steps({ recorded: lane.ran, findings: lane.findings.length, open: [], plan: { experts: lane.selected } }, { ok: true, commit: 'x', files: 1 });
+    }
+    return base(c);
+  };
+  await run(baseArgs([card('a'), card('b'), card('c', { ownExperts: true, experts: ['quality'] })], { available: AV }), r);
+  const lane = (n) => JSON.parse(/<<<CONTENT\n([\s\S]*?)\nCONTENT>>>/.exec(calls.find((c) => c.label === `${n}:commit`).prompt)[1]).expertLane;
+  assert.deepStrictEqual(lane('a').selected, ['quality', 'developer']);
+  assert.deepStrictEqual(lane('b').planned, ['quality', 'developer'], 'card b starts from the grown plan line');
+  assert.ok(calls.some((c) => c.label === 'b:developer'));
+  assert.deepStrictEqual(lane('c').planned, ['quality'], 'a card with its own experts keeps them');
+});

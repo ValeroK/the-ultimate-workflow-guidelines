@@ -445,7 +445,11 @@ const skillsOf = (list) =>
  * and each says which of them this diff did not fix.
  */
 async function expertsCheck(card, carried) {
-  const planned = (Array.isArray(card.experts) ? card.experts : []).filter((n) => AVAILABLE.some((e) => e.name === n))
+  // An expert an earlier card's recheck added is in the plan's experts line from then on (`record
+  // --plan` writes it there), and the commit gate holds every later card to that line. A card that
+  // names its own experts is held to those instead. The 4-card end-to-end run parked two cards for this.
+  const base = Array.isArray(card.experts) ? card.experts : []
+  const planned = [...new Set(card.ownExperts ? base : [...base, ...grownExperts])].filter((n) => AVAILABLE.some((e) => e.name === n))
   let selected = [...planned]
   for (const f of carried) if (f.expert && !selected.includes(f.expert) && AVAILABLE.some((e) => e.name === f.expert)) selected.push(f.expert)
   let recheck = false
@@ -553,6 +557,7 @@ For each: read the code around it, check whether the failure path is reachable, 
 // ---- one card, start to end ----
 
 const status = {}
+const grownExperts = new Set()
 const report = []
 const lanes = []
 const handed = {}
@@ -677,6 +682,8 @@ async function runCard(card, { adhoc = false } = {}) {
   )
   // The record is checked against the lane the script built, so a lane retyped wrong is caught here.
   const recordOk = recorded && Array.isArray(recorded.recorded) && recorded.recorded.length === check.lane.ran.length && recorded.findings === check.lane.findings.length
+  // `record --plan` has now written this lane's selection into the plan's experts line.
+  if (recorded && recorded.plan) for (const n of check.lane.selected) grownExperts.add(n)
   if (!committed || committed.ok !== true) {
     const why = !recordOk ? `the experts' evidence was not recorded as built (record printed ${JSON.stringify(recorded)})` : `the commit was refused: ${(committed && (committed.reason || committed.gate)) || 'card-commit printed nothing'}`
     return parkCard(card, why, { build: buildSummary })

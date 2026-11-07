@@ -1345,7 +1345,7 @@ function runArgs(pluginRoot, cwd, args) {
         preflight = { ok: false, reason: `missing input: ${err.message}` };
       }
     }
-    return { name: c.name, title: c.title, paths: c.paths, depends: c.depends || [], carried: c.carried, experts, briefs: b, reviewSkills, preflight, ...(c.committed ? { committed: c.committed } : {}), ...(c.parked ? { parked: c.parked } : {}) };
+    return { name: c.name, title: c.title, paths: c.paths, depends: c.depends || [], carried: c.carried, experts, ownExperts: Array.isArray(c.experts), briefs: b, reviewSkills, preflight, ...(c.committed ? { committed: c.committed } : {}), ...(c.parked ? { parked: c.parked } : {}) };
   });
   const fwdPath = (p) => p.replace(/\\/g, '/');
   return {

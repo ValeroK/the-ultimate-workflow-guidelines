@@ -14,7 +14,7 @@
 
 | Item | State |
 |---|---|
-| S0 spike | Smoke and first long run done (results below); the 50-agent, 30-minute rerun is in progress |
+| S0 spike | Done: one long workflow is reliable (53 agents, 30 minutes); single `run.js` chosen. Remote Control not run (needs the user) |
 | W2 context pack, handoff, cards fields | Done: `experts/autopilot.js` (`pack`, `handoff`), `cards.js` `depends`/`parked`/`committed`/`setField` (`evals/experts/autopilot.test.js`) |
 | W3 parked branches | Done: `park`, `unpark` (plumbing, no checkout; the plan file is kept across the reset) |
 | W4 run journal | Done: `journal add` (15 lines a card), `journal compact` (past 200 lines) |
@@ -180,8 +180,10 @@ Permission setup that ran every subagent command unprompted: `--permission-mode 
 | G6 evidence from inside a workflow | Works: `prepare`, a lane file written by the agent, `record --result`, `check` printed `{"ok":true}`; the run checks `record`'s counts against the lane it built |
 | Stop while the workflow runs | `background_tasks: [{type: "workflow", status: "running", ...}]` in the Stop payload, as in 4.2.x, so G3 defers |
 | Can an agent read a file the script cannot? | Yes (the read-file agent returned the plan's `test_command`) |
-| Long run | First attempt: the `-p` process stopped the workflow 10 minutes after its last turn ("Background tasks still running 10m after the last turn ... stopping them. Set CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0"). A headless limit, not a Workflow one; `run.md` says so. Rerun with the ceiling off: RESULT_PENDING |
+| Long run | First attempt: the `-p` process stopped the workflow 10 minutes after its last turn ("Background tasks still running 10m after the last turn ... stopping them. Set CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0"). A headless limit, not a Workflow one; `run.md` says so. Rerun with the ceiling off: 53 agents, 30.2 minutes of wall clock, all 53 `done`, 48 of 48 fillers returned, 583k subagent tokens, and the output file was whole and readable. The last agent, 30 minutes in, made `src/div.js` and committed it through the node commit command (haiku) |
 | Remote Control | Not run: it needs the user driving the session from a phone or the web. Open question for the user |
+
+**Decision (S0):** one long `run.js` workflow per run. The per-card fallback below is not needed and was not built. Recorded payload: `fixtures/claude-code/workflow/PreToolUse.subagent-git-commit.json` (a workflow agent's `git commit`, held by G7 in `hooks/lib/workflow-defer.test.js`).
 
 **Fallback if a long single workflow is not reliable:** the command calls the Workflow tool once per
 card with a per-card script and keeps only each card's one-line status in the conversation. The main

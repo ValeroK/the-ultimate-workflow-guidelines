@@ -25,6 +25,27 @@ function isDocPath(p) {
   return DOC_EXTENSIONS.has(base.slice(dot).toLowerCase());
 }
 
+/** Diagram source formats: never application code, so writable anywhere. */
+const DIAGRAM_SOURCE_EXTENSIONS = new Set(['.mmd', '.mermaid', '.puml', '.plantuml', '.drawio', '.excalidraw', '.d2']);
+/** Rendered formats that are also routinely application source, so only under a `docs` folder. */
+const DIAGRAM_RENDERED_EXTENSIONS = new Set(['.html', '.htm', '.svg', '.png']);
+
+/**
+ * Whether a path is a diagram. A plan needs one before it is confirmed, so the
+ * pre-edit gates let these through and an edit to one does not mark the tree
+ * dirty. Kept apart from isDocPath on purpose: verify.js, the commit gates and
+ * expert selection still treat a diagram as a change worth reviewing.
+ */
+function isDiagramPath(p) {
+  const parts = segments(p);
+  const base = parts.pop() || '';
+  const dot = base.lastIndexOf('.');
+  if (dot <= 0) return false;
+  const ext = base.slice(dot).toLowerCase();
+  if (DIAGRAM_SOURCE_EXTENSIONS.has(ext)) return true;
+  return DIAGRAM_RENDERED_EXTENSIONS.has(ext) && parts.some((s) => s.toLowerCase() === 'docs');
+}
+
 /**
  * The plugin's own scratch folder, `.ultimate-workflow/run/`: the phase commands write their
  * arguments and the ledger row there with the Write tool (`tests.args.json`, `plan.row.json`), and
@@ -114,6 +135,7 @@ function preEditGate(state, input) {
   if (target === null || target === '') return ALLOW;
 
   if (isDocPath(target)) return ALLOW;
+  if (isDiagramPath(target)) return ALLOW;
   if (isRunPath(target)) return ALLOW;
 
   if (stage === 'bootstrap') {
@@ -342,6 +364,7 @@ function phasePointer(state, input) {
 module.exports = {
   toProjectPath,
   isDocPath,
+  isDiagramPath,
   isRunPath,
   isTestPath,
   preEditGate,

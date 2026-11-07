@@ -25,6 +25,47 @@ test('isDocPath does not classify source as documentation', () => {
   }
 });
 
+// A plan often needs an architecture diagram before anything is confirmed (found in the homeyos
+// AWS planning session: the diagram had to wait for the plan to be accepted). Diagram source
+// formats are writable anywhere; rendered formats only under a `docs` folder, because `.html` and
+// `.svg` elsewhere are routinely application source.
+test('isDiagramPath accepts diagram sources anywhere and rendered diagrams under docs/', () => {
+  for (const p of [
+    'arch.mmd', 'docs/flow.mermaid', 'design/seq.puml', 'x.plantuml', 'a/b.drawio', 'c.excalidraw', 'd.d2',
+    'docs/arch.html', 'docs/aws/target.svg', 'docs/aws/target.png', 'DOCS/x.HTML', 'docs\\aws\\x.htm',
+    'services/api/docs/arch.svg',
+  ]) {
+    assert.equal(gates.isDiagramPath(p), true, p);
+  }
+});
+
+test('isDiagramPath does not open application html, svg or images', () => {
+  for (const p of [
+    'index.html', 'public/index.html', 'src/assets/logo.svg', 'app/icon.png', 'src/docs.html',
+    'docsite/index.html', 'src/a.js', 'docs/build.js', 'docs/conf.py', 'mmd', '.drawio',
+  ]) {
+    assert.equal(gates.isDiagramPath(p), false, p);
+  }
+});
+
+test('G1, G2, G6 and the bootstrap gates let diagrams through before confirmation', () => {
+  const states = [
+    featureState({ plan_confirmed: false }),
+    featureState({ plan_confirmed: true }),
+    featureState({ plan_confirmed: true, experts: [], tests_confirmed: false }),
+    bootstrapState({ prd_confirmed: false }),
+    bootstrapState({ prd_confirmed: true, design_confirmed: false }),
+  ];
+  for (const state of states) {
+    for (const p of ['docs/aws/target.html', 'docs/aws/target.svg', 'arch.mmd', 'design.drawio']) {
+      assert.equal(gates.preEditGate(state, { path: p }).allow, true, `${state.stage}: ${p}`);
+    }
+    const abs = gates.preEditGate(state, { path: 'C:\\proj\\docs\\arch.html', cwd: 'C:\\proj' });
+    assert.equal(abs.allow, true, `${state.stage}: absolute`);
+    assert.equal(gates.preEditGate(state, { path: 'public/index.html' }).allow, false, `${state.stage}: app html`);
+  }
+});
+
 // The phase commands write their arguments and the ledger row into `.ultimate-workflow/run/` with
 // the Write tool. Found in a real run: with the plan accepted and tests not yet confirmed, G2 refused
 // `plan.row.json` and `tests.args.json`, so the tests phase could not even start.

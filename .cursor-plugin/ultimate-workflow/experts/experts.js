@@ -177,7 +177,6 @@ function briefs(pluginRoot = PLUGIN_ROOT, { planText = null } = {}) {
         skipped.push(e.name);
         continue;
       }
-      if (sel.dropped.length > 0) problems.push(`${e.name}: skills left out at the ${skillsCap(e.name)}-byte cap: ${sel.dropped.join(', ')}`);
       out.push({ name: e.name, text, skills: sel.skills, dropped: sel.dropped });
     }
   }
@@ -203,21 +202,12 @@ function briefs(pluginRoot = PLUGIN_ROOT, { planText = null } = {}) {
 // plan's text (build). The order of the list is the order of priority when the cap is reached.
 
 const SKILL_STAGES = ['review', 'build', 'tests'];
-// Raised from 32 KB to 40 KB on 2026-10-20, by decision: a TypeScript and React change with a
-// catch and a manifest already filled 32 KB of the developer's skills before the API-compatibility
-// sections were added. What does not fit is still named in `dropped`.
-const SKILLS_BYTES = 40 * 1024;
-// Experts whose stage can legitimately need more, by decision. Frontend, 2026-10-22: its six review
-// skills (semantics, visual accessibility, real data, devices, direction, motion) come to about
-// 53 KB when one change matches them all; a test holds them under this cap. Developer, 2026-10-22:
-// with web-performance and telemetry-in-code, a React change with a catch reached about 45 KB and
-// dropped web-performance at 40 KB (maintainer decision to raise it).
-const SKILLS_BYTES_BY_EXPERT = { frontend: 56 * 1024, developer: 56 * 1024 };
-const skillsCap = (expert) => SKILLS_BYTES_BY_EXPERT[expert] || SKILLS_BYTES;
-// At review, at most this many skills per expert, in skills.md order, by decision (2026-10-29). On the
-// CEO dashboard run 15 of 16 review skills went uncited twice, and a planted-defect ablation found
-// no difference with and without them, while each skill is prompt text every lens call pays for.
-const REVIEW_SKILLS_MAX = 2;
+// No cap on how many skills an expert gets, or on their total size, by decision (2026-11-07): an
+// expert gets every skill whose selector matches the change. This replaced a 40 KB per-expert,
+// per-stage byte cap (56 KB for frontend and developer) and, at review, a two-skill cap; both left
+// out skills a change needed, and the two kept were the first in the list, not the most relevant.
+// The selectors are what keep a skill out of a change it does not fit. Each skill file is still
+// held to 16 KB, and the build brief to BRIEF_BYTES.
 const SKILLS_FILE_LINE = /^\s*-\s*([a-z][a-z0-9-]*)(?:\s+\((.*)\))?\s*$/;
 
 function globToRegExp(glob) {
@@ -360,10 +350,10 @@ function matches(selector, { files, text }) {
 
 /**
  * The skills one expert gets at one stage, for one change: those its stage reference lists whose
- * selector matches, in list order, up to the cap. What did not fit is returned in `dropped`, by
- * name, so the result says it rather than the prompt silently shrinking.
+ * selector matches, in list order. There is no cap by default; `cap` (bytes) exists for tests, and
+ * what does not fit under one is returned in `dropped`, by name.
  */
-function selectSkills(pluginRoot, expert, stage, change, cap = skillsCap(expert)) {
+function selectSkills(pluginRoot, expert, stage, change, cap = Infinity) {
   const out = { skills: [], dropped: [], problems: [] };
   const listed = skillsAt(pluginRoot, expert, stage);
   out.problems.push(...listed.problems);
@@ -424,7 +414,6 @@ function testsSkills(pluginRoot, planText) {
   for (const e of list(pluginRoot).experts.filter((x) => x.stages.includes('tests'))) {
     const sel = selectSkills(pluginRoot, e.name, 'tests', change);
     problems.push(...sel.problems);
-    if (sel.dropped.length > 0) problems.push(`${e.name}: skills left out at the ${skillsCap(e.name)}-byte cap: ${sel.dropped.join(', ')}`);
     if (sel.skills.length > 0 || sel.dropped.length > 0) out[e.name] = { skills: sel.skills, dropped: sel.dropped };
   }
   return { skills: out, problems };
@@ -1010,12 +999,6 @@ function prepare(cwd, range = 'working', pluginRoot = PLUGIN_ROOT, { delta = fal
   for (const e of available.filter((x) => x.stages.includes('review'))) {
     const sel = selectSkills(pluginRoot, e.name, 'review', change);
     skillProblems.push(...sel.problems);
-    if (sel.dropped.length > 0) skillProblems.push(`${e.name}: skills left out at the ${skillsCap(e.name)}-byte cap: ${sel.dropped.join(', ')}`);
-    if (sel.skills.length > REVIEW_SKILLS_MAX) {
-      const over = sel.skills.splice(REVIEW_SKILLS_MAX).map((x) => x.name);
-      sel.dropped.push(...over);
-      skillProblems.push(`${e.name}: skills left out at the ${REVIEW_SKILLS_MAX}-skill review cap: ${over.join(', ')}`);
-    }
     if (sel.skills.length > 0 || sel.dropped.length > 0) skills[e.name] = { skills: sel.skills, dropped: sel.dropped };
   }
   // The shared rules ride with the skills, because the workflow cannot read files (see protocolText).
@@ -1530,8 +1513,6 @@ module.exports = {
   briefs,
   planSection,
   SKILL_STAGES,
-  SKILLS_BYTES,
-  skillsCap,
   parseSelector,
   present,
   decodeEntities,

@@ -18,7 +18,7 @@ The frontend and accessibility expert owns whether a UI change can be operated a
 | `worst-case-data` | tests | the worst realistic value per displayed field |
 | `motion-craft`, `interface-design` | plan only | Emil Kowalski's taste, attributed; never a finding |
 
-- **Decisions (maintainer, 2026-10-22):** the cap for this expert is 56 KB per stage, so all six review skills fit together (about 53 KB; a test holds it). No build stage: the taste skills are offered at plan and reach the implementer through the plan. Opinions on easing, durations and aesthetics are plan guidance only, because taste rules raise false alarms on correct code.
+- **Decisions (maintainer, 2026-10-22):** the cap for this expert was 56 KB per stage so all six review skills (about 53 KB) fit together; the cap was removed for every expert on 2026-11-07, and a test holds that all six load. No build stage: the taste skills are offered at plan and reach the implementer through the plan. Opinions on easing, durations and aesthetics are plan guidance only, because taste rules raise false alarms on correct code.
 - **Conflicts with the checked pages (the page won):** Motion `x`/`y` not hardware-accelerated (rejected); an animated blur limit of 20 px (no published limit); `will-change` wherever motion is imminent (rejected); `touchmove` with `preventDefault()` (passive by default on window, document and body); missing reduced motion as a blocker (2.3.3 is AAA); 44 by 44 targets (web AA is 24 by 24); Angular `[aria-label]` (now binds directly); Sonner `dir` (defaults to `auto`).
 - **Not measured.** No corpus exists for this domain. The proposed next step is frontend defects mined from real fix commits, as for `developer-real`.
 

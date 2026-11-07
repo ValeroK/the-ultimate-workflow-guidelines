@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.6.2] - 2026-11-07
+
+### Changed
+
+- **Experts get every skill that matches the change.** At review each expert was limited to its first two matching skills, in `skills.md` order rather than by relevance, and at every stage an expert's skills were limited to 40 KB in total (56 KB for frontend and the developer). Both limits are removed: the selectors alone decide what loads. A change that matches many skills now costs more tokens per expert call. Each skill file is still held to 16 KB, and the build brief to its own size limit.
+
 ## [4.6.1] - 2026-11-07
 
 ### Changed

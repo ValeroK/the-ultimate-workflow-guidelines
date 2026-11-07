@@ -90,6 +90,8 @@ Four of the five hand you proposals instead of applying them. That's on purpose.
 
 You can still run them one at a time; `/ultimate-workflow:feature` is just the five in the right order at the right tier.
 
+For the Full tier on Claude Code it uses **`/ultimate-workflow:run`**: after your two confirmations it builds every card of the plan unattended in one background run. Each card is tested, implemented, expert-checked and committed to its own `uw/run/<feature>` branch, or parked on `uw/parked/<feature>/<card>` with its diagnosis. Then comes a review of the whole run, and the lessons are committed to `uw/harvest/<feature>`. You get one report and merge the branch yourself; nothing is pushed.
+
 Three more commands sit outside the loop. **`/ultimate-workflow:experts`** is the quick expert check before a commit: it asks again which experts apply to the real diff, runs them and records the evidence. **`/ultimate-workflow:expert-attribution`** reports, from that evidence, which skills each expert had at each stage and where its findings say they came from (a skill, its reference, or the model's own knowledge), with any citation that does not check out. **`/ultimate-workflow:value`** reports, from the value ledger every phase appends to (`.ultimate-workflow/ledger.jsonl`), what the workflow cost per phase and what the experts and skills contributed: catches by stage and origin, the experts' confirmed unique catches and their precision, skill citation rates and skills never cited, and the workarounds sessions needed. **`/handoff`** writes a handoff document when a session ends with work still in flight, so the next agent inherits the state that hasn't landed in any committed file yet. You run it; it is never invoked on your behalf.
 
 ## Domain experts

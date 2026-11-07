@@ -25,6 +25,8 @@
 | W8 hosts without the Workflow tool | Done: `commands/run.md` fallback, one line in `rules/the-ultimate-workflow-guidelines.mdc` |
 | W9 reminder at 80k | Done |
 | E2E recorded 4-card run | Done: `evals/autopilot/` (1 card against 4 cards; main conversation 541,776 against 552,136 tokens, 1.02x, 10 turns each; all cards committed). Criterion 1 met |
+| Risk mitigation "the build result lists the pack files it read" | Not built. It would be the agent's own report, which nothing can check and the run never uses for a decision; the scope check and the handoff come from git either way. The pack paths are in every build prompt, and the journal shows later cards used what earlier ones recorded |
+| Order | S0 smoke and first long run came before W2; W2 to W5, then W1, were built while the 30-minute S0 rerun was going. The rerun confirmed the single-workflow design W1 assumed, and `run.js` runs one card or many, so the per-card fallback would have used the same script |
 
 Baseline before any change (2026-11-07, 5de715c): full suite 1043 tests, 1039 pass, 0 fail, 4 skipped.
 

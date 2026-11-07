@@ -1,6 +1,6 @@
 # Authoring workflow phases
 
-> How the five phase scripts are built, what the runtime forbids, and what
+> How the phase scripts (five phases, plus the autopilot `run.js`) are built, what the runtime forbids, and what
 > each one costs.
 > Last updated 2026-10-20.
 
@@ -11,6 +11,8 @@ A workflow is a JavaScript program the runtime executes **out of the conversatio
 The rule that keeps this from becoming a pile of dispersed decisions: **agents produce findings; code and humans make decisions.** Every branch is a JS conditional or a human gate. No subagent chooses what runs next.
 
 Phases are separate invocations rather than one script because the runtime cannot take mid-run user input — the documentation says plainly that for sign-off between stages, each stage should be its own workflow. The confirmation points are the product, so the decomposition is forced, and it is also correct: each phase is independently rerunnable and independently costable.
+
+`phases/run.js` (4.7.0) is the deliberate exception, and only after both confirmations: nothing it does needs the user, so it holds the whole card loop, the review and the harvest in one script, and the main conversation makes one call. A card that would need a decision is parked on a branch instead of stopping. It carries `build.js`'s loop as a marked block (`// --- build loop`), held equal by a test in the source repository. It writes through its agents, but every commit, park and harvest commit goes through one `experts.js` command, never an agent's own git.
 
 ## Key decisions
 

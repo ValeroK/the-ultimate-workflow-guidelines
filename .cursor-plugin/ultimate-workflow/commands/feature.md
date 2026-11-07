@@ -67,6 +67,6 @@ Run `${CLAUDE_PLUGIN_ROOT}/commands/value.md` for this feature's runs, and give 
 - the catches it recorded;
 - any workarounds you needed.
 
-Commit only if the user asks. The experts check has already made the commit possible.
+Commit only if the user asks. The experts check has already made the commit possible. The one exception is the Full tier through `run.md`: it commits each card to its own `uw/run/<feature>` branch, never to the user's, and the user merges that branch.
 
 After the commit has landed, set `phase: done` in the plan's front matter, so the gates stop reading it and the next feature's plan is the active one. Never before the commit: the gates ignore a finished plan, so its commit would skip the experts and full-test checks.

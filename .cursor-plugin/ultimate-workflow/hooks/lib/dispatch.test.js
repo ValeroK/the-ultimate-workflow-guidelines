@@ -80,6 +80,15 @@ test('a documentation edit does not mark the tree dirty', () => {
   assert.equal(r.patch, undefined);
 });
 
+// Otherwise a diagram drawn during planning makes G3 demand a test run at the end of the turn.
+test('a diagram edit does not mark the tree dirty, an application html edit does', () => {
+  const state = feature({ plan_confirmed: true, tests_confirmed: true });
+  for (const p of ['docs/aws/target.html', 'docs/arch.svg', 'arch.mmd']) {
+    assert.equal(dispatch(ev({ event: 'postTool', path: `${CWD}/${p}` }), state).patch, undefined, p);
+  }
+  assert.equal(dispatch(ev({ event: 'postTool', path: `${CWD}/public/index.html` }), state).patch.dirty, true);
+});
+
 test('an edit outside the project does not mark the tree dirty', () => {
   const r = dispatch(
     ev({ event: 'postTool', path: 'C:/elsewhere/x.js' }),

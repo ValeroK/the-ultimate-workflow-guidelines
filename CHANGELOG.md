@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.6.1] - 2026-11-07
+
+### Changed
+
+- **Diagrams can be written before the plan is confirmed.** G1, G2, G6 and the bootstrap gates allowed only `.md` and `.txt`, so an architecture diagram for a plan under review was refused. They now also allow diagram sources (`.mmd`, `.mermaid`, `.puml`, `.plantuml`, `.drawio`, `.excalidraw`, `.d2`) anywhere, and `.html`, `.htm`, `.svg` and `.png` under a `docs` folder; editing one does not make G3 ask for a test run. The plan command says to put a diagram in the plan file as a `mermaid` block while Claude Code's plan mode is on, since that mode allows only its plan file.
+
 ## [4.6.0] - 2026-11-06
 
 ### Fixed

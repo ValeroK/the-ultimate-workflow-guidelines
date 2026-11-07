@@ -18,6 +18,8 @@ Lifecycle hooks read a small YAML block at the top of `PRD.md` or `PLAN-<feature
 | G6 | No source edit until the plan records which domain experts apply (`experts: []` counts), and no `git commit` until the experts have re-checked and reviewed the current changes. A high-confidence expert finding blocks it until fixed or dismissed by the user |
 | G7 | No `git commit` until a passing FULL test run covers the current changes (`node hooks/verify.js --full`, or `test_command` typed whole). An edit after the run makes it stale; docs-only and empty commits are exempt; feature work only (a `PLAN-*.md`); no `test_command`, no check |
 
+Documentation (`.md`, `.txt`) is always writable. So are diagrams, because a plan often needs one before it is confirmed: diagram sources (`.mmd`, `.mermaid`, `.puml`, `.plantuml`, `.drawio`, `.excalidraw`, `.d2`) anywhere, and rendered diagrams (`.html`, `.htm`, `.svg`, `.png`) only under a folder named `docs`, since those formats elsewhere are usually application source. An edit to a diagram does not mark the tree dirty for G3. Unlike documentation, a diagram still counts as a change for the related tests, G6 and G7. Claude Code's own plan mode is separate and stricter: it allows only its plan file, so a diagram drawn there goes into the plan as a `mermaid` block.
+
 ### Cards in a plan
 
 A plan split into cards lists them in a `## Cards` section, one bullet per card, written by `experts.js card-add` and not by hand:

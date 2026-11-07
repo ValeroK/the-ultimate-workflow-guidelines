@@ -114,7 +114,7 @@ function dispatch(ev, state, opts = {}) {
   // --- mark the tree dirty once an edit has landed -------------------------
   if ((ev.event === 'postTool' && WRITE_TOOLS.has(ev.tool)) || ev.event === 'afterEdit') {
     const rel = ev.cwd ? gates.toProjectPath(ev.cwd, ev.path) : ev.path;
-    if (rel === null || rel === '' || gates.isDocPath(rel)) return allow;
+    if (rel === null || rel === '' || gates.isDocPath(rel) || gates.isDiagramPath(rel)) return allow;
     return { kind: 'allow', patch: { dirty: true } };
   }
 

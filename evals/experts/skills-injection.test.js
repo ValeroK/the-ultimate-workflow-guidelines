@@ -211,7 +211,7 @@ test('prepare: a user git config with no diff prefixes or forced colour still se
   }
 });
 
-test('review: skills left out at the cap are reported by prepare and carried in the lane', async () => {
+test('review: a change that matches every developer skill gets all of them, and the lane carries none left out', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'uw-skills-'));
   git(dir, 'init', '-q', '-b', 'main');
   git(dir, 'config', 'user.email', 't@example.com');
@@ -219,14 +219,16 @@ test('review: skills left out at the cap are reported by prepare and carried in 
   fs.writeFileSync(path.join(dir, 'README.md'), '# x\n');
   git(dir, 'add', '-A');
   git(dir, 'commit', '-q', '-m', 'base');
-  // Every language at once, with error handling and a manifest: more than the cap holds.
+  // Every language at once, with error handling and a manifest: more than the old 56 KB cap held.
   for (const f of ['a.py', 'b.tsx', 'c.go', 'd.rs', 'e.java']) fs.writeFileSync(path.join(dir, f), 'try { x } catch (e) {}\n');
   fs.writeFileSync(path.join(dir, 'package.json'), '{}\n');
   const p = ex.prepare(dir, 'working', PLUGIN);
-  assert.ok(p.skills.developer.dropped.length > 0);
-  assert.ok(p.skillProblems.some((m) => /developer: skills left out at the \d+-byte cap/.test(m)));
+  assert.deepEqual(p.skills.developer.dropped, []);
+  assert.ok(!(p.skillProblems || []).some((m) => /left out/.test(m)), JSON.stringify(p.skillProblems));
+  const names = p.skills.developer.skills.map((s) => s.name);
+  for (const n of ['failure-handling', 'python-craft', 'go-craft', 'rust-craft']) assert.ok(names.includes(n), n);
   const total = p.skills.developer.skills.reduce((n, s) => n + Buffer.byteLength(s.text), 0);
-  assert.ok(total <= ex.skillsCap('developer'));
+  assert.ok(total > 56 * 1024, `${total} bytes: this change must exceed the old cap to prove it is gone`);
   const clean = (call) => (call.label === 'recheck' ? { experts: [] } : { findings: [], lensVerdict: 'clean' });
   const { result } = await loadWorkflow(path.join(PLUGIN, 'phases', 'review.js'))(
     { available: ex.list(PLUGIN).experts, experts: ['developer'], diffFile: 'd', expertsDir: '/p', skills: p.skills },
@@ -437,14 +439,14 @@ test('architect review: queues, topics and buses select aws-messaging; API Gatew
   assert.ok(!arch({ 'infra/bucket.tf': ['resource "aws_s3_bucket" "logs" {'] }).includes('api-gateway'));
 });
 
-test('architect review: a change touching many AWS areas reports what the cap leaves out instead of growing past it', () => {
+test('architect review: a change touching many AWS areas gets every matching skill, most specific first', () => {
   const sel = ex.selectSkills(PLUGIN, 'architect', 'review', ex.parseDiff(diffOf({ 'a.tf': [
     'resource "aws_lambda_event_source_mapping" "x" {', 'resource "aws_sqs_queue" "q" {', 'resource "aws_sfn_state_machine" "y" {',
     'resource "aws_apigatewayv2_api" "z" {', 'tenant_id = var.t', 'resource "aws_elasticache_cluster" "c" {'] })));
   const total = sel.skills.reduce((n, s) => n + Buffer.byteLength(s.text), 0);
-  assert.ok(total <= ex.SKILLS_BYTES);
+  assert.ok(total > 40 * 1024, `${total} bytes: past the old 40 KB cap`);
   assert.equal(sel.skills[0].name, 'lambda-event-sources', 'the most specific first');
-  assert.ok(sel.dropped.length > 0, 'something is left out and named');
+  assert.deepEqual(sel.dropped, [], 'nothing is left out');
 });
 
 // ---- devops: skills by file type and construct; the build brief only for infrastructure work ----
@@ -478,7 +480,6 @@ test('devops review: every skill selected at once fits under the cap, most speci
     'Dockerfile': ['FROM node:22'], 'svc/f.ts': ['LaunchDarkly'] })));
   assert.deepEqual(names(sel), ['terraform-change-safety', 'cloudformation-and-cdk', 'kubernetes-manifests', 'pipelines-and-deploys', 'release-safety', 'containers']);
   assert.deepEqual(sel.dropped, []);
-  assert.ok(sel.skills.reduce((n, s) => n + Buffer.byteLength(s.text), 0) <= ex.SKILLS_BYTES);
 });
 
 test('devops build: the brief joins only when the plan names infrastructure; the developer brief is always there', () => {
@@ -550,7 +551,6 @@ test('softarch review: event schemas and the round-2 boundary keys select their 
 test('softarch review: all four skills at once fit under the cap', () => {
   const sel = ex.selectSkills(PLUGIN, 'softarch', 'review', ex.parseDiff(diffOf({ 'a.proto': ['x'], 'openapi.yaml': ['x'], 'e.avsc': ['x'], 'tsconfig.json': ['x'] })));
   assert.deepEqual(names(sel), ['protobuf-compat', 'schema-evolution', 'event-schema-evolution', 'module-boundaries']);
-  assert.ok(sel.skills.reduce((n, s) => n + Buffer.byteLength(s.text), 0) <= ex.SKILLS_BYTES);
 });
 
 // ---- quality: tests, gates and evals ----
@@ -573,7 +573,6 @@ test('quality review: near misses select nothing', () => {
 test('quality review: all three skills at once fit under the cap', () => {
   const sel = ex.selectSkills(PLUGIN, 'quality', 'review', ex.parseDiff(diffOf({ 'a.test.js': ['x'], 'jest.config.js': ['x'], 'evals/j.py': ['judge'] })));
   assert.deepEqual(names(sel), ['test-craft', 'test-gates', 'eval-integrity']);
-  assert.ok(sel.skills.reduce((n, s) => n + Buffer.byteLength(s.text), 0) <= ex.SKILLS_BYTES);
 });
 
 // ---- security: CI workflows ----
@@ -620,19 +619,16 @@ test('architect review: Temporal workflow code selects step-functions', () => {
   assert.ok(ar({ 'worker/main.go': ['\t"go.temporal.io/sdk/workflow"'] }).includes('step-functions'));
 });
 
-test('the skills cap is 40 KB by default and raised for frontend and the developer', () => {
-  assert.equal(ex.skillsCap('developer'), 56 * 1024);
-  assert.equal(ex.skillsCap('quality'), ex.SKILLS_BYTES);
-  assert.equal(ex.skillsCap('architect'), 40 * 1024);
-  assert.equal(ex.skillsCap('frontend'), 56 * 1024);
+test('there is no skills cap: the cap exports are gone', () => {
+  assert.equal(ex.skillsCap, undefined);
+  assert.equal(ex.SKILLS_BYTES, undefined);
 });
 
 // ---- frontend --------------------------------------------------------------------------
 
 const fe = (files) => ex.selectSkills(PLUGIN, 'frontend', 'review', ex.parseDiff(diffOf(files)));
 
-test('frontend review: a change that matches every review skill fits the 56 KB cap, with nothing dropped', () => {
-  // The cap was raised to 56 KB on the condition that all six fit together; if this fails, trim the skills.
+test('frontend review: a change that matches every review skill gets all six, with nothing dropped', () => {
   const sel = fe({
     'web/src/Composer.tsx': ['export const Composer = () => <button onClick={send}><SendIcon /></button>'],
     'web/src/composer.css': [
@@ -643,8 +639,6 @@ test('frontend review: a change that matches every review skill fits the 56 KB c
   });
   assert.deepEqual(names(sel), ['semantics-and-aria', 'visual-accessibility', 'ui-on-real-data', 'responsive-and-devices', 'rtl-and-direction', 'motion']);
   assert.deepEqual(sel.dropped, []);
-  const bytes = sel.skills.reduce((n, s) => n + Buffer.byteLength(s.text), 0);
-  assert.ok(bytes <= 56 * 1024, `${bytes} bytes`);
 });
 
 test('frontend review: a Go or Python change with words like "shortly", "transition" or "fixed" selects no frontend skill', () => {
@@ -728,8 +722,7 @@ test('developer review: a lazy main image selects web-performance; a backend fil
   assert.ok(!names(review({ 'svc/orders.go': ['func handle() {}'] })).includes('web-performance'));
 });
 
-test('developer review: a React diff with a catch, an image and telemetry setup keeps every skill under the 56 KB cap', () => {
-  // At 40 KB this diff dropped web-performance; the cap was raised for the developer on 2026-10-22.
+test('developer review: a React diff with a catch, an image and telemetry setup gets every matching skill', () => {
   const sel = review({ 'app/page.tsx': ['try { load() } catch (e) { throw e }', '<img src={hero} loading="lazy" />', "import { trace } from '@opentelemetry/api';"] });
   assert.deepEqual(sel.dropped, []);
   assert.ok(names(sel).includes('web-performance') && names(sel).includes('telemetry-in-code'));
@@ -755,12 +748,10 @@ test('data review: soft deletes, lifecycle rules and a new personal column selec
   assert.deepEqual(dat({ 'db/migrate/3.sql': ['ALTER TABLE orders ADD COLUMN total_cents integer;'] }), []);
 });
 
-test('architect review: on a mixed serverless change, alarms-and-slos loads after the serverless skills and aws-well-architected is the one left out', () => {
-  // aws-well-architected was already left out of this diff before alarms-and-slos existed; the new
-  // skill sits just above it, so it takes no place a serverless skill held.
+test('architect review: on a mixed serverless change, alarms-and-slos loads after the serverless skills and aws-well-architected is no longer left out', () => {
   const sel = ex.selectSkills(PLUGIN, 'architect', 'review', ex.parseDiff(diffOf({ 'infra/main.tf': ['resource "aws_cloudwatch_metric_alarm" "x" {', 'resource "aws_sqs_queue" "q" {', 'resource "aws_lambda_event_source_mapping" "m" {', 'resource "aws_sfn_state_machine" "s" {'] })));
-  assert.deepEqual(names(sel), ['lambda-event-sources', 'aws-messaging', 'step-functions', 'alarms-and-slos']);
-  assert.deepEqual(sel.dropped, ['aws-well-architected']);
+  assert.deepEqual(names(sel), ['lambda-event-sources', 'aws-messaging', 'step-functions', 'alarms-and-slos', 'aws-well-architected']);
+  assert.deepEqual(sel.dropped, []);
 });
 
 test('review workflow: an expert finding keeps its basis and quote in the lane, and the prompt asks for them', async () => {

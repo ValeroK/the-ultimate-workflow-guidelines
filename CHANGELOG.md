@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`/ultimate-workflow:run`: the whole plan, unattended, after two confirmations.** The user confirms the plan and the test plan (one Tests subsection per card) once; the command then makes one Workflow call and presents one report. The run builds every card in plan order once its `depends` are committed: a context pack written by code (`experts.js pack`: the plan's shared sections, the card and its tests, the documents the plan cites, `AGENTS.md`, the memory topicals whose cue matches the card, the handoffs of its dependencies, the run journal), tests proven red, up to three implementation rounds with a fresh diagnosis after each failure, scope from git, the experts on the card's own diff, and a commit through `experts.js card-commit`, which runs the commit gates' own checks (G7 and G6) in code before anything is staged. Everything is committed to `uw/run/<feature>`, never to the user's branch, and nothing is pushed. The Full tier of `/ultimate-workflow:feature` uses it when the Workflow tool is there.
+- **Parked cards.** A card that cannot be finished (red after three rounds, tests that pass before the code, a blocking expert finding, a refused commit, a missing input) is committed with its failing tests and diagnosis to `uw/parked/<feature>/<card>` (`experts.js park`, built from a temporary index, no checkout), the tree goes back to the last good commit, the plan's card entry records `parked:`, and the run goes on with the cards that do not depend on it. Two parks in a row for the same reason stop the run. `--resume <card>` brings the work back (`experts.js unpark`) and continues at the implementation with the tests already written.
+- **The run journal.** After every card a fresh agent writes at most 15 lines of lessons from the diff and the failures (`experts.js journal add`); every later card's context pack lists it. Past 200 lines the oldest entries are summarised, never dropped. It is never promoted to project memory on its own.
+- **Non-blocking expert findings are fixed, not left.** A finding whose file is under a later card's paths is carried to that card (`card-field --carried`) and its expert checks whether that card fixed it; every other one, and every one not fixed, goes to one findings card that runs before the review. A confirmed blocking review finding over the whole run gets one fix-up card through the same loop.
+- **Harvest to a branch.** The run's harvest commits its proposals to `uw/harvest/<feature>`, one commit per destination file (`experts.js harvest-branch`), instead of stopping for acceptance; `harvest.js` takes `mode: 'branch'` for the same. The interactive `/ultimate-workflow:harvest` is unchanged.
+- `experts.js handoff` (what a card left, from git, with any claimed test file the diff does not have), `run-branch`, `run-report` (the final report, written from the Workflow output file), `ensure-ignored`; `cards.js` reads `depends`, `parked` and `committed`; `card-add --depends`.
+
+### Changed
+
+- `phases/build.js`: the test-write, implement and diagnose loop is one marked block that `phases/run.js` carries; a test holds the two copies equal. A failed build's result now also names its test files.
+- The long-conversation reminder defaults to 80k tokens of context (was 150k). `ULTIMATE_WORKFLOW_CONTEXT_REMINDER` still sets it.
+- The tests phase no longer enters plan mode to show the plan with its Tests section, and no longer prints either into the conversation: it gives the user the file to open.
+
+### Fixed
+
+- **Review and experts-check findings reach the value ledger.** They were recorded as a count on the run row and never as catches, so `/ultimate-workflow:value` showed no review at all (8 catches, 7 open, on the report that found it). Every finding that survived the skeptic is now a catch, by lens or expert, at the review stage, open until settled; a repeat is not added twice. A `run` row carries its cards and every card's findings.
+- **`usage` finds sessions started in a parent folder.** A session opened in `~/Projects` that worked in `~/Projects/app` is stored under the parent's folder; it is now counted, with or without `--match`, when the `cwd` it records is inside the project (`fromParentFolders` says how many).
+- **Readers are counted as readers.** Claude Code now opens every workflow agent's prompt with a "computed task" frame, so the prompt patterns anchored at the start never matched and plan and harvest readers were counted as other agents. The frame is taken off first, and the agent type the host records beside each transcript decides when the prompt does not.
+- **A `bash -c '...'` test command works on Windows.** `verify.js` ran it through cmd.exe, which does not know single quotes, so it failed on quoting every time. A command that is exactly `bash -c '<script>'` (or `sh -c`) now runs through that shell with the script as one argument, and `test_shell: bash` in the plan runs any command through bash.
+- **An abandoned or re-run plan run is recorded** in the ledger with `abandoned: true`, so its tokens are not missing; the report counts them apart.
+- `.ultimate-workflow/` is added to the project's `.gitignore` on the first run, so git-based secret scanners skip the run's own files (the scanner that flagged them is the project's, not this plugin's).
+
 ## [4.6.2] - 2026-11-07
 
 ### Changed

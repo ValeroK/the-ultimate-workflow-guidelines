@@ -614,7 +614,7 @@ async function runCard(card, { adhoc = false } = {}) {
   const brief = briefs.length === 0 ? '' : `\n\nSTANDING BRIEF, from ${briefs.map((b) => b.name).join(', ')}. It applies to every line you write, and it adds no work: do nothing the plan did not ask for.\n\n${briefs.map((b) => b.text.trim()).join('\n\n')}\n${skills.length ? `\nSKILLS for this card (${skills.map((s) => s.name).join(', ')}), chosen from its planned files and text. Write the code so that none of them would find anything. They add no work.\n\n${skills.map((s) => s.text.trim()).join('\n\n')}\n` : ''}`
   const carriedText = [...(card.carried || []), ...carried.map((f) => `${f.expert} found at ${f.file}:${f.line}: ${f.what}${f.fix ? ` (fix: ${f.fix})` : ''}`)]
   const locate = `This is card ${card.name} (${card.title}) of the plan ${PLAN}. Read its context pack ${pre.contextFile} and every file it lists before you write anything; the run journal in it holds what earlier cards learned. Change only files under this card's paths (${(card.paths || []).join(', ')}) and the tests for it.${carriedText.length ? `\n\nCARRIED to this card, part of its work:\n${carriedText.map((c) => `- ${c}`).join('\n')}` : ''}`
-  const build = await buildLoop({
+  const loopOpts = {
     locate,
     brief,
     verify: VERIFY,
@@ -630,8 +630,20 @@ async function runCard(card, { adhoc = false } = {}) {
     diagnoserModel: DIAGNOSER_MODEL,
     briefsLoaded: briefs.map((b) => b.name),
     skillsLoaded: skills.map((s) => s.name),
-  })
-  const buildSummary = { green: Boolean(build.green), rounds: build.rounds || (build.history ? build.history.length : 0), testFiles: build.testFiles || build.filesWritten || [] }
+  }
+  let build = await buildLoop(loopOpts)
+  // A card the run added for a finding that the code is untested (a review's test-coverage lens, an
+  // expert on a missing case) is done when the test exists: its new tests pass against code that is
+  // already right, which is the fix, not a test with no oracle. Only for such a card, and only when
+  // every carried item is about tests, it goes on to the full run with those tests, on record.
+  let testsOnly = false
+  const aboutTests = (f) => /test|coverage|assert|untested|no case/i.test(`${f.lens || ''} ${f.what || ''}`)
+  if (adhoc && build.stoppedAt === 'Tests' && (build.filesWritten || []).length > 0 && card.items && card.items.length > 0 && card.items.every(aboutTests)) {
+    testsOnly = true
+    log(`card ${card.name}: its tests pass against the existing code and every item was a missing test; continuing with them`)
+    build = await buildLoop({ ...loopOpts, resume: { reason: 'the carried findings were missing tests; the new tests pass against code that already does the right thing', testFiles: build.filesWritten } })
+  }
+  const buildSummary = { green: Boolean(build.green), rounds: build.rounds || (build.history ? build.history.length : 0), testFiles: build.testFiles || build.filesWritten || [], ...(testsOnly ? { testsOnly: true } : {}) }
   if (!build.green) {
     const why = build.escalation || [build.error, build.reason, build.hint, build.unexpectedlyPassing && build.unexpectedlyPassing.length ? `Passing before the implementation: ${build.unexpectedlyPassing.join(', ')}` : ''].filter(Boolean).join('\n')
     return parkCard(card, `${build.stoppedAt === 'Tests' ? 'tests did not fail first' : 'not green'}: ${why || 'the build stopped'}`, { build: buildSummary })
@@ -734,7 +746,7 @@ async function adhocCard(name, title, items, experts) {
     cliCmd('card-add', '--plan', q(PLAN), '--name', name, '--title', q(title), '--paths', q(files.join(',') || '.'), '--carried', q(carriedText.join('; '))),
     cliCmd('pack', '--plan', q(PLAN), '--card', name, '--feature', FEATURE, '--adhoc'),
   ])
-  const card = { name, title, paths: files, carried: [], depends: [], experts, briefs: PLAN_BRIEFS, reviewSkills: {}, preflight: packed && packed.ok ? { ok: true, contextFile: packed.contextFile } : { ok: false, reason: `the ${name} card could not be set up: ${(added && added.ok === false && added.reason) || (packed && packed.reason) || 'card-add or pack printed nothing'}` } }
+  const card = { name, title, paths: files, carried: [], depends: [], items, experts, briefs: PLAN_BRIEFS, reviewSkills: {}, preflight: packed && packed.ok ? { ok: true, contextFile: packed.contextFile } : { ok: false, reason: `the ${name} card could not be set up: ${(added && added.ok === false && added.reason) || (packed && packed.reason) || 'card-add or pack printed nothing'}` } }
   return runCard(card, { adhoc: true })
 }
 

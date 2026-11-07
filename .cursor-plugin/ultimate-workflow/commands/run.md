@@ -15,7 +15,9 @@ argument-hint: "<what you want built> | --resume [<card>] [--plan <plan file>]"
 
 ## 1. Plan and test plan (the two stops)
 
-Unless resuming, follow `${CLAUDE_PLUGIN_ROOT}/commands/plan.md` exactly, with experts, and stop for the user's confirmation. The feature name is the plan file's name without `PLAN-` and `.md` (`PLAN-ledger-fixes.md` is `ledger-fixes`); it names the branches, so it is letters, digits, dot, dash and underscore.
+**A plan that is already confirmed** (`--plan <file>` names it, its front matter has `plan_confirmed: true` and `tests_confirmed: true`, and it has a `## Cards` section and a Tests subsection per card): both stops already happened; say so in one line and go to section 2.
+
+Otherwise, unless resuming, follow `${CLAUDE_PLUGIN_ROOT}/commands/plan.md` exactly, with experts, and stop for the user's confirmation. The feature name is the plan file's name without `PLAN-` and `.md` (`PLAN-ledger-fixes.md` is `ledger-fixes`); it names the branches, so it is letters, digits, dot, dash and underscore.
 
 Then split the plan into cards, in code: for each, `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" card-add --plan <plan file> --name <card> --title "<what it does>" --paths "<globs it may change>" [--depends <cards it needs first>]`. A card that needs the running system (a harness) goes first. Cards with no `depends` between them may run in any order; the run keeps plan order.
 
@@ -23,13 +25,14 @@ Then follow `${CLAUDE_PLUGIN_ROOT}/commands/tests.md` exactly, telling the tests
 
 Raise any open question one at a time, each with the issue, what each answer changes, and the pros and cons, as those commands say.
 
-## 2. Set up the run
+## 2. Set up the run: one command
 
-1. `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" ensure-ignored`: `.ultimate-workflow/` goes into the project's `.gitignore`, so the run's own files are never committed and git-based scanners skip them.
-2. **The baseline**, as `build.md` step 3 says (`verify.js --baseline --plan <plan file>`). If the suite already fails, that is the one question this command may still ask, and it is asked now, before the run.
-3. `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" run-branch --feature <feature>`: creates `uw/run/<feature>` from the current tip and checks it out. Every card is committed there and the user's own branch is never touched; parked and harvest branches start from it. It refuses when the branch already exists (an earlier run: use `--resume`).
-4. With the Write tool, write `.ultimate-workflow/run/run.args.json`: `{ "plan": "<plan file>", "feature": "<feature>" }`, plus `"implementerModel"` / `"diagnoserModel"` if the user asked (as in `build.md`; `ULTIMATE_WORKFLOW_BUILD_MODEL` also applies). Every role of the run uses these.
-5. `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" script --phase run --args-file .ultimate-workflow/run/run.args.json`. It reads the plan, writes each card's context pack (`.ultimate-workflow/run/<feature>/cards/<card>/context.md`) and runs its preflight, chooses each card's briefs and skills, and writes `.ultimate-workflow/run/run.js` with all of it built in. It prints `scriptPath`. Tell the user any card whose preflight failed (it will be parked with that reason) in one line each.
+`node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" run-start --plan <plan file> --feature <feature>` (add `--implementer-model` / `--diagnoser-model` if the user asked, as in `build.md`; `ULTIMATE_WORKFLOW_BUILD_MODEL` also applies, and every role of the run uses them). Run it as one command and do nothing between it and the Workflow call. It:
+
+- creates `uw/run/<feature>` from the current tip and checks it out (every card is committed there; the user's own branch is never touched; it refuses a branch that already exists: use `--resume`);
+- adds `.ultimate-workflow/` to the project's `.gitignore` and commits that one line on the run branch itself, so the run's own files are never committed and git-based scanners skip them. Do not commit it yourself;
+- takes the baseline (`verify.js --baseline`). When the suite already fails it prints `needs: "baseline"` with the failing tests: that is the one question this command may still ask. Ask it as `build.md` step 3 says, accept only on the user's yes, then run `run-start` again;
+- writes each card's context pack and preflight, chooses its briefs and skills, and writes `.ultimate-workflow/run/run.js` (it runs `experts.js script --phase run` itself). It prints `scriptPath` and `preflightFailed`: tell the user each card that will be parked for missing input, in one line each.
 
 ## 3. The one call
 
@@ -39,22 +42,22 @@ Per card the run builds a context pack, writes the tests and proves them red, im
 
 Call it once. The exception: the run failed before any agent started (0 agents, an argument error); fix the input, rebuild the script, call once more and say so.
 
-## 4. When it returns
+## 4. When it returns: one command
 
-**Never present the result from the completion notice**: it is cut off when the result is large. Save the Workflow tool's output file, as returned, to `.ultimate-workflow/run/run.result.json` (a one-liner that reads the output file), then write the report from it in code:
+**Never present the result from the completion notice**: it is cut off when the result is large. Run, as one command, with the output file the notice names and the run id the Workflow call returned:
 
-`node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" run-report --result .ultimate-workflow/run/run.result.json`
+`node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" run-finish --output <the Workflow output file> --run-id <wf_...>`
 
-It writes `.ultimate-workflow/run/<feature>/report.md` and prints the counts. If the output file is missing or either command fails, say so and stop. Show the user the report file (open it, or print it whole; never a summary of it) and add, in your own words, only what needs their decision: each parked card and its reason, any card blocked by one, files changed outside a card's paths, test files a build claimed that are not in its commit, the findings still open, and the harvest branch to merge or drop.
+It keeps the output file as `.ultimate-workflow/run/run.result.json`, writes `.ultimate-workflow/run/<feature>/report.md` from it in code, and adds the ledger row with the agents, tokens and duration the output file holds, and every expert and review finding as a catch, so `/ultimate-workflow:value` shows them. If the output file is missing or the command fails, say so and stop.
 
-Then record the run in the ledger: write `.ultimate-workflow/run/run.row.json` with the Write tool, `{ "runId", "agents", "tokens", "durationMs", "plan", "workarounds" }` from the Workflow tool's result (leave out a number it does not show), and run `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" ledger add --phase run --row .ultimate-workflow/run/run.row.json --result .ultimate-workflow/run/run.result.json`. It records the run and, from the result, every expert finding of every card and every review finding as a catch, so `/ultimate-workflow:value` shows them.
+Then show the user the report file (a link to open, or the file printed whole; never a summary of it) and add, in a few lines of your own, only what needs their decision: each parked card and its reason, any card blocked by one, files changed outside a card's paths, test files a build claimed that are not in its commit, the findings still open, and the harvest branch to merge or drop. Do not run the tests again, read the diff or check the commits: the run did, and every extra turn re-sends this whole conversation.
 
 Nothing is pushed or merged. The user merges `uw/run/<feature>` when they are satisfied; set `phase: done` in the plan only after that.
 
 ## Resume
 
-- `--resume <card>`: `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" unpark --plan <plan file> --card <card> --feature <feature>` brings the parked work back onto the run branch's tip (it refuses a dirty tree, or work that no longer applies, and says why). Write `run.args.json` with `"resume": { "card": "<card>", "testFiles": <unpark's testFiles>, "reason": "<the user's words>" }` and go on from step 2.3 (`run-branch` checks the run branch out again, or reuses it): the card continues at the implementation with the tests it already wrote and its diagnosis in the context pack; committed cards are skipped, and cards blocked by it run once it is committed.
-- `--resume` alone: `"resume": { "all": true }`. Every card not committed runs again from its tests, on the current tip; parked branches stay for reference.
+- `--resume <card>`: `run-start --plan <plan file> --feature <feature> --resume-card <card> --resume-reason "<the user's words>"` checks the run branch out, brings the parked work back onto its tip (`unpark`: it refuses a dirty tree, or work that no longer applies, and says why) and builds the script. The card continues at the implementation with the tests it already wrote and its diagnosis in the context pack; committed cards are skipped, and cards blocked by it run once it is committed. Then sections 3 and 4.
+- `--resume` alone: `run-start ... --resume`. Every card not committed runs again from its tests, on the current tip; parked branches stay for reference.
 
 ## Hosts without the Workflow tool
 

@@ -224,3 +224,28 @@ test('run.js carries the build loop and the build model exactly as build.js has 
     assert.strictEqual(block(RUN, a, b), inBuild, `${a} differs between build.js and run.js`);
   }
 });
+
+test('a fix-up card for a missing test goes on when its tests pass against code that is already right, and says so', async () => {
+  const finding = { file: 'test/1.test.js', line: 4, what: 'the b argument check has no test', howItFails: 'a regression goes unseen', confidence: 'high' };
+  const base = responder({ reviewFindings: [finding] });
+  const seen = [];
+  const r = async (c) => {
+    seen.push(c.label);
+    if (c.label === 'fixup:write-tests') return { filesWritten: ['test/1b.test.js'], testsFailAsExpected: false, unexpectedlyPassing: ['b check'], summary: 'passes already' };
+    return base(c);
+  };
+  const { result } = await run(baseArgs([card('1')]), r);
+  assert.equal(result.fixupCard.status, 'committed', JSON.stringify(result.fixupCard));
+  assert.equal(result.fixupCard.build.testsOnly, true);
+  assert.ok(seen.includes('fixup:attempt-1'), 'it still ran the full suite through an implementation round');
+  assert.equal(seen.filter((l) => l === 'fixup:write-tests').length, 1, 'the tests are not written twice');
+});
+
+test('a fix-up card for a real defect whose tests pass first is still parked', async () => {
+  const finding = { file: 'src/1/x.js', line: 4, what: 'returns the stale value after a retry', howItFails: 'n', confidence: 'high' };
+  const base = responder({ reviewFindings: [finding] });
+  const r = async (c) => (c.label === 'fixup:write-tests' ? { filesWritten: ['test/x.test.js'], testsFailAsExpected: false, summary: 'passes' } : base(c));
+  const { result } = await run(baseArgs([card('1')]), r);
+  assert.equal(result.fixupCard.status, 'parked');
+  assert.match(result.fixupCard.reason, /tests did not fail first/);
+});

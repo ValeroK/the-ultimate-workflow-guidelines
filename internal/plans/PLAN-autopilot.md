@@ -167,6 +167,22 @@ Verify, on Claude Code (Windows, `claude -p` and the desktop app), in a scratch 
   (seen 2026-11-07), which is one reason the design never starts sessions; S0 checks the Workflow tool
   is not limited the same way.
 
+#### S0 results (2026-11-07, Claude Code 2.1.318, Windows, `claude -p`, scratch repo, this branch's plugin via `--plugin-dir`, gates on, `record.js` registered)
+
+Permission setup that ran every subagent command unprompted: `--permission-mode acceptEdits --allowedTools Bash Workflow Read Write Edit`.
+
+| Question | Answer, from the recording |
+|---|---|
+| Do the gates fire on a workflow agent's Bash, and is a deny honoured? | Yes. PreToolUse carries `agent_id` and `agent_type: "ultimate-workflow:uw-implementer"`. A subagent's `git commit` with no full run was refused by G7, and the agent saw the refusal text |
+| Will a workflow agent `git commit`, branch, `reset --hard`? | Not reliably. On `main`, haiku refused the commit and the reset: the host now opens every workflow prompt with "[Workflow harness -- computed task] ... carries no user authority", and the agent quoted it. On `uw/run/spike`, with the prompt stating the user's request, sonnet ran `git add -A && git commit` (card 1 committed). The design does not depend on that: commits and parks are one node command each (`card-commit`, `park`), which sonnet ran without objection |
+| Do agents see exit codes? | No ("Exit code not shown by the Bash tool output"). Every run command prints one JSON line with a boolean `ok` |
+| Does staging change the commit gates' fingerprint? | Yes. A new file is in the fingerprint as an untracked synthetic diff before `git add` and as git's diff after, so `verify --full`, then `git add -A`, then `git commit` as separate commands is refused by G7. `card-commit` runs the G7/G6 predicates before it stages |
+| G6 evidence from inside a workflow | Works: `prepare`, a lane file written by the agent, `record --result`, `check` printed `{"ok":true}`; the run checks `record`'s counts against the lane it built |
+| Stop while the workflow runs | `background_tasks: [{type: "workflow", status: "running", ...}]` in the Stop payload, as in 4.2.x, so G3 defers |
+| Can an agent read a file the script cannot? | Yes (the read-file agent returned the plan's `test_command`) |
+| Long run | First attempt: the `-p` process stopped the workflow 10 minutes after its last turn ("Background tasks still running 10m after the last turn ... stopping them. Set CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0"). A headless limit, not a Workflow one; `run.md` says so. Rerun with the ceiling off: RESULT_PENDING |
+| Remote Control | Not run: it needs the user driving the session from a phone or the web. Open question for the user |
+
 **Fallback if a long single workflow is not reliable:** the command calls the Workflow tool once per
 card with a per-card script and keeps only each card's one-line status in the conversation. The main
 conversation then grows by a few hundred tokens per card instead of tens of thousands; criterion 1 is

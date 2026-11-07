@@ -18,6 +18,9 @@
 //   experts.js harvest-branch --feature F --from FILE                 harvest proposals as commits on uw/harvest/F
 //   experts.js ensure-ignored                                         add .ultimate-workflow/ to the project's .gitignore
 //   experts.js run-report --result R [--out P]                        the final report, written from the Workflow output file
+//   experts.js run-start --plan P --feature F [--resume | --resume-card C --resume-reason T]
+//                                                                     branch, ignore line, baseline and script, as one step
+//   experts.js run-finish --output O [--run-id ID]                    keep the output file, write the report, add the ledger row
 //
 // Where things live: .ultimate-workflow/run/<feature>/journal.md and
 // .ultimate-workflow/run/<feature>/cards/<card>/{context.md,handoff.md,parked.md}.
@@ -249,7 +252,10 @@ function handoff(cwd, { card, feature, range, claimed = [] }) {
     if (names.length) added[file] = names;
   }
   const inDiff = new Set(files.map((f) => f.file));
-  const missingClaims = claimed.map((c) => fwd(c).replace(/^\.\//, '')).filter((c) => c && !inDiff.has(c));
+  // An agent reports paths either way; an absolute one inside the project is the same file (the
+  // 1-card end-to-end run reported its own test file as missing for this).
+  const asRel = (c) => (path.isAbsolute(c) ? fwd(path.relative(cwd, c)) : fwd(c)).replace(/^\.\//, '');
+  const missingClaims = claimed.map(asRel).filter((c) => c && !inDiff.has(c));
   const kind = { A: 'added', M: 'changed', D: 'deleted' };
   const text = [
     `# Handoff: card ${card} (${range})`,
@@ -292,6 +298,17 @@ function keepPlan(cwd, plan, fn) {
   } finally {
     if (before !== null) fs.writeFileSync(file, before);
   }
+}
+
+/**
+ * After a card is committed or parked the tree is a commit whose full run passed, so the plan's
+ * `dirty` flag (set by every edit the card made) no longer describes it. Left set, it made G3 block
+ * the session's first stop after the run until the suite ran once more for nothing.
+ */
+function markClean(cwd, plan) {
+  try {
+    require('../hooks/lib/state.js').patchState(path.resolve(cwd, plan), { dirty: false });
+  } catch {}
 }
 
 function writePlanField(cwd, plan, card, key, value) {
@@ -344,6 +361,7 @@ function park(cwd, { plan, card: name, feature, reasonFile = '', reason = '' }) 
   });
   fs.writeFileSync(path.join(dir, 'parked.md'), `# Parked: card ${card.name} (${card.title})\n\nBranch: ${branch} (commit ${commit.slice(0, 12)}, on ${head.slice(0, 12)})\n\n${why}\n`);
   writePlanField(cwd, plan, card.name, 'parked', `${branch}; ${firstLine.replace(/;/g, ',').slice(0, 200)}`);
+  markClean(cwd, plan);
   return { ok: true, card: card.name, branch, commit: commit.slice(0, 12), resetTo: head.slice(0, 12), files: [...new Set([...changed, ...untracked])].length, parked: rel(cwd, path.join(dir, 'parked.md')) };
 }
 
@@ -454,6 +472,7 @@ function cardCommit(cwd, { plan, card: name, feature, claimed = [] }) {
   const after = git(cwd, ['rev-parse', 'HEAD']).stdout.trim();
   writePlanField(cwd, plan, card.name, 'committed', after.slice(0, 12));
   if (card.parked) writePlanField(cwd, plan, card.name, 'parked', null);
+  markClean(cwd, plan);
   const h = handoff(cwd, { card: card.name, feature, range: `${before}..${after}`, claimed });
   return { ok: true, card: card.name, commit: after.slice(0, 12), files: h.files, handoff: h.handoff, missingClaims: h.missingClaims };
 }
@@ -589,6 +608,106 @@ function runReport(cwd, { result: resultFile, out = '' }) {
   return { ok: true, report: rel(cwd, file), summary: r.summary, counts: r.counts || {}, stopped: r.stopped || null };
 }
 
+/**
+ * Everything before the run's one Workflow call, as one command (the 1-card end-to-end run spent 20
+ * of its 46 main-conversation turns on these steps, and an experts check on its own `.gitignore`):
+ * the run branch, `.ultimate-workflow/` ignored and that one line committed on the run branch by
+ * code (housekeeping of the plugin's own, so no gate applies), the baseline, and the script. A red
+ * baseline stops here with the failing tests, for the user's decision.
+ */
+function runStart(cwd, { plan, feature, resume = null, implementerModel = '', diagnoserModel = '' }) {
+  if (!plan) throw new Error('run-start needs --plan');
+  checkFeature(feature);
+  let branch;
+  const name = `uw/run/${feature}`;
+  if (resume && git(cwd, ['rev-parse', '--abbrev-ref', 'HEAD']).stdout.trim() !== name) {
+    if (git(cwd, ['rev-parse', '--verify', '-q', `refs/heads/${name}`], { allowFail: true }).status !== 0) return { ok: false, reason: `nothing to resume: there is no ${name}` };
+    const sw = spawnSync('git', ['switch', '-q', name], { cwd, encoding: 'utf8' });
+    if (sw.status !== 0) return { ok: false, reason: `could not check out ${name}: ${(sw.stderr || '').trim()}` };
+    branch = { ok: true, branch: name, created: false };
+  } else branch = runBranch(cwd, { feature });
+  if (!branch.ok) return branch;
+  if (resume && resume.card) {
+    const back = unpark(cwd, { plan, card: resume.card, feature });
+    resume = { ...resume, testFiles: back.testFiles };
+  }
+  const ignored = ensureIgnored(cwd);
+  let ignoreCommit = null;
+  if (ignored.added) {
+    git(cwd, ['add', '--', '.gitignore']);
+    const c = spawnSync('git', ['commit', '-q', '-m', 'uw: ignore .ultimate-workflow/ (the run\'s own state)', '--', '.gitignore'], { cwd, encoding: 'utf8' });
+    if (c.status !== 0) return { ok: false, reason: `could not commit the .gitignore line: ${(c.stderr || '').trim()}` };
+    ignoreCommit = git(cwd, ['rev-parse', '--short', 'HEAD']).stdout.trim();
+  }
+  const pluginRoot = path.join(__dirname, '..');
+  let baseline = { taken: false };
+  const existing = (() => {
+    try {
+      return JSON.parse(fs.readFileSync(path.join(cwd, '.ultimate-workflow', 'baseline.json'), 'utf8'));
+    } catch {
+      return null;
+    }
+  })();
+  const head = git(cwd, ['rev-parse', 'HEAD']).stdout.trim();
+  if (existing && existing.accepted === true && existing.head === head) baseline = { taken: false, kept: true, failures: existing.failures.length };
+  else if (!resume) {
+    const v = spawnSync(process.execPath, [path.join(pluginRoot, 'hooks', 'verify.js'), '--baseline', '--plan', plan], { cwd, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+    const recorded = (() => {
+      try {
+        return JSON.parse(fs.readFileSync(path.join(cwd, '.ultimate-workflow', 'baseline.json'), 'utf8'));
+      } catch {
+        return null;
+      }
+    })();
+    const fresh = recorded && recorded.head === head ? recorded : null;
+    if (fresh && Array.isArray(fresh.failures) && fresh.failures.length > 0 && fresh.accepted !== true) {
+      return { ok: false, needs: 'baseline', branch: branch.branch, failing: fresh.failures, reason: 'the suite already fails before the run: the user decides whether these are known failures (verify.js --accept-baseline), then run-start again' };
+    }
+    if (v.status !== 0 && !fresh) return { ok: false, needs: 'baseline', branch: branch.branch, reason: `the baseline run failed and named no test: ${(v.stdout + v.stderr).trim().split(/\r?\n/).slice(-3).join(' / ')}` };
+    baseline = { taken: true, failures: fresh ? fresh.failures.length : 0 };
+  }
+  const argsFile = path.join(cwd, '.ultimate-workflow', 'run', 'run.args.json');
+  fs.mkdirSync(path.dirname(argsFile), { recursive: true });
+  fs.writeFileSync(argsFile, `${JSON.stringify({ plan: fwd(plan), feature, ...(resume ? { resume } : {}), ...(implementerModel ? { implementerModel } : {}), ...(diagnoserModel ? { diagnoserModel } : {}) }, null, 2)}\n`);
+  const s = require('./experts.js').stageScript(pluginRoot, cwd, 'run', { argsFile });
+  const embedded = JSON.parse(/^const EMBEDDED_ARGS = (.*)$/m.exec(fs.readFileSync(s.scriptPath, 'utf8'))[1]);
+  const failed = embedded.cards.filter((c) => c.preflight && c.preflight.ok === false).map((c) => ({ card: c.name, reason: c.preflight.reason }));
+  return { ok: true, branch: branch.branch, created: branch.created, ...(ignoreCommit ? { ignoreCommit } : {}), baseline, scriptPath: s.scriptPath, cards: embedded.cards.map((c) => c.name), preflightFailed: failed };
+}
+
+/**
+ * Everything after the run, as one command: keep the Workflow output file, write the report from it,
+ * and add the ledger row with the numbers the output file holds (agents, tokens, and the duration
+ * from the agents' own start and end times), so none is retyped.
+ */
+function runFinish(cwd, { output, runId = '', plan = '' }) {
+  if (!output) throw new Error('run-finish needs --output <the Workflow output file>');
+  const raw = fs.readFileSync(path.resolve(cwd, output), 'utf8');
+  const saved = path.join(cwd, '.ultimate-workflow', 'run', 'run.result.json');
+  fs.mkdirSync(path.dirname(saved), { recursive: true });
+  fs.writeFileSync(saved, raw);
+  const ledger = require('./ledger.js');
+  const result = ledger.unwrapResult(raw);
+  let wrapper = {};
+  try {
+    wrapper = JSON.parse(raw);
+  } catch {}
+  const agents = Array.isArray(wrapper.workflowProgress) ? wrapper.workflowProgress.filter((x) => x && x.type === 'workflow_agent') : [];
+  const starts = agents.map((a) => a.startedAt).filter(Number.isFinite);
+  const ends = agents.map((a) => a.startedAt + (a.durationMs || 0)).filter(Number.isFinite);
+  const row = {
+    runId: runId || (output.match(/wf_[A-Za-z0-9-]+/) || [])[0] || 'run',
+    tokens: typeof wrapper.totalTokens === 'number' ? wrapper.totalTokens : agents.reduce((n, a) => n + (a.tokens || 0), 0),
+    ...(typeof wrapper.agentCount === 'number' ? { agents: wrapper.agentCount } : {}),
+    ...(starts.length ? { durationMs: Math.max(...ends) - Math.min(...starts) } : {}),
+    ...(plan || result.plan ? { plan: plan || result.plan } : {}),
+  };
+  const report = result.ok === true ? runReport(cwd, { result: saved }) : null;
+  const entry = ledger.addRun(cwd, 'run', row, raw);
+  const catches = ledger.readAll(cwd).filter((e) => e.kind === 'catch' && e.run === entry.id).length;
+  return { ok: result.ok === true, ...(report ? { report: report.report, summary: report.summary, counts: report.counts, stopped: report.stopped } : { reason: result.error || 'the run result is not ok' }), ledger: { runId: row.runId, tokens: row.tokens, agents: row.agents, durationMs: row.durationMs, catches } };
+}
+
 /** `.ultimate-workflow/` in the project's .gitignore, so git-based scanners and `git add -A` skip it. */
 function ensureIgnored(cwd) {
   const file = path.join(cwd, '.gitignore');
@@ -639,6 +758,15 @@ function cli(argv, cwd, out, fail) {
   if (sub === 'ensure-ignored') return run(() => ensureIgnored(cwd));
   if (sub === 'harvest-branch') return run(() => harvestBranch(cwd, { feature: o.feature, from: o.from }));
   if (sub === 'run-report') return run(() => runReport(cwd, { result: o.result, out: o.out || '' }));
+  if (sub === 'run-start') {
+    return run(() => {
+      let resume = null;
+      if (o['resume-card']) resume = { card: o['resume-card'], reason: o['resume-reason'] || 'resumed by the user' };
+      else if (o.resume) resume = { all: true };
+      return runStart(cwd, { plan: o.plan, feature: o.feature, resume, implementerModel: o['implementer-model'] || '', diagnoserModel: o['diagnoser-model'] || '' });
+    });
+  }
+  if (sub === 'run-finish') return run(() => runFinish(cwd, { output: o.output, runId: o['run-id'] || '', plan: o.plan || '' }));
   if (sub === 'card-field') {
     return run(() => {
       if (!o.plan || !o.card || typeof o.carried !== 'string') throw new Error('card-field needs --plan, --card and --carried "<item; item>"');
@@ -654,6 +782,6 @@ function cli(argv, cwd, out, fail) {
   return fail(`unknown autopilot command ${sub}`);
 }
 
-const COMMANDS = ['pack', 'handoff', 'park', 'unpark', 'journal', 'card-commit', 'card-field', 'run-branch', 'ensure-ignored', 'harvest-branch', 'run-report'];
+const COMMANDS = ['pack', 'handoff', 'park', 'unpark', 'journal', 'card-commit', 'card-field', 'run-branch', 'ensure-ignored', 'harvest-branch', 'run-report', 'run-start', 'run-finish'];
 
 module.exports = { COMMANDS, pack, handoff, park, unpark, journalAdd, journalCompact, cardCommit, runBranch, ensureIgnored, harvestBranch, withAddition, matchingTopicals, testSection, sections, cli, JOURNAL_CARD_LINES, JOURNAL_MAX_LINES };

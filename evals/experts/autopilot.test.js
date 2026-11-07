@@ -36,6 +36,8 @@ const git = (cwd, ...a) => {
   return r.stdout.trim();
 };
 const env = { ...process.env, ULTIMATE_WORKFLOW_GATES: '' };
+// A child `node --test` (the test_command verify.js runs) reports to this runner when it inherits this.
+delete env.NODE_TEST_CONTEXT;
 const cli = (cwd, ...a) => spawnSync(process.execPath, [CLI, ...a], { cwd, encoding: 'utf8', env });
 const json = (r) => {
   const line = r.stdout.trim().split(/\r?\n/).pop();
@@ -468,4 +470,80 @@ test('script --phase run refuses a plan with no cards and an arguments file with
   assert.match(r.stderr, /no ## Cards section/);
   write(dir, 'b.json', JSON.stringify({ plan: 'PLAN-calc.md' }));
   assert.match(cli(dir, 'script', '--phase', 'run', '--args-file', 'b.json').stderr, /needs "feature"/);
+});
+
+// --- run-start and run-finish: the main conversation's two steps around the one call --------------
+
+test('run-start makes the run branch, commits only the ignore line there, takes a green baseline and builds the script', () => {
+  const dir = repo();
+  fs.writeFileSync(path.join(dir, '.gitignore'), 'node_modules/\n');
+  git(dir, 'commit', '-q', '-am', 'no ignore line yet');
+  const main = git(dir, 'rev-parse', 'HEAD');
+  const r = json(cli(dir, 'run-start', '--plan', 'PLAN-calc.md', '--feature', 'calc'));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(git(dir, 'rev-parse', '--abbrev-ref', 'HEAD'), 'uw/run/calc');
+  assert.equal(git(dir, 'rev-parse', 'main'), main, 'the branch of the user did not move');
+  assert.deepStrictEqual(git(dir, 'show', '--name-only', '--format=', 'HEAD').split('\n'), ['.gitignore']);
+  assert.equal(r.baseline.taken, true);
+  assert.equal(r.baseline.failures, 0);
+  assert.deepStrictEqual(r.cards, ['1', '2', '3']);
+  assert.deepStrictEqual(r.preflightFailed.map((p) => p.card), ['3']);
+  assert.ok(fs.existsSync(r.scriptPath));
+  assert.equal(JSON.parse(read(dir, '.ultimate-workflow/run/run.args.json')).feature, 'calc');
+  const again = json(cli(dir, 'run-start', '--plan', 'PLAN-calc.md', '--feature', 'calc'));
+  assert.equal(again.ok, true, 'run again on its own branch, it reuses it');
+  assert.equal(again.ignoreCommit, undefined);
+});
+
+test('run-start stops with the failing tests when the suite is already red, before any script', () => {
+  const dir = repo();
+  write(dir, 'test/red.test.js', "require('node:test')('already red', () => { throw new Error('x'); });\n");
+  git(dir, 'add', '-A');
+  git(dir, 'commit', '-q', '-m', 'red');
+  const r = json(cli(dir, 'run-start', '--plan', 'PLAN-calc.md', '--feature', 'calc'));
+  assert.equal(r.ok, false);
+  assert.equal(r.needs, 'baseline', JSON.stringify(r));
+  assert.ok(r.failing.some((f) => /already red/.test(JSON.stringify(f))), JSON.stringify(r.failing));
+  assert.ok(!fs.existsSync(path.join(dir, '.ultimate-workflow/run/run.js')));
+});
+
+test('run-start --resume-card checks the run branch out again and brings the parked work back', () => {
+  const dir = repo();
+  json(cli(dir, 'run-start', '--plan', 'PLAN-calc.md', '--feature', 'calc'));
+  write(dir, 'test/sub.test.js', "require('node:test')('sub', () => {});\n");
+  json(cli(dir, 'park', '--plan', 'PLAN-calc.md', '--card', '1', '--feature', 'calc', '--reason', 'red three times'));
+  git(dir, 'switch', '-q', 'main');
+  const r = json(cli(dir, 'run-start', '--plan', 'PLAN-calc.md', '--feature', 'calc', '--resume-card', '1', '--resume-reason', 'try again'));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(git(dir, 'rev-parse', '--abbrev-ref', 'HEAD'), 'uw/run/calc');
+  assert.ok(fs.existsSync(path.join(dir, 'test/sub.test.js')));
+  const args = JSON.parse(read(dir, '.ultimate-workflow/run/run.args.json'));
+  assert.deepStrictEqual(args.resume, { card: '1', reason: 'try again', testFiles: ['test/sub.test.js'] });
+});
+
+test('run-finish keeps the output file, writes the report and the ledger row from it, findings as catches', () => {
+  const dir = repo();
+  const result = {
+    ok: true, feature: 'calc', branch: 'uw/run/calc', base: 'abc', plan: 'PLAN-calc.md', summary: '1 committed, 0 parked, 0 blocked.',
+    counts: { committed: 1 }, cards: [{ card: '1', title: 'adder', status: 'committed', commit: 'c1', build: { rounds: 1 }, missingClaims: [], outOfScope: [] }],
+    expertLanes: [{ card: '1', lane: { ran: ['quality'], findings: [{ expert: 'quality', file: 'test/a.test.js', line: 2, what: 'assertion never fails', confidence: 'low' }] } }],
+    review: { ran: true, range: 'abc..HEAD', findings: [], refuted: [], unverified: [] }, harvest: { ran: true, proposals: 0, branch: null },
+  };
+  const wrapper = { summary: 's', agentCount: 9, totalTokens: 12345, result: JSON.stringify(result), workflowProgress: [{ type: 'workflow_agent', startedAt: 1000, durationMs: 500 }, { type: 'workflow_agent', startedAt: 1200, durationMs: 1800 }] };
+  write(dir, 'out/wf_abc-123.output', JSON.stringify(wrapper));
+  const r = json(cli(dir, 'run-finish', '--output', 'out/wf_abc-123.output'));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.deepStrictEqual(r.ledger, { runId: 'wf_abc-123', tokens: 12345, agents: 9, durationMs: 2000, catches: 1 });
+  assert.match(read(dir, r.report), /\| 1 \| adder \| committed \| c1 \|/);
+  assert.equal(read(dir, '.ultimate-workflow/run/run.result.json'), JSON.stringify(wrapper));
+});
+
+test('handoff takes an absolute claimed path inside the project as the same file', () => {
+  const dir = repo();
+  const base = git(dir, 'rev-parse', 'HEAD');
+  write(dir, 'test/parse.test.js', "require('node:test')('p', () => {});\n");
+  git(dir, 'add', '-A');
+  git(dir, 'commit', '-q', '-m', 'p');
+  const r = json(cli(dir, 'handoff', '--card', '2', '--feature', 'calc', '--range', `${base}..HEAD`, '--claimed', path.join(dir, 'test', 'parse.test.js')));
+  assert.deepStrictEqual(r.missingClaims, []);
 });

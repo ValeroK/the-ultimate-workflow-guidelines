@@ -1546,7 +1546,13 @@ function main(argv) {
         experts: cardExperts,
         name: o.name,
         title: o.title,
-        paths: String(o.paths || '').split(',').map((s) => s.trim()).filter(Boolean),
+        // Reviewers and builds often name files by absolute path; one inside the project is taken as
+        // relative to it. One outside it still reaches addCard's refusal unchanged.
+        paths: String(o.paths || '').split(',').map((s) => s.trim()).filter(Boolean).map((p) => {
+          if (!path.isAbsolute(p)) return p;
+          const rel = path.relative(path.resolve(o.cwd), path.resolve(p));
+          return rel && !path.isAbsolute(rel) && !rel.split(/[\\/]/).includes('..') ? rel.replace(/\\/g, '/') : p;
+        }),
         carried: String(o.carried || '').split(';').map((s) => s.trim()).filter(Boolean),
         depends: String(o.depends || '').split(',').map((s) => s.trim()).filter(Boolean),
       });

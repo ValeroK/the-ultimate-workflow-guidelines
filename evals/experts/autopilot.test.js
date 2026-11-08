@@ -150,6 +150,17 @@ test('card-add takes --depends and refuses a card that depends on itself', () =>
   assert.match(self.stderr, /cannot depend/);
 });
 
+// 2026-11-08, a real run: the review named the fix-up card's file by absolute path and card-add refused it.
+test('card-add takes an absolute path inside the project as relative, and still refuses one outside it', () => {
+  const dir = repo();
+  const r = cli(dir, 'card-add', '--plan', 'PLAN-calc.md', '--name', 'fixup', '--title', 'fix', '--paths', path.join(dir, 'test', 'sub.test.js'));
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepStrictEqual(cards.findCard(read(dir, 'PLAN-calc.md'), 'fixup').paths, ['test/sub.test.js']);
+  const out = cli(dir, 'card-add', '--plan', 'PLAN-calc.md', '--name', 'out', '--title', 'x', '--paths', path.join(path.dirname(dir), 'x.js'));
+  assert.equal(out.status, 2);
+  assert.match(out.stderr, /must be relative to the project root/);
+});
+
 // --- pack ------------------------------------------------------------------------------------
 
 test('pack lists the shared plan sections, the card, its tests, cited docs, the rules and the dependency handoffs', () => {

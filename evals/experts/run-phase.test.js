@@ -98,6 +98,21 @@ test('a review finding confirmed and high runs one fix-up card through the same 
   assert.ok(setup > r.seen.indexOf('review:refute') && setup < r.seen.indexOf('harvest'), 'after review, before harvest');
 });
 
+// 2026-11-08, a real run: card-add refused the fix-up card (the review named its file by absolute
+// path), the run then tried to park a card the plan never had, and stopped with "the tree may still
+// hold its work" although nothing had been built.
+test('a fix-up card that could not be added is not started, is not parked, and the harvest still runs', async () => {
+  const base = responder({ reviewFindings: [{ file: 'C:/p/src/1/x.js', line: 3, what: 'off by one', howItFails: 'n=0', confidence: 'high' }] });
+  const seen = [];
+  const r = async (c) => { seen.push(c.label); return c.label === 'fixup:setup' ? { outputs: [] } : base(c); };
+  const { result } = await run(baseArgs([card('1')]), r);
+  assert.equal(result.fixupCard.status, 'not started');
+  assert.match(result.fixupCard.reason, /could not be added to the plan/);
+  assert.ok(!seen.includes('fixup:park'), 'a card the plan does not have is never parked');
+  assert.equal(result.stopped, undefined, 'the run did not stop');
+  assert.ok(seen.includes('harvest'), 'the harvest still ran');
+});
+
 test('a non-blocking finding goes to the later card that covers its file; unfixed there, and one no card covers, both go to the findings card before review', async () => {
   const cards = [card('1'), card('2'), card('3')];
   const r = responder({

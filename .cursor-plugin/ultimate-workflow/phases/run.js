@@ -753,7 +753,15 @@ async function adhocCard(name, title, items, experts) {
     cliCmd('card-add', '--plan', q(PLAN), '--name', name, '--title', q(title), '--paths', q(files.join(',') || '.'), '--carried', q(carriedText.join('; '))),
     cliCmd('pack', '--plan', q(PLAN), '--card', name, '--feature', FEATURE, '--adhoc'),
   ])
-  const card = { name, title, paths: files, carried: [], depends: [], items, experts, briefs: PLAN_BRIEFS, reviewSkills: {}, preflight: packed && packed.ok ? { ok: true, contextFile: packed.contextFile } : { ok: false, reason: `the ${name} card could not be set up: ${(added && added.ok === false && added.reason) || (packed && packed.reason) || 'card-add or pack printed nothing'}` } }
+  // A card that never reached the plan cannot be parked (park looks it up there), and nothing was
+  // built for it, so it is recorded as not started and the run goes on to the harvest.
+  if (!(added && added.ok)) {
+    status[name] = 'not started'
+    const entry = { card: name, title, status: 'not started', reason: `the ${name} card could not be added to the plan: ${(added && added.reason) || 'card-add printed nothing (see its error in the setup agent)'}`, items }
+    report.push(entry)
+    return entry
+  }
+  const card = { name, title, paths: (added.card && Array.isArray(added.card.paths) && added.card.paths) || files, carried: [], depends: [], items, experts, briefs: PLAN_BRIEFS, reviewSkills: {}, preflight: packed && packed.ok ? { ok: true, contextFile: packed.contextFile } : { ok: false, reason: `the ${name} card could not be set up: ${(added && added.ok === false && added.reason) || (packed && packed.reason) || 'card-add or pack printed nothing'}` } }
   return runCard(card, { adhoc: true })
 }
 
@@ -859,7 +867,7 @@ return {
   fixupCard,
   harvest,
   expertLanes: lanes,
-  pendingFindings: findingsCard ? [] : findingsQueue,
+  pendingFindings: findingsCard && findingsCard.status !== 'not started' ? [] : findingsQueue,
   ...(stoppedBecause ? { stopped: stoppedBecause } : {}),
   summary: `${counts.committed || 0} committed, ${counts.parked || 0} parked, ${counts.blocked || 0} blocked${counts['not started'] ? `, ${counts['not started']} not started` : ''}${stoppedBecause ? `; stopped: ${stoppedBecause}` : ''}. Review: ${review.ran ? `${(review.findings || []).length} confirmed` : review.reason || 'not run'}. Harvest: ${harvest.ran ? `${harvest.proposals || 0} proposals${harvest.branch ? ` on ${harvest.branch}` : ''}` : harvest.reason || 'not run'}.`,
 }

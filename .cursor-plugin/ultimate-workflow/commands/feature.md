@@ -1,11 +1,11 @@
 ---
 description: Build a feature or a PRD end to end with the workflow, choosing how much of it the change needs (skip, light or full), running each phase in order and stopping only for the user's two confirmations, a blocking finding or a real failure. Use this for any feature request instead of calling the phases one by one.
-argument-hint: "<what you want built, or a PRD to start from>"
+argument-hint: "<what you want built, or a PRD to start from> | --plan <confirmed plan file> | --resume [<card>]"
 ---
 
 # Feature: the whole workflow in one command
 
-`$ARGUMENTS` is what the user wants. Run the workflow for it from start to finish, and stop only where this file says. Each phase is run by reading its command file under `${CLAUDE_PLUGIN_ROOT}/commands/` and following it exactly, as if the user had typed it. Nothing here replaces a phase's own steps, including its ledger step.
+`$ARGUMENTS` is what the user wants. `--plan <file>` naming a plan whose front matter has `plan_confirmed: true` and `tests_confirmed: true`, or `--resume [<card>]`, is the Full tier's unattended run: on Claude Code go straight to `${CLAUDE_PLUGIN_ROOT}/phases/run.md` and follow it. Otherwise run the workflow for it from start to finish, and stop only where this file says. Each phase is run by reading its command file under `${CLAUDE_PLUGIN_ROOT}/commands/` and following it exactly, as if the user had typed it. Nothing here replaces a phase's own steps, including its ledger step.
 
 ## 1. Choose the tier, and say which
 
@@ -31,7 +31,7 @@ At each stop for the user, follow what `plan.md` and `tests.md` say: the documen
 3. `build.md`.
 4. `experts.md`, the check before a commit.
 
-**Full, with the Workflow tool (Claude Code):** follow `run.md` instead of the list below. It runs the same phases, stops for the same two confirmations, and then builds, checks and commits every card in one unattended run on its own branch, with review and harvest at the end and one report. It is the default for the Full tier because a card-by-card main conversation was 89% of the tokens on a real project. Use the list below only when the user asks to go card by card, or the host has no Workflow tool.
+**Full, with the Workflow tool (Claude Code):** follow `${CLAUDE_PLUGIN_ROOT}/phases/run.md` instead of the list below. It runs the same phases, stops for the same two confirmations, and then builds, checks and commits every card in one unattended run on its own branch, with review and harvest at the end and one report. It is the default for the Full tier because a card-by-card main conversation was 89% of the tokens on a real project. Use the list below only when the user asks to go card by card, or the host has no Workflow tool.
 
 **Full**
 1. `plan.md`. If the work splits into cards, the first card is the harness that needs the running system, when there is one. **Stop for the user's confirmation of the plan.**
@@ -67,6 +67,6 @@ Run `${CLAUDE_PLUGIN_ROOT}/commands/value.md` for this feature's runs, and give 
 - the catches it recorded;
 - any workarounds you needed.
 
-Commit only if the user asks. The experts check has already made the commit possible. The one exception is the Full tier through `run.md`: it commits each card to its own `uw/run/<feature>` branch, never to the user's, and the user merges that branch.
+Commit only if the user asks. The experts check has already made the commit possible. The one exception is the Full tier through `phases/run.md`: it commits each card to its own `uw/run/<feature>` branch, never to the user's, and the user merges that branch.
 
 After the commit has landed, set `phase: done` in the plan's front matter, so the gates stop reading it and the next feature's plan is the active one. Never before the commit: the gates ignore a finished plan, so its commit would skip the experts and full-test checks.

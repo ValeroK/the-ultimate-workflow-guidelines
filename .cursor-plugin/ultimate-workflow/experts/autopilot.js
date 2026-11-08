@@ -1,6 +1,6 @@
 'use strict';
 
-// The autopilot run (4.7.0, PLAN-autopilot.md): everything a card of `/ultimate-workflow:run` needs
+// The autopilot run (4.7.0, PLAN-autopilot.md): everything a card of the unattended run (the Full tier of `/ultimate-workflow:feature`) needs
 // that has to touch files or git, as one command each, so a workflow agent runs one command and no
 // ad-hoc git. A workflow script cannot read a file or run a command; what these print (one JSON line,
 // always with a boolean `ok`, because the agents that run them do not see exit codes) is what the
@@ -599,7 +599,7 @@ function runReport(cwd, { result: resultFile, out = '' }) {
     r.harvest && r.harvest.ran ? (r.harvest.branch ? `${r.harvest.proposals} proposal(s) on \`${r.harvest.branch}\`, one commit per file: ${(r.harvest.commits || []).map((c) => `${c.file} (${c.commit})`).join(', ')}. Merge it to keep them, or delete it.` : `${r.harvest.proposals || 0} proposals${r.harvest.error ? `; not committed: ${r.harvest.error}` : ''}.`) : `Not run: ${(r.harvest && r.harvest.reason) || 'unknown'}.`,
     ...((r.pendingFindings || []).length ? ['', '## Findings not fixed', '', ...r.pendingFindings.map((f) => `- ${f.expert}: ${f.file}:${f.line} ${f.what}`)] : []),
     '',
-    'Parked cards resume with `/ultimate-workflow:run --resume <card>`. Nothing was pushed.',
+    'Parked cards resume with `/ultimate-workflow:feature --resume <card>`. Nothing was pushed.',
     '',
   ];
   const file = path.resolve(cwd, out || path.join(runDir(cwd, r.feature), 'report.md'));

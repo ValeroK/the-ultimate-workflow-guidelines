@@ -1,11 +1,6 @@
----
-description: Plan, confirm, test plan, confirm, then build every card of the plan unattended in one background run - each card tested, implemented, verified, expert-checked and committed to its own branch, or parked with its diagnosis - then review and harvest, and one final report. Nothing stops for the user after the second confirmation.
-argument-hint: "<what you want built> | --resume [<card>] [--plan <plan file>]"
----
-
 # Run: the whole plan, unattended
 
-`$ARGUMENTS` is what the user wants built, or `--resume` to continue an earlier run. The user confirms the plan and the test plan once; after that this command makes **one** Workflow call and presents **one** result. Nothing in between stops for the user, and nothing about the cards is printed into this conversation while they run (progress is in `/workflows`): a long main conversation re-sends its whole context on every turn, which made it 89% of the tokens on a real project.
+This is the Full tier of `/ultimate-workflow:feature` on Claude Code, not a command of its own: `feature.md` sends you here. Its arguments are what the user wants built, `--plan <plan file>` for a plan already confirmed, or `--resume [<card>]` to continue an earlier run. The user confirms the plan and the test plan once; after that this command makes **one** Workflow call and presents **one** result. Nothing in between stops for the user, and nothing about the cards is printed into this conversation while they run (progress is in `/workflows`): a long main conversation re-sends its whole context on every turn, which made it 89% of the tokens on a real project.
 
 ## 0. Before anything
 

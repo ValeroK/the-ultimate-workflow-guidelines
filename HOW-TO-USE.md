@@ -114,7 +114,7 @@ Existing project:         /ultimate-workflow:feature <what you want>           -
 | `/ultimate-workflow:review` | Review the whole change |
 | `/ultimate-workflow:experts` | Experts check before a commit |
 | `/ultimate-workflow:harvest` | Save the lessons from a finished feature |
-| `/ultimate-workflow:run` | The Full tier's unattended build: after your two OKs, every card is built and committed to `uw/run/<feature>` (a card it cannot finish is parked on `uw/parked/...` with why), then review and lessons on `uw/harvest/<feature>`. You merge the branch. `--resume <card>` continues a parked card |
+| `/ultimate-workflow:feature` (Full tier) | Not a separate command: on Claude Code the Full tier of `/feature` is an unattended build. After your two OKs, every card is built and committed to `uw/run/<feature>` (a card it cannot finish is parked on `uw/parked/...` with why), then review and lessons on `uw/harvest/<feature>`. You merge the branch. `/ultimate-workflow:feature --resume <card>` continues a parked card; `--plan <file>` starts from a plan already confirmed |
 | `/ultimate-workflow:value` | What the workflow cost (main conversations included, by step and by model) and what it caught |
 | `/ultimate-workflow:expert-attribution` | Which expert skill a finding came from (rarely needed) |
 | `/handoff` | Ending a session with work in flight: writes a note for the next session |

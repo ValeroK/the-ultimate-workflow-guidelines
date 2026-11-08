@@ -195,9 +195,19 @@ test('the implementer never gains readonly', () => {
 
 const PHASES = ['plan', 'tests', 'build', 'review', 'harvest', 'run'];
 
+// The unattended run has no slash command of its own: the user enters it through
+// /ultimate-workflow:feature, which follows phases/run.md. Every other phase is a command.
+const commandFile = (p) => (p === 'run' ? pjoin('phases', 'run.md') : pjoin('commands', `${p}.md`));
+
+test('the run is reached only through /feature: no commands/run.md, and feature.md points at phases/run.md', () => {
+  assert.equal(fs.existsSync(pjoin('commands', 'run.md')), false, 'commands/run.md would make /run a command again');
+  assert.ok(fs.readFileSync(pjoin('commands', 'feature.md'), 'utf8').includes('${CLAUDE_PLUGIN_ROOT}/phases/run.md'), 'feature.md never sends the Full tier to phases/run.md');
+  assert.match(fs.readFileSync(pjoin('phases', 'run.md'), 'utf8'), /script --phase run/, 'phases/run.md never names its workflow script');
+});
+
 test('every advertised phase has both a command and a script', () => {
   for (const p of PHASES) {
-    assert.ok(fs.existsSync(pjoin('commands', `${p}.md`)), `no command for /${p}`);
+    assert.ok(fs.existsSync(commandFile(p)), `no command for /${p}`);
     assert.ok(fs.existsSync(pjoin('phases', `${p}.js`)), `no script for /${p}`);
   }
 });
@@ -268,7 +278,7 @@ test('no script is left without a command to invoke it', () => {
     .map((f) => f.replace(/\.js$/, ''));
   for (const s of scripts) {
     assert.ok(
-      fs.existsSync(pjoin('commands', `${s}.md`)),
+      fs.existsSync(commandFile(s)),
       `phases/${s}.js has no command, so nothing can reach it`
     );
   }

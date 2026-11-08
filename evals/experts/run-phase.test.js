@@ -1,6 +1,6 @@
 'use strict';
 
-// PLAN-autopilot.md, W1: phases/run.js, the card loop of /ultimate-workflow:run, against a stub agent
+// PLAN-autopilot.md, W1: phases/run.js, the card loop of the Full tier of /ultimate-workflow:feature, against a stub agent
 // function (as the other phase scripts are tested). What it must decide in code: which card is next,
 // when a card is parked and the run goes on, which cards are blocked by a parked one, where a
 // non-blocking expert finding goes, when the findings card and the fix-up card run, and when the run
@@ -188,7 +188,7 @@ test('every command a run agent is given carries the user\'s authority and the o
     return r(c);
   });
   for (const c of calls.filter((x) => /:(prepare|commit|park|journal)$/.test(x.label))) {
-    assert.match(c.prompt, /the user started \/ultimate-workflow:run for PLAN-f\.md/, c.label);
+    assert.match(c.prompt, /the user started \/ultimate-workflow:feature for PLAN-f\.md/, c.label);
   }
   assert.match(calls.find((c) => c.label === '1:commit').prompt, /card-commit --plan "PLAN-f\.md" --card 1 --feature f/);
   assert.match(calls.find((c) => c.label === '1:quality').prompt, /SKILLS for this card \(test-craft\)[\s\S]*TEST CRAFT BODY/);

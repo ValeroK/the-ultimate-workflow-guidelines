@@ -1,12 +1,12 @@
 # Autopilot run: recorded end-to-end runs
 
-`/ultimate-workflow:run` (PLAN-autopilot.md) run for real, headless, in scratch repositories, with `experts.js usage` read afterwards from each repository's own transcript folder so that a run's numbers are its own session only.
+The unattended run (PLAN-autopilot.md) run for real, headless, in scratch repositories, with `experts.js usage` read afterwards from each repository's own transcript folder so that a run's numbers are its own session only.
 
 ## 2026-11-07: one card against four cards
 
 File: `results/2026-11-07-e2e.json`; the reports, journals, plans and git logs of both runs are under `results/2026-11-07-e2e/`.
 
-Setup: Claude Code 2.1.318 on Windows, `claude -p "/ultimate-workflow:run --plan PLAN-calc.md"`, session on Sonnet, the plugin from `feat/autopilot` through `--plugin-dir`, `--permission-mode acceptEdits --allowedTools Bash Workflow Read Write Edit`, `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0`. Both plans were already confirmed (plan and tests), with `experts: [quality]`. The four-card plan is a small calculator: `add`, `sub`, `parse` (depends on both), `format` (depends on `parse`); the one-card plan is `add` alone.
+Setup: Claude Code 2.1.318 on Windows, `claude -p "/ultimate-workflow:run --plan PLAN-calc.md"` (recorded when the run was its own command; it is now the Full tier of `/ultimate-workflow:feature`, and the same plan runs with `/ultimate-workflow:feature --plan PLAN-calc.md`), session on Sonnet, the plugin from `feat/autopilot` through `--plugin-dir`, `--permission-mode acceptEdits --allowedTools Bash Workflow Read Write Edit`, `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0`. Both plans were already confirmed (plan and tests), with `experts: [quality]`. The four-card plan is a small calculator: `add`, `sub`, `parse` (depends on both), `format` (depends on `parse`); the one-card plan is `add` alone.
 
 | | 1 card | 4 cards |
 |---|---|---|

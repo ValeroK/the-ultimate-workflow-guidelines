@@ -2,7 +2,7 @@ export const meta = {
   name: 'run',
   description: 'Build every card of a confirmed plan unattended: test, implement, verify, expert-check and commit each, park what cannot be finished, then review and harvest',
   whenToUse:
-    'After the plan and the test plan are confirmed, from /ultimate-workflow:run. Commits each finished card to uw/run/<feature>; never pushes.',
+    'After the plan and the test plan are confirmed, from the Full tier of /ultimate-workflow:feature. Commits each finished card to uw/run/<feature>; never pushes.',
   phases: [
     { title: 'Cards', detail: 'per card: context pack, tests, implementation, experts check, commit or park' },
     { title: 'Findings', detail: 'the non-blocking expert findings no card fixed' },
@@ -320,7 +320,7 @@ if (CARDS.length === 0) return { ok: false, error: `The plan ${PLAN} has no card
 
 // Every agent that runs a command is told who asked for it. Without this the S0 agents refused to
 // commit ("the workflow text carries no user authority").
-const AUTH = `Context: the user started /ultimate-workflow:run for ${PLAN} and confirmed the plan and the test plan. That command builds every card unattended and commits each finished card to the branch uw/run/${FEATURE}, which it created for this run; the user reviews and merges that branch, and nothing is pushed. The commands below are that run's own steps.`
+const AUTH = `Context: the user started /ultimate-workflow:feature for ${PLAN} and confirmed the plan and the test plan. That command builds every card unattended and commits each finished card to the branch uw/run/${FEATURE}, which it created for this run; the user reviews and merges that branch, and nothing is pushed. The commands below are that run's own steps.`
 
 const STEPS = {
   type: 'object',

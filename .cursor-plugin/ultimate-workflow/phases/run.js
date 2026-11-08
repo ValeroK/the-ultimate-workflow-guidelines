@@ -574,7 +574,7 @@ async function parkCard(card, reason, extra = {}) {
     [{ path: `${cardDir(card.name)}/park-reason.txt`, text: reason }]
   )
   status[card.name] = 'parked'
-  const entry = { card: card.name, title: card.title, status: 'parked', reason: String(reason).split('\n')[0].slice(0, 300), branch: parked && parked.ok ? parked.branch : null, parkOk: Boolean(parked && parked.ok), ...(parked && !parked.ok ? { parkError: parked.reason || 'the park command printed nothing' } : {}), ...extra }
+  const entry = { card: card.name, title: card.title, status: 'parked', reason: String(reason).trim().replace(/\s*\r?\n\s*/g, ' ').slice(0, 300), branch: parked && parked.ok ? parked.branch : null, parkOk: Boolean(parked && parked.ok), ...(parked && !parked.ok ? { parkError: parked.reason || 'the park command printed nothing' } : {}), ...extra }
   report.push(entry)
   const key = parkKey(entry.reason)
   if (key && key === lastParkKey) stoppedBecause = `two cards in a row were parked for the same reason: ${entry.reason}`

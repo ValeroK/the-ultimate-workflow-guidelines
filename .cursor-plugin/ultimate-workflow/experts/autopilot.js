@@ -523,6 +523,13 @@ function harvestBranch(cwd, { feature, from }) {
   const raw = JSON.parse(fs.readFileSync(path.resolve(cwd, from), 'utf8').replace(/^﻿/, ''));
   const proposals = (Array.isArray(raw) ? raw : raw.proposals || []).filter((p) => p && typeof p.path === 'string' && typeof p.text === 'string' && p.text.trim());
   if (proposals.length === 0) return { ok: true, branch: null, commits: [], note: 'no proposals, so no branch' };
+  // A harvester may name a file by its absolute path; one inside the project is taken as relative to it.
+  const root = path.resolve(cwd);
+  for (const p of proposals) {
+    if (!path.isAbsolute(p.path)) continue;
+    const rel = path.relative(root, path.resolve(p.path));
+    if (rel && !path.isAbsolute(rel) && !fwd(rel).split('/').includes('..')) p.path = fwd(rel);
+  }
   const bad = proposals.find((p) => path.isAbsolute(p.path) || /^[A-Za-z]:/.test(p.path) || fwd(p.path).split('/').includes('..') || /(^|\/)\.git(\/|$)/.test(fwd(p.path)));
   if (bad) throw new Error(`proposal path "${bad.path}" must be relative to the project and stay inside it`);
   if (git(cwd, ['rev-parse', '--verify', '-q', `refs/heads/${branch}`], { allowFail: true }).status === 0) {

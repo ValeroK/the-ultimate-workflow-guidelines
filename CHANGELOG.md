@@ -35,6 +35,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **An abandoned or re-run plan run is recorded** in the ledger with `abandoned: true`, so its tokens are not missing; the report counts them apart.
 - Later cards are held to an expert that an earlier card's recheck added. `record --plan` writes it into the plan's experts line, so the commit gate asks for it from then on; the cards after it started from the list fixed when the script was built, and G6 refused them. A card that names its own experts keeps them. Found in the four-card end-to-end run.
 - A test file a build reported by its absolute path is no longer listed as "claimed but not in the diff".
+- The harvest lands when the harvester names a file by its absolute path. `harvest-branch` refused every such proposal, so a real run's lessons never reached `uw/harvest/<feature>`; a path inside the project is now taken as relative to it, and one outside it is still refused.
+- A card parked on a blocking finding says which finding. The report kept only the reason's first line, "blocking finding from the experts check:", and dropped the findings under it.
 - `.ultimate-workflow/` is added to the project's `.gitignore` on the first run, so git-based secret scanners skip the run's own files (the scanner that flagged them is the project's, not this plugin's).
 
 ## [4.6.2] - 2026-11-07

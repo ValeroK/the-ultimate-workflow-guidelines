@@ -137,6 +137,9 @@ test('a high-confidence expert finding parks the card; the next card still runs'
   const { result } = await run(baseArgs([card('1'), card('2')]), r);
   assert.equal(result.cards[0].status, 'parked');
   assert.match(result.cards[0].reason, /blocking finding/);
+  // 2026-11-08: the reason was cut at its first line, so the report said only "blocking finding from the experts check:".
+  assert.match(result.cards[0].reason, /src\/1\/x\.js:9 secret logged/, 'the report row names the finding, not just its heading');
+  assert.doesNotMatch(result.cards[0].reason, /\n/, 'one line, for the report table');
   assert.ok(!r.seen.includes('1:commit'));
   assert.equal(result.cards[1].status, 'committed');
 });

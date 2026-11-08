@@ -429,6 +429,21 @@ test('harvest-branch commits each destination file once on uw/harvest/<feature>,
   assert.equal(json(cli(dir, 'harvest-branch', '--feature', 'other', '--from', 'bad.json')).ok, false);
 });
 
+// 2026-11-08, a real run: the harvester named its files by absolute path, and harvest-branch refused
+// every proposal, so the lessons never reached the branch.
+test('harvest-branch takes an absolute path inside the project as relative, and still refuses one outside it', () => {
+  const dir = repo();
+  write(dir, 'in.json', JSON.stringify([{ destination: 'gotcha', path: path.join(dir, 'CLAUDE.md'), text: '- Test each guard.' }]));
+  const r = json(cli(dir, 'harvest-branch', '--feature', 'abs', '--from', 'in.json'));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.deepStrictEqual(r.commits.map((c) => c.file), ['CLAUDE.md']);
+  assert.match(git(dir, 'show', 'uw/harvest/abs:CLAUDE.md'), /- Test each guard\./);
+  write(dir, 'out.json', JSON.stringify([{ destination: 'gotcha', path: path.join(path.dirname(dir), 'elsewhere.md'), text: 'x' }]));
+  const out = json(cli(dir, 'harvest-branch', '--feature', 'out', '--from', 'out.json'));
+  assert.equal(out.ok, false);
+  assert.match(out.reason, /must be relative to the project/);
+});
+
 // --- script --phase run (W1) -------------------------------------------------------------------
 
 test('script --phase run writes in every card with its preflight, briefs and skills by name, the base and the commands', () => {

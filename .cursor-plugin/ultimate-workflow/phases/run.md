@@ -10,6 +10,8 @@ This is the Full tier of `/ultimate-workflow:feature` on Claude Code, not a comm
 
 ## 1. Plan and test plan (the two stops)
 
+Both are the user's, and the run cannot start without them: `run-start` refuses, before it creates anything, unless the plan's front matter has `plan_confirmed: true` and `tests_confirmed: true` and its `confirmed_hash` (written by `present --confirm tests_confirmed` when the user confirms the test plan) still matches the plan. A plan changed after that, or confirmed by hand with no hash, is refused with the reason; show the user the plan and confirm again. The run's own writes (card status lines, the findings and fix-up cards, `## Run status`) do not count as a change.
+
 **A plan that is already confirmed** (`--plan <file>` names it, its front matter has `plan_confirmed: true` and `tests_confirmed: true`, and it has a `## Cards` section and a Tests subsection per card): both stops already happened; say so in one line and go to section 2. Do not review the plan or the code yourself first, and do not stop for what you expect the run to find: the user confirmed this plan, and judging the code is the run's experts' job. A card that cannot be finished is parked with its diagnosis and the others go on, which is the answer the user gets, in the report. A question here is a third stop the user did not agree to.
 
 Otherwise, unless resuming, follow `${CLAUDE_PLUGIN_ROOT}/commands/plan.md` exactly, with experts, and stop for the user's confirmation. The feature name is the plan file's name without `PLAN-` and `.md` (`PLAN-ledger-fixes.md` is `ledger-fixes`); it names the branches, so it is letters, digits, dot, dash and underscore.

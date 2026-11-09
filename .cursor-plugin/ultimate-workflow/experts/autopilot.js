@@ -704,6 +704,10 @@ function runReport(cwd, { result: resultFile, out = '' }) {
 function runStart(cwd, { plan, feature, resume = null, implementerModel = '', diagnoserModel = '' }) {
   if (!plan) throw new Error('run-start needs --plan');
   checkFeature(feature);
+  // The user's two confirmations gate the Workflow call: nothing is branched, built or written
+  // until both are recorded and the plan is the one the user confirmed (2026-11-09).
+  const confirmation = require('./experts.js').checkConfirmed(fs.readFileSync(path.resolve(cwd, plan), 'utf8'));
+  if (!confirmation.ok) return { ok: false, needs: 'confirmation', missing: confirmation.missing, reason: confirmation.reason };
   let branch;
   const name = `uw/run/${feature}`;
   if (resume && git(cwd, ['rev-parse', '--abbrev-ref', 'HEAD']).stdout.trim() !== name) {

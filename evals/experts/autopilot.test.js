@@ -19,6 +19,9 @@ const PLUGIN = path.join(__dirname, '..', '..', '.cursor-plugin', 'ultimate-work
 const CLI = path.join(PLUGIN, 'experts', 'experts.js');
 const VERIFY = path.join(PLUGIN, 'hooks', 'verify.js');
 const cards = require(path.join(PLUGIN, 'experts', 'cards.js'));
+const expertsLib = require(path.join(PLUGIN, 'experts', 'experts.js'));
+// A plan with both confirmations gets the hash `present --confirm tests_confirmed` would write.
+const confirmed = (text) => (/tests_confirmed: true/.test(text) ? expertsLib.setFrontLine(text, 'confirmed_hash', expertsLib.confirmHash(text)) : text);
 const autopilot = require(path.join(PLUGIN, 'experts', 'autopilot.js'));
 
 const made = [];
@@ -106,7 +109,7 @@ function repo({ plan = PLAN } = {}) {
   write(dir, 'src/add.js', 'module.exports = (a, b) => a + b;\n');
   write(dir, 'test/add.test.js', "const test = require('node:test'); const assert = require('node:assert');\ntest('add', () => assert.strictEqual(require('../src/add.js')(1, 2), 3));\n");
   write(dir, 'docs/design.md', '# Design of the calculator\n\nbody\n');
-  write(dir, 'PLAN-calc.md', plan);
+  write(dir, 'PLAN-calc.md', confirmed(plan));
   git(dir, 'add', '-A');
   git(dir, 'commit', '-q', '-m', 'init');
   return dir;
@@ -172,6 +175,45 @@ test('park keeps the whole reason in the plan, on one line, when it is a heading
   const c = cards.findCard(read(dir, 'PLAN-calc.md'), '1');
   assert.match(c.status, /so no fix round: - quality: src\/prices\.js:4 an unknown item is priced at 0$/);
   assert.match(c.parked.reason, /src\/prices\.js:4 an unknown item is priced at 0/);
+});
+
+// The user's two confirmations gate the run (2026-11-09): run-start refuses, and creates nothing,
+// unless both are recorded and the plan is the one confirmed. The run's own writes do not count.
+test('run-start refuses without the plan confirmation, without the test plan confirmation, or with the plan changed since', () => {
+  const noPlan = repo({ plan: PLAN.replace('plan_confirmed: true', 'plan_confirmed: false') });
+  const a = json(cli(noPlan, 'run-start', '--plan', 'PLAN-calc.md', '--feature', 'calc'));
+  assert.equal(a.ok, false);
+  assert.equal(a.missing, 'plan');
+  assert.match(a.reason, /the plan is not confirmed/);
+  assert.equal(git(noPlan, 'branch', '--list', 'uw/run/calc'), '', 'no run branch was created');
+
+  const noTests = repo({ plan: PLAN.replace('tests_confirmed: true', 'tests_confirmed: false') });
+  const b = json(cli(noTests, 'run-start', '--plan', 'PLAN-calc.md', '--feature', 'calc'));
+  assert.equal(b.missing, 'tests');
+  assert.match(b.reason, /the test plan is not confirmed/);
+
+  const hand = tmp();
+  for (const [k, v] of [['init', ['-q', '-b', 'main']], ['config', ['user.email', 't@localhost']], ['config', ['user.name', 't']]]) git(hand, k, ...v);
+  write(hand, 'PLAN-calc.md', PLAN);
+  git(hand, 'add', '-A');
+  git(hand, 'commit', '-q', '-m', 'init');
+  const c = json(cli(hand, 'run-start', '--plan', 'PLAN-calc.md', '--feature', 'calc'));
+  assert.equal(c.missing, 'hash', 'flags set by hand, with no confirmed_hash, are not proof');
+
+  const dir = repo();
+  write(dir, 'PLAN-calc.md', read(dir, 'PLAN-calc.md').replace('- integers only', '- integers and floats'));
+  const d = json(cli(dir, 'run-start', '--plan', 'PLAN-calc.md', '--feature', 'calc'));
+  assert.equal(d.missing, 'unchanged');
+  assert.match(d.reason, /the plan changed after the user confirmed it/);
+  assert.equal(git(dir, 'branch', '--list', 'uw/run/calc'), '');
+});
+
+test('the run\'s own writes to the plan do not count as a change to what the user confirmed', () => {
+  const dir = repo();
+  json(cli(dir, 'card-status', '--plan', 'PLAN-calc.md', '--card', '1', '--status', 'running'));
+  json(cli(dir, 'card-add', '--plan', 'PLAN-calc.md', '--name', 'findings', '--title', 'x', '--paths', 'src/add.js', '--carried', 'a finding'));
+  const r = json(cli(dir, 'run-start', '--plan', 'PLAN-calc.md', '--feature', 'calc'));
+  assert.equal(r.ok, true, JSON.stringify(r));
 });
 
 test('run-start marks every open card pending and reports a card a run died inside', () => {
@@ -255,10 +297,10 @@ test('pack lists the shared plan sections, the card, its tests, cited docs, the 
   const text = read(dir, r.contextFile);
   const listed = text.split('\n').filter((l) => l.startsWith('- ')).map((l) => l.replace(/:.*$/, ''));
   assert.deepStrictEqual(listed, [
-    '- PLAN-calc.md lines 11-14',
-    '- PLAN-calc.md lines 15-18',
-    '- PLAN-calc.md lines 19-28',
-    '- PLAN-calc.md lines 35-38',
+    '- PLAN-calc.md lines 12-15',
+    '- PLAN-calc.md lines 16-19',
+    '- PLAN-calc.md lines 20-29',
+    '- PLAN-calc.md lines 36-39',
     '- docs/design.md',
     '- AGENTS.md',
     '- .ultimate-workflow/run/calc/cards/1/handoff.md (if present)',

@@ -484,12 +484,77 @@ function looksEscaped(text) {
   return /&(?:amp|lt|gt|quot|#39);/.test(text) && !/[<>]/.test(text) && !/&(?!amp;|lt;|gt;|quot;|#39;)/.test(text);
 }
 
+/**
+ * The plan as the user confirmed it, hashed: everything but the front matter (the gates' own state),
+ * the run's state lines on the cards (status, committed, parked, carried, decision), the cards the
+ * run adds itself (findings, fixup) and the `## Run status` block. A change to anything else after
+ * the test plan was confirmed is a plan the user has not seen (2026-11-09).
+ */
+const RUN_FIELD = /^[ \t]+(status|committed|parked|carried|decision):/i;
+function confirmHash(text) {
+  const fm = frontmatter(text);
+  const body = (fm ? fm.after : String(text)).replace(/^﻿/, '');
+  const lines = body.split(/\r?\n/);
+  const kept = [];
+  let section = '';
+  let dropCard = false;
+  let inRunStatus = false;
+  for (const l of lines) {
+    const h = /^(#{1,6})\s+(.*?)\s*#*\s*$/.exec(l);
+    if (h) {
+      section = h[2].toLowerCase();
+      inRunStatus = h[1].length <= 2 && section === 'run status';
+      dropCard = false;
+      if (inRunStatus) continue;
+    }
+    if (inRunStatus) continue;
+    if (section === 'cards') {
+      const item = /^[-*]\s+([A-Za-z0-9][A-Za-z0-9._-]*):/.exec(l);
+      if (item) dropCard = /^(findings|fixup)$/i.test(item[1]);
+      else if (l.trim() !== '' && !/^[ \t]/.test(l)) dropCard = false;
+      if (dropCard) continue;
+      if (RUN_FIELD.test(l)) continue;
+    }
+    kept.push(l.replace(/\s+$/, ''));
+  }
+  // Blank lines are not content: a card the run adds or removes moves them around.
+  const norm = kept.filter((l) => l.trim() !== '').join('\n');
+  return require('node:crypto').createHash('sha256').update(norm).digest('hex').slice(0, 16);
+}
+
+/** Set (or add) one front matter line, keeping the file's line endings. */
+function setFrontLine(text, key, value) {
+  const fm = frontmatter(text);
+  if (!fm) throw new Error('the document has no front matter');
+  const line = new RegExp(`^${key}[ \\t]*:.*$`, 'm');
+  const eol = fm.block.includes('\r\n') ? '\r\n' : '\n';
+  const block = line.test(fm.block) ? fm.block.replace(line, `${key}: ${value}`) : `${fm.block.replace(/(\r?\n)?$/, '')}${eol}${key}: ${value}${/\r?\n$/.test(fm.block) ? eol : ''}`;
+  return fm.bom + fm.open + block + fm.after;
+}
+
+/**
+ * Whether the run may start from this plan: both confirmations, and the plan unchanged since the
+ * test plan was confirmed (its `confirmed_hash`). The reason names what the user has to do.
+ */
+function checkConfirmed(text) {
+  const data = stateLib.parseFrontMatter(text).data || {};
+  if (data.plan_confirmed !== true) return { ok: false, missing: 'plan', reason: 'the plan is not confirmed (plan_confirmed is not true): the user confirms the plan first' };
+  if (data.tests_confirmed !== true) return { ok: false, missing: 'tests', reason: 'the test plan is not confirmed (tests_confirmed is not true): the user confirms the Tests section next' };
+  const want = String(data.confirmed_hash || '').trim();
+  if (!want) return { ok: false, missing: 'hash', reason: 'the plan has no confirmed_hash: it was confirmed by hand, not through experts.js present --confirm tests_confirmed, so nothing shows it is the plan the user saw. Show the user the plan and confirm it again' };
+  const have = confirmHash(text);
+  if (have !== want) return { ok: false, missing: 'unchanged', reason: `the plan changed after the user confirmed it (confirmed_hash ${want}, now ${have}): show the user what changed and confirm again` };
+  return { ok: true, hash: have };
+}
+
 /** Turn the plan's `plan_confirmed: false` into true. Throws when the front matter has no such key. */
 function setConfirmed(text, key) {
   const fm = frontmatter(text);
   const line = new RegExp(`^${key}[ \\t]*:[ \\t]*(true|false)[ \\t]*$`, 'm');
   if (!fm || !line.test(fm.block)) throw new Error(`the document has no \`${key}:\` line in its front matter to confirm`);
-  return fm.bom + fm.open + fm.block.replace(line, `${key}: true`) + fm.after;
+  const next = fm.bom + fm.open + fm.block.replace(line, `${key}: true`) + fm.after;
+  // The test plan is the second and last confirmation: what the user saw then is what the run builds.
+  return key === 'tests_confirmed' ? setFrontLine(next, 'confirmed_hash', confirmHash(next)) : next;
 }
 
 /**
@@ -1599,6 +1664,9 @@ function main(argv) {
 }
 
 module.exports = {
+  confirmHash,
+  checkConfirmed,
+  setFrontLine,
   STAGES,
   BUILD,
   DECLARABLE,

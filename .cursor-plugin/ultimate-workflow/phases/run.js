@@ -584,7 +584,8 @@ async function parkCard(card, reasonIn, extra = {}) {
   // to a plain park that hides the decision (2026-11-09, a live --resume without --accept).
   const rerunFailed = RESUME && RESUME.rerun && RESUME.card === card.name && extra.needsDecision !== true
   const needsDecision = extra.needsDecision === true || rerunFailed
-  const reason = rerunFailed ? `needs a decision the plan does not state: the card was run again within the plan and could not be finished without it.\n- held for: ${RESUME.avoid}\n- within the plan: ${String(reasonIn).replace(/\s*\r?\n\s*/g, ' ').slice(0, 600)}` : reasonIn
+  const avoided = String(RESUME && RESUME.avoid || '').replace(/^needs a decision the plan does not state:\s*/i, '').replace(/\s*\r?\n\s*/g, ' ').trim()
+  const reason = rerunFailed ? `cannot be done within the plan: needs decision ${avoided}; run --resume ${card.name} --accept to allow it, or change the plan.\n- detail, from the run within the plan: ${String(reasonIn).replace(/\s*\r?\n\s*/g, ' ').slice(0, 600)}` : reasonIn
   const reasonFile = `${cardDir(card.name)}/park-reason.txt`
   // The user hears about it now, from the same step: the notice names the card, why and what to run.
   const [parked] = await runSteps(

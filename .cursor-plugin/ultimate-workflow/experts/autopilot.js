@@ -653,7 +653,12 @@ function park(cwd, { plan, card: name, feature, reasonFile = '', reason = '', ne
   setStatus(cwd, plan, card.name, `${needsDecision ? 'needs-decision' : 'parked'} ${branch}; ${short}`);
   // The decision in full (up to 1000 characters): --accept copies it into the plan's Decisions, and a
   // line cut at 240 accepted half a sentence (2026-11-09, a real run).
-  if (needsDecision) writePlanField(cwd, plan, card.name, 'decision', why.replace(/\s*\r?\n\s*/g, ' ').replace(/^needs a decision the plan does not state:\s*/i, '').slice(0, 1000));
+  if (needsDecision) {
+    // The decision itself, which --accept copies into the plan: never the instructions around it.
+    const flat = why.replace(/\s*\r?\n\s*/g, ' ');
+    const within = /^cannot be done within the plan: needs decision (.*?); run --resume \S+ --accept to allow it, or change the plan\./i.exec(flat);
+    writePlanField(cwd, plan, card.name, 'decision', (within ? within[1] : flat.replace(/^needs a decision the plan does not state:\s*/i, '')).slice(0, 1000));
+  }
   markClean(cwd, plan);
   // The run branch gets the plan's new state as its own commit, so the plan there matches git.
   const planCommit = commitPlan(cwd, plan, `plan: card ${card.name} ${needsDecision ? 'needs a decision' : 'parked'}, work on ${branch}`);

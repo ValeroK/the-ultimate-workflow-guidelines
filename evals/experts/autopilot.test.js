@@ -276,6 +276,17 @@ test('after --accept, the card\'s re-declared decision is covered, but a new unp
   assert.ok(other.major.some((d) => d.kind === 'declared'), 'another card is not covered by card 1\'s acceptance');
 });
 
+test('park keeps only the decision from a "cannot be done within the plan" reason, so --accept records the decision, not the instructions', () => {
+  const dir = repo();
+  json(cli(dir, 'run-branch', '--feature', 'calc'));
+  write(dir, 'src/add.js', 'module.exports = 0;\n');
+  write(dir, 'why.txt', 'cannot be done within the plan: needs decision - env: reads PORT; run --resume 1 --accept to allow it, or change the plan.\n- detail, from the run within the plan: tests did not fail first\n');
+  json(cli(dir, 'park', '--plan', 'PLAN-calc.md', '--card', '1', '--feature', 'calc', '--reason-file', 'why.txt', '--needs-decision'));
+  const c = cards.findCard(read(dir, 'PLAN-calc.md'), '1');
+  assert.equal(c.decision, '- env: reads PORT');
+  assert.match(c.status, /^needs-decision uw\/parked\/calc\/1; cannot be done within the plan: needs decision - env: reads PORT, run --resume 1 --accept/);
+});
+
 test('park --needs-decision keeps the whole decision, not the 240-character status cut', () => {
   const dir = repo();
   json(cli(dir, 'run-branch', '--feature', 'calc'));

@@ -308,7 +308,8 @@ test('a held card run again that cannot go green within the plan goes back to ne
   const { result } = await run(baseArgs([card('1'), card('2', { depends: ['1'] })], { resume: { card: '1', rerun: true, reason: 'stay within the plan', avoid: '- env: reads PORT', heldBranch: 'uw/parked/f/1' } }), r);
   const one = result.cards.find((c) => c.card === '1');
   assert.equal(one.status, 'needs-decision');
-  assert.match(one.reason, /could not be finished without it\. - held for: - env: reads PORT - within the plan: not green/);
+  // Said plainly, with the way out, and the cause kept as a detail.
+  assert.match(one.reason, /^cannot be done within the plan: needs decision - env: reads PORT; run --resume 1 --accept to allow it, or change the plan\. - detail, from the run within the plan: not green/);
   assert.match(calls.find((c) => c.label === '1:park').prompt, /park [^\n]*--needs-decision/);
   assert.match(calls.find((c) => c.label === '1:park').prompt, /notify [^\n]*--kind needs-decision/);
   assert.ok(!base.seen.includes('1:commit'));

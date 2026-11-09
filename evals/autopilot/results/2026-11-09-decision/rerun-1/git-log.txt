@@ -1,0 +1,10 @@
+89351b5 plan: run status for svc
+3355191 harvest: gotcha -> CLAUDE.md
+5bcc1c0 parked: card server (the listening number)
+3c17cf5 plan: card server parked, work on uw/parked/svc/server
+e79cbed plan: run status for svc
+bd33c45 card fixup: confirmed review findings
+11c47e1 card greet: a greeting
+b9ae9dc plan: card server needs a decision, work on uw/parked/svc/server
+8a2176a uw: ignore .ultimate-workflow/ (the run's own state)
+635340f init

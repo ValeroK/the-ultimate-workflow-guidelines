@@ -365,7 +365,7 @@ function commitPlan(cwd, plan, message) {
  * phone over Remote Control, which only the main session's PushNotification at the end does.
  * `ULTIMATE_WORKFLOW_NOTIFY=off` keeps the file and skips the desktop notification.
  */
-const NOTIFY_KINDS = ['parked', 'needs-decision', 'blocked', 'stopped', 'finished'];
+const NOTIFY_KINDS = ['parked', 'needs-decision', 'blocked', 'stopped', 'resumed', 'finished'];
 function notify(cwd, { feature, kind, card = '', reason = '', reasonFile = '', action = '' }) {
   checkFeature(feature);
   if (!NOTIFY_KINDS.includes(kind)) throw new Error(`notify --kind is one of ${NOTIFY_KINDS.join(', ')}`);
@@ -950,6 +950,7 @@ function runStart(cwd, { plan, feature, resume = null, implementerModel = '', di
   // A card left at `running` is one a run died inside: --resume runs it again, and says so.
   const planCards = cardsLib.parseCards(fs.readFileSync(path.resolve(cwd, plan), 'utf8'));
   const interrupted = planCards.filter((c) => /^running\b/.test(c.status || '')).map((c) => c.name);
+  let resumeNotice = null;
   if (resume && resume.card) {
     const held = planCards.find((c) => c.name.toLowerCase() === String(resume.card).toLowerCase());
     if (held && held.decision && !resume.accept) {
@@ -968,6 +969,9 @@ function runStart(cwd, { plan, feature, resume = null, implementerModel = '', di
       const back = unpark(cwd, { plan, card: resume.card, feature });
       resume = { card: resume.card, reason: resume.reason, testFiles: back.testFiles, ...(held && held.decision ? { accepted: held.decision } : {}) };
     }
+    // The resume is a notice too: which card, and how it goes on.
+    const how = resume.rerun ? `run again from its tests within the plan; the held work on ${resume.heldBranch} is superseded` : resume.accepted ? 'continues with the accepted decision in the plan' : 'continues from its parked work';
+    resumeNotice = notify(cwd, { feature, kind: 'resumed', card: resume.card, reason: `${resume.card} ${how}`, action: `wait for the run to finish; its report is .ultimate-workflow/run/${feature}/report.md` }).desktop;
   }
   for (const c of planCards) {
     if (c.committed || c.parked || c.status) continue;
@@ -1014,7 +1018,7 @@ function runStart(cwd, { plan, feature, resume = null, implementerModel = '', di
   const s = require('./experts.js').stageScript(pluginRoot, cwd, 'run', { argsFile });
   const embedded = JSON.parse(/^const EMBEDDED_ARGS = (.*)$/m.exec(fs.readFileSync(s.scriptPath, 'utf8'))[1]);
   const failed = embedded.cards.filter((c) => c.preflight && c.preflight.ok === false).map((c) => ({ card: c.name, reason: c.preflight.reason }));
-  return { ok: true, branch: branch.branch, created: branch.created, ...(ignoreCommit ? { ignoreCommit } : {}), baseline, scriptPath: s.scriptPath, cards: embedded.cards.map((c) => c.name), preflightFailed: failed, ...(interrupted.length ? { interrupted } : {}) };
+  return { ok: true, branch: branch.branch, created: branch.created, ...(ignoreCommit ? { ignoreCommit } : {}), baseline, scriptPath: s.scriptPath, cards: embedded.cards.map((c) => c.name), preflightFailed: failed, ...(interrupted.length ? { interrupted } : {}), ...(resumeNotice ? { resumeNotice } : {}) };
 }
 
 /**

@@ -38,7 +38,7 @@ const git = (cwd, ...a) => {
   if (r.status !== 0) throw new Error(`git ${a.join(' ')}: ${r.stderr}`);
   return r.stdout.trim();
 };
-const env = { ...process.env, ULTIMATE_WORKFLOW_GATES: '' };
+const env = { ...process.env, ULTIMATE_WORKFLOW_GATES: '', ULTIMATE_WORKFLOW_NOTIFY: 'off' };
 // A child `node --test` (the test_command verify.js runs) reports to this runner when it inherits this.
 delete env.NODE_TEST_CONTEXT;
 const cli = (cwd, ...a) => spawnSync(process.execPath, [CLI, ...a], { cwd, encoding: 'utf8', env });
@@ -332,6 +332,8 @@ test('--resume <card> without --accept runs a held card again without its work, 
   assert.equal(again.ok, true, JSON.stringify(again));
   assert.equal(read(dir, 'src/add.js'), 'module.exports = (a, b) => a + b;\n', 'a second call is the same rerun, not an accept');
   assert.equal(JSON.parse(read(dir, '.ultimate-workflow/run/run.args.json')).resume.rerun, true);
+  const notices = read(dir, '.ultimate-workflow/run/calc/notifications.jsonl').trim().split('\n').map((l) => JSON.parse(l));
+  assert.ok(notices.some((n) => n.kind === 'resumed' && n.card === '1' && /run again from its tests within the plan/.test(n.reason)), 'the resume is notified');
 });
 
 test('card-commit clears a held card\'s decision once it is done within the plan', () => {

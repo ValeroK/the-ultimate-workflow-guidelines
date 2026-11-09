@@ -76,6 +76,17 @@ Scenario `svc` (`results/2026-11-09-decision/`): three cards, `server` (its Test
 | `accept-1/`: `--resume server --accept` | the decision went into the plan's Decisions and the held work came back, but the resumed card declared the accepted decision again and was held a second time. Also the accepted line was the decision cut at 240 characters. Both fixed with tests (16641c9). Every notice recorded `desktop: sent` | 281k, 18, 3.4 min |
 | `accept-2/`: `--resume server --accept` again | `server` committed, `banner` unblocked and committed through a fix round, plan: 3 committed, 1 fixed-in-round. The harvest was not committed because `uw/harvest/svc` from the first run still existed (by design: merge or delete it first) | 549k, 30, 3.7 min |
 
+### `--resume <card>` without `--accept`
+
+| Step | What happened | Tokens, agents, time |
+|---|---|---|
+| attempt 0, `svc` from the held state | stopped before its run, rightly: the Run status block names the run's report, which the pack read as a cited document (missing, so `banner` would have parked); and `run-start` had cleared the held decision, so a second call would have taken the accept path and brought the unaccepted `PORT` work back. Both fixed with tests (26a546c), and a resume pack now rebuilds `parked.md` from the parked commit | none |
+| `rerun-1/`, `svc` | `server` ran again within the plan, could not go green (the plan's Tests need an environment variable, so it cannot be done without the decision), and was parked "not green" with its decision hidden. Fixed with a test (3778bdd): a held card that cannot be done within the plan goes back to `needs-decision` | 296k, 17, 3.7 min |
+| `rerun-2-edge/`, `svc` | the edge case, live: told not to read `PORT`, the test writer could not write a test for "configured through the environment", and the card went back to `needs-decision` with the decision and why ("tests did not fail first"), notified, not committed, no loop; `banner` blocked again, `greet` untouched | 157k, 11, 1.5 min |
+| `rerun-variant/`, a variant whose `server` can be done within the plan (`listenOn(3000)` is `3000`) | the held state was made by writing a change that reads `PORT` and running the real `decisions` detector and `park --needs-decision` on it; then `--resume server` live: `server` re-ran from its tests and committed with no environment read (`server.js.txt`: `listenOn(port = 8080)`), the plan has `committed 340f785adf5e`, no `decision:` line and nothing about `PORT` in Decisions, the report says the held work on `uw/parked/svc/server` is superseded and kept for reference (the branch is kept); `greet` and `banner` committed, 5 of 5 tests, `main` untouched | 805k, 45, 9.9 min |
+
+The `resumed` notice (added after these runs) was fired live by `run-start --resume-card server` on a copy of the held `svc` repository: `desktop: sent`.
+
 Notices reach the user at the desktop app or a terminal on the session's machine (a Windows toast here; `desktop: sent` is the toast call's exit status, not proof anyone saw it). Nothing inside a running workflow reaches a phone over Remote Control; the main session's PushNotification after `run-finish` does, and in these headless runs Remote Control was not connected, so it went nowhere.
 
 Not covered: Remote Control, larger plans, other models.

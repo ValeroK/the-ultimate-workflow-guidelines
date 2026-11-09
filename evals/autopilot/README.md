@@ -29,4 +29,20 @@ What else the runs show:
 
 Earlier attempts the same day, not recorded here, found and fixed: the main session committing the `.gitignore` line itself and running an experts check on it (now `run-start`), G3 asking for a test run after the run (run-folder writes no longer mark the tree dirty), a fix-up card for a missing test being parked, an absolute claimed path reported as missing, and later cards not held to an expert an earlier recheck added (G6 parked two cards, and the two-parks rule stopped the run, as designed).
 
-Not covered: interactive sessions (only `-p`), Remote Control, a card that is parked and resumed for real (covered by unit tests only), larger plans, other models.
+## 2026-11-08 to 09: reruns of the unchanged four-card plan
+
+The same `PLAN-calc.md` (plan and tests confirmed, `experts: [quality]`, Tests list one argument's integer guard for `add` and `sub`), in a scratch repository reset to its first commit before each run, with `/ultimate-workflow:feature --plan PLAN-calc.md`. Runs 1 to 3 interactive, the resume and run 4 headless. The plan was never edited between runs: every failure below was the run machinery, and each was fixed with a test before the next run.
+
+| Run | Plugin at | Result | Workflow tokens, agents, time | Found and fixed |
+|---|---|---|---|---|
+| 1 | b6ec195 | add committed, sub parked on a blocking finding (its `a` guard untested), parse and format blocked | 579k, 31, 4.7 min | the harvest refused the harvester's absolute paths (0c96f54); a parked card's reason in the report kept only its heading line (0c96f54) |
+| 2 | 0c96f54 | all four cards and the findings card committed; the review's high finding started a fix-up card whose setup failed, and the run stopped | 1,078k, 50, 7.4 min | `card-add` refused the review's absolute path and said so only on stderr; the run then tried to park a card the plan never had (0156d86) |
+| 3 | 0156d86 | add parked on a blocking finding (its `b` guard untested), sub committed, parse and format blocked | 394k, 21, 2.6 min | a missing test in the card's own test file parked the card in three of four runs: the in-card fix round (327dddd) |
+| resume | 327dddd, mid-edit | `--resume add` on run 3's branch: add's parked work came back and was committed, then parse and format; harvest committed | 536k | resume works for real; a card committed before statuses existed counted as "none" in the run status (78fe3c4) |
+| 4 | 78fe3c4 | all four cards and the findings card committed, review 2 confirmed (both medium, so no fix-up), harvest on `uw/harvest/calc`, `main` untouched, tree clean | 1,093k, 52, 9.6 min | none |
+
+Run 4's files are under `results/2026-11-09-rerun/`. `plan-status-per-commit.txt` shows the plan inside each card's commit: the card itself at `committed`, every earlier card at `committed <sha>`, the later ones at `pending`. The plan on the run branch tip has every card at `committed <sha>` and a `## Run status` block (5 committed).
+
+The fix round was not exercised live: run 4's experts check found nothing blocking in any card, so it had nothing to fix. It is covered by the stub tests in `evals/experts/run-phase.test.js` (fixed and committed, still blocking, not green, outside the card's paths). Which card a model flags as blocking changes from run to run (`sub` in run 1, `add` in run 3, none in run 4), so a live fix round needs a run where one is flagged.
+
+Not covered: Remote Control, the in-card fix round live (stub tests only), larger plans, other models.

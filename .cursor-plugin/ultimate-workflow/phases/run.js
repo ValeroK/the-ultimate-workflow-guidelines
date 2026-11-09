@@ -578,8 +578,13 @@ const parkKey = (reason) => String(reason || '').toLowerCase().replace(/[0-9a-f]
 // The command that acts on a held card, for the notice and the report.
 const resumeCmd = (name, needsDecision) => (needsDecision ? `/ultimate-workflow:feature --resume ${name} --accept (take the decision into the plan), or --resume ${name} (run it again within the plan)` : `/ultimate-workflow:feature --resume ${name}`)
 
-async function parkCard(card, reason, extra = {}) {
-  const needsDecision = extra.needsDecision === true
+async function parkCard(card, reasonIn, extra = {}) {
+  // A held card run again within the plan that still cannot be finished needs the same decision:
+  // it goes back to needs-decision with that decision and why the plan alone was not enough, never
+  // to a plain park that hides the decision (2026-11-09, a live --resume without --accept).
+  const rerunFailed = RESUME && RESUME.rerun && RESUME.card === card.name && extra.needsDecision !== true
+  const needsDecision = extra.needsDecision === true || rerunFailed
+  const reason = rerunFailed ? `needs a decision the plan does not state: the card was run again within the plan and could not be finished without it.\n- held for: ${RESUME.avoid}\n- within the plan: ${String(reasonIn).replace(/\s*\r?\n\s*/g, ' ').slice(0, 600)}` : reasonIn
   const reasonFile = `${cardDir(card.name)}/park-reason.txt`
   // The user hears about it now, from the same step: the notice names the card, why and what to run.
   const [parked] = await runSteps(

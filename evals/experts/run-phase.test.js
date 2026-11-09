@@ -299,6 +299,22 @@ test('a held card run again within the plan that commits says its held branch is
 });
 
 // The edge case: the card cannot be done within the plan, and the rerun takes the decision again.
+// 2026-11-09, live: the rerun stayed within the plan, could not go green (the plan's tests need the
+// decision), and was parked as "not green" with its decision hidden.
+test('a held card run again that cannot go green within the plan goes back to needs-decision, with both reasons', async () => {
+  const calls = [];
+  const base = responder({ red: ['1'] });
+  const r = async (c) => { calls.push(c); return base(c); };
+  const { result } = await run(baseArgs([card('1'), card('2', { depends: ['1'] })], { resume: { card: '1', rerun: true, reason: 'stay within the plan', avoid: '- env: reads PORT', heldBranch: 'uw/parked/f/1' } }), r);
+  const one = result.cards.find((c) => c.card === '1');
+  assert.equal(one.status, 'needs-decision');
+  assert.match(one.reason, /could not be finished without it\. - held for: - env: reads PORT - within the plan: not green/);
+  assert.match(calls.find((c) => c.label === '1:park').prompt, /park [^\n]*--needs-decision/);
+  assert.match(calls.find((c) => c.label === '1:park').prompt, /notify [^\n]*--kind needs-decision/);
+  assert.ok(!base.seen.includes('1:commit'));
+  assert.equal(result.cards.find((c) => c.card === '2').status, 'blocked');
+});
+
 test('a held card run again that needs the same decision is held again, notified, and never committed', async () => {
   const calls = [];
   const base = responder({ decisions: { 1: { ok: true, card: '1', major: [{ kind: 'env', what: 'reads the environment variable PORT in src/1/x.js' }], minor: [] } } });

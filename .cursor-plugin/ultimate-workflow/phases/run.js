@@ -819,7 +819,7 @@ async function runCard(card, { adhoc = false } = {}) {
   if (carriedOn.length) {
     await runSteps(`${card.name}:carry`, carriedOn.map((c) => cliCmd('card-field', '--plan', q(PLAN), '--card', c.to, '--carried', q(`${c.finding.expert} at ${c.finding.file}:${c.finding.line}: ${c.finding.what}`.replace(/;/g, ',')))))
   }
-  const entry = { card: card.name, title: card.title, status: 'committed', commit: committed.commit, handoff: committed.handoff, missingClaims: committed.missingClaims || [], outOfScope, build: buildSummary, experts: { ran: check.lane.ran, added: check.lane.added, findings: check.lane.findings.length, refuted: check.refuted.length, carriedOn: carriedOn.map((c) => c.to) }, ...(fixRound ? { fixRound } : {}), ...(minorDecisions.length ? { decisions: { major: [], minor: minorDecisions } } : {}), ...(recordOk ? {} : { recordMismatch: recorded }) }
+  const entry = { card: card.name, title: card.title, status: 'committed', commit: committed.commit, handoff: committed.handoff, missingClaims: committed.missingClaims || [], outOfScope, build: buildSummary, ...(rerun && rerun.heldBranch ? { superseded: rerun.heldBranch } : {}), experts: { ran: check.lane.ran, added: check.lane.added, findings: check.lane.findings.length, refuted: check.refuted.length, carriedOn: carriedOn.map((c) => c.to) }, ...(fixRound ? { fixRound } : {}), ...(minorDecisions.length ? { decisions: { major: [], minor: minorDecisions } } : {}), ...(recordOk ? {} : { recordMismatch: recorded }) }
   report.push(entry)
   await journal(card, 'committed', `rounds: ${buildSummary.rounds}; files: ${committed.files}; findings: ${check.lane.findings.length}`)
   return entry

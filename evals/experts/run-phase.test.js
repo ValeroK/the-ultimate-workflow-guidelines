@@ -292,6 +292,25 @@ test('--resume without --accept runs the held card again from its tests, told to
   assert.match(tests.prompt, /did not accept it: added dependency left-pad\. Stay within the plan/);
 });
 
+test('a held card run again within the plan that commits says its held branch is superseded', async () => {
+  const { result } = await run(baseArgs([card('1')], { resume: { card: '1', rerun: true, reason: 'r', avoid: 'PORT', heldBranch: 'uw/parked/f/1' } }), responder());
+  assert.equal(result.cards[0].status, 'committed');
+  assert.equal(result.cards[0].superseded, 'uw/parked/f/1');
+});
+
+// The edge case: the card cannot be done within the plan, and the rerun takes the decision again.
+test('a held card run again that needs the same decision is held again, notified, and never committed', async () => {
+  const calls = [];
+  const base = responder({ decisions: { 1: { ok: true, card: '1', major: [{ kind: 'env', what: 'reads the environment variable PORT in src/1/x.js' }], minor: [] } } });
+  const r = async (c) => { calls.push(c); return base(c); };
+  const { result } = await run(baseArgs([card('1'), card('2', { depends: ['1'] })], { resume: { card: '1', rerun: true, reason: 'stay within the plan', avoid: 'reads PORT', heldBranch: 'uw/parked/f/1' } }), r);
+  assert.equal(result.cards.find((c) => c.card === '1').status, 'needs-decision');
+  assert.ok(!base.seen.includes('1:commit'));
+  assert.equal(base.seen.filter((l) => l === '1:write-tests').length, 1, 'one attempt, no loop');
+  assert.match(calls.find((c) => c.label === '1:park').prompt, /notify [^\n]*--kind needs-decision --card 1/);
+  assert.equal(result.cards.find((c) => c.card === '2').status, 'blocked');
+});
+
 test('a finding still blocking after the fix round parks the card, with the round on record', async () => {
   const blocking = { file: 'src/1/x.js', line: 3, what: 'b guard untested', howItFails: 'h', confidence: 'high' };
   const r = responder({ findings: { 1: [blocking], '1-fix': [{ ...blocking, what: 'still no b test' }] } });

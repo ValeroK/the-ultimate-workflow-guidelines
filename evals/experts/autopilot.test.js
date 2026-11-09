@@ -323,6 +323,8 @@ test('--resume <card> without --accept runs a held card again without its work, 
   const resume = JSON.parse(read(dir, '.ultimate-workflow/run/run.args.json')).resume;
   assert.equal(resume.rerun, true);
   assert.match(resume.avoid, /left-pad/);
+  assert.equal(resume.heldBranch, 'uw/parked/calc/1', 'the held branch is named, so the report can say it is superseded');
+  assert.equal(git(dir, 'rev-parse', '--verify', '-q', 'uw/parked/calc/1') !== '', true, 'and it is kept');
 });
 
 test('notify appends the notice to the run folder and reports the desktop result', () => {

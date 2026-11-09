@@ -27,6 +27,8 @@
 | E2E recorded 4-card run | Done: `evals/autopilot/` (1 card against 4 cards; main conversation 541,776 against 552,136 tokens, 1.02x, 10 turns each; all cards committed). Criterion 1 met |
 | Entry point | Done (2026-11-08): the run is the Full tier of `/ultimate-workflow:feature`, not a command of its own; `commands/run.md` moved to `phases/run.md`, `feature.md` takes `--plan` and `--resume` |
 | In-card fix round | Done (2026-11-09): a blocking finding in the card's own files gets one more round and a fresh experts check before the card can park; stub-tested (fixed, still blocking, not green, outside the paths), in the report and the ledger |
+| Card status in the plan | Done (2026-11-09): each card's `status:` (`pending`, `running`, `committed <sha>`, `fixed-in-round <sha>`, `parked <branch>; <reason>`, `blocked by <card>`, `resumed`) written by code on every transition, committed with the card's commit or a plan-only commit after a park; `run-finish` adds `## Run status` and commits the plan; `run-start --resume` names cards left at `running` |
+| Resume, for real | Done (2026-11-09): `--resume add` on the run that parked `add` brought its work back, committed it, then built `parse` and `format`; see the run table in `evals/autopilot/README.md` |
 | Interactive reruns of the unchanged 4-card plan | In progress: see the run table in `evals/autopilot/README.md` |
 | Risk mitigation "the build result lists the pack files it read" | Not built. It would be the agent's own report, which nothing can check and the run never uses for a decision; the scope check and the handoff come from git either way. The pack paths are in every build prompt, and the journal shows later cards used what earlier ones recorded |
 | Order | S0 smoke and first long run came before W2; W2 to W5, then W1, were built while the 30-minute S0 rerun was going. The rerun confirmed the single-workflow design W1 assumed, and `run.js` runs one card or many, so the per-card fallback would have used the same script |
@@ -130,6 +132,20 @@ progress into the conversation (progress is visible in `/workflows`).
    title, and the plan file.
 7. **Card handoff** (W2) and **journal lines** (W4), both written from the diff and the run's own
    results, never from what the build agent says it did (bug 5).
+
+### Card status in the plan
+
+The plan is where the user looks, so it shows every card's state as it changes, not only the report
+and the ledger. Each card in `## Cards` has a `status:` line, written by code and never by an agent's
+edit: `pending` (run-start), `running` or `running (resumed)` (before any work on the card),
+`committed <sha>` or `fixed-in-round <sha>` (card-commit), `parked <branch>; <reason>` (park),
+`blocked by <card>`, `resumed` (unpark). The findings and fix-up cards get the same lines. The plan
+goes into the card's own commit, so the plan on the run branch matches git; a commit cannot hold its
+own sha, so a card's sha is written after its commit and lands with the next one. A park adds a
+plan-only commit on the run branch. At the end `run-finish` writes `## Run status` (date, run branch,
+cards per status, harvest branch, report) and commits the plan. A run that dies inside a card leaves
+it at `running`, and `run-start --resume` names it. A plan the project ignores is written but not
+committed, and the result says so.
 
 ### Parked cards (W3)
 

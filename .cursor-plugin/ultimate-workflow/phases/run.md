@@ -35,6 +35,8 @@ Call the **Workflow** tool once, with `scriptPath` set to the path that command 
 
 Per card the run builds a context pack, writes the tests and proves them red, implements in up to three rounds with a fresh diagnosis after each failure, checks scope from git, runs the experts on the card's diff, and commits through `experts.js card-commit` (the commit gates' own checks, in code). A card that cannot be finished is parked: its work, failing tests included, goes to `uw/parked/<feature>/<card>` with the diagnosis, the tree goes back to the last good commit, and the cards that do not depend on it go on. Two parks in a row for the same reason stop the run. After the last card: the findings card (non-blocking expert findings no card fixed), a review of the whole run, one fix-up card for a confirmed blocking review finding, and the harvest, committed to `uw/harvest/<feature>`.
 
+The plan itself shows where every card is, as it happens: each card's `status:` line in `## Cards` (`pending`, `running`, `committed <sha>`, `fixed-in-round <sha>`, `parked <branch>; <reason>`, `blocked by <card>`, `resumed`) is written by the run's commands, never by an agent's edit, and goes into the card's own commit, or a plan-only commit on the run branch when a card is parked. A card left at `running` is one a run died inside; `run-start --resume` names it.
+
 Call it once. The exception: the run failed before any agent started (0 agents, an argument error); fix the input, rebuild the script, call once more and say so.
 
 ## 4. When it returns: one command
@@ -43,7 +45,7 @@ Call it once. The exception: the run failed before any agent started (0 agents, 
 
 `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" run-finish --output <the Workflow output file> --run-id <wf_...>`
 
-It keeps the output file as `.ultimate-workflow/run/run.result.json`, writes `.ultimate-workflow/run/<feature>/report.md` from it in code, and adds the ledger row with the agents, tokens and duration the output file holds, and every expert and review finding as a catch, so `/ultimate-workflow:value` shows them. If the output file is missing or the command fails, say so and stop.
+It keeps the output file as `.ultimate-workflow/run/run.result.json`, writes `.ultimate-workflow/run/<feature>/report.md` from it in code, writes a `## Run status` block into the plan (date, run branch, cards per status, harvest branch, report) and commits the plan on the run branch, and adds the ledger row with the agents, tokens and duration the output file holds, and every expert and review finding as a catch, so `/ultimate-workflow:value` shows them. If the output file is missing or the command fails, say so and stop.
 
 Then show the user the report file (a link to open, or the file printed whole; never a summary of it) and add, in a few lines of your own, only what needs their decision: each parked card and its reason, any card blocked by one, files changed outside a card's paths, test files a build claimed that are not in its commit, the findings still open, and the harvest branch to merge or drop. Do not run the tests again, read the diff or check the commits: the run did, and every extra turn re-sends this whole conversation.
 

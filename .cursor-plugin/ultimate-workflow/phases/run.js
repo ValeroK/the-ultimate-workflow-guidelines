@@ -658,6 +658,8 @@ async function runCard(card, { adhoc = false } = {}) {
   log(`card ${card.name}: ${card.title}`)
   const pre = card.preflight || { ok: false, reason: 'no context pack was written for this card' }
   if (!pre.ok) return parkCard(card, pre.reason || 'missing input')
+  // The plan shows the card as running before any work, so a run that dies inside it leaves it there.
+  await runSteps(`${card.name}:start`, [cliCmd('card-status', '--plan', q(PLAN), '--card', card.name, '--status', q(RESUME && RESUME.card === card.name ? 'running (resumed)' : 'running'))])
   const carried = handed[card.name] || []
   const resume = RESUME && RESUME.card === card.name ? { reason: String(RESUME.reason || 'resumed from its parked branch'), testFiles: Array.isArray(RESUME.testFiles) ? RESUME.testFiles : [] } : null
   const briefs = (Array.isArray(card.briefs) ? card.briefs : []).filter((b) => b && typeof b.name === 'string' && typeof b.text === 'string' && b.text.trim())
@@ -756,7 +758,7 @@ async function runCard(card, { adhoc = false } = {}) {
     `${card.name}:commit`,
     [
       cliCmd('record', '--stage', 'review', '--plan', q(PLAN), '--result', q(laneFile)),
-      cliCmd('card-commit', '--plan', q(PLAN), '--card', card.name, '--feature', FEATURE, ...(buildSummary.testFiles.length ? ['--claimed', q(buildSummary.testFiles.join(','))] : [])),
+      cliCmd('card-commit', '--plan', q(PLAN), '--card', card.name, '--feature', FEATURE, ...(buildSummary.testFiles.length ? ['--claimed', q(buildSummary.testFiles.join(','))] : []), ...(fixRound && fixRound.outcome === 'fixed' ? ['--fixed-round'] : [])),
     ],
     [{ path: laneFile, text: JSON.stringify({ ok: true, expertLane: check.lane }) }]
   )
@@ -823,6 +825,11 @@ for (const c of CARDS) {
   status[c.name] = stoppedBecause ? 'not started' : 'blocked'
   report.push({ card: c.name, title: c.title, status: status[c.name], reason: stoppedBecause ? `the run stopped: ${stoppedBecause}` : 'its dependencies never became ready (a cycle)' })
 }
+// Each card blocked behind a parked one says which in the plan; a card not started stays pending.
+const blockedSteps = report
+  .filter((e) => e.status === 'blocked' && /^depends on (\S+), which is/.test(e.reason || ''))
+  .map((e) => cliCmd('card-status', '--plan', q(PLAN), '--card', e.card, '--status', q(`blocked by ${/^depends on (\S+),/.exec(e.reason)[1]}`)))
+if (blockedSteps.length) await runSteps('blocked:status', blockedSteps)
 
 // ---- the findings card, the review and its fix-up card ----
 

@@ -114,6 +114,77 @@ function repo({ plan = PLAN } = {}) {
 
 // --- cards: depends, parked, committed -------------------------------------------------------
 
+// --- card status in the plan (2026-11-09) ------------------------------------------------------
+
+test('a card status reads and writes back, keeping CRLF, and only the run\'s statuses are accepted', () => {
+  const crlf = PLAN.replace(/\n/g, '\r\n');
+  let t = cards.setField(crlf, '2', 'status', cards.checkStatus('running'));
+  assert.equal(cards.findCard(t, '2').status, 'running');
+  t = cards.setField(t, '2', 'status', cards.checkStatus('parked uw/parked/calc/2; not green: red 3 times'));
+  assert.equal(cards.findCard(t, '2').status, 'parked uw/parked/calc/2; not green: red 3 times');
+  assert.equal((t.match(/status:/g) || []).length, 1, 'a status is replaced, not added twice');
+  assert.ok(!/[^\r]\n/.test(t), 'every line ending is still CRLF');
+  assert.equal(cards.findCard(t, '1').status, undefined);
+  for (const ok of ['pending', 'running (resumed)', 'resumed', 'committed abc1234', 'fixed-in-round abc1234def', 'blocked by 1']) assert.equal(cards.checkStatus(ok), ok);
+  for (const bad of ['done', 'committed', 'blocked', 'committed xyz', '']) {
+    if (bad === 'committed') continue;
+    assert.throws(() => cards.checkStatus(bad), /is not one of/, bad);
+  }
+  assert.equal(cards.statusKind('parked uw/parked/calc/2; x'), 'parked');
+  assert.equal(cards.statusKind('fixed-in-round abc1234'), 'fixed-in-round');
+});
+
+test('card-status writes running and blocked by into the plan, and refuses a status the run does not use', () => {
+  const dir = repo();
+  assert.equal(json(cli(dir, 'card-status', '--plan', 'PLAN-calc.md', '--card', '1', '--status', 'running')).ok, true);
+  assert.equal(cards.findCard(read(dir, 'PLAN-calc.md'), '1').status, 'running');
+  assert.equal(json(cli(dir, 'card-status', '--plan', 'PLAN-calc.md', '--card', '2', '--status', 'blocked by 1')).ok, true);
+  assert.equal(cards.findCard(read(dir, 'PLAN-calc.md'), '2').status, 'blocked by 1');
+  const bad = json(cli(dir, 'card-status', '--plan', 'PLAN-calc.md', '--card', '1', '--status', 'done'));
+  assert.equal(bad.ok, false);
+  assert.match(bad.reason, /is not one of/);
+});
+
+test('park writes parked into the plan and commits the plan alone on the run branch; unpark sets resumed', () => {
+  const dir = repo();
+  json(cli(dir, 'run-branch', '--feature', 'calc'));
+  const tip = git(dir, 'rev-parse', 'HEAD');
+  write(dir, 'src/add.js', 'module.exports = () => { throw 1; };\n');
+  const p = json(cli(dir, 'park', '--plan', 'PLAN-calc.md', '--card', '1', '--feature', 'calc', '--reason', 'not green: red three times'));
+  assert.equal(p.ok, true, JSON.stringify(p));
+  assert.equal(p.planCommit.committed, true, JSON.stringify(p.planCommit));
+  assert.equal(git(dir, 'rev-parse', 'HEAD~1'), tip, 'one commit on the run branch: the plan');
+  assert.deepStrictEqual(git(dir, 'show', '--name-only', '--format=', 'HEAD').split('\n'), ['PLAN-calc.md']);
+  assert.equal(cards.findCard(git(dir, 'show', 'HEAD:PLAN-calc.md'), '1').status, 'parked uw/parked/calc/1; not green: red three times');
+  assert.equal(git(dir, 'status', '--porcelain'), '', 'the plan on the run branch matches git');
+  const u = json(cli(dir, 'unpark', '--plan', 'PLAN-calc.md', '--card', '1', '--feature', 'calc'));
+  assert.equal(u.ok, true, JSON.stringify(u));
+  assert.equal(cards.findCard(read(dir, 'PLAN-calc.md'), '1').status, 'resumed');
+});
+
+test('run-start marks every open card pending and reports a card a run died inside', () => {
+  const dir = repo();
+  const r = json(cli(dir, 'run-start', '--plan', 'PLAN-calc.md', '--feature', 'calc'));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.deepStrictEqual(cards.parseCards(read(dir, 'PLAN-calc.md')).map((c) => c.status), ['pending', 'pending', 'pending']);
+  assert.equal(r.interrupted, undefined);
+  json(cli(dir, 'card-status', '--plan', 'PLAN-calc.md', '--card', '1', '--status', 'running'));
+  const again = json(cli(dir, 'run-start', '--plan', 'PLAN-calc.md', '--feature', 'calc', '--resume'));
+  assert.equal(again.ok, true, JSON.stringify(again));
+  assert.deepStrictEqual(again.interrupted, ['1'], 'a card left at running is one the run died inside');
+});
+
+test('card-commit --fixed-round records fixed-in-round in the commit and its sha after it', () => {
+  const dir = repo();
+  json(cli(dir, 'run-branch', '--feature', 'calc'));
+  write(dir, 'src/add.js', 'module.exports = (a, b) => a + b; // fixed\n');
+  const env2 = { ...env, ULTIMATE_WORKFLOW_GATES: 'off' };
+  const r = JSON.parse(spawnSync(process.execPath, [CLI, 'card-commit', '--plan', 'PLAN-calc.md', '--card', '1', '--feature', 'calc', '--fixed-round'], { cwd: dir, encoding: 'utf8', env: env2 }).stdout.trim().split('\n').pop());
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(cards.findCard(git(dir, 'show', 'HEAD:PLAN-calc.md'), '1').status, 'fixed-in-round');
+  assert.equal(cards.findCard(read(dir, 'PLAN-calc.md'), '1').status, `fixed-in-round ${r.commit}`);
+});
+
 test('a card reads its depends, parked and committed fields', () => {
   const text = PLAN.replace('  depends: 1\n', '  depends: 1, 0a\n  parked: uw/parked/calc/2; verification failed 3 times\n  committed: abc123\n');
   const c = cards.findCard(text, '2');
@@ -369,7 +440,7 @@ test('run-branch creates uw/run/<feature> from the tip, reuses it, and refuses a
 
 const LANE = JSON.stringify({ ok: true, expertLane: { stage: 'review', selected: [], ran: [], recheck: true, findings: [] } });
 
-test('card-commit refuses off the run branch and without a passing full run, then commits the card and nothing else', () => {
+test('card-commit refuses off the run branch and without a passing full run, then commits the card and its plan status, nothing else', () => {
   const dir = repo();
   write(dir, 'src/add.js', 'module.exports = (a, b) => a + b; // checked\n');
   const off = json(cli(dir, 'card-commit', '--plan', 'PLAN-calc.md', '--card', '1', '--feature', 'calc'));
@@ -393,9 +464,13 @@ test('card-commit refuses off the run branch and without a passing full run, the
   fs.rmSync(path.join(dir, 'src/new.js'));
   const r = json(cli(dir, 'card-commit', '--plan', 'PLAN-calc.md', '--card', '1', '--feature', 'calc', '--claimed', 'test/add.test.js'));
   assert.equal(r.ok, true, JSON.stringify(r));
-  assert.deepStrictEqual(git(dir, 'show', '--name-only', '--format=', 'HEAD').split('\n'), ['src/add.js']);
+  // 2026-11-09: the plan goes into the card's own commit, with the card's status, so the plan on
+  // the run branch matches git. A commit cannot hold its own sha: that is written after it.
+  assert.deepStrictEqual(git(dir, 'show', '--name-only', '--format=', 'HEAD').split('\n').sort(), ['PLAN-calc.md', 'src/add.js']);
+  assert.equal(cards.findCard(git(dir, 'show', 'HEAD:PLAN-calc.md'), '1').status, 'committed', 'the committed plan says the card is committed');
   assert.match(git(dir, 'log', '-1', '--format=%B'), /^card 1: adder\n\nPlan: PLAN-calc\.md\nRun: uw\/run\/calc/);
   assert.equal(cards.findCard(read(dir, 'PLAN-calc.md'), '1').committed, r.commit);
+  assert.equal(cards.findCard(read(dir, 'PLAN-calc.md'), '1').status, `committed ${r.commit}`, 'and the working plan has its sha, for the next commit');
   assert.deepStrictEqual(r.missingClaims, ['test/add.test.js']);
   assert.ok(fs.existsSync(path.join(dir, r.handoff)));
 });
@@ -581,6 +656,28 @@ test('a card\'s fix round is in the report (row note and its own section) and in
   const rows = read(dir, '.ultimate-workflow/ledger.jsonl').trim().split('\n').map((l) => JSON.parse(l));
   const run = rows.find((x) => x.run);
   assert.deepStrictEqual(run.run.cards[0].fixRound, { round: 2, outcome: 'fixed', findings: ['quality: test/add.test.js:10 b guard untested'] });
+});
+
+test('run-finish writes a Run status block into the plan and commits the plan on the run branch', () => {
+  const dir = repo();
+  json(cli(dir, 'run-branch', '--feature', 'calc'));
+  json(cli(dir, 'card-status', '--plan', 'PLAN-calc.md', '--card', '1', '--status', 'committed abc1234'));
+  json(cli(dir, 'card-status', '--plan', 'PLAN-calc.md', '--card', '2', '--status', 'parked uw/parked/calc/2; red'));
+  json(cli(dir, 'card-status', '--plan', 'PLAN-calc.md', '--card', '3', '--status', 'blocked by 2'));
+  const result = { ok: true, feature: 'calc', branch: 'uw/run/calc', base: 'abc', plan: 'PLAN-calc.md', summary: 's', counts: {}, cards: [], expertLanes: [], review: { ran: false, reason: 'r' }, harvest: { ran: true, proposals: 1, branch: 'uw/harvest/calc', commits: [] } };
+  write(dir, 'out/wf_st-1.output', JSON.stringify({ agentCount: 1, totalTokens: 1, result: JSON.stringify(result) }));
+  const r = json(cli(dir, 'run-finish', '--output', 'out/wf_st-1.output'));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.planStatus.committed, true, JSON.stringify(r.planStatus));
+  const committed = git(dir, 'show', 'HEAD:PLAN-calc.md');
+  assert.match(committed, /## Run status\n\n- Date: \d{4}-\d{2}-\d{2}\n- Run branch: uw\/run\/calc\n- Cards: 1 committed, 1 parked, 1 blocked\n- Harvest: uw\/harvest\/calc\n- Report: \.ultimate-workflow\/run\/calc\/report\.md/);
+  assert.equal(git(dir, 'status', '--porcelain', '--', 'PLAN-calc.md'), '', 'the plan on the run branch matches git');
+  json(cli(dir, 'run-finish', '--output', 'out/wf_st-1.output'));
+  assert.equal((read(dir, 'PLAN-calc.md').match(/## Run status/g) || []).length, 1, 'a second finish replaces the block');
+  // A card with no status line (a plan from before statuses) counts by its committed field.
+  write(dir, 'PLAN-calc.md', read(dir, 'PLAN-calc.md').replace('  status: committed abc1234\n', '  committed: abc1234\n'));
+  json(cli(dir, 'run-finish', '--output', 'out/wf_st-1.output'));
+  assert.match(read(dir, 'PLAN-calc.md'), /- Cards: 1 committed, 1 parked, 1 blocked/);
 });
 
 test('handoff takes an absolute claimed path inside the project as the same file', () => {

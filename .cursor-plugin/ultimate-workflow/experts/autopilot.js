@@ -12,7 +12,8 @@
 //   experts.js unpark     --plan P --card C --feature F               bring a parked card's work back onto the tip
 //   experts.js journal    add --feature F --card C --from FILE [--status committed|parked]
 //   experts.js journal    compact --feature F --card C --from FILE    replace the oldest entries' text with a summary
-//   experts.js card-commit --plan P --card C --feature F              the gates' own checks, then the commit
+//   experts.js card-commit --plan P --card C --feature F [--fixed-round]   the gates' own checks, then the commit
+//   experts.js card-status --plan P --card C --status S               a card's status in the plan (running, blocked by C)
 //   experts.js card-field --plan P --card C --carried "x; y"          add carried work to a card that has not run
 //   experts.js run-branch --feature F                                 create and check out uw/run/F from the current tip
 //   experts.js harvest-branch --feature F --from FILE                 harvest proposals as commits on uw/harvest/F
@@ -318,6 +319,69 @@ function writePlanField(cwd, plan, card, key, value) {
   if (next !== text) fs.writeFileSync(file, next);
 }
 
+/** Set a card's `status:` in the plan, checked against the statuses the run writes. */
+function setStatus(cwd, plan, card, value) {
+  writePlanField(cwd, plan, card, 'status', cardsLib.checkStatus(value));
+}
+
+/**
+ * Commit the plan alone on the run branch, so the plan there matches the git state after a park or
+ * at the end of the run. Nothing on any other branch. A plan the project ignores is left uncommitted
+ * and says so; one with no change is no commit.
+ */
+function commitPlan(cwd, plan, message) {
+  const branch = git(cwd, ['rev-parse', '--abbrev-ref', 'HEAD']).stdout.trim();
+  if (!branch.startsWith('uw/run/')) return { committed: false, reason: `HEAD is ${branch}, not a run branch` };
+  const rel2 = fwd(path.relative(cwd, path.resolve(cwd, plan)));
+  if (git(cwd, ['check-ignore', '-q', '--', rel2], { allowFail: true }).status === 0) return { committed: false, reason: `${rel2} is ignored by git` };
+  git(cwd, ['add', '--', rel2]);
+  if (!git(cwd, ['diff', '--cached', '--name-only', '--', rel2]).stdout.trim()) return { committed: false, reason: 'the plan did not change' };
+  const c = spawnSync('git', ['commit', '-q', '-F', '-', '--', rel2], { cwd, input: `${message}\n\nPlan: ${rel2}`, encoding: 'utf8' });
+  if (c.status !== 0) return { committed: false, reason: `git commit failed: ${(c.stderr || c.stdout || '').trim().split(/\r?\n/)[0]}` };
+  return { committed: true, commit: git(cwd, ['rev-parse', 'HEAD']).stdout.trim().slice(0, 12) };
+}
+
+/** `card-status`: one transition the run makes without a commit (running, blocked by). */
+function cardStatus(cwd, { plan, card: name, status }) {
+  if (!plan) throw new Error('card-status needs --plan');
+  const card = cardsLib.findCard(fs.readFileSync(path.resolve(cwd, plan), 'utf8'), name);
+  if (!card) throw new Error(`no card "${name}" in ${plan}`);
+  setStatus(cwd, plan, card.name, status);
+  return { ok: true, card: card.name, status: cardsLib.checkStatus(status) };
+}
+
+/** The `## Run status` block at the end of the plan, replaced when there is one already. */
+function writeRunStatus(cwd, plan, { branch, harvest, report, date }) {
+  const file = path.resolve(cwd, plan);
+  const text = fs.readFileSync(file, 'utf8');
+  const eol = text.includes('\r\n') ? '\r\n' : '\n';
+  const counts = {};
+  for (const c of cardsLib.parseCards(text)) {
+    // A card from a plan written before statuses existed is counted by its committed or parked field.
+    const k = c.status ? cardsLib.statusKind(c.status) : c.committed ? 'committed' : c.parked ? 'parked' : 'pending';
+    counts[k] = (counts[k] || 0) + 1;
+  }
+  const block = [
+    '## Run status',
+    '',
+    `- Date: ${date}`,
+    `- Run branch: ${branch}`,
+    `- Cards: ${Object.entries(counts).map(([k, n]) => `${n} ${k}`).join(', ') || 'none'}`,
+    `- Harvest: ${harvest || 'none'}`,
+    `- Report: ${report}`,
+  ];
+  const all = text.split(/\r?\n/);
+  const at = all.findIndex((l) => /^##\s+Run status\s*$/i.test(l));
+  if (at !== -1) {
+    let end = all.length;
+    for (let i = at + 1; i < all.length; i++) if (/^#{1,2}\s/.test(all[i])) { end = i; break; }
+    while (end > at + 1 && all[end - 1].trim() === '') end--;
+    all.splice(at, end - at, ...block);
+    fs.writeFileSync(file, all.join(eol));
+  } else fs.writeFileSync(file, `${text.replace(/\s+$/, '')}${eol}${eol}${block.join(eol)}${eol}`);
+  return counts;
+}
+
 /**
  * Park a card: its work so far, failing tests included, becomes one commit on
  * uw/parked/<feature>/<card> (built from a temporary index, so nothing is staged and no checkout
@@ -360,9 +424,13 @@ function park(cwd, { plan, card: name, feature, reasonFile = '', reason = '' }) 
     for (const f of untracked) fs.rmSync(path.join(cwd, f), { force: true });
   });
   fs.writeFileSync(path.join(dir, 'parked.md'), `# Parked: card ${card.name} (${card.title})\n\nBranch: ${branch} (commit ${commit.slice(0, 12)}, on ${head.slice(0, 12)})\n\n${why}\n`);
-  writePlanField(cwd, plan, card.name, 'parked', `${branch}; ${firstLine.replace(/;/g, ',').slice(0, 200)}`);
+  const short = firstLine.replace(/;/g, ',').slice(0, 200);
+  writePlanField(cwd, plan, card.name, 'parked', `${branch}; ${short}`);
+  setStatus(cwd, plan, card.name, `parked ${branch}; ${short}`);
   markClean(cwd, plan);
-  return { ok: true, card: card.name, branch, commit: commit.slice(0, 12), resetTo: head.slice(0, 12), files: [...new Set([...changed, ...untracked])].length, parked: rel(cwd, path.join(dir, 'parked.md')) };
+  // The run branch gets the plan's new state as its own commit, so the plan there matches git.
+  const planCommit = commitPlan(cwd, plan, `plan: card ${card.name} parked on ${branch}`);
+  return { ok: true, card: card.name, branch, commit: commit.slice(0, 12), resetTo: head.slice(0, 12), files: [...new Set([...changed, ...untracked])].length, parked: rel(cwd, path.join(dir, 'parked.md')), planCommit };
 }
 
 /**
@@ -389,6 +457,7 @@ function unpark(cwd, { plan, card: name, feature }) {
     git(cwd, ['reset', '-q'], { allowFail: true });
   }
   writePlanField(cwd, plan, card.name, 'parked', null);
+  setStatus(cwd, plan, card.name, 'resumed');
   return { ok: true, card: card.name, from: branch, testFiles: tests };
 }
 
@@ -443,7 +512,7 @@ function journalCompact(cwd, { feature, card, from }) {
  * judged on. Then every change except the plugin's folder and the plans is committed, the plan's
  * card entry gets `committed:`, and the handoff is written from the commit.
  */
-function cardCommit(cwd, { plan, card: name, feature, claimed = [] }) {
+function cardCommit(cwd, { plan, card: name, feature, claimed = [], fixedRound = false }) {
   if (!plan) throw new Error('card-commit needs --plan');
   const gates = require('../hooks/lib/gates.js');
   const stateLib = require('../hooks/lib/state.js');
@@ -463,15 +532,23 @@ function cardCommit(cwd, { plan, card: name, feature, claimed = [] }) {
     if (!g.allow) return { ok: false, card: card.name, gate: 'G6', reason: g.reason };
   }
   const before = git(cwd, ['rev-parse', 'HEAD']).stdout.trim();
-  stage(cwd, workFiles(cwd).all);
-  const staged = git(cwd, ['diff', '--cached', '--name-only']).stdout.trim();
-  if (!staged) return { ok: false, card: card.name, reason: 'nothing to commit: the card changed no file' };
-  const msg = `card ${card.name}: ${card.title}\n\nPlan: ${fwd(plan)}\nRun: uw/run/${feature}`;
+  const files = workFiles(cwd).all;
+  if (files.length === 0) return { ok: false, card: card.name, reason: 'nothing to commit: the card changed no file' };
+  // The plan goes into the card's own commit with the card's new status (and every earlier card's
+  // sha, written after their commits), so the plan on the run branch matches git. A commit cannot
+  // hold its own sha, so this card's sha is written after it and lands with the next commit.
+  const done = fixedRound ? 'fixed-in-round' : 'committed';
+  setStatus(cwd, plan, card.name, done);
+  if (card.parked) writePlanField(cwd, plan, card.name, 'parked', null);
+  stage(cwd, files);
+  const planRel = fwd(path.relative(cwd, path.resolve(cwd, plan)));
+  if (git(cwd, ['check-ignore', '-q', '--', planRel], { allowFail: true }).status !== 0) git(cwd, ['add', '--', planRel], { allowFail: true });
+  const msg = `card ${card.name}: ${card.title}${fixedRound ? ' (fixed in a fix round)' : ''}\n\nPlan: ${fwd(plan)}\nRun: uw/run/${feature}`;
   const commit = spawnSync('git', ['commit', '-q', '-F', '-'], { cwd, input: msg, encoding: 'utf8' });
   if (commit.status !== 0) return { ok: false, card: card.name, reason: `git commit failed: ${(commit.stderr || commit.stdout || '').trim().split(/\r?\n/)[0]}` };
   const after = git(cwd, ['rev-parse', 'HEAD']).stdout.trim();
   writePlanField(cwd, plan, card.name, 'committed', after.slice(0, 12));
-  if (card.parked) writePlanField(cwd, plan, card.name, 'parked', null);
+  setStatus(cwd, plan, card.name, `${done} ${after.slice(0, 12)}`);
   markClean(cwd, plan);
   const h = handoff(cwd, { card: card.name, feature, range: `${before}..${after}`, claimed });
   return { ok: true, card: card.name, commit: after.slice(0, 12), files: h.files, handoff: h.handoff, missingClaims: h.missingClaims };
@@ -635,9 +712,16 @@ function runStart(cwd, { plan, feature, resume = null, implementerModel = '', di
     branch = { ok: true, branch: name, created: false };
   } else branch = runBranch(cwd, { feature });
   if (!branch.ok) return branch;
+  // A card left at `running` is one a run died inside: --resume runs it again, and says so.
+  const planCards = cardsLib.parseCards(fs.readFileSync(path.resolve(cwd, plan), 'utf8'));
+  const interrupted = planCards.filter((c) => /^running\b/.test(c.status || '')).map((c) => c.name);
   if (resume && resume.card) {
     const back = unpark(cwd, { plan, card: resume.card, feature });
     resume = { ...resume, testFiles: back.testFiles };
+  }
+  for (const c of planCards) {
+    if (c.committed || c.parked || c.status) continue;
+    setStatus(cwd, plan, c.name, 'pending');
   }
   const ignored = ensureIgnored(cwd);
   let ignoreCommit = null;
@@ -680,7 +764,7 @@ function runStart(cwd, { plan, feature, resume = null, implementerModel = '', di
   const s = require('./experts.js').stageScript(pluginRoot, cwd, 'run', { argsFile });
   const embedded = JSON.parse(/^const EMBEDDED_ARGS = (.*)$/m.exec(fs.readFileSync(s.scriptPath, 'utf8'))[1]);
   const failed = embedded.cards.filter((c) => c.preflight && c.preflight.ok === false).map((c) => ({ card: c.name, reason: c.preflight.reason }));
-  return { ok: true, branch: branch.branch, created: branch.created, ...(ignoreCommit ? { ignoreCommit } : {}), baseline, scriptPath: s.scriptPath, cards: embedded.cards.map((c) => c.name), preflightFailed: failed };
+  return { ok: true, branch: branch.branch, created: branch.created, ...(ignoreCommit ? { ignoreCommit } : {}), baseline, scriptPath: s.scriptPath, cards: embedded.cards.map((c) => c.name), preflightFailed: failed, ...(interrupted.length ? { interrupted } : {}) };
 }
 
 /**
@@ -713,7 +797,15 @@ function runFinish(cwd, { output, runId = '', plan = '' }) {
   const report = result.ok === true ? runReport(cwd, { result: saved }) : null;
   const entry = ledger.addRun(cwd, 'run', row, raw);
   const catches = ledger.readAll(cwd).filter((e) => e.kind === 'catch' && e.run === entry.id).length;
-  return { ok: result.ok === true, ...(report ? { report: report.report, summary: report.summary, counts: report.counts, stopped: report.stopped } : { reason: result.error || 'the run result is not ok' }), ledger: { runId: row.runId, tokens: row.tokens, agents: row.agents, durationMs: row.durationMs, catches } };
+  // The plan's own record of the run: a Run status block, and every card's last status (the last
+  // card's sha was written after its commit), committed on the run branch.
+  let planStatus = null;
+  const planFile = plan || result.plan;
+  if (report && planFile && fs.existsSync(path.resolve(cwd, planFile))) {
+    const counts = writeRunStatus(cwd, planFile, { branch: result.branch || `uw/run/${result.feature}`, harvest: result.harvest && result.harvest.branch, report: report.report, date: new Date().toISOString().slice(0, 10) });
+    planStatus = { counts, ...commitPlan(cwd, planFile, `plan: run status for ${result.feature}`) };
+  }
+  return { ok: result.ok === true, ...(report ? { report: report.report, summary: report.summary, counts: report.counts, stopped: report.stopped } : { reason: result.error || 'the run result is not ok' }), ...(planStatus ? { planStatus } : {}), ledger: { runId: row.runId, tokens: row.tokens, agents: row.agents, durationMs: row.durationMs, catches } };
 }
 
 /** `.ultimate-workflow/` in the project's .gitignore, so git-based scanners and `git add -A` skip it. */
@@ -735,7 +827,7 @@ function cli(argv, cwd, out, fail) {
   if (sub === 'journal') action = rest.shift();
   for (let i = 0; i < rest.length; i++) {
     const a = rest[i];
-    if (a === '--resume' || a === '--adhoc') {
+    if (a === '--resume' || a === '--adhoc' || a === '--fixed-round') {
       o[a.slice(2)] = true;
       continue;
     }
@@ -761,7 +853,8 @@ function cli(argv, cwd, out, fail) {
   if (sub === 'handoff') return run(() => handoff(cwd, { card: o.card, feature: o.feature, range: o.range, claimed }));
   if (sub === 'park') return run(() => park(cwd, { plan: o.plan, card: o.card, feature: o.feature, reasonFile: o['reason-file'] || '', reason: o.reason || '' }));
   if (sub === 'unpark') return run(() => unpark(cwd, { plan: o.plan, card: o.card, feature: o.feature }));
-  if (sub === 'card-commit') return run(() => cardCommit(cwd, { plan: o.plan, card: o.card, feature: o.feature, claimed }));
+  if (sub === 'card-commit') return run(() => cardCommit(cwd, { plan: o.plan, card: o.card, feature: o.feature, claimed, fixedRound: Boolean(o['fixed-round']) }));
+  if (sub === 'card-status') return run(() => cardStatus(cwd, { plan: o.plan, card: o.card, status: o.status }));
   if (sub === 'run-branch') return run(() => runBranch(cwd, { feature: o.feature }));
   if (sub === 'ensure-ignored') return run(() => ensureIgnored(cwd));
   if (sub === 'harvest-branch') return run(() => harvestBranch(cwd, { feature: o.feature, from: o.from }));
@@ -790,6 +883,6 @@ function cli(argv, cwd, out, fail) {
   return fail(`unknown autopilot command ${sub}`);
 }
 
-const COMMANDS = ['pack', 'handoff', 'park', 'unpark', 'journal', 'card-commit', 'card-field', 'run-branch', 'ensure-ignored', 'harvest-branch', 'run-report', 'run-start', 'run-finish'];
+const COMMANDS = ['pack', 'handoff', 'park', 'unpark', 'journal', 'card-commit', 'card-status', 'card-field', 'run-branch', 'ensure-ignored', 'harvest-branch', 'run-report', 'run-start', 'run-finish'];
 
-module.exports = { COMMANDS, pack, handoff, park, unpark, journalAdd, journalCompact, cardCommit, runBranch, ensureIgnored, harvestBranch, withAddition, matchingTopicals, testSection, sections, cli, JOURNAL_CARD_LINES, JOURNAL_MAX_LINES };
+module.exports = { COMMANDS, cardStatus, writeRunStatus, commitPlan, pack, handoff, park, unpark, journalAdd, journalCompact, cardCommit, runBranch, ensureIgnored, harvestBranch, withAddition, matchingTopicals, testSection, sections, cli, JOURNAL_CARD_LINES, JOURNAL_MAX_LINES };

@@ -11,17 +11,19 @@
 //     depends: 8
 //     parked: uw/parked/re-wash/8a; verification failed 3 times
 //     committed: 1a2b3c4
+//     status: committed 1a2b3c4
 //
 // The name is matched whole, so `8` is not `8a`. `paths` are globs relative to the project root and
 // bound what the card may change; `carried` lists work handed over from an earlier card; `depends`
 // names the cards that must be committed first (4.7.0, the autopilot run). `parked` and `committed`
-// are the run's state, written by `experts.js park` and `experts.js card-done`, never by hand. A command
+// are the run's state, written by `experts.js park` and `experts.js card-commit`, never by hand; so is
+// `status`, every transition of the card (see STATUS below). A command
 // writes the entry (`experts.js card-add`), `brief --card` reads it, and `scope` compares the files
 // git says changed with `paths`. Nothing here reads a file or runs git: the caller passes text in.
 
 const NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const ITEM = /^[-*]\s+([A-Za-z0-9][A-Za-z0-9._-]*):(?:\s+(.*))?$/;
-const FIELD = /^[ \t]+(paths|carried|experts|depends|parked|committed):\s*(.*)$/i;
+const FIELD = /^[ \t]+(paths|carried|experts|depends|parked|committed|status):\s*(.*)$/i;
 const HEADING = /^(#{1,6})\s+(.*?)\s*#*\s*$/;
 
 const lines = (text) => String(text || '').split(/\r?\n/);
@@ -76,6 +78,7 @@ function parseCards(planText) {
         const at = field[2].indexOf(';');
         cur.parked = { branch: (at === -1 ? field[2] : field[2].slice(0, at)).trim(), reason: at === -1 ? '' : field[2].slice(at + 1).trim() };
       } else if (key === 'committed') cur.committed = field[2].trim();
+      else if (key === 'status') cur.status = field[2].trim();
       else cur.carried.push(...split(field[2], ';'));
       continue;
     }
@@ -172,7 +175,23 @@ function addCard(planText, { name, title, paths = [], carried = [], experts = nu
  * `parked` and `committed` this way, so the Cards section stays the state a resumed run reads.
  * Throws, changing nothing, when there is no such card.
  */
-const SETTABLE = ['parked', 'committed', 'carried', 'depends'];
+const SETTABLE = ['parked', 'committed', 'carried', 'depends', 'status'];
+
+/**
+ * A card's `status:` line, the run's state as the plan shows it. Written by code on every transition
+ * (`card-status`, `card-commit`, `park`, `unpark`, `run-start`), never by an agent:
+ *   pending | running | running (resumed) | resumed | committed <sha> | fixed-in-round <sha>
+ *   | parked <branch>; <reason> | blocked by <card>
+ * A run that dies inside a card leaves it at `running`, which `run-start --resume` reports.
+ */
+const STATUS = /^(pending|running(?: \(resumed\))?|resumed|committed(?: [0-9a-f]{7,40})?|fixed-in-round(?: [0-9a-f]{7,40})?|parked \S+(?:; .*)?|blocked by [A-Za-z0-9][A-Za-z0-9._-]*)$/;
+function checkStatus(value) {
+  const v = String(value || '').replace(/\s+/g, ' ').trim();
+  if (!STATUS.test(v)) throw new Error(`card status "${v}" is not one of: pending, running, running (resumed), resumed, committed <sha>, fixed-in-round <sha>, parked <branch>; <reason>, blocked by <card>`);
+  return v;
+}
+/** The status's first word, for counting: `parked`, `committed`, `blocked`, ... */
+const statusKind = (value) => String(value || '').trim().split(/[ ;]/)[0] || 'none';
 function setField(planText, name, key, value) {
   if (!SETTABLE.includes(key)) throw new Error(`a card field set by the run is one of ${SETTABLE.join(', ')}, not "${key}"`);
   const all = lines(planText);
@@ -232,4 +251,4 @@ function outOfScope(files, paths, makeRegExp) {
   return files.map(cleanPath).filter((f) => !covers(paths, f, makeRegExp));
 }
 
-module.exports = { parseCards, findCard, cardText, headingCardText, addCard, setField, outOfScope, covers, cleanPath, NAME };
+module.exports = { parseCards, findCard, cardText, headingCardText, addCard, setField, outOfScope, covers, cleanPath, checkStatus, statusKind, NAME };

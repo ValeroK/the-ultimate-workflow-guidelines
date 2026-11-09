@@ -49,6 +49,7 @@ function responder(o = {}) {
     if (role === 'park') return steps({ ok: true, card: who, branch: `uw/parked/f/${who}` });
     if (role === 'journal') return steps({ ok: true });
     if (role === 'carry') return steps({ ok: true });
+    if (role === 'start' || (who === 'blocked' && role === 'status')) return steps(...String(call.prompt).split('\n').filter((l) => /card-status/.test(l)).map(() => ({ ok: true })));
     if (role === 'setup') return steps({ ok: true }, { ok: true, contextFile: `.ultimate-workflow/run/f/cards/${who}/context.md` });
     if (who === 'review' && role === 'refute') return { verdicts: (o.reviewFindings || []).map((_, index) => ({ index, verdict: 'confirmed', reason: 'yes' })) };
     if (who === 'review') return { lensVerdict: 'ok', findings: role === 'correctness' ? o.reviewFindings || [] : [] };
@@ -164,6 +165,47 @@ test('a blocking finding in the card\'s own files is fixed in one more round, re
   assert.ok(!r.seen.includes('1:park'));
   assert.equal(result.expertLanes.filter((l) => l.card === '1').length, 2, 'both checks are in the lanes, the second marked');
   assert.ok(result.expertLanes.some((l) => l.card === '1' && l.fixRound === true));
+});
+
+// The plan's own status for every card (2026-11-09): written by commands the run issues, never by an
+// agent's edit. These hold which command the script issues at each transition.
+const statusOf = (calls, label) => {
+  const c = calls.find((x) => x.label === label);
+  return c ? (/card-status [^\n]*--status "([^"]+)"/.exec(c.prompt) || [])[1] : undefined;
+};
+
+test('the plan shows each card running before any work, then committed, fixed in round, parked or blocked', async () => {
+  const calls = [];
+  const base = responder({ red: ['2'], findings: { 1: [{ file: 'src/1/x.js', line: 3, what: 'w', howItFails: 'h', confidence: 'high' }], '1-fix': [] } });
+  const r = async (c) => { calls.push(c); return base(c); };
+  const { result } = await run(baseArgs([card('1'), card('2'), card('3', { depends: ['2'] })]), r);
+  assert.equal(statusOf(calls, '1:start'), 'running');
+  assert.ok(base.seen.indexOf('1:start') < base.seen.indexOf('1:write-tests'), 'running is written before the tests');
+  assert.match(calls.find((c) => c.label === '1:commit').prompt, /card-commit [^\n]*--fixed-round/, 'a card fixed in its fix round commits as fixed-in-round');
+  assert.equal(result.cards.find((c) => c.card === '2').status, 'parked');
+  assert.match(calls.find((c) => c.label === '2:park').prompt, /experts\.js" park /, 'parked is written by the park command');
+  assert.equal(statusOf(calls, 'blocked:status'), 'blocked by 2');
+});
+
+test('a run that dies inside a card leaves it at running: nothing after the start step', async () => {
+  const calls = [];
+  const base = responder();
+  const r = async (c) => {
+    calls.push(c);
+    if (c.label === '1:write-tests') throw new Error('the session ended');
+    return base(c);
+  };
+  await assert.rejects(run(baseArgs([card('1')]), r));
+  assert.equal(statusOf(calls, '1:start'), 'running');
+  assert.ok(!calls.some((c) => /card-status|card-commit|park /.test(c.prompt) && c.label !== '1:start'), 'no later status overwrote running');
+});
+
+test('a resumed card shows running (resumed)', async () => {
+  const calls = [];
+  const base = responder();
+  const r = async (c) => { calls.push(c); return base(c); };
+  await run(baseArgs([card('1')], { resume: { card: '1', reason: 'try again', testFiles: ['test/1.test.js'] } }), r);
+  assert.equal(statusOf(calls, '1:start'), 'running (resumed)');
 });
 
 test('a finding still blocking after the fix round parks the card, with the round on record', async () => {

@@ -442,6 +442,7 @@ function detectDecisions(cwd, { plan, card: name, feature = '', declaredFile = '
   const planned = (s) => new RegExp(`(^|[^A-Za-z0-9_$-])${esc(s)}($|[^A-Za-z0-9_$-])`, 'i').test(planText);
   // A name the plan mentions is part of what the user confirmed, so removing it is planned only
   // when the plan says to remove or rename it.
+  const accepted = new RegExp(`^- Accepted during the run for card ${esc(card.name)}:`, 'mi').test(planText);
   const plannedRemoval = (s) => new RegExp(`\\b(remove|rename|drop|delete|replace)[^.\\n]{0,60}(^|[^A-Za-z0-9_$-])${esc(s)}($|[^A-Za-z0-9_$-])`, 'i').test(planText);
   const inCard = (f) => cardsLib.outOfScope([f], card.paths, expertsLib.globToRegExp).length === 0;
   const major = [];
@@ -503,7 +504,11 @@ function detectDecisions(cwd, { plan, card: name, feature = '', declaredFile = '
   }
   for (const d of Array.isArray(declared) ? declared : []) {
     if (!d || typeof d.what !== 'string' || !d.what.trim()) continue;
-    (d.major === true ? major : minor).push({ kind: 'declared', what: d.what.trim().replace(/\s+/g, ' ') });
+    // A card whose decision the user accepted (`--accept`) declares it again: that one is covered.
+    // What code finds is still held against the plan, so a new dependency is still the user's.
+    const what = d.what.trim().replace(/\s+/g, ' ');
+    if (d.major === true && accepted) minor.push({ kind: 'declared', what: `${what} (covered by the decision the user accepted for this card)` });
+    else (d.major === true ? major : minor).push({ kind: 'declared', what });
   }
   const dedupe = (xs) => xs.filter((x, i) => xs.findIndex((y) => y.what === x.what) === i);
   const out = { ok: true, card: card.name, major: dedupe(major), minor: dedupe(minor) };
@@ -634,7 +639,9 @@ function park(cwd, { plan, card: name, feature, reasonFile = '', reason = '', ne
   writePlanField(cwd, plan, card.name, 'parked', `${branch}; ${short}`);
   // A card held for a major decision the plan does not state says so, and the plan holds the decision.
   setStatus(cwd, plan, card.name, `${needsDecision ? 'needs-decision' : 'parked'} ${branch}; ${short}`);
-  if (needsDecision) writePlanField(cwd, plan, card.name, 'decision', short.replace(/^needs a decision the plan does not state:\s*/i, ''));
+  // The decision in full (up to 1000 characters): --accept copies it into the plan's Decisions, and a
+  // line cut at 240 accepted half a sentence (2026-11-09, a real run).
+  if (needsDecision) writePlanField(cwd, plan, card.name, 'decision', why.replace(/\s*\r?\n\s*/g, ' ').replace(/^needs a decision the plan does not state:\s*/i, '').slice(0, 1000));
   markClean(cwd, plan);
   // The run branch gets the plan's new state as its own commit, so the plan there matches git.
   const planCommit = commitPlan(cwd, plan, `plan: card ${card.name} ${needsDecision ? 'needs a decision' : 'parked'}, work on ${branch}`);

@@ -257,6 +257,37 @@ test('decisions: a declared major decision is major', () => {
   assert.deepStrictEqual(r.major, [{ kind: 'declared', what: 'switched the result type to BigInt' }]);
 });
 
+// 2026-11-09, the live --accept run: the resumed card declared the accepted decision again and was
+// held a second time; and the accepted line was the decision cut at 240 characters.
+test('after --accept, the card\'s re-declared decision is covered, but a new unplanned dependency is still held', () => {
+  const dir = repo({ plan: PLAN.replace('- integers only', '- integers only\n- Accepted during the run for card 1: - env: reads the environment variable PORT') });
+  write(dir, 'package.json', JSON.stringify({ name: 'calc', dependencies: {} }, null, 2));
+  git(dir, 'add', '-A');
+  git(dir, 'commit', '-q', '-m', 'base');
+  write(dir, 'src/add.js', 'const p = process.env.PORT;\nmodule.exports = (a, b) => a + b;\n');
+  write(dir, 'declared.json', JSON.stringify([{ what: 'read the PORT environment variable', major: true }]));
+  const covered = json(cli(dir, 'decisions', '--plan', 'PLAN-calc.md', '--card', '1', '--declared', 'declared.json'));
+  assert.deepStrictEqual(covered.major, [], JSON.stringify(covered));
+  assert.ok(covered.minor.some((d) => /covered by the decision the user accepted/.test(d.what)));
+  write(dir, 'package.json', JSON.stringify({ name: 'calc', dependencies: { 'left-pad': '1.3.0' } }, null, 2));
+  const still = json(cli(dir, 'decisions', '--plan', 'PLAN-calc.md', '--card', '1', '--declared', 'declared.json'));
+  assert.deepStrictEqual(still.major.map((d) => d.kind), ['dependency']);
+  const other = json(cli(dir, 'decisions', '--plan', 'PLAN-calc.md', '--card', '2', '--declared', 'declared.json'));
+  assert.ok(other.major.some((d) => d.kind === 'declared'), 'another card is not covered by card 1\'s acceptance');
+});
+
+test('park --needs-decision keeps the whole decision, not the 240-character status cut', () => {
+  const dir = repo();
+  json(cli(dir, 'run-branch', '--feature', 'calc'));
+  write(dir, 'src/add.js', 'module.exports = 0;\n');
+  const long = `needs a decision the plan does not state:\n- declared: ${'used the PORT variable because the plan only says through the environment '.repeat(5)}END`;
+  write(dir, 'why.txt', long);
+  json(cli(dir, 'park', '--plan', 'PLAN-calc.md', '--card', '1', '--feature', 'calc', '--reason-file', 'why.txt', '--needs-decision'));
+  const c = cards.findCard(read(dir, 'PLAN-calc.md'), '1');
+  assert.match(c.decision, /^- declared: used the PORT/);
+  assert.match(c.decision, /END$/);
+});
+
 test('park --needs-decision holds the card with its decision in the plan; --accept takes it into Decisions and resumes', () => {
   const dir = repo();
   json(cli(dir, 'run-branch', '--feature', 'calc'));

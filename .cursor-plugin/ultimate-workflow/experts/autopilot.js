@@ -365,10 +365,11 @@ function notify(cwd, { feature, kind, card = '', reason = '', reasonFile = '', a
   const at = new Date().toISOString();
   const dir = runDir(cwd, feature);
   fs.mkdirSync(dir, { recursive: true });
-  fs.appendFileSync(path.join(dir, 'notifications.jsonl'), `${JSON.stringify({ at, kind, card, reason: why, action })}\n`);
   fs.appendFileSync(path.join(dir, 'notifications.md'), `- ${at.slice(0, 19).replace('T', ' ')} **${kind}**${card ? ` card ${card}` : ''}: ${why}${action ? ` Next: \`${action}\`` : ''}\n`);
   const off = /^(off|0|false|no)$/i.test(String(process.env.ULTIMATE_WORKFLOW_NOTIFY || ''));
   const desktop = off ? 'off' : desktopNotify(title, body);
+  // The desktop result is kept with the notice, so what reached the user can be checked afterwards.
+  fs.appendFileSync(path.join(dir, 'notifications.jsonl'), `${JSON.stringify({ at, kind, card, reason: why, action, desktop })}\n`);
   return { ok: true, kind, card: card || null, file: rel(cwd, path.join(dir, 'notifications.md')), desktop };
 }
 
@@ -633,7 +634,7 @@ function park(cwd, { plan, card: name, feature, reasonFile = '', reason = '', ne
   writePlanField(cwd, plan, card.name, 'parked', `${branch}; ${short}`);
   // A card held for a major decision the plan does not state says so, and the plan holds the decision.
   setStatus(cwd, plan, card.name, `${needsDecision ? 'needs-decision' : 'parked'} ${branch}; ${short}`);
-  if (needsDecision) writePlanField(cwd, plan, card.name, 'decision', short);
+  if (needsDecision) writePlanField(cwd, plan, card.name, 'decision', short.replace(/^needs a decision the plan does not state:\s*/i, ''));
   markClean(cwd, plan);
   // The run branch gets the plan's new state as its own commit, so the plan there matches git.
   const planCommit = commitPlan(cwd, plan, `plan: card ${card.name} ${needsDecision ? 'needs a decision' : 'parked'}, work on ${branch}`);
@@ -874,6 +875,8 @@ function runReport(cwd, { result: resultFile, out = '' }) {
     '|---|---|---|---|---|',
     ...unique.map(row),
     ...((r.earlier || []).length ? ['', `Before this run: ${r.earlier.map((e) => `${e.card} ${e.status}`).join(', ')}.`] : []),
+    // What needs the user, with the command for each: a held card is never only a row in the table.
+    ...(unique.some((c) => c.action) ? ['', '## Needs you', '', ...unique.filter((c) => c.action).flatMap((c) => [`- ${c.card} (${c.status}): ${String(c.reason || '').replace(/\r?\n/g, ' ')}`, `  Run: \`${c.action}\``])] : []),
     ...(unique.some((c) => c.fixRound) ? ['', '## Fix rounds', '', ...unique.filter((c) => c.fixRound).flatMap((c) => [`- ${c.card}: round ${c.fixRound.round}, ${c.fixRound.outcome || 'unknown'}${c.fixRound.summary ? ` (${String(c.fixRound.summary).replace(/\r?\n/g, ' ')})` : ''}`, ...(c.fixRound.findings || []).map((f) => `  - ${f.expert}: ${f.file}:${f.line} ${f.what}`)])] : []),
     '',
     '## Out of scope and claims',

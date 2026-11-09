@@ -271,7 +271,7 @@ test('park --needs-decision holds the card with its decision in the plan; --acce
   const r = json(cli(dir, 'run-start', '--plan', 'PLAN-calc.md', '--feature', 'calc', '--resume-card', '1', '--accept'));
   assert.equal(r.ok, true, JSON.stringify(r));
   const plan = read(dir, 'PLAN-calc.md');
-  assert.match(plan, /## Decisions\n\n- integers only\n- Accepted during the run for card 1: needs a decision the plan does not state: - dependency: added dependency left-pad/);
+  assert.match(plan, /## Decisions\n\n- integers only\n- Accepted during the run for card 1: - dependency: added dependency left-pad/);
   assert.equal(cards.findCard(plan, '1').decision, undefined);
   assert.equal(read(dir, 'src/add.js'), 'module.exports = require("left-pad");\n', 'the held work is back');
   assert.equal(expertsLib.checkConfirmed(plan).ok, true, 'the accepted decision is part of the confirmed plan');
@@ -303,6 +303,20 @@ test('notify appends the notice to the run folder and reports the desktop result
   assert.match(read(dir, '.ultimate-workflow/run/calc/notifications.md'), /\*\*needs-decision\*\* card 1: added left-pad Next: `\/ultimate-workflow:feature --resume 1 --accept`/);
   const bad = spawnSync(process.execPath, [CLI, 'notify', '--feature', 'calc', '--kind', 'oops'], { cwd: dir, encoding: 'utf8', env });
   assert.match(bad.stdout, /notify --kind is one of/);
+  // The desktop result is kept with the notice (a live run's step outputs are not in its result).
+  const rec = JSON.parse(read(dir, '.ultimate-workflow/run/calc/notifications.jsonl').trim().split('\n').pop());
+  assert.equal(rec.desktop, 'off');
+  assert.equal(rec.card, '1');
+});
+
+test('the report has a Needs you section with the command for each held card', () => {
+  const dir = repo();
+  const result = { ok: true, feature: 'calc', branch: 'uw/run/calc', base: 'abc', plan: 'PLAN-calc.md', summary: 's', counts: {}, expertLanes: [], review: { ran: false, reason: 'r' }, harvest: { ran: false, reason: 'r' },
+    cards: [{ card: 'server', title: 't', status: 'needs-decision', branch: 'uw/parked/calc/server', reason: 'needs a decision the plan does not state: - env: reads PORT', action: '/ultimate-workflow:feature --resume server --accept (take the decision into the plan), or --resume server (run it again within the plan)' }, { card: 'greet', title: 'g', status: 'committed', commit: 'c1', build: { rounds: 1 } }] };
+  write(dir, 'out/wf_need-1.output', JSON.stringify({ agentCount: 1, totalTokens: 1, result: JSON.stringify(result) }));
+  const text = read(dir, json(cli(dir, 'run-finish', '--output', 'out/wf_need-1.output')).report);
+  assert.match(text, /## Needs you\n\n- server \(needs-decision\): needs a decision the plan does not state: - env: reads PORT\n  Run: `\/ultimate-workflow:feature --resume server --accept/);
+  assert.doesNotMatch(text, /- greet \(committed\)/);
 });
 
 test('run-start marks every open card pending and reports a card a run died inside', () => {

@@ -692,6 +692,19 @@ test('run-finish writes a Run status block into the plan and commits the plan on
   assert.match(read(dir, 'PLAN-calc.md'), /- Cards: 1 committed, 1 parked, 1 blocked/);
 });
 
+// 2026-11-09, the final live run: the findings card is in `cards` and again as `findingsCard`, and
+// "Out of scope and claims" listed it twice.
+test('the report lists a findings card once, though the result holds it in cards and as findingsCard', () => {
+  const dir = repo();
+  const findings = { card: 'findings', title: 'non-blocking expert findings no card fixed', status: 'committed', commit: 'c9', build: { rounds: 1 }, outOfScope: ['test/parse.test.js'], missingClaims: [] };
+  const result = { ok: true, feature: 'calc', branch: 'uw/run/calc', base: 'abc', plan: 'PLAN-calc.md', summary: 's', counts: {}, cards: [findings], findingsCard: findings, expertLanes: [], review: { ran: false, reason: 'r' }, harvest: { ran: false, reason: 'r' } };
+  write(dir, 'out/wf_dup-1.output', JSON.stringify({ agentCount: 1, totalTokens: 1, result: JSON.stringify(result) }));
+  const r = json(cli(dir, 'run-finish', '--output', 'out/wf_dup-1.output'));
+  const text = read(dir, r.report);
+  assert.equal((text.match(/- findings: changed outside its paths/g) || []).length, 1);
+  assert.equal((text.match(/^\| findings \|/gm) || []).length, 1);
+});
+
 test('handoff takes an absolute claimed path inside the project as the same file', () => {
   const dir = repo();
   const base = git(dir, 'rev-parse', 'HEAD');

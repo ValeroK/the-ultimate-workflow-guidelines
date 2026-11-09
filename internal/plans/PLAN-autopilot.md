@@ -93,7 +93,7 @@ flowchart TD
     J --> L
     L -->|no ready card| FC[findings card: non-blocking findings not fixed on their card]
     FC --> RV[review over the whole diff]
-    RV -->|confirmed blocking| FX[fix-up card through the same loop]
+    RV -->|confirmed high or medium, in the run files| FX[fix-up card through the same loop]
     RV --> H[harvest to uw/harvest/feature]
     FX --> H
   end

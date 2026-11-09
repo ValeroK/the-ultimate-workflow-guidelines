@@ -100,6 +100,29 @@ test('a review finding confirmed and high runs one fix-up card through the same 
   assert.ok(setup > r.seen.indexOf('review:refute') && setup < r.seen.indexOf('harvest'), 'after review, before harvest');
 });
 
+// Decision 2 applied to the review (2026-11-09): run 4 ended with two confirmed medium review findings
+// in its own files, reported and left. A confirmed finding is now fixed, not only reported.
+test('a confirmed medium review finding in the run\'s files goes to the fix-up card; a low one and one outside the run stay in the report', async () => {
+  const r = responder({ reviewFindings: [
+    { file: 'C:/proj/src/1/x.js', line: 3, what: 'unsafe integers rounded', howItFails: '2^53+1', confidence: 'medium' },
+    { file: 'src/1/y.js', line: 1, what: 'style', howItFails: 'n/a', confidence: 'low' },
+    { file: 'vendor/z.js', line: 1, what: 'not ours', howItFails: 'h', confidence: 'medium' },
+  ] });
+  const { result } = await run(baseArgs([card('1')]), r);
+  assert.equal(result.review.findings.length, 3);
+  assert.equal(result.fixupCard.status, 'committed', JSON.stringify(result.fixupCard));
+  assert.equal(result.review.leftInReport, 2, 'the low one and the one outside the run are left in the report');
+  const setup = r.seen.indexOf('fixup:setup');
+  assert.ok(setup > r.seen.indexOf('review:refute'));
+});
+
+test('only low review findings: no fix-up card', async () => {
+  const r = responder({ reviewFindings: [{ file: 'src/1/y.js', line: 1, what: 'style', howItFails: 'n/a', confidence: 'low' }] });
+  const { result } = await run(baseArgs([card('1')]), r);
+  assert.equal(result.fixupCard, null);
+  assert.ok(!r.seen.includes('fixup:setup'));
+});
+
 // 2026-11-08, a real run: card-add refused the fix-up card (the review named its file by absolute
 // path), the run then tried to park a card the plan never had, and stopped with "the tree may still
 // hold its work" although nothing had been built.

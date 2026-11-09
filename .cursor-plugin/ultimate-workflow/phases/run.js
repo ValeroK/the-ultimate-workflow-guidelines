@@ -833,6 +833,7 @@ if (blockedSteps.length) await runSteps('blocked:status', blockedSteps)
 
 // ---- the findings card, the review and its fix-up card ----
 
+const adhocPaths = []
 async function adhocCard(name, title, items, experts) {
   const files = [...new Set(items.map((f) => String(f.file || '').replace(/\\/g, '/')).filter(Boolean))]
   const carriedText = items.map((f) => `${f.expert || f.lens} at ${f.file}:${f.line}: ${f.what}`.replace(/;/g, ','))
@@ -848,7 +849,9 @@ async function adhocCard(name, title, items, experts) {
     report.push(entry)
     return entry
   }
-  const card = { name, title, paths: (added.card && Array.isArray(added.card.paths) && added.card.paths) || files, carried: [], depends: [], items, experts, briefs: PLAN_BRIEFS, reviewSkills: {}, preflight: packed && packed.ok ? { ok: true, contextFile: packed.contextFile } : { ok: false, reason: `the ${name} card could not be set up: ${(added && added.ok === false && added.reason) || (packed && packed.reason) || 'card-add or pack printed nothing'}` } }
+  const cardPaths = (added.card && Array.isArray(added.card.paths) && added.card.paths) || files
+  adhocPaths.push(...cardPaths)
+  const card = { name, title, paths: cardPaths, carried: [], depends: [], items, experts, briefs: PLAN_BRIEFS, reviewSkills: {}, preflight: packed && packed.ok ? { ok: true, contextFile: packed.contextFile } : { ok: false, reason: `the ${name} card could not be set up: ${(added && added.ok === false && added.reason) || (packed && packed.reason) || 'card-add or pack printed nothing'}` } }
   return runCard(card, { adhoc: true })
 }
 
@@ -900,8 +903,15 @@ For each: read the code, check the failure path is reachable, look for the guard
     })
   }
   review = { ran: failedLenses.length < REVIEW_LENSES.length, range: `${BASE}..HEAD`, failedLenses, findings: confirmed, refuted, unverified }
-  const blockingReview = confirmed.filter((f) => f.confidence === 'high')
-  if (blockingReview.length > 0) fixupCard = await adhocCard('fixup', 'confirmed blocking review findings', blockingReview, [])
+  // Decision 2 applied to the review (2026-11-09): a confirmed finding is fixed, not only reported.
+  // High and medium ones in a file some card of this run could change go to the one fix-up card;
+  // low ones, and any outside the run's files, stay in the report.
+  const runCards = [...CARDS, { paths: adhocPaths }]
+  const runTests = report.flatMap((e) => (e.build && e.build.testFiles) || [])
+  const inRun = (f) => runCards.some((c) => inCard(c, f.file, runTests))
+  const toFix = confirmed.filter((f) => (f.confidence === 'high' || f.confidence === 'medium') && inRun(f))
+  review.leftInReport = confirmed.filter((f) => !toFix.includes(f)).length
+  if (toFix.length > 0) fixupCard = await adhocCard('fixup', 'confirmed review findings', toFix, [])
 }
 
 // ---- harvest to a branch ----

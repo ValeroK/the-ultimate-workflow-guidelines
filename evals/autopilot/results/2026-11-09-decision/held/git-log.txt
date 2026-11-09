@@ -1,0 +1,7 @@
+e79cbed plan: run status for svc
+bd33c45 card fixup: confirmed review findings
+11c47e1 card greet: a greeting
+f0aaf5c needs decision: card server (the listening number)
+b9ae9dc plan: card server needs a decision, work on uw/parked/svc/server
+8a2176a uw: ignore .ultimate-workflow/ (the run's own state)
+635340f init

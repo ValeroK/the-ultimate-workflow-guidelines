@@ -65,4 +65,17 @@ Each in its own scratch repository, headless, plugin from `feat/autopilot`. File
 - 1,694k workflow tokens, 72 agents, 10.1 minutes.
 - Found: the report listed the findings card twice under "Out of scope and claims" (it is in the result's cards and again as `findingsCard`); fixed, with a test.
 
+## 2026-11-09: approvals, decisions not in the plan, and notices
+
+Scenario `svc` (`results/2026-11-09-decision/`): three cards, `server` (its Tests say the number comes "through the environment" and name no variable, so any implementation must choose one), `greet` (independent) and `banner` (depends on `server`). Plan confirmed through `present --confirm tests_confirmed`, so it carries a `confirmed_hash`. Headless.
+
+| Step | What happened | Tokens, agents, time |
+|---|---|---|
+| approvals | On a copy with one Tests line edited after confirmation, `run-start` refused: "the plan changed after the user confirmed it (confirmed_hash 11d09e640b044808, now 225a61914a2bc599)", and created no branch | none |
+| `held/`: first run | `server` read `PORT`, which the plan does not name (found in code, and declared by the implementer): held as `needs-decision`, its work on `uw/parked/svc/server`, the decision in the plan. `greet` committed, `banner` blocked by `server`, the review's fix-up card committed. Notices, as they happened: needs-decision, blocked, finished. Found: the report gave no command for a held card, and the `decision:` line repeated its heading (fixed in c3615a2) | 627k, 36, 4.1 min |
+| `accept-1/`: `--resume server --accept` | the decision went into the plan's Decisions and the held work came back, but the resumed card declared the accepted decision again and was held a second time. Also the accepted line was the decision cut at 240 characters. Both fixed with tests (16641c9). Every notice recorded `desktop: sent` | 281k, 18, 3.4 min |
+| `accept-2/`: `--resume server --accept` again | `server` committed, `banner` unblocked and committed through a fix round, plan: 3 committed, 1 fixed-in-round. The harvest was not committed because `uw/harvest/svc` from the first run still existed (by design: merge or delete it first) | 549k, 30, 3.7 min |
+
+Notices reach the user at the desktop app or a terminal on the session's machine (a Windows toast here; `desktop: sent` is the toast call's exit status, not proof anyone saw it). Nothing inside a running workflow reaches a phone over Remote Control; the main session's PushNotification after `run-finish` does, and in these headless runs Remote Control was not connected, so it went nowhere.
+
 Not covered: Remote Control, larger plans, other models.

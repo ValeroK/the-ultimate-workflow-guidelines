@@ -1,0 +1,14 @@
+f0769b8 plan: run status for svc
+91151ae card banner: a start-up line using the listening number (fixed in a fix round)
+0042c0b card server: the listening number
+d19c8c3 plan: run status for svc
+8e305e4 harvest: progress -> progress.md (repo root; file does not exist yet, create it)
+429c343 harvest: gotcha -> AGENTS.md (new file; neither AGENTS.md nor CLAUDE.md exists in the repo yet, so create it with a ## Gotchas heading)
+c5f0503 needs decision: card server (the listening number)
+7fb5053 plan: card server needs a decision, work on uw/parked/svc/server
+e79cbed plan: run status for svc
+bd33c45 card fixup: confirmed review findings
+11c47e1 card greet: a greeting
+b9ae9dc plan: card server needs a decision, work on uw/parked/svc/server
+8a2176a uw: ignore .ultimate-workflow/ (the run's own state)
+635340f init

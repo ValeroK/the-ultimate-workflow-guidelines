@@ -239,6 +239,17 @@ test('every command that presents a workflow result reads it from the output fil
   }
 });
 
+// 2026-11-09, a real headless run: with a confirmed plan, the main session read the code, predicted
+// the experts' blocking finding and stopped to ask, and also stopped because it could not see its own
+// permission mode. Neither stop was the user's. Wording cannot be proven by a test; this keeps the
+// two instructions from being dropped in a later edit.
+test('the run goes straight from a confirmed plan to run-start, with no pre-review and no stop for an unseen mode', () => {
+  const text = fs.readFileSync(pjoin('phases', 'run.md'), 'utf8');
+  assert.match(text, /Do not review the plan or the code yourself first, and do not stop for what you expect the run to find/);
+  assert.match(text, /Not being able to see the mode is no reason to stop/);
+  assert.doesNotMatch(text, /If you cannot tell, or it is not, say so before the run and ask the user to switch/);
+});
+
 test('plan, tests and feature raise open questions one at a time', () => {
   for (const p of ['plan', 'tests', 'feature']) {
     const text = fs.readFileSync(pjoin('commands', `${p}.md`), 'utf8');

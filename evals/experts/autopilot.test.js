@@ -162,6 +162,18 @@ test('park writes parked into the plan and commits the plan alone on the run bra
   assert.equal(cards.findCard(read(dir, 'PLAN-calc.md'), '1').status, 'resumed');
 });
 
+// 2026-11-09, a real run: a reason that is a heading and a list kept only its heading in the plan.
+test('park keeps the whole reason in the plan, on one line, when it is a heading and a list', () => {
+  const dir = repo();
+  json(cli(dir, 'run-branch', '--feature', 'calc'));
+  write(dir, 'src/add.js', 'module.exports = () => 0;\n');
+  write(dir, 'why.txt', 'blocking finding from the experts check, outside this card\'s paths so no fix round:\n- quality: src/prices.js:4 an unknown item is priced at 0\n');
+  assert.equal(json(cli(dir, 'park', '--plan', 'PLAN-calc.md', '--card', '1', '--feature', 'calc', '--reason-file', 'why.txt')).ok, true);
+  const c = cards.findCard(read(dir, 'PLAN-calc.md'), '1');
+  assert.match(c.status, /so no fix round: - quality: src\/prices\.js:4 an unknown item is priced at 0$/);
+  assert.match(c.parked.reason, /src\/prices\.js:4 an unknown item is priced at 0/);
+});
+
 test('run-start marks every open card pending and reports a card a run died inside', () => {
   const dir = repo();
   const r = json(cli(dir, 'run-start', '--plan', 'PLAN-calc.md', '--feature', 'calc'));
@@ -345,7 +357,7 @@ test('park commits the card\'s work, failing tests and new files included, to it
   assert.equal(git(dir, 'rev-parse', 'uw/parked/calc/1^'), head);
   const plan = read(dir, 'PLAN-calc.md');
   assert.match(plan, /verify_rounds: 3/, 'the plan is kept as it was, not reset to its committed version');
-  assert.deepStrictEqual(cards.findCard(plan, '1').parked, { branch: 'uw/parked/calc/1', reason: 'Verification failed 3 times, the subtraction test cannot pass.' });
+  assert.deepStrictEqual(cards.findCard(plan, '1').parked, { branch: 'uw/parked/calc/1', reason: 'Verification failed 3 times, the subtraction test cannot pass. Signature: sub-red' });
   assert.match(read(dir, r.parked), /Signature: sub-red/);
   assert.equal(git(dir, 'status', '--porcelain', '--', 'src', 'test'), '');
 });

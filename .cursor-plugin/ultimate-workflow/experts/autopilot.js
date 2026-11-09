@@ -398,7 +398,6 @@ function park(cwd, { plan, card: name, feature, reasonFile = '', reason = '' }) 
   if (reasonFile) why = fs.readFileSync(path.resolve(cwd, reasonFile), 'utf8').trim();
   if (why.length < 5) throw new Error('park needs the reason: --reason-file <file> with the diagnosis (or --reason "<text>")');
   const branch = `uw/parked/${checkFeature(feature)}/${card.name}`;
-  const firstLine = why.split(/\r?\n/).find((l) => l.trim()) || why;
   const dir = cardDir(cwd, feature, card.name);
   fs.mkdirSync(dir, { recursive: true });
   const index = path.join(dir, 'park.index');
@@ -424,7 +423,9 @@ function park(cwd, { plan, card: name, feature, reasonFile = '', reason = '' }) 
     for (const f of untracked) fs.rmSync(path.join(cwd, f), { force: true });
   });
   fs.writeFileSync(path.join(dir, 'parked.md'), `# Parked: card ${card.name} (${card.title})\n\nBranch: ${branch} (commit ${commit.slice(0, 12)}, on ${head.slice(0, 12)})\n\n${why}\n`);
-  const short = firstLine.replace(/;/g, ',').slice(0, 200);
+  // The whole reason on one line, not its first line: a reason that is a heading and a list kept
+  // only "...so no fix round:" in the plan, as the report once did (2026-11-09, a real run).
+  const short = why.replace(/\s*\r?\n\s*/g, ' ').replace(/;/g, ',').slice(0, 240);
   writePlanField(cwd, plan, card.name, 'parked', `${branch}; ${short}`);
   setStatus(cwd, plan, card.name, `parked ${branch}; ${short}`);
   markClean(cwd, plan);

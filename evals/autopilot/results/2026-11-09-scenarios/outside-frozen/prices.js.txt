@@ -1,0 +1,11 @@
+// Prices in cents, by item name. Shared code: not part of the cart card.
+const TABLE = { apple: 120, pear: 300 };
+
+module.exports = function price(item) {
+  try {
+    if (!(item in TABLE)) throw new Error(`unknown item: ${item}`);
+    return TABLE[item];
+  } catch (e) {
+    return 0;
+  }
+};

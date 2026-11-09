@@ -50,7 +50,8 @@ It prints nothing when every changed `.js` file parses at its own commit.
 - A test file a build reported by its absolute path is no longer listed as "claimed but not in the diff".
 - The harvest lands when the harvester names a file by its absolute path. `harvest-branch` refused every such proposal, so a real run's lessons never reached `uw/harvest/<feature>`; a path inside the project is now taken as relative to it, and one outside it is still refused.
 - The fix-up card runs when the review names its file by absolute path. `card-add` refused the path, and the run then tried to park a card the plan never had and stopped. `card-add` now takes an absolute path inside the project as relative, and a findings or fix-up card that cannot be added is recorded as not started, without a park and without stopping the run.
-- A card parked on a blocking finding says which finding. The report kept only the reason's first line, "blocking finding from the experts check:", and dropped the findings under it.
+- A card parked on a blocking finding says which finding, in the report and in the plan's `parked:` and `status:` lines (park kept only the reason's first line, a heading ending in a colon).
+- With a confirmed plan the run starts without a third stop. A real headless session read the code, predicted the experts' finding and stopped to ask, and also stopped because it could not see its own permission mode; `phases/run.md` now says the confirmed plan goes straight to `run-start`, and the mode is judged by whether this session's commands ran without a prompt.
 - `.ultimate-workflow/` is added to the project's `.gitignore` on the first run, so git-based secret scanners skip the run's own files (the scanner that flagged them is the project's, not this plugin's).
 
 ## [4.6.2] - 2026-11-07

@@ -5,12 +5,12 @@ This is the Full tier of `/ultimate-workflow:feature` on Claude Code, not a comm
 ## 0. Before anything
 
 - **The Workflow tool.** If this host has none (Cursor and the others), say so and follow "Hosts without the Workflow tool" at the end instead.
-- **Permissions.** The run's agents edit files and run commands with nobody there to answer a prompt. This session must be in a mode where they run without one: auto mode, or accept-edits with Bash allowed (on `claude -p`: `--permission-mode acceptEdits --allowedTools Bash Workflow Read Write Edit`, as the S0 spike ran). If you cannot tell, or it is not, say so before the run and ask the user to switch; do not start a run that would stall on its first command.
+- **Permissions.** The run's agents edit files and run commands with nobody there to answer a prompt. This session must be in a mode where they run without one: auto mode, or accept-edits with Bash allowed (on `claude -p`: `--permission-mode acceptEdits --allowedTools Bash Workflow Read Write Edit`, as the S0 spike ran). You cannot read the mode itself, so go by evidence: when the Bash commands you have run in this session ran without a prompt, take it as set, say so in one line, and go on. Ask the user to switch only when a command was refused or waited on a prompt; do not start a run that would stall on its first command. Not being able to see the mode is no reason to stop: a headless run has nobody to answer.
 - **Headless.** Under `claude -p` the host stops background work 10 minutes after the last turn unless `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0` is set. Say so if you are headless and it is not set.
 
 ## 1. Plan and test plan (the two stops)
 
-**A plan that is already confirmed** (`--plan <file>` names it, its front matter has `plan_confirmed: true` and `tests_confirmed: true`, and it has a `## Cards` section and a Tests subsection per card): both stops already happened; say so in one line and go to section 2.
+**A plan that is already confirmed** (`--plan <file>` names it, its front matter has `plan_confirmed: true` and `tests_confirmed: true`, and it has a `## Cards` section and a Tests subsection per card): both stops already happened; say so in one line and go to section 2. Do not review the plan or the code yourself first, and do not stop for what you expect the run to find: the user confirmed this plan, and judging the code is the run's experts' job. A card that cannot be finished is parked with its diagnosis and the others go on, which is the answer the user gets, in the report. A question here is a third stop the user did not agree to.
 
 Otherwise, unless resuming, follow `${CLAUDE_PLUGIN_ROOT}/commands/plan.md` exactly, with experts, and stop for the user's confirmation. The feature name is the plan file's name without `PLAN-` and `.md` (`PLAN-ledger-fixes.md` is `ledger-fixes`); it names the branches, so it is letters, digits, dot, dash and underscore.
 

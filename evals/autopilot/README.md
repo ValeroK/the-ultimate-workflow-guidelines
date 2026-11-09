@@ -43,6 +43,16 @@ The same `PLAN-calc.md` (plan and tests confirmed, `experts: [quality]`, Tests l
 
 Run 4's files are under `results/2026-11-09-rerun/`. `plan-status-per-commit.txt` shows the plan inside each card's commit: the card itself at `committed`, every earlier card at `committed <sha>`, the later ones at `pending`. The plan on the run branch tip has every card at `committed <sha>` and a `## Run status` block (5 committed).
 
-The fix round was not exercised live: run 4's experts check found nothing blocking in any card, so it had nothing to fix. It is covered by the stub tests in `evals/experts/run-phase.test.js` (fixed and committed, still blocking, not green, outside the card's paths). Which card a model flags as blocking changes from run to run (`sub` in run 1, `add` in run 3, none in run 4), so a live fix round needs a run where one is flagged.
+Run 4 did not exercise the fix round: its experts check found nothing blocking in any card. The scenarios below show it live. It is covered by the stub tests in `evals/experts/run-phase.test.js` (fixed and committed, still blocking, not green, outside the card's paths). Which card a model flags as blocking changes from run to run (`sub` in run 1, `add` in run 3, none in run 4), so a live fix round needs a run where one is flagged.
 
-Not covered: Remote Control, the in-card fix round live (stub tests only), larger plans, other models.
+## 2026-11-09: scenarios for the paths a card can take
+
+Each in its own scratch repository, headless, plugin from `feat/autopilot`. Files under `results/2026-11-09-scenarios/` (the plan given, the plan on the run branch afterwards, the report, the git log).
+
+| Scenario | What it was built to show | What happened | Tokens, agents, time |
+|---|---|---|---|
+| `fixround`: the calc plan with `add`'s `b` guard test left out of the Tests | the in-card fix round, live | the quality expert rated the missing test blocking; the fix round wrote `add(1, 1.5)` throws naming `b` (`add.test.js.txt`), the fresh check passed, `add` is `fixed-in-round bdf477b8daad` in the plan and has a "Fix rounds" entry in the report and `fixRound: {round: 2, outcome: fixed}` in the ledger; `parse` and `format` ran after it. Mutation check: with the `b` guard deleted from `src/add.js` at that commit, 1 of 3 tests fails | 1,026k, 53, 10.9 min |
+| `outside-edited`: one card `cart` calling `src/prices.js` (outside its paths), which prices an unknown item at 0 against a blocking Expert input line | a blocking finding outside the card: park, no round | first attempt: the main session read the code, predicted the finding and stopped to ask, and also stopped because it could not see its own permission mode. Fixed in `phases/run.md` (a confirmed plan goes straight to the run; the mode is judged by whether commands ran without a prompt), with a wording test. Second attempt: the implementer fixed `src/prices.js` itself (reported as out of scope, by design not blocking), so nothing was left to flag. The review then confirmed a high test-coverage finding and the fix-up card added the test: the review fix-up, live | 658k, 30, 5.1 min |
+| `outside-frozen`: the same, with the plan saying `src/prices.js` is frozen | as above | the card was parked: "blocking findings from the experts check, outside this card's paths so no fix round" (quality and developer, `src/prices.js:4`), status `parked uw/parked/cart/cart; ...` in the plan, a plan-only commit on the run branch, review and harvest skipped (nothing committed). The plan's status line kept only the reason's heading; fixed in `park` (the whole reason, on one line), with a test | 267k, 12, 2.5 min |
+
+Not covered: Remote Control, larger plans, other models.

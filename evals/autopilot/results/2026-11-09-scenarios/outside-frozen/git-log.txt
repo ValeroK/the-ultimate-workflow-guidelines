@@ -1,0 +1,6 @@
+15d4ff5 plan: run status for cart
+d2525d0 parked: card cart (total the prices of a list of items)
+a1e8bd3 plan: card cart parked on uw/parked/cart/cart
+2f96f21 uw: ignore .ultimate-workflow/ (the run's own state)
+1323b8a plan: prices.js is frozen
+004493f init

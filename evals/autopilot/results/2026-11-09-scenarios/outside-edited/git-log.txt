@@ -1,0 +1,7 @@
+11f3c37 plan: run status for cart
+5268f48 harvest: memory -> memory/prices.md
+020553e harvest: progress -> progress.md
+8d8e831 card fixup: confirmed review findings
+e224848 card cart: total the prices of a list of items
+1d910a5 uw: ignore .ultimate-workflow/ (the run's own state)
+004493f init

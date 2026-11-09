@@ -325,6 +325,43 @@ test('--resume <card> without --accept runs a held card again without its work, 
   assert.match(resume.avoid, /left-pad/);
   assert.equal(resume.heldBranch, 'uw/parked/calc/1', 'the held branch is named, so the report can say it is superseded');
   assert.equal(git(dir, 'rev-parse', '--verify', '-q', 'uw/parked/calc/1') !== '', true, 'and it is kept');
+  // 2026-11-09, a live run: the first call cleared the decision, so a second call without --accept
+  // would have taken the accept path and brought the unaccepted work back.
+  assert.match(c.decision, /left-pad/, 'the decision stays until the card is committed or held again');
+  const again = json(cli(dir, 'run-start', '--plan', 'PLAN-calc.md', '--feature', 'calc', '--resume-card', '1'));
+  assert.equal(again.ok, true, JSON.stringify(again));
+  assert.equal(read(dir, 'src/add.js'), 'module.exports = (a, b) => a + b;\n', 'a second call is the same rerun, not an accept');
+  assert.equal(JSON.parse(read(dir, '.ultimate-workflow/run/run.args.json')).resume.rerun, true);
+});
+
+test('card-commit clears a held card\'s decision once it is done within the plan', () => {
+  const dir = repo();
+  json(cli(dir, 'run-branch', '--feature', 'calc'));
+  json(cli(dir, 'card-status', '--plan', 'PLAN-calc.md', '--card', '1', '--status', 'pending'));
+  write(dir, 'PLAN-calc.md', cards.setField(read(dir, 'PLAN-calc.md'), '1', 'decision', '- env: reads PORT'));
+  write(dir, 'src/add.js', 'module.exports = (a, b) => a + b; // within the plan\n');
+  const r = JSON.parse(spawnSync(process.execPath, [CLI, 'card-commit', '--plan', 'PLAN-calc.md', '--card', '1', '--feature', 'calc'], { cwd: dir, encoding: 'utf8', env: { ...env, ULTIMATE_WORKFLOW_GATES: 'off' } }).stdout.trim().split('\n').pop());
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(cards.findCard(read(dir, 'PLAN-calc.md'), '1').decision, undefined);
+  assert.equal(cards.findCard(git(dir, 'show', 'HEAD:PLAN-calc.md'), '1').decision, undefined, 'and the committed plan has no held decision');
+});
+
+test('pack does not treat the run\'s own report, named in the Run status block, as a cited document', () => {
+  const dir = repo();
+  write(dir, 'PLAN-calc.md', `${read(dir, 'PLAN-calc.md').replace(/\s+$/, '')}\n\n## Run status\n\n- Report: .ultimate-workflow/run/calc/report.md\n`);
+  const r = json(cli(dir, 'pack', '--plan', 'PLAN-calc.md', '--card', '2', '--feature', 'calc'));
+  assert.equal(r.ok, true, JSON.stringify(r));
+});
+
+test('a resume pack rebuilds parked.md from the parked commit when the run folder is gone', () => {
+  const dir = repo();
+  json(cli(dir, 'run-branch', '--feature', 'calc'));
+  write(dir, 'src/add.js', 'module.exports = () => 0;\n');
+  json(cli(dir, 'park', '--plan', 'PLAN-calc.md', '--card', '1', '--feature', 'calc', '--reason', 'not green: the sum is wrong'));
+  fs.rmSync(path.join(dir, '.ultimate-workflow', 'run'), { recursive: true, force: true });
+  const r = json(cli(dir, 'pack', '--plan', 'PLAN-calc.md', '--card', '1', '--feature', 'calc', '--resume'));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.match(read(dir, '.ultimate-workflow/run/calc/cards/1/parked.md'), /not green: the sum is wrong/);
 });
 
 test('notify appends the notice to the run folder and reports the desktop result', () => {

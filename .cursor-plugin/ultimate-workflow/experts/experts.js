@@ -1387,7 +1387,9 @@ function runArgs(pluginRoot, cwd, args) {
     skillTexts[s.name] = s.text;
     return s.name;
   });
-  const resumeCard = args.resume && typeof args.resume.card === 'string' ? args.resume.card : '';
+  // A card run again within the plan (--resume without --accept on a held card) starts from its
+  // tests, so it gets a plain pack, not one that needs a parked diagnosis.
+  const resumeCard = args.resume && typeof args.resume.card === 'string' && !args.resume.rerun ? args.resume.card : '';
   const cards = all.map((c) => {
     const ownSection = autopilot.sections(planText).find((h) => /^card\s/i.test(h.title) && new RegExp(`^card\\s+${c.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![A-Za-z0-9])`, 'i').test(h.title));
     const tests = autopilot.testSection(planText, c.name, all.length);

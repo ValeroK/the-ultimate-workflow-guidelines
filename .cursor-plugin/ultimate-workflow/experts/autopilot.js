@@ -193,7 +193,9 @@ function pack(cwd, { plan, card: name, feature, resume = false, adhoc = false })
 
   // Documents the plan cites. One that a card's paths cover is to be written by the run, not read.
   const expertsLib = require('./experts.js');
-  const cited = expertsLib.planPaths(planText).map((p) => fwd(p).replace(/^\.\//, '')).filter((p) => DOC_EXT.test(p) && !/(^|\/)PLAN-[^/]*\.md$/.test(p));
+  // The run's own files (the report the Run status block names, a journal) are not documents the
+  // user cited: a report missing on a fresh checkout parked the next card as "missing input".
+  const cited = expertsLib.planPaths(planText).map((p) => fwd(p).replace(/^\.\//, '')).filter((p) => DOC_EXT.test(p) && !/(^|\/)PLAN-[^/]*\.md$/.test(p) && !/^\.ultimate-workflow\//.test(p));
   const globRe = expertsLib.globToRegExp;
   for (const doc of [...new Set(cited)]) {
     const byCard = all.some((c) => c.paths.length > 0 && cardsLib.covers(c.paths, doc, globRe));
@@ -210,8 +212,18 @@ function pack(cwd, { plan, card: name, feature, resume = false, adhoc = false })
   if (card.carried.length) add('(in this pack)', `carried to this card: ${card.carried.join('; ')}`);
   if (resume) {
     const parked = path.join(dir, 'parked.md');
+    // The run folder is not committed, so on another checkout (or after it was cleaned) the
+    // diagnosis comes back from the parked commit's message, which holds the same text.
+    const branch = (card.parked && card.parked.branch) || `uw/parked/${checkFeature(feature)}/${card.name}`;
+    if (!fs.existsSync(parked)) {
+      const msg = git(cwd, ['log', '-1', '--format=%B', branch], { allowFail: true });
+      if (msg.status === 0 && msg.stdout.trim()) {
+        fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(parked, `# Parked: card ${card.name} (${card.title})\n\nBranch: ${branch} (from its commit message)\n\n${msg.stdout.trim()}\n`);
+      }
+    }
     if (fs.existsSync(parked)) add(rel(cwd, parked), 'why this card was parked: the diagnosis to start from');
-    else problems.push(`--resume, but card ${card.name} has no parked.md`);
+    else problems.push(`--resume, but card ${card.name} has no parked.md and no ${branch} to read it from`);
   }
 
   const body = [
@@ -755,6 +767,8 @@ function cardCommit(cwd, { plan, card: name, feature, claimed = [], fixedRound =
   const done = fixedRound ? 'fixed-in-round' : 'committed';
   setStatus(cwd, plan, card.name, done);
   if (card.parked) writePlanField(cwd, plan, card.name, 'parked', null);
+  // A card held for a decision and then done within the plan: the decision was not taken.
+  if (card.decision) writePlanField(cwd, plan, card.name, 'decision', null);
   stage(cwd, files);
   const planRel = fwd(path.relative(cwd, path.resolve(cwd, plan)));
   if (git(cwd, ['check-ignore', '-q', '--', planRel], { allowFail: true }).status !== 0) git(cwd, ['add', '--', planRel], { allowFail: true });
@@ -941,10 +955,12 @@ function runStart(cwd, { plan, feature, resume = null, implementerModel = '', di
     if (held && held.decision && !resume.accept) {
       // Not accepted: the card runs again from its tests, told to stay within the plan. Its held
       // work stays on the parked branch for reference and is not brought back.
+      // The decision line stays until the card is committed (card-commit clears it) or held again,
+      // so calling this twice takes the same path: a second call without --accept never falls
+      // through to the accept path and brings the unaccepted work back (2026-11-09, a live run).
       writePlanField(cwd, plan, held.name, 'parked', null);
-      writePlanField(cwd, plan, held.name, 'decision', null);
       setStatus(cwd, plan, held.name, 'pending');
-      resume = { card: held.name, rerun: true, reason: resume.reason, avoid: held.decision, ...(held.parked && held.parked.branch ? { heldBranch: held.parked.branch } : {}) };
+      resume = { card: held.name, rerun: true, reason: resume.reason, avoid: held.decision, heldBranch: (held.parked && held.parked.branch) || `uw/parked/${feature}/${held.name}` };
     } else {
       // Accepted: the decision goes into the plan's Decisions, so it is planned from now on, and the
       // plan is confirmed again with it, by the user's own --accept.

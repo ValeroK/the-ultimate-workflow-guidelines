@@ -237,7 +237,7 @@ test('T6 the docs: loops in agents, value runs usage, the reminder', () => {
   assert.match(read('rules/the-ultimate-workflow-guidelines.mdc'), rule);
   assert.match(read('commands/feature.md'), rule);
   assert.match(read('commands/value.md'), /experts\.js" usage/);
-  assert.match(fs.readFileSync(path.join(PLUGIN, '..', '..', 'HOW-TO-USE.md'), 'utf8'), /150k/);
+  assert.match(fs.readFileSync(path.join(PLUGIN, '..', '..', 'HOW-TO-USE.md'), 'utf8'), /80k/);
 });
 
 // The value report takes its cost from the transcripts, grouped into phases, never from the ledger's tokens.

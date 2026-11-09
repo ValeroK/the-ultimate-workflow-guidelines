@@ -193,11 +193,21 @@ test('the implementer never gains readonly', () => {
 // command with no script, or a script with no command, is an advertised feature
 // that is not there, which is the exact defect class this session kept finding.
 
-const PHASES = ['plan', 'tests', 'build', 'review', 'harvest'];
+const PHASES = ['plan', 'tests', 'build', 'review', 'harvest', 'run'];
+
+// The unattended run has no slash command of its own: the user enters it through
+// /ultimate-workflow:feature, which follows phases/run.md. Every other phase is a command.
+const commandFile = (p) => (p === 'run' ? pjoin('phases', 'run.md') : pjoin('commands', `${p}.md`));
+
+test('the run is reached only through /feature: no commands/run.md, and feature.md points at phases/run.md', () => {
+  assert.equal(fs.existsSync(pjoin('commands', 'run.md')), false, 'commands/run.md would make /run a command again');
+  assert.ok(fs.readFileSync(pjoin('commands', 'feature.md'), 'utf8').includes('${CLAUDE_PLUGIN_ROOT}/phases/run.md'), 'feature.md never sends the Full tier to phases/run.md');
+  assert.match(fs.readFileSync(pjoin('phases', 'run.md'), 'utf8'), /script --phase run/, 'phases/run.md never names its workflow script');
+});
 
 test('every advertised phase has both a command and a script', () => {
   for (const p of PHASES) {
-    assert.ok(fs.existsSync(pjoin('commands', `${p}.md`)), `no command for /${p}`);
+    assert.ok(fs.existsSync(commandFile(p)), `no command for /${p}`);
     assert.ok(fs.existsSync(pjoin('phases', `${p}.js`)), `no script for /${p}`);
   }
 });
@@ -227,6 +237,17 @@ test('every command that presents a workflow result reads it from the output fil
     assert.ok(text.includes('ExitPlanMode'), `${p}.md does not use the plan view`);
     assert.ok(text.includes('--result <the output file>'), `${p}.md records the experts lane from a retyped notice, not --result`);
   }
+});
+
+// 2026-11-09, a real headless run: with a confirmed plan, the main session read the code, predicted
+// the experts' blocking finding and stopped to ask, and also stopped because it could not see its own
+// permission mode. Neither stop was the user's. Wording cannot be proven by a test; this keeps the
+// two instructions from being dropped in a later edit.
+test('the run goes straight from a confirmed plan to run-start, with no pre-review and no stop for an unseen mode', () => {
+  const text = fs.readFileSync(pjoin('phases', 'run.md'), 'utf8');
+  assert.match(text, /Do not review the plan or the code yourself first, and do not stop for what you expect the run to find/);
+  assert.match(text, /Not being able to see the mode is no reason to stop/);
+  assert.doesNotMatch(text, /If you cannot tell, or it is not, say so before the run and ask the user to switch/);
 });
 
 test('plan, tests and feature raise open questions one at a time', () => {
@@ -268,7 +289,7 @@ test('no script is left without a command to invoke it', () => {
     .map((f) => f.replace(/\.js$/, ''));
   for (const s of scripts) {
     assert.ok(
-      fs.existsSync(pjoin('commands', `${s}.md`)),
+      fs.existsSync(commandFile(s)),
       `phases/${s}.js has no command, so nothing can reach it`
     );
   }
@@ -286,7 +307,7 @@ test('each command declares a description, or the plugin lists it blank', () => 
 test('the phase count in the prose matches the number of phases that exist', () => {
   // "Five phases" appears in the README, both manifests, and both indexes.
   // If a sixth lands, this is the thing that notices.
-  assert.equal(PHASES.length, 5);
+  assert.equal(PHASES.length, 6);
   for (const rel of ['README.md', 'CLAUDE.md']) {
     const t = read(rel);
     if (/\bfive phases\b/i.test(t) || /\bFive phases\b/.test(t)) {

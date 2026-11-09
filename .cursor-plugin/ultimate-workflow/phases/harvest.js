@@ -241,6 +241,30 @@ if (!routed) {
 
 log(`${routed.proposals.length} proposals, ${routed.discarded.length} discarded`)
 
+// 4.7.0, mode "branch" (the autopilot run, PLAN-autopilot.md W5): nothing stops for acceptance.
+// The proposals become commits on uw/harvest/<feature>, one per destination file, through one
+// command, and the user merges that branch or drops it. The interactive harvest is unchanged.
+if (args && args.mode === 'branch') {
+  const feature = String(args.feature || '')
+  if (!args.cli || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(feature)) {
+    return { ok: false, ...routed, error: 'mode "branch" needs cli and feature in the arguments (experts.js script writes cli in). The proposals are above; nothing was committed.' }
+  }
+  if (routed.proposals.length === 0) return { ok: true, mode: 'branch', ...routed, branch: null, commits: [], reviewedRange: range }
+  const file = `.ultimate-workflow/run/${feature}/harvest.json`
+  const command = `${args.cli} harvest-branch --feature ${feature} --from "${file}"`
+  const wrote = await agent(
+    `Write the file ${file} with the Write tool. Its whole content is between the markers, exactly:\n<<<CONTENT\n${JSON.stringify(routed.proposals)}\nCONTENT>>>\n\nThen run this one command with the Bash tool and report its last line verbatim. The user asked for the harvest to be committed to its own branch; this command does that and touches nothing else:\n${command}`,
+    { agentType: agentName('uw-implementer'), label: 'harvest-branch', phase: 'Route', schema: { type: 'object', required: ['outputs'], properties: { outputs: { type: 'array', items: { type: 'object', required: ['command', 'output'], properties: { command: { type: 'string' }, output: { type: 'string' } } } } } } }
+  )
+  const line = wrote && Array.isArray(wrote.outputs) && wrote.outputs.length ? String(wrote.outputs[wrote.outputs.length - 1].output || '').trim().split(/\r?\n/).pop() : ''
+  let made = null
+  try {
+    made = JSON.parse(line)
+  } catch {}
+  if (!made || made.ok !== true) return { ok: false, mode: 'branch', ...routed, error: `the harvest branch was not made: ${(made && made.reason) || 'harvest-branch printed nothing'}`, reviewedRange: range }
+  return { ok: true, mode: 'branch', ...routed, branch: made.branch, commits: made.commits, reviewedRange: range, candidatesConsidered: candidates.length }
+}
+
 return {
   ...routed,
   reviewedRange: range,

@@ -11,7 +11,8 @@
 //   experts.js usage [--since <date>] [--match <text>] [--root <dir>]
 //
 // Default: this project's folder under ~/.claude/projects. --match reads every project folder
-// whose name contains the text (worktrees and employee desks have folders of their own).
+// whose name contains the text (worktrees and employee desks have folders of their own). Both also
+// read the sessions of a parent folder whose recorded cwd is inside this project (4.7.0).
 
 const fs = require('node:fs');
 const path = require('node:path');
@@ -36,8 +37,25 @@ function* walk(dir) {
 
 const textOf = (c) => (typeof c === 'string' ? c : Array.isArray(c) ? c.map((x) => (x && (x.text || (typeof x.content === 'string' ? x.content : ''))) || '').join('') : '');
 
-function role(firstPrompt) {
+/**
+ * The task a workflow agent was given, without the host's frame. Claude Code 2.1.318 opens every
+ * workflow agent's prompt with "[Workflow harness -- computed task] ... The computed task text
+ * follows:" and indents the task by two spaces, so a pattern anchored at the start never matched and
+ * plan readers and harvest readers were counted as other agents (4.7.0).
+ */
+function taskText(firstPrompt) {
   const t = String(firstPrompt || '');
+  const m = /The computed task text follows:\r?\n([\s\S]*)$/.exec(t);
+  return m ? m[1].replace(/^ {2}/gm, '') : t;
+}
+
+// What a role is when the prompt says nothing more specific: the agent type, from the
+// `<agent>.meta.json` the host writes beside a subagent transcript.
+const BY_TYPE = { 'uw-explorer': 'reader', 'uw-harvester': 'harvest-reader', 'uw-critic': 'critic', 'uw-implementer': 'implementer', 'uw-reviewer': 'reviewer' };
+
+function role(firstPrompt, agentType = '') {
+  const t = taskText(firstPrompt);
+  const type = String(agentType || '').replace(/^.*:/, '');
   const expert = /You are the ([\w-]+) domain expert/.exec(t);
   if (expert) return `expert:${expert[1]}`;
   if (/Try to REFUTE/.test(t)) return 'skeptic';
@@ -47,16 +65,74 @@ function role(firstPrompt) {
   if (/Diagnose it from the evidence/.test(t)) return 'diagnose';
   if (/and report what it constrains for a change described as/.test(t)) return 'reader';
   if (/^\s*(Read every PLAN-\*\.md file|Review the git history and diff for|Inventory what this repository has ALREADY recorded)/.test(t)) return 'harvest-reader';
-  return 'other';
+  const typed = /^uw-expert-([\w-]+)$/.exec(type);
+  if (typed) return `expert:${typed[1]}`;
+  return BY_TYPE[type] || 'other';
+}
+
+function agentTypeOf(file) {
+  try {
+    return JSON.parse(fs.readFileSync(file.replace(/\.jsonl$/, '.meta.json'), 'utf8')).agentType || '';
+  } catch {
+    return '';
+  }
+}
+
+/** Windows paths compare without case and with one kind of slash. */
+const normPath = (p) => path.resolve(String(p)).replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+
+/** The first `cwd` a transcript records, or ''. */
+function firstCwd(text) {
+  for (const line of text.split('\n')) {
+    const m = /"cwd":"((?:[^"\\]|\\.)*)"/.exec(line);
+    if (m) {
+      try {
+        return JSON.parse(`"${m[1]}"`);
+      } catch {
+        return '';
+      }
+    }
+  }
+  return '';
 }
 
 /** One row per transcript file. `root` is a project folder, or the projects folder with `match` or `projects: true`. */
-function scan({ root, match = '', since = 0, projects = false } = {}) {
+/**
+ * `inside` (4.7.0, bug 2): the project root. A session started in a parent folder (the user opened
+ * Claude Code in ~/Projects and worked in ~/Projects/app) is stored under the parent's folder, whose
+ * name does not contain the project's. Such a folder is read too, and a transcript from it is kept
+ * when the `cwd` it records is the project root or below it. `exact`: the folder name must equal it.
+ */
+function scan({ root, match = '', since = 0, projects = false, inside = '', exact = '' } = {}) {
   const rows = [];
   const lower = String(match).toLowerCase();
+  const own = inside ? projectFolder(path.resolve(inside)).toLowerCase() : '';
+  const insideNorm = inside ? normPath(inside) : '';
+  const cwdCache = new Map();
   for (const file of walk(root)) {
-    const project = match || projects ? path.relative(root, file).split(path.sep)[0] : path.basename(root);
-    if (lower && !project.toLowerCase().includes(lower)) continue;
+    const project = match || projects || exact ? path.relative(root, file).split(path.sep)[0] : path.basename(root);
+    const name = project.toLowerCase();
+    let fromParent = false;
+    const named = exact ? name === String(exact).toLowerCase() : !lower || name.includes(lower);
+    if (!named) {
+      // Only a folder whose name is a prefix of the project's can hold a parent folder's sessions.
+      if (!own || !own.startsWith(name) || name === own) continue;
+      const session = path.relative(path.join(root, project), file).split(path.sep)[0].replace(/\.jsonl$/, '');
+      if (!cwdCache.has(session)) {
+        let cwd = '';
+        try {
+          cwd = firstCwd(fs.readFileSync(path.join(root, project, `${session}.jsonl`), 'utf8'));
+        } catch {
+          try {
+            cwd = firstCwd(fs.readFileSync(file, 'utf8'));
+          } catch {}
+        }
+        cwdCache.set(session, cwd);
+      }
+      const cwd = cwdCache.get(session);
+      if (!cwd || !(normPath(cwd) === insideNorm || normPath(cwd).startsWith(`${insideNorm}/`))) continue;
+      fromParent = true;
+    }
     let st;
     try {
       st = fs.statSync(file);
@@ -64,7 +140,7 @@ function scan({ root, match = '', since = 0, projects = false } = {}) {
       continue;
     }
     if (since && st.mtimeMs < since) continue;
-    const r = { file, project, main: !/[\\/]subagents[\\/]/.test(file), turns: 0, input: 0, cacheWrite: 0, cacheRead: 0, output: 0, models: {}, first: '' };
+    const r = { file, project, ...(fromParent ? { fromParent: true } : {}), main: !/[\\/]subagents[\\/]/.test(file), turns: 0, input: 0, cacheWrite: 0, cacheRead: 0, output: 0, models: {}, first: '' };
     let text;
     try {
       text = fs.readFileSync(file, 'utf8');
@@ -94,7 +170,7 @@ function scan({ root, match = '', since = 0, projects = false } = {}) {
     }
     if (r.turns === 0) continue;
     r.tokens = r.input + r.cacheWrite + r.cacheRead + r.output;
-    r.role = r.main ? 'main' : role(r.first);
+    r.role = r.main ? 'main' : role(r.first, agentTypeOf(file));
     delete r.first;
     rows.push(r);
   }
@@ -149,12 +225,17 @@ function cli(argv, cwd, out, fail) {
   };
   const projects = path.join(os.homedir(), '.claude', 'projects');
   const match = get('--match') || '';
-  const root = get('--root') || (match ? projects : path.join(projects, projectFolder(cwd)));
+  const given = get('--root');
+  // Without --root the projects folder is read, so sessions started in a parent folder are found too.
+  const root = given || projects;
   const sinceText = get('--since');
   const since = sinceText ? new Date(sinceText).getTime() : 0;
   if (sinceText && !Number.isFinite(since)) return fail(`--since "${sinceText}" is not a date`);
   if (!fs.existsSync(root)) return fail(`no transcripts at ${root} (use --root, or --match with part of the project folder name)`);
-  return out({ root, match, since: sinceText || null, ...summarize(scan({ root, match, since })) });
+  const opts = given ? { root, match, since } : { root, match, since, inside: cwd, ...(match ? {} : { exact: projectFolder(cwd) }) };
+  const rows = scan(opts);
+  const parent = rows.filter((r) => r.fromParent).length;
+  return out({ root, match, since: sinceText || null, ...(parent ? { fromParentFolders: parent } : {}), ...summarize(rows) });
 }
 
-module.exports = { projectFolder, role, scan, summarize, cli };
+module.exports = { projectFolder, role, taskText, scan, summarize, cli };

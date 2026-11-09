@@ -195,6 +195,30 @@ function writeKnownFailures(planFile, names) {
   fs.writeFileSync(planFile, text);
 }
 
+/**
+ * How to run a test command (4.7.0, W7). `shell: true` is cmd.exe on Windows, and cmd.exe does not
+ * know single quotes, so `bash -c 'npm test && npm run lint'` reached bash cut at every space and
+ * failed on a quoting error, every time. A command that is exactly `bash -c '<script>'` or
+ * `sh -c "<script>"` runs through that shell with the script as one argument; `test_shell: bash` in
+ * the plan runs every command through bash. Anything else runs as before. Null means "as before".
+ */
+function shellFor(command, data, platform = process.platform) {
+  const named = String((data && data.test_shell) || '').trim();
+  if (named) {
+    if (!/^[A-Za-z0-9_./:\\ -]+$/.test(named)) throw new Error(`test_shell "${named}" is not a program name or path`);
+    return { file: named, args: ['-c', command] };
+  }
+  if (platform !== 'win32') return null;
+  const m = /^\s*(bash|sh)(?:\.exe)?\s+-c\s+(?:'([^']*)'|"((?:[^"\\]|\\.)*)")\s*$/.exec(String(command));
+  if (!m) return null;
+  return { file: m[1], args: ['-c', m[2] !== undefined ? m[2] : m[3].replace(/\\(["\\$`])/g, '$1')] };
+}
+
+function runShell(command, data, opts) {
+  const sh = shellFor(command, data);
+  return sh ? spawnSync(sh.file, sh.args, opts) : spawnSync(command, { ...opts, shell: true });
+}
+
 /** Source changes (documents and the plan do not count): a baseline must be taken before any. */
 function sourceChanges(cwd) {
   const changes = experts.workingChanges(cwd);
@@ -221,7 +245,7 @@ function captureBaseline(cwd, data) {
   let output;
   let abnormal = false;
   try {
-    const r = spawnSync(command, { cwd, shell: true, encoding: 'utf8', maxBuffer: 512 * 1024 * 1024 });
+    const r = runShell(command, data, { cwd, encoding: 'utf8', maxBuffer: 512 * 1024 * 1024 });
     code = r.status === null ? 1 : r.status;
     // Killed by a signal, timed out, out of buffer: the output is partial, so no list can be trusted.
     abnormal = r.status === null || Boolean(r.error);
@@ -506,13 +530,13 @@ function main(argv, startDir = process.cwd()) {
   let abnormal = false;
   try {
     if (process.env.ULTIMATE_WORKFLOW_VERIFY_FULL_OUTPUT === '1') {
-      const r = spawnSync(choice.command, { cwd, shell: true, stdio: 'inherit' });
+      const r = runShell(choice.command, data, { cwd, stdio: 'inherit' });
       code = r.status === null ? 1 : r.status;
     } else {
       // 4.2.0: a full suite prints thousands of lines, and whatever lands in the conversation is
       // re-sent on every later turn. The whole output goes to a file; the conversation gets the
       // failure lines and the tail.
-      const r = spawnSync(choice.command, { cwd, shell: true, encoding: 'utf8', maxBuffer: 512 * 1024 * 1024 });
+      const r = runShell(choice.command, data, { cwd, encoding: 'utf8', maxBuffer: 512 * 1024 * 1024 });
       code = r.status === null ? 1 : r.status;
       // Killed by a signal, timed out, out of buffer: the output is partial and is never judged.
       abnormal = r.status === null || Boolean(r.error);
@@ -573,4 +597,4 @@ function main(argv, startDir = process.cwd()) {
 
 if (require.main === module) process.exit(main(process.argv.slice(2)));
 
-module.exports = { main, readRecord, recordFull, fullEvidence, relatedTests, acquireLock, shortOutput, extractFailures, readBaseline, baselineApplies, judge, setFrontLine, RECORD, LOCK, LOG, BASELINE };
+module.exports = { main, shellFor, readRecord, recordFull, fullEvidence, relatedTests, acquireLock, shortOutput, extractFailures, readBaseline, baselineApplies, judge, setFrontLine, RECORD, LOCK, LOG, BASELINE };

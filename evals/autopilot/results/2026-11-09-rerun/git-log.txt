@@ -1,0 +1,9 @@
+312f058 plan: run status for calc
+936d8af harvest: progress -> progress.md
+9469b44 card findings: non-blocking expert findings no card fixed
+0e18b52 card format: format a result as "= n"
+c6567e1 card parse: evaluate "a+b" and "a-b" with add and sub
+2e4bf45 card sub: subtract two integers
+31eb72a card add: add two integers
+ba6c020 uw: ignore .ultimate-workflow/ (the run's own state)
+4682c0d init

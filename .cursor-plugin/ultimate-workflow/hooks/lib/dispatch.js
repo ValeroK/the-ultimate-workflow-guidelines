@@ -114,7 +114,10 @@ function dispatch(ev, state, opts = {}) {
   // --- mark the tree dirty once an edit has landed -------------------------
   if ((ev.event === 'postTool' && WRITE_TOOLS.has(ev.tool)) || ev.event === 'afterEdit') {
     const rel = ev.cwd ? gates.toProjectPath(ev.cwd, ev.path) : ev.path;
-    if (rel === null || rel === '' || gates.isDocPath(rel) || gates.isDiagramPath(rel)) return allow;
+    // The plugin's own run folder is not source (4.7.0): the autopilot run writes its journal lines
+    // and harvest file there after the last card, and that made G3 ask for a test run of a tree the
+    // run had just verified.
+    if (rel === null || rel === '' || gates.isDocPath(rel) || gates.isDiagramPath(rel) || gates.isRunPath(rel)) return allow;
     return { kind: 'allow', patch: { dirty: true } };
   }
 

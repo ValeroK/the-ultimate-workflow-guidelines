@@ -26,7 +26,7 @@ const os = require('node:os');
 
 /**
  * The reminder to start a new session when the conversation's context is large (4.2.0). Once per
- * 150k band per session; the band reached is kept in the system temp folder, so a project that
+ * 80k band per session (the default); the band reached is kept in the system temp folder, so a project that
  * does not use the workflow gets no files. Never blocks, never throws.
  */
 function contextReminder(ev, env) {

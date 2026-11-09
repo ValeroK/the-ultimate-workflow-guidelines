@@ -1,0 +1,8 @@
+needs decision: card server (the listening number)
+
+needs a decision the plan does not state: the card was run again within the plan and could not be finished without it.
+- held for: needs a decision the plan does not state: - env: reads the environment variable PORT in src/server.js - declared: Used the PORT environment variable as the name for the configured number. The plan only says 'through the environment', and th
+- within the plan: tests did not fail first: The new tests did not fail before implementation, so they cannot demonstrate the change works. Either the behaviour already exists, or those tests have no real oracle. Both are worth knowing before writing code.
+
+Plan: PLAN-svc.md
+

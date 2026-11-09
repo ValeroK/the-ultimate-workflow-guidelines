@@ -2,7 +2,7 @@
 
 > How enforcement works here, why "installed" is never evidence of "enforcing",
 > and what was measured on each host.
-> Last updated 2026-08-28.
+> Last updated 2026-11-07.
 
 ## Mental model: fail-open means nothing looks like everything
 
@@ -28,6 +28,12 @@ Seven of the nine defects found while building the gates were in the vendor wire
 - **An unsatisfiable gate fails open.** The shipped plan template defaults `test_command` to empty, which meant nothing could ever clear `dirty`, so G3 blocked every turn end until the host's consecutive-block override fired. A gate that cannot be satisfied is worse than no gate.
 - **Guessing intent from a command string does not work.** A `looksLikeShellWrite` heuristic scored three false positives (a heredoc, an arrow function, `2>/dev/null`) and zero true positives before being deleted. Shell writes are addressed structurally by tool scoping instead.
 - **G6 holds the domain-experts flow to account.** Two checks. Before a source edit, the plan must carry an `experts:` line (`experts: []` is a valid decision, so the gate is satisfiable). Before `git commit`, the changes must have been re-checked for experts and reviewed by every selected expert, against a fingerprint of the uncommitted changes (`experts/experts.js`), so any later edit makes the evidence stale. The final set may not drop an expert the plan named. It needs `Bash` in the PreToolUse matcher, which `registration.test.js` pins. It exempts documentation-only and empty commits, fails open when the tree cannot be read, and is detect-only on a host that cannot block (Cursor). It also blocks while a high-confidence expert finding is open (confirmed by the skeptic or never ruled on); a fix clears it through the next review, and `experts.js resolve` dismisses one with the user's reason. The gate cannot tell who ran `resolve`, so the rule that only the user's word dismisses a finding lives in the commands and in the gate's own message, and is honour-system like `plan_confirmed`. It does not see a commit hidden in `bash -c "..."`. Like the other gates it is on by default since 4.1.0 (`ULTIMATE_WORKFLOW_GATES=off` disables it), and what makes the expert flow automatic is still the phase commands, not the gate. `status.js` reports the experts state. Since the changed-only recheck (2026-10-29) a review record can be a delta (`delta: {base, files, removed, chain}`): the expert saw only the files changed since `base` and the files using them, and its findings elsewhere were carried forward by `record`, which refuses a delta whose base is not the record on file. The gate does not look at `delta`; it still needs every selected expert's record at the current hash.
+- **Not every commit goes through PreToolUse (4.7.0, the autopilot run).** Workflow agents refused to type `git commit` or `git reset --hard` (S0), so the run commits through `experts.js` commands, whose own git calls no hook sees:
+  - `card-commit` runs the G7 and G6 predicates itself (`fullSuiteGate`, `commitGate`), before staging, because staging a new file moves the fingerprint they judge;
+  - `park`, `harvest-branch` and `run-start`'s one-line `.gitignore` commit skip the gates on purpose: a parked commit holds failing tests by design, a harvest commit is proposals on a side branch, and the ignore line is the plugin's own housekeeping.
+
+  A new command that commits must either call the predicates or say why it does not. In the same release, writes under `.ultimate-workflow/run/` stopped marking the tree dirty (`dispatch.js`), and `card-commit` and `park` clear `dirty`, because the tree they leave is a commit whose full run passed.
+- **`test_command` on Windows (4.7.0).** `shell: true` is cmd.exe, which does not read single quotes. `verify.js` runs a command that is exactly `bash -c '<script>'` or `sh -c "<script>"` through that shell, with the script as one argument; `test_shell: bash` in the plan runs every command through bash (`shellFor`).
 
 ## Common operations
 

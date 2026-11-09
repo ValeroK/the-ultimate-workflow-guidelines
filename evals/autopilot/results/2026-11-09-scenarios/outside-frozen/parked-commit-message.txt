@@ -1,0 +1,8 @@
+parked: card cart (total the prices of a list of items)
+
+blocking findings from the experts check, outside this card's paths so no fix round:
+- quality: src/prices.js:4 The plan's blocking requirement is not met in the called file: price() catches its own 'unknown item' error and returns 0, so a path in a file cart calls turns an unknown item into 0.
+- developer: src/cart.js:12 The unknown-item guard only tests `cents === 0`, but the frozen price() uses `item in TABLE`, which is also true for inherited keys, so names like 'toString', 'constructor' or '__proto__' return a non-number and pass the guard.
+
+Plan: PLAN-cart.md
+

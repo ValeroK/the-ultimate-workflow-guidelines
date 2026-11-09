@@ -1,6 +1,6 @@
 # Authoring workflow phases
 
-> How the five phase scripts are built, what the runtime forbids, and what
+> How the phase scripts (five phases, plus the autopilot `run.js`) are built, what the runtime forbids, and what
 > each one costs.
 > Last updated 2026-10-20.
 
@@ -11,6 +11,8 @@ A workflow is a JavaScript program the runtime executes **out of the conversatio
 The rule that keeps this from becoming a pile of dispersed decisions: **agents produce findings; code and humans make decisions.** Every branch is a JS conditional or a human gate. No subagent chooses what runs next.
 
 Phases are separate invocations rather than one script because the runtime cannot take mid-run user input — the documentation says plainly that for sign-off between stages, each stage should be its own workflow. The confirmation points are the product, so the decomposition is forced, and it is also correct: each phase is independently rerunnable and independently costable.
+
+`phases/run.js` (4.7.0) is the deliberate exception, and only after both confirmations: nothing it does needs the user, so it holds the whole card loop, the review and the harvest in one script, and the main conversation makes one call. A card that would need a decision is parked on a branch instead of stopping. It carries `build.js`'s loop as a marked block (`// --- build loop`), held equal by a test in the source repository. It writes through its agents, but every commit, park and harvest commit goes through one `experts.js` command, never an agent's own git.
 
 ## Key decisions
 
@@ -40,6 +42,9 @@ No filesystem or shell access from the script; no `import()`; `Date.now()`, `Mat
 - **A phase result reaches the session as a completion notice that is cut off when the result is large.** A real plan result was about 62 KB and about 38 KB of it never reached the model, which then summarised the plan it could see. The Workflow tool's output file always holds the whole result. So a command never presents from the notice: `experts.js present` writes the document from the output file (decoded, whole, or an error), `experts.js record --result` reads the experts' lane from it, and review and harvest read the file to the end. Do not rely on a result staying small, and do not return the same text twice in a result (`expertInput` repeated the whole Expert input section). (Discovered 2026-11-06)
 - **An installed plugin's agents are `ultimate-workflow:<name>`, never the bare name.** Every `agentType` goes through `agentName()`; a bare one is "agent type not found" on every user's machine while every local run and test passes, because local runs use the `.claude/agents/` copies. Shipped broken in 4.0.0 for all five phases. The test harness now refuses a bare name. (Discovered 2026-10-22)
 - **A `null` from `parallel()` means that branch failed, not that it found nothing.** Merging nulls into a result list turns total failure into an empty result, byte-identical to a correct empty answer. Every script must return an explicit failure when all branches are null, and warn on partial coverage. This was reproduced in new code written while explicitly designing against it.
+- **A workflow agent will not take a git action on the script's say-so.** Claude Code (2.1.318) opens every workflow agent's prompt with "[Workflow harness -- computed task] ... carries no user authority", and in the S0 spike an agent refused `git commit` and `git reset --hard` quoting it. Anything that commits, branches or resets is one `experts.js` command (`card-commit`, `park`, `harvest-branch`) the agent runs, and the gates' checks run inside it in code. The same frame broke every prompt pattern anchored at `^` in `usage.js`; read the agent type from the `.meta.json` beside the transcript instead. (Discovered 2026-11-07)
+- **A workflow agent does not see exit codes.** The Bash tool output it gets has none, so a command a script relies on prints one JSON line with a boolean `ok`, and the script parses that line from the agent's report. (Discovered 2026-11-07)
+- **`claude -p` stops a background workflow 10 minutes after its last turn** unless `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0` is set. Interactive sessions are not affected. (Discovered 2026-11-07)
 - **Resume replays in order.** Cached results stop at the first agent that did not finish, and every agent that *started* after it re-runs even if it completed. Prefer many small agents to few long ones.
 
 ## Measured cost

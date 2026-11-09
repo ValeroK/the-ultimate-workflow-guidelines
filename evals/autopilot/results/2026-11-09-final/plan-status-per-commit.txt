@@ -1,0 +1,7 @@
+card add: add two integers (fixed in a fix round): status: fixed-in-round;status: pending;status: pending;status: pending;
+card sub: subtract two integers: status: fixed-in-round d8e59ca0c2ce;status: committed;status: pending;status: pending;
+card parse: evaluate "a+b" and "a-b" with add and sub: status: fixed-in-round d8e59ca0c2ce;status: committed 96095c6fc10e;status: committed;status: pending;
+card format: format a result as "= n": status: fixed-in-round d8e59ca0c2ce;status: committed 96095c6fc10e;status: committed c364a9b0163e;status: committed;
+card findings: non-blocking expert findings no card fixed: status: fixed-in-round d8e59ca0c2ce;status: committed 96095c6fc10e;status: committed c364a9b0163e;status: committed b6f56951bc6b;status: committed;
+card fixup: confirmed review findings: status: fixed-in-round d8e59ca0c2ce;status: committed 96095c6fc10e;status: committed c364a9b0163e;status: committed b6f56951bc6b;status: committed 981d2e3c98b2;status: committed;
+plan: run status for calc: status: fixed-in-round d8e59ca0c2ce;status: committed 96095c6fc10e;status: committed c364a9b0163e;status: committed b6f56951bc6b;status: committed 981d2e3c98b2;status: committed 0e42bf1c634c;

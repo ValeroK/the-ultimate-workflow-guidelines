@@ -1,0 +1,131 @@
+{
+  "date": "2026-11-07",
+  "claudeCode": "2.1.318",
+  "host": "Windows, claude -p, --model sonnet, --permission-mode acceptEdits --allowedTools Bash Workflow Read Write Edit, CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0",
+  "plugin": "feat/autopilot at 5d3a8db, --plugin-dir",
+  "command": "/ultimate-workflow:run --plan PLAN-calc.md (plan and tests already confirmed)",
+  "runs": {
+    "oneCard": {
+      "cards": 1,
+      "committed": [
+        "add",
+        "findings"
+      ],
+      "parked": [],
+      "usage": {
+        "tokens": 2427436,
+        "main": {
+          "tokens": 541776,
+          "turns": 10,
+          "cacheRead": 485116
+        },
+        "agents": {
+          "tokens": 1885660,
+          "count": 21
+        },
+        "phases": {
+          "main": {
+            "tokens": 541776,
+            "count": 1,
+            "turns": 10
+          },
+          "expertsCheck": {
+            "tokens": 455015,
+            "count": 5,
+            "turns": 17
+          },
+          "build": {
+            "tokens": 1294434,
+            "count": 11,
+            "turns": 65
+          },
+          "readers": {
+            "tokens": 36406,
+            "count": 1,
+            "turns": 3
+          },
+          "otherAgents": {
+            "tokens": 99805,
+            "count": 4,
+            "turns": 9
+          }
+        }
+      },
+      "session": {
+        "numTurns": 3,
+        "costUsd": 1.11
+      }
+    },
+    "fourCards": {
+      "cards": 4,
+      "committed": [
+        "add",
+        "sub",
+        "parse",
+        "format",
+        "findings",
+        "fixup"
+      ],
+      "parked": [],
+      "usage": {
+        "tokens": 7021000,
+        "main": {
+          "tokens": 552136,
+          "turns": 10,
+          "cacheRead": 491527
+        },
+        "agents": {
+          "tokens": 6468864,
+          "count": 60
+        },
+        "phases": {
+          "main": {
+            "tokens": 552136,
+            "count": 1,
+            "turns": 10
+          },
+          "expertsCheck": {
+            "tokens": 2616700,
+            "count": 22,
+            "turns": 80
+          },
+          "build": {
+            "tokens": 3625878,
+            "count": 33,
+            "turns": 183
+          },
+          "readers": {
+            "tokens": 40973,
+            "count": 1,
+            "turns": 3
+          },
+          "otherAgents": {
+            "tokens": 185313,
+            "count": 4,
+            "turns": 15
+          }
+        }
+      },
+      "session": {
+        "numTurns": 3,
+        "costUsd": 3.06
+      },
+      "ledgerRun": {
+        "tokens": 1373537,
+        "durationMs": 561982
+      },
+      "catches": {
+        "expert:quality": 2,
+        "lens:test-coverage": 1
+      }
+    }
+  },
+  "criterion1": {
+    "rule": "main conversation tokens for an N-card run within 1.5x of a 1-card run",
+    "oneCard": 541776,
+    "fourCards": 552136,
+    "ratio": 1.019,
+    "mainShareFourCards": 0.079,
+    "met": true
+  }
+}

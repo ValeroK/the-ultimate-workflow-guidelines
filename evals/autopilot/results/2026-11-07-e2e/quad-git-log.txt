@@ -1,0 +1,9 @@
+86df5a2 harvest: progress -> progress.md
+1a0217f card fixup: confirmed blocking review findings
+e6d7dc1 card findings: non-blocking expert findings no card fixed
+9f8b3ea card format: format a result as "= n"
+6a2a517 card parse: evaluate "a+b" and "a-b" with add and sub
+6816b1a card sub: subtract two integers
+fb846c3 card add: add two integers
+39ffa43 uw: ignore .ultimate-workflow/ (the run's own state)
+22f293c init

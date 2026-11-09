@@ -1,0 +1,12 @@
+ee76dff plan: run status for calc
+fe3bd25 harvest: progress -> progress.md
+064f743 harvest: memory -> memory/calc.md
+0e42bf1 card fixup: confirmed review findings
+981d2e3 card findings: non-blocking expert findings no card fixed
+b6f5695 card format: format a result as "= n"
+c364a9b card parse: evaluate "a+b" and "a-b" with add and sub
+96095c6 card sub: subtract two integers
+d8e59ca card add: add two integers (fixed in a fix round)
+80b619d uw: ignore .ultimate-workflow/ (the run's own state)
+37dec54 plan: corrected fixture (each guard tested, safe integers)
+4682c0d init

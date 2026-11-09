@@ -151,7 +151,10 @@ test('present --append: adds the tests section to the end of the plan and confir
   const r = run(dir, ['present', '--result', result, '--field', 'testsMarkdown', '--out', plan, '--append', '--confirm', 'tests_confirmed']);
   assert.strictEqual(r.status, 0, r.stderr);
   const text = fs.readFileSync(plan, 'utf8');
-  assert.ok(text.startsWith(PLAN.replace('plan_confirmed: false', 'plan_confirmed: true').replace('tests_confirmed: false', 'tests_confirmed: true').trimEnd()), 'the plan is untouched apart from the flag');
+  // 2026-11-09: confirming the test plan also records the hash of the plan the user confirmed.
+  assert.match(text, /^confirmed_hash: [0-9a-f]{16}$/m);
+  const withoutHash = text.replace(/^confirmed_hash: [0-9a-f]{16}\r?\n/m, '');
+  assert.ok(withoutHash.startsWith(PLAN.replace('plan_confirmed: false', 'plan_confirmed: true').replace('tests_confirmed: false', 'tests_confirmed: true').trimEnd()), 'the plan is untouched apart from the flag and the hash');
   assert.ok(text.endsWith('\n\n## Tests\n\n- a case\n'));
   assert.match(text, /^plan_confirmed: true$/m);
   assert.match(text, /^tests_confirmed: true$/m);

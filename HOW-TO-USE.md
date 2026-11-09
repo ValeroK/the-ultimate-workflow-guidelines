@@ -85,11 +85,11 @@ It first tells you how big the job is:
 |---|---|---|---|
 | **Skip** | Typo, formatting, one-line fix, doc edit, rename | Just makes the change | Never |
 | **Light** | A small, clear change of a few files | Plan, test plan, code, experts check | 2 times |
-| **Full** | Real scope, contracts, data, security, infrastructure | Plan with experts, test plan, code card by card, review, experts check, lessons | 2 times |
+| **Full** | Real scope, contracts, data, security, infrastructure | Plan with experts, test plan, then every card built, checked and committed unattended on its own branch, review, lessons | 2 times |
 
 Wrong guess? Say "make it full" or "make it light".
 
-The two stops are always the same: **"here's the plan, OK?"** and **"here are the tests, OK?"** It also stops if an expert finds a serious problem, the code fails three rounds, or something breaks, and tells you why. It commits only when you say "commit".
+The two stops are always the same: **"here's the plan, OK?"** and **"here are the tests, OK?"** It also stops if an expert finds a serious problem, the code fails three rounds, or something breaks, and tells you why. It commits only when you say "commit", except the Full tier's unattended run, which commits each card to its own `uw/run/<feature>` branch and never to yours; you merge that branch when you are happy with it.
 
 ---
 
@@ -114,6 +114,7 @@ Existing project:         /ultimate-workflow:feature <what you want>           -
 | `/ultimate-workflow:review` | Review the whole change |
 | `/ultimate-workflow:experts` | Experts check before a commit |
 | `/ultimate-workflow:harvest` | Save the lessons from a finished feature |
+| `/ultimate-workflow:feature` (Full tier) | Not a separate command: on Claude Code the Full tier of `/feature` is an unattended build. After your two OKs, every card is built and committed to `uw/run/<feature>` (a card it cannot finish is parked on `uw/parked/...` with why), then review and lessons on `uw/harvest/<feature>`. You merge the branch. `/ultimate-workflow:feature --resume <card>` continues a parked card; `--plan <file>` starts from a plan already confirmed |
 | `/ultimate-workflow:value` | What the workflow cost (main conversations included, by step and by model) and what it caught |
 | `/ultimate-workflow:expert-attribution` | Which expert skill a finding came from (rarely needed) |
 | `/handoff` | Ending a session with work in flight: writes a note for the next session |
@@ -127,7 +128,7 @@ Existing project:         /ultimate-workflow:feature <what you want>           -
 - While Claude works, only the tests related to the change run. The full suite runs once at the end of a build and once before each commit, and whenever config, a lockfile or many files changed. Set `test_related_command` in the plan (it proposes one) to get this; without it every run is the full suite.
 - Files your tests or app rewrite on every run (a timing file, a local database) go in the plan's `volatile_paths`, so they never make a check look out of date.
 - When a feature's commit has landed, its plan is marked `phase: done` and the gates stop reading it (`feature` does this).
-- When a conversation passes about 150k tokens of context, a reminder suggests finishing the step, running `/handoff` and starting a new session. Every turn re-sends the whole conversation, so long sessions cost the most. Change it with `ULTIMATE_WORKFLOW_CONTEXT_REMINDER` (tokens; `0` turns it off).
+- When a conversation passes about 80k tokens of context, a reminder suggests finishing the step, running `/handoff` and starting a new session. Every turn re-sends the whole conversation, so long sessions cost the most. Change it with `ULTIMATE_WORKFLOW_CONTEXT_REMINDER` (tokens; `0` turns it off).
 - Test runs print only a summary and the failures; the whole output is in `.ultimate-workflow/verify.log` (`ULTIMATE_WORKFLOW_VERIFY_FULL_OUTPUT=1` shows everything).
 - The agents that only search and read files run on Haiku (`ULTIMATE_WORKFLOW_READER_MODEL=inherit` keeps them on your model).
 - Committing a merge asks the experts to review only what is new in it (a clean merge: nothing) and still needs a passing full test run on the merged tree.

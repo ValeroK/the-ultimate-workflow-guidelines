@@ -1,0 +1,10 @@
+d72361c plan: run status for svc
+8c3935b harvest: progress -> progress.md
+57b9c7c card fixup: confirmed review findings
+0f427b9 card banner: a start-up line using the listening number
+16e1b12 card greet: a greeting
+340f785 card server: the listening number
+7790ead needs decision: card server (the listening number)
+25a6bcc plan: card server needs a decision, work on uw/parked/svc/server
+6be7538 uw: ignore .ultimate-workflow/ (the run's own state)
+56ea96b init

@@ -1,0 +1,8 @@
+needs decision: card server (the listening number)
+
+needs a decision the plan does not state:
+- env: reads the environment variable PORT in src/server.js
+- declared: Used the PORT environment variable as the name for the configured number. The plan only says 'through the environment', and the existing test already uses PORT.
+
+Plan: C:/Users/kobiv/Projects/uw-scn-decision/PLAN-svc.md
+

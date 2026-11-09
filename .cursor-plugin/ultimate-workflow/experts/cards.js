@@ -8,15 +8,22 @@
 //     paths: dashboard/src/app/skills/**, README.md
 //     carried: an item left over from the card before; another
 //     experts: [frontend, quality]
+//     depends: 8
+//     parked: uw/parked/re-wash/8a; verification failed 3 times
+//     committed: 1a2b3c4
+//     status: committed 1a2b3c4
 //
 // The name is matched whole, so `8` is not `8a`. `paths` are globs relative to the project root and
-// bound what the card may change; `carried` lists work handed over from an earlier card. A command
+// bound what the card may change; `carried` lists work handed over from an earlier card; `depends`
+// names the cards that must be committed first (4.7.0, the autopilot run). `parked` and `committed`
+// are the run's state, written by `experts.js park` and `experts.js card-commit`, never by hand; so is
+// `status`, every transition of the card (see STATUS below). A command
 // writes the entry (`experts.js card-add`), `brief --card` reads it, and `scope` compares the files
 // git says changed with `paths`. Nothing here reads a file or runs git: the caller passes text in.
 
 const NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const ITEM = /^[-*]\s+([A-Za-z0-9][A-Za-z0-9._-]*):(?:\s+(.*))?$/;
-const FIELD = /^[ \t]+(paths|carried|experts):\s*(.*)$/i;
+const FIELD = /^[ \t]+(paths|carried|experts|depends|parked|committed|status|decision):\s*(.*)$/i;
 const HEADING = /^(#{1,6})\s+(.*?)\s*#*\s*$/;
 
 const lines = (text) => String(text || '').split(/\r?\n/);
@@ -66,6 +73,13 @@ function parseCards(planText) {
       const key = field[1].toLowerCase();
       if (key === 'paths') cur.paths.push(...split(field[2], ','));
       else if (key === 'experts') cur.experts = expertList(field[2]);
+      else if (key === 'depends') cur.depends = [...(cur.depends || []), ...split(field[2], ',')];
+      else if (key === 'parked') {
+        const at = field[2].indexOf(';');
+        cur.parked = { branch: (at === -1 ? field[2] : field[2].slice(0, at)).trim(), reason: at === -1 ? '' : field[2].slice(at + 1).trim() };
+      } else if (key === 'committed') cur.committed = field[2].trim();
+      else if (key === 'status') cur.status = field[2].trim();
+      else if (key === 'decision') cur.decision = field[2].trim();
       else cur.carried.push(...split(field[2], ';'));
       continue;
     }
@@ -123,7 +137,7 @@ const cleanPath = (p) => String(p).trim().replace(/\\/g, '/').replace(/^\.\//, '
  * end when there is none. Throws, changing nothing, on a bad name, no paths, a path outside the
  * project, or a name already taken.
  */
-function addCard(planText, { name, title, paths = [], carried = [], experts = null }) {
+function addCard(planText, { name, title, paths = [], carried = [], experts = null, depends = [] }) {
   if (!NAME.test(String(name || ''))) throw new Error(`card name "${name}" must be letters, digits, dot, dash or underscore, with no spaces or colon`);
   const t = String(title || '').replace(/\s+/g, ' ').trim();
   if (!t) throw new Error('a card needs a --title');
@@ -138,6 +152,10 @@ function addCard(planText, { name, title, paths = [], carried = [], experts = nu
   const c = carried.map((x) => String(x).replace(/\s+/g, ' ').trim()).filter(Boolean);
   if (c.length) item.push(`  carried: ${c.join('; ')}`);
   if (Array.isArray(experts)) item.push(`  experts: [${experts.join(', ')}]`);
+  const d = depends.map((x) => String(x).trim()).filter(Boolean);
+  const badDep = d.find((x) => !NAME.test(x) || x.toLowerCase() === String(name).toLowerCase());
+  if (badDep) throw new Error(`card ${name} cannot depend on "${badDep}": a dependency is another card's name`);
+  if (d.length) item.push(`  depends: ${d.join(', ')}`);
 
   const all = lines(planText);
   const range = cardsRange(all);
@@ -150,6 +168,70 @@ function addCard(planText, { name, title, paths = [], carried = [], experts = nu
   if (at === range.start) all.splice(at, 0, '', ...item);
   else all.splice(at, 0, ...item);
   return all.join(eol);
+}
+
+/**
+ * The plan text with one field of one card set (or removed, with `value` null), in the plan's own
+ * line endings. `carried` appends to what is there; every other field is replaced. The run writes
+ * `parked` and `committed` this way, so the Cards section stays the state a resumed run reads.
+ * Throws, changing nothing, when there is no such card.
+ */
+const SETTABLE = ['parked', 'committed', 'carried', 'depends', 'status', 'decision'];
+
+/**
+ * A card's `status:` line, the run's state as the plan shows it. Written by code on every transition
+ * (`card-status`, `card-commit`, `park`, `unpark`, `run-start`), never by an agent:
+ *   pending | running | running (resumed) | resumed | committed <sha> | fixed-in-round <sha>
+ *   | parked <branch>; <reason> | needs-decision <branch>; <decision> | blocked by <card>
+ * A run that dies inside a card leaves it at `running`, which `run-start --resume` reports.
+ * `needs-decision` is a card held for a major decision the plan does not state; its `decision:`
+ * line says which, and its work is on the branch.
+ */
+const STATUS = /^(pending|running(?: \(resumed\))?|resumed|committed(?: [0-9a-f]{7,40})?|fixed-in-round(?: [0-9a-f]{7,40})?|parked \S+(?:; .*)?|needs-decision \S+(?:; .*)?|blocked by [A-Za-z0-9][A-Za-z0-9._-]*)$/;
+function checkStatus(value) {
+  const v = String(value || '').replace(/\s+/g, ' ').trim();
+  if (!STATUS.test(v)) throw new Error(`card status "${v}" is not one of: pending, running, running (resumed), resumed, committed <sha>, fixed-in-round <sha>, parked <branch>; <reason>, needs-decision <branch>; <decision>, blocked by <card>`);
+  return v;
+}
+/** The status's first word, for counting: `parked`, `committed`, `blocked`, ... */
+const statusKind = (value) => String(value || '').trim().split(/[ ;]/)[0] || 'none';
+function setField(planText, name, key, value) {
+  if (!SETTABLE.includes(key)) throw new Error(`a card field set by the run is one of ${SETTABLE.join(', ')}, not "${key}"`);
+  const all = lines(planText);
+  const range = cardsRange(all);
+  const want = String(name).trim().toLowerCase();
+  let at = -1;
+  if (range) {
+    for (let i = range.start; i < range.end; i++) {
+      const m = ITEM.exec(all[i]);
+      if (m && m[1].toLowerCase() === want) {
+        at = i;
+        break;
+      }
+    }
+  }
+  if (at === -1) throw new Error(`no card "${name}" in the plan's Cards section`);
+  let end = at + 1;
+  while (end < range.end && (FIELD.test(all[end]) || (/^[ \t]/.test(all[end]) && all[end].trim() !== ''))) end++;
+  const clean = value === null || value === undefined ? null : String(value).replace(/\s+/g, ' ').trim();
+  const idx = [];
+  for (let i = at + 1; i < end; i++) {
+    const f = FIELD.exec(all[i]);
+    if (f && f[1].toLowerCase() === key) idx.push(i);
+  }
+  if (key === 'carried' && clean !== null) {
+    const prev = idx.length ? FIELD.exec(all[idx[0]])[2].trim() : '';
+    const next = [...split(prev, ';'), ...split(clean, ';')].filter((x, i, xs) => xs.indexOf(x) === i);
+    if (idx.length) all.splice(idx[0], idx.length, `  carried: ${next.join('; ')}`);
+    else all.splice(end, 0, `  carried: ${next.join('; ')}`);
+  } else if (clean === null || clean === '') {
+    for (const i of idx.reverse()) all.splice(i, 1);
+  } else if (idx.length) {
+    all.splice(idx[0], idx.length, `  ${key}: ${clean}`);
+  } else {
+    all.splice(end, 0, `  ${key}: ${clean}`);
+  }
+  return all.join(eolOf(planText));
 }
 
 /**
@@ -172,4 +254,4 @@ function outOfScope(files, paths, makeRegExp) {
   return files.map(cleanPath).filter((f) => !covers(paths, f, makeRegExp));
 }
 
-module.exports = { parseCards, findCard, cardText, headingCardText, addCard, outOfScope, covers, cleanPath, NAME };
+module.exports = { parseCards, findCard, cardText, headingCardText, addCard, setField, outOfScope, covers, cleanPath, checkStatus, statusKind, NAME };

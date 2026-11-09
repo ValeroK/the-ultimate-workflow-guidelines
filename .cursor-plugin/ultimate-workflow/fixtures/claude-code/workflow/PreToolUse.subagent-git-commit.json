@@ -1,0 +1,19 @@
+{
+  "session_id": "00000000-0000-0000-0000-000000000000",
+  "transcript_path": "C:\\Users\\user\\.claude\\projects\\C--work-repo\\session.jsonl",
+  "cwd": "C:\\work\\repo",
+  "scratchpad_dir": "C:\\Users\\user\\scratch",
+  "prompt_id": "00000000-0000-0000-0000-000000000000",
+  "permission_mode": "acceptEdits",
+  "agent_id": "a1eee0b848b6d7600",
+  "agent_type": "ultimate-workflow:uw-implementer",
+  "effort": {
+    "level": "medium"
+  },
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "git add -A && git commit -m \"card 1: mul\""
+  },
+  "tool_use_id": "toolu_016YtMGCQkdutxdeb97FVbK8"
+}

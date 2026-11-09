@@ -1,0 +1,5 @@
+card add: add two integers: status: committed;status: pending;status: pending;status: pending;
+card sub: subtract two integers: status: committed 31eb72a50cb8;status: committed;status: pending;status: pending;
+card parse: evaluate "a+b" and "a-b" with add and sub: status: committed 31eb72a50cb8;status: committed 2e4bf45140c5;status: committed;status: pending;
+card format: format a result as "= n": status: committed 31eb72a50cb8;status: committed 2e4bf45140c5;status: committed c6567e1ac6ef;status: committed;
+card findings: non-blocking expert findings no card fixed: status: committed 31eb72a50cb8;status: committed 2e4bf45140c5;status: committed c6567e1ac6ef;status: committed 0e18b52776e0;status: committed;

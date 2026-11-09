@@ -484,12 +484,77 @@ function looksEscaped(text) {
   return /&(?:amp|lt|gt|quot|#39);/.test(text) && !/[<>]/.test(text) && !/&(?!amp;|lt;|gt;|quot;|#39;)/.test(text);
 }
 
+/**
+ * The plan as the user confirmed it, hashed: everything but the front matter (the gates' own state),
+ * the run's state lines on the cards (status, committed, parked, carried, decision), the cards the
+ * run adds itself (findings, fixup) and the `## Run status` block. A change to anything else after
+ * the test plan was confirmed is a plan the user has not seen (2026-11-09).
+ */
+const RUN_FIELD = /^[ \t]+(status|committed|parked|carried|decision):/i;
+function confirmHash(text) {
+  const fm = frontmatter(text);
+  const body = (fm ? fm.after : String(text)).replace(/^﻿/, '');
+  const lines = body.split(/\r?\n/);
+  const kept = [];
+  let section = '';
+  let dropCard = false;
+  let inRunStatus = false;
+  for (const l of lines) {
+    const h = /^(#{1,6})\s+(.*?)\s*#*\s*$/.exec(l);
+    if (h) {
+      section = h[2].toLowerCase();
+      inRunStatus = h[1].length <= 2 && section === 'run status';
+      dropCard = false;
+      if (inRunStatus) continue;
+    }
+    if (inRunStatus) continue;
+    if (section === 'cards') {
+      const item = /^[-*]\s+([A-Za-z0-9][A-Za-z0-9._-]*):/.exec(l);
+      if (item) dropCard = /^(findings|fixup)$/i.test(item[1]);
+      else if (l.trim() !== '' && !/^[ \t]/.test(l)) dropCard = false;
+      if (dropCard) continue;
+      if (RUN_FIELD.test(l)) continue;
+    }
+    kept.push(l.replace(/\s+$/, ''));
+  }
+  // Blank lines are not content: a card the run adds or removes moves them around.
+  const norm = kept.filter((l) => l.trim() !== '').join('\n');
+  return require('node:crypto').createHash('sha256').update(norm).digest('hex').slice(0, 16);
+}
+
+/** Set (or add) one front matter line, keeping the file's line endings. */
+function setFrontLine(text, key, value) {
+  const fm = frontmatter(text);
+  if (!fm) throw new Error('the document has no front matter');
+  const line = new RegExp(`^${key}[ \\t]*:.*$`, 'm');
+  const eol = fm.block.includes('\r\n') ? '\r\n' : '\n';
+  const block = line.test(fm.block) ? fm.block.replace(line, `${key}: ${value}`) : `${fm.block.replace(/(\r?\n)?$/, '')}${eol}${key}: ${value}${/\r?\n$/.test(fm.block) ? eol : ''}`;
+  return fm.bom + fm.open + block + fm.after;
+}
+
+/**
+ * Whether the run may start from this plan: both confirmations, and the plan unchanged since the
+ * test plan was confirmed (its `confirmed_hash`). The reason names what the user has to do.
+ */
+function checkConfirmed(text) {
+  const data = stateLib.parseFrontMatter(text).data || {};
+  if (data.plan_confirmed !== true) return { ok: false, missing: 'plan', reason: 'the plan is not confirmed (plan_confirmed is not true): the user confirms the plan first' };
+  if (data.tests_confirmed !== true) return { ok: false, missing: 'tests', reason: 'the test plan is not confirmed (tests_confirmed is not true): the user confirms the Tests section next' };
+  const want = String(data.confirmed_hash || '').trim();
+  if (!want) return { ok: false, missing: 'hash', reason: 'the plan has no confirmed_hash: it was confirmed by hand, not through experts.js present --confirm tests_confirmed, so nothing shows it is the plan the user saw. Show the user the plan and confirm it again' };
+  const have = confirmHash(text);
+  if (have !== want) return { ok: false, missing: 'unchanged', reason: `the plan changed after the user confirmed it (confirmed_hash ${want}, now ${have}): show the user what changed and confirm again` };
+  return { ok: true, hash: have };
+}
+
 /** Turn the plan's `plan_confirmed: false` into true. Throws when the front matter has no such key. */
 function setConfirmed(text, key) {
   const fm = frontmatter(text);
   const line = new RegExp(`^${key}[ \\t]*:[ \\t]*(true|false)[ \\t]*$`, 'm');
   if (!fm || !line.test(fm.block)) throw new Error(`the document has no \`${key}:\` line in its front matter to confirm`);
-  return fm.bom + fm.open + fm.block.replace(line, `${key}: true`) + fm.after;
+  const next = fm.bom + fm.open + fm.block.replace(line, `${key}: true`) + fm.after;
+  // The test plan is the second and last confirmation: what the user saw then is what the run builds.
+  return key === 'tests_confirmed' ? setFrontLine(next, 'confirmed_hash', confirmHash(next)) : next;
 }
 
 /**
@@ -1232,7 +1297,12 @@ function stageScript(pluginRoot, cwd, phaseName, { argsFile = '', files = [], me
       stateLib.setActivePlan(cwd, args.plan);
     } catch {}
   }
-  if (phaseName === 'build') {
+  if (phaseName === 'run') Object.assign(args, runArgs(pluginRoot, cwd, args));
+  // The command that runs the autopilot steps, with the path written in here so no model types it.
+  if (phaseName === 'harvest') args.cli = `node "${path.join(pluginRoot, 'experts', 'experts.js').replace(/\\/g, '/')}"`;
+  if (phaseName === 'build' || phaseName === 'run') {
+    const impl = process.env.ULTIMATE_WORKFLOW_BUILD_MODEL;
+    if (phaseName === 'run' && args.implementerModel === undefined && typeof impl === 'string' && impl.trim()) args.implementerModel = impl.trim();
     delete args.verify;
     let planRel = typeof args.plan === 'string' ? args.plan : '';
     let data = {};
@@ -1282,6 +1352,81 @@ function stageScript(pluginRoot, cwd, phaseName, { argsFile = '', files = [], me
   return { scriptPath: file, bytes: Buffer.byteLength(out), keys: Object.keys(args).sort(), skills: skillNames, skillProblems: args.skillProblems || [] };
 }
 
+/**
+ * What the autopilot run's script needs, worked out here because the script can read nothing
+ * (PLAN-autopilot.md, W1). For each card of the plan: its fields, its context pack and preflight
+ * (`pack`), its build briefs and the review skills of the experts that may check it, both chosen
+ * from the card's planned files and text (the card's diff does not exist yet), and the experts it is
+ * held to. Skill texts go once into `skillTexts`; cards name them. `args` holds plan, feature and
+ * an optional resume ({ card, testFiles, reason } or { all: true }).
+ */
+function runArgs(pluginRoot, cwd, args) {
+  const autopilot = require('./autopilot.js');
+  const cardsLib = require('./cards.js');
+  if (typeof args.plan !== 'string' || !args.plan) throw new Error('script --phase run needs "plan" in the arguments file');
+  if (typeof args.feature !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(args.feature)) throw new Error('script --phase run needs "feature" (letters, digits, dot, dash, underscore) in the arguments file');
+  const planText = fs.readFileSync(path.resolve(cwd, args.plan), 'utf8');
+  const parsed = readExperts(planText);
+  const planExperts = parsed.error ? [] : parsed.experts;
+  const available = list(pluginRoot).experts;
+  const all = cardsLib.parseCards(planText);
+  if (all.length === 0) throw new Error(`${args.plan} has no ## Cards section: the run builds cards (add them with experts.js card-add)`);
+  // The run's base is where uw/run/<feature> started, kept for a resumed run so the review still covers every card.
+  const runFile = path.join(cwd, '.ultimate-workflow', 'run', args.feature, 'run.json');
+  let base = '';
+  try {
+    base = JSON.parse(fs.readFileSync(runFile, 'utf8')).base || '';
+  } catch {}
+  if (!base) {
+    base = git(cwd, ['rev-parse', 'HEAD']).trim();
+    fs.mkdirSync(path.dirname(runFile), { recursive: true });
+    fs.writeFileSync(runFile, `${JSON.stringify({ base, plan: args.plan, feature: args.feature, at: new Date().toISOString() }, null, 2)}\n`);
+  }
+  const skillTexts = {};
+  const keep = (skills) => skills.map((s) => {
+    skillTexts[s.name] = s.text;
+    return s.name;
+  });
+  // A card run again within the plan (--resume without --accept on a held card) starts from its
+  // tests, so it gets a plain pack, not one that needs a parked diagnosis.
+  const resumeCard = args.resume && typeof args.resume.card === 'string' && !args.resume.rerun ? args.resume.card : '';
+  const cards = all.map((c) => {
+    const ownSection = autopilot.sections(planText).find((h) => /^card\s/i.test(h.title) && new RegExp(`^card\\s+${c.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![A-Za-z0-9])`, 'i').test(h.title));
+    const tests = autopilot.testSection(planText, c.name, all.length);
+    const slice = (h) => (h ? planText.split(/\r?\n/).slice(h.start - 1, h.end).join('\n') : '');
+    const text = [cardsLib.cardText(c), slice(ownSection), slice(tests)].filter(Boolean).join('\n');
+    const change = { files: [...new Set([...planPaths(text), ...c.paths.filter((p) => !p.includes('*'))])], text };
+    const b = briefs(pluginRoot, { planText: text }).briefs.map((x) => ({ name: x.name, text: x.text, skills: keep(x.skills || []) }));
+    const experts = Array.isArray(c.experts) ? c.experts.filter((n) => planExperts.includes(n)) : planExperts;
+    const reviewSkills = {};
+    for (const e of available.filter((x) => x.stages.includes('review'))) {
+      const sel = selectSkills(pluginRoot, e.name, 'review', change);
+      if (sel.skills.length) reviewSkills[e.name] = keep(sel.skills);
+    }
+    let preflight;
+    if (c.committed) preflight = { ok: true, skipped: 'committed' };
+    else {
+      try {
+        preflight = autopilot.pack(cwd, { plan: args.plan, card: c.name, feature: args.feature, resume: resumeCard === c.name });
+      } catch (err) {
+        preflight = { ok: false, reason: `missing input: ${err.message}` };
+      }
+    }
+    return { name: c.name, title: c.title, paths: c.paths, depends: c.depends || [], carried: c.carried, experts, ownExperts: Array.isArray(c.experts), briefs: b, reviewSkills, preflight, ...(c.committed ? { committed: c.committed } : {}), ...(c.parked ? { parked: c.parked } : {}) };
+  });
+  const fwdPath = (p) => p.replace(/\\/g, '/');
+  return {
+    base,
+    cards,
+    skillTexts,
+    available,
+    protocol: protocolText(pluginRoot),
+    planBriefs: briefs(pluginRoot, { planText }).briefs.map((x) => ({ name: x.name, text: x.text, skills: keep(x.skills || []) })),
+    cli: `node "${fwdPath(path.join(pluginRoot, 'experts', 'experts.js'))}"`,
+    command: stateLib.parseFrontMatter(planText).data.test_command || '',
+  };
+}
+
 // ---- command line ----
 
 function fail(message) {
@@ -1313,6 +1458,7 @@ function parseArgs(argv) {
     else if (a === '--title') o.title = need();
     else if (a === '--paths') o.paths = need();
     else if (a === '--carried') o.carried = need();
+    else if (a === '--depends') o.depends = need();
     else if (a === '--experts') o.experts = need();
     else if (a === '--result') o.result = need();
     else if (a === '--field') o.field = need();
@@ -1341,6 +1487,14 @@ function main(argv) {
   if (argv[0] === 'ledger') {
     try {
       return require('./ledger.js').cli(argv.slice(1), process.cwd(), out, fail);
+    } catch (err) {
+      return fail(err.message);
+    }
+  }
+  // The autopilot run's card steps (4.7.0): pack, handoff, park, unpark, journal, card-commit, ...
+  if (require('./autopilot.js').COMMANDS.includes(argv[0])) {
+    try {
+      return require('./autopilot.js').cli(argv, process.cwd(), out, fail);
     } catch (err) {
       return fail(err.message);
     }
@@ -1459,8 +1613,15 @@ function main(argv) {
         experts: cardExperts,
         name: o.name,
         title: o.title,
-        paths: String(o.paths || '').split(',').map((s) => s.trim()).filter(Boolean),
+        // Reviewers and builds often name files by absolute path; one inside the project is taken as
+        // relative to it. One outside it still reaches addCard's refusal unchanged.
+        paths: String(o.paths || '').split(',').map((s) => s.trim()).filter(Boolean).map((p) => {
+          if (!path.isAbsolute(p)) return p;
+          const rel = path.relative(path.resolve(o.cwd), path.resolve(p));
+          return rel && !path.isAbsolute(rel) && !rel.split(/[\\/]/).includes('..') ? rel.replace(/\\/g, '/') : p;
+        }),
         carried: String(o.carried || '').split(';').map((s) => s.trim()).filter(Boolean),
+        depends: String(o.depends || '').split(',').map((s) => s.trim()).filter(Boolean),
       });
       fs.writeFileSync(file, next);
       return out({ ok: true, plan: o.plan, card: cardsLib.findCard(next, o.name) });
@@ -1505,6 +1666,9 @@ function main(argv) {
 }
 
 module.exports = {
+  confirmHash,
+  checkConfirmed,
+  setFrontLine,
   STAGES,
   BUILD,
   DECLARABLE,
@@ -1539,6 +1703,8 @@ module.exports = {
   mergeInfo,
   prepare,
   splitByFile,
+  exportedNames,
+  globToRegExp,
   dependentsOf,
   computeDelta,
   keepFromLastCheck,

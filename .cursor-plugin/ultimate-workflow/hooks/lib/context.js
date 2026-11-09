@@ -10,8 +10,8 @@
 
 const fs = require('node:fs');
 
-/** Default: remind at 150k tokens of context, and again at every further 150k. */
-const DEFAULT_THRESHOLD = 150000;
+/** Default: remind at 80k tokens of context, and again at every further 80k (150k before 4.7.0). */
+const DEFAULT_THRESHOLD = 80000;
 
 function readTail(file, bytes = 256 * 1024) {
   let fd;

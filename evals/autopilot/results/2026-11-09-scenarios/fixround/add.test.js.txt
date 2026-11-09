@@ -1,0 +1,24 @@
+const test = require('node:test');
+const assert = require('node:assert');
+const add = require('../src/add.js');
+
+test('add sums two integers', () => {
+  assert.strictEqual(add(1, 2), 3);
+  assert.strictEqual(add(-1, 1), 0);
+});
+
+test('add rejects a non-integer first argument, naming a', () => {
+  assert.throws(() => add(1.5, 1), (err) => {
+    assert.ok(err instanceof TypeError);
+    assert.match(err.message, /\ba\b/);
+    return true;
+  });
+});
+
+test('add rejects a non-integer second argument, naming b', () => {
+  assert.throws(() => add(1, 1.5), (err) => {
+    assert.ok(err instanceof TypeError);
+    assert.match(err.message, /\bb\b/);
+    return true;
+  });
+});

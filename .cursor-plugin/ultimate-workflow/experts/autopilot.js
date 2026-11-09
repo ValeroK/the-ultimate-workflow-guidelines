@@ -577,7 +577,7 @@ function harvestBranch(cwd, { feature, from }) {
 function runReport(cwd, { result: resultFile, out = '' }) {
   const r = require('./ledger.js').unwrapResult(fs.readFileSync(path.resolve(cwd, resultFile), 'utf8'));
   if (r.ok !== true) throw new Error(`the run result is not ok: ${r.error || 'no error given'}`);
-  const row = (c) => `| ${c.card} | ${c.title || ''} | ${c.status} | ${c.commit || c.branch || ''} | ${String(c.reason || (c.build ? `${c.build.rounds} round(s)` : '')).replace(/\|/g, '/').replace(/\r?\n/g, ' ')} |`;
+  const row = (c) => `| ${c.card} | ${c.title || ''} | ${c.status} | ${c.commit || c.branch || ''} | ${String(c.reason || (c.build ? `${c.build.rounds} round(s)${c.fixRound ? ` and a fix round (${c.fixRound.outcome})` : ''}` : '')).replace(/\|/g, '/').replace(/\r?\n/g, ' ')} |`;
   const all = [...(r.cards || []), ...(r.findingsCard ? [r.findingsCard] : []), ...(r.fixupCard ? [r.fixupCard] : [])];
   const unique = all.filter((c, i) => all.findIndex((x) => x.card === c.card && x.status === c.status) === i);
   const lines2 = [
@@ -590,6 +590,7 @@ function runReport(cwd, { result: resultFile, out = '' }) {
     '|---|---|---|---|---|',
     ...unique.map(row),
     ...((r.earlier || []).length ? ['', `Before this run: ${r.earlier.map((e) => `${e.card} ${e.status}`).join(', ')}.`] : []),
+    ...(all.some((c) => c.fixRound) ? ['', '## Fix rounds', '', ...all.filter((c) => c.fixRound).flatMap((c) => [`- ${c.card}: round ${c.fixRound.round}, ${c.fixRound.outcome || 'unknown'}${c.fixRound.summary ? ` (${String(c.fixRound.summary).replace(/\r?\n/g, ' ')})` : ''}`, ...(c.fixRound.findings || []).map((f) => `  - ${f.expert}: ${f.file}:${f.line} ${f.what}`)])] : []),
     '',
     '## Out of scope and claims',
     '',

@@ -25,6 +25,9 @@
 | W8 hosts without the Workflow tool | Done: `commands/run.md` fallback, one line in `rules/the-ultimate-workflow-guidelines.mdc` |
 | W9 reminder at 80k | Done |
 | E2E recorded 4-card run | Done: `evals/autopilot/` (1 card against 4 cards; main conversation 541,776 against 552,136 tokens, 1.02x, 10 turns each; all cards committed). Criterion 1 met |
+| Entry point | Done (2026-11-08): the run is the Full tier of `/ultimate-workflow:feature`, not a command of its own; `commands/run.md` moved to `phases/run.md`, `feature.md` takes `--plan` and `--resume` |
+| In-card fix round | Done (2026-11-09): a blocking finding in the card's own files gets one more round and a fresh experts check before the card can park; stub-tested (fixed, still blocking, not green, outside the paths), in the report and the ledger |
+| Interactive reruns of the unchanged 4-card plan | In progress: see the run table in `evals/autopilot/README.md` |
 | Risk mitigation "the build result lists the pack files it read" | Not built. It would be the agent's own report, which nothing can check and the run never uses for a decision; the scope check and the handoff come from git either way. The pack paths are in every build prompt, and the journal shows later cards used what earlier ones recorded |
 | Order | S0 smoke and first long run came before W2; W2 to W5, then W1, were built while the 30-minute S0 rerun was going. The rerun confirmed the single-workflow design W1 assumed, and `run.js` runs one card or many, so the per-card fallback would have used the same script |
 
@@ -113,8 +116,14 @@ progress into the conversation (progress is visible in `/workflows`).
    workflow): tests written and proven red, minimal implementation, verify, a fresh diagnoser per failed
    round, `ROUND_CAP = 3`.
 4. **Scope**: `experts.js scope --card`, from git. Out-of-scope files are reported, not blocking (as now).
-5. **Experts check** on the card's own diff (`prepare --range <last good>..`). A blocking finding parks
-   the card; a non-blocking finding is carried to the first later card whose paths cover its file, or
+5. **Experts check** on the card's own diff (`prepare --range <last good>..`). A blocking finding in
+   the card's own files (under its paths, or a test file its build wrote) gets **one fix round** in the
+   card (2026-11-09, after three real runs of four parked a card on a missing test in its own test
+   file): the implementer writes the missing test or the fix, proving red where it is new behaviour,
+   the full suite runs, and a fresh experts check runs on the new diff. The card parks only if a
+   finding is still blocking after that round, the round is not green, or a blocking finding is in a
+   file the card may not touch (no round then). The round, its findings and outcome are in the
+   report ("Fix rounds") and in the ledger's run row. A non-blocking finding is carried to the first later card whose paths cover its file, or
    else, and also when that card did not fix it, goes to the findings card after the last plan card
    (Decision 2).
 6. **Commit** by an agent with Bash, after the full suite is green, so G7 holds. Message: card name,

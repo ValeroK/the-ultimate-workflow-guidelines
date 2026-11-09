@@ -444,7 +444,7 @@ const skillsOf = (list) =>
  * takes and the findings by status. `carried` are findings handed to this card: their experts join,
  * and each says which of them this diff did not fix.
  */
-async function expertsCheck(card, carried) {
+async function expertsCheck(card, carried, tag = '') {
   // An expert an earlier card's recheck added is in the plan's experts line from then on (`record
   // --plan` writes it there), and the commit gate holds every later card to that line. A card that
   // names its own experts is held to those instead. The 4-card end-to-end run parked two cards for this.
@@ -464,7 +464,7 @@ ${AVAILABLE.map((e) => `- ${e.name}: ${e.description}`).join('\n')}
 Already selected: ${selected.length ? selected.join(', ') : 'none'}.
 
 Name every available expert that applies to this change and is not already selected, each with one sentence tying it to something in the diff. You cannot remove one. If none apply, return an empty list.`,
-      { agentType: agentName('uw-explorer'), label: `${card.name}:recheck`, phase: currentPhase, schema: SELECTION, ...modelOpt(IMPLEMENTER_MODEL) }
+      { agentType: agentName('uw-explorer'), label: `${card.name}${tag}:recheck`, phase: currentPhase, schema: SELECTION, ...modelOpt(IMPLEMENTER_MODEL) }
     )
     if (answer) {
       recheck = true
@@ -491,7 +491,7 @@ Name every available expert that applies to this change and is not already selec
         }
 
 Every finding needs a file, a line, one sentence on the defect and a concrete failure scenario. Set lensVerdict whether or not you find anything. ${NO_QUOTA}`,
-        { agentType: agentName(e.agent), label: `${card.name}:${e.name}`, phase: currentPhase, schema: FINDINGS, ...modelOpt(IMPLEMENTER_MODEL) }
+        { agentType: agentName(e.agent), label: `${card.name}${tag}:${e.name}`, phase: currentPhase, schema: FINDINGS, ...modelOpt(IMPLEMENTER_MODEL) }
       )
     })
   )
@@ -519,7 +519,7 @@ Every finding needs a file, a line, one sentence on the defect and a concrete fa
 ${JSON.stringify(all.map((f, index) => ({ index, ...f })), null, 2)}
 
 For each: read the code around it, check whether the failure path is reachable, look for the guard the reviewer missed. Default to refuted when uncertain. Return one verdict per finding, by index.`,
-      { agentType: agentName('uw-reviewer'), label: `${card.name}:refute`, phase: currentPhase, schema: VERDICTS, ...modelOpt(IMPLEMENTER_MODEL) }
+      { agentType: agentName('uw-reviewer'), label: `${card.name}${tag}:refute`, phase: currentPhase, schema: VERDICTS, ...modelOpt(IMPLEMENTER_MODEL) }
     )
     verdicts = new Map(((v && v.verdicts) || []).map((x) => [x.index, x]))
   }
@@ -608,6 +608,52 @@ function covers(paths, file) {
   })
 }
 
+/**
+ * Whether a finding's file is one this card may change: under its paths, or one of the test files
+ * its build wrote. Agents often name a file by its absolute path, and the script has no project
+ * root, so an absolute path is matched by its trailing segments.
+ */
+function inCard(card, file, testFiles = []) {
+  const f = String(file || '').replace(/\\/g, '/').replace(/^\.\//, '')
+  if (!f) return false
+  const absolute = /^([A-Za-z]:)?\//.test(f)
+  const parts = f.split('/').filter(Boolean)
+  const candidates = absolute ? parts.map((_, i) => parts.slice(i).join('/')) : [f]
+  const tests = (testFiles || []).map((t) => String(t).replace(/\\/g, '/'))
+  return candidates.some((c) => covers(card.paths || [], c) || tests.some((t) => t === c || t.endsWith(`/${c}`)))
+}
+
+const FIXED = {
+  type: 'object',
+  required: ['green', 'fullSuiteGreen', 'filesChanged', 'summary'],
+  properties: {
+    green: { type: 'boolean' },
+    fullSuiteGreen: { type: 'boolean', description: 'True only if the full run (verify --full) was run after the last change and passed' },
+    filesChanged: { type: 'array', items: { type: 'string' } },
+    testFiles: { type: 'array', items: { type: 'string' }, description: 'Test files written or changed in this round' },
+    newTests: { type: 'array', items: { type: 'object', required: ['name', 'failedFirst'], properties: { name: { type: 'string' }, failedFirst: { type: 'boolean' }, why: { type: 'string' } } } },
+    failureOutput: { type: 'string' },
+    summary: { type: 'string' },
+  },
+}
+
+/** One more build round in the card, for the blocking findings the experts check made in its own files. */
+async function fixFindings(card, locate, brief, findings) {
+  return agent(
+    `${locate} ${EXPERT_NOTE}${brief}
+
+The card's tests and implementation are written and green, but the experts check on its diff found ${findings.length > 1 ? 'these blocking findings' : 'this blocking finding'}, in this card's own files:
+${findings.map((f) => `- ${f.expert} at ${f.file}:${f.line}: ${f.what}${f.howItFails ? ` (fails when: ${f.howItFails})` : ''}${f.fix ? ` (fix: ${f.fix})` : ''}`).join('\n')}
+
+Fix each one, in this card's files only. A missing test: write it. It may pass at once against code that already does the right thing, which is the fix; list it in newTests with failedFirst false and say why. Wrong or missing behaviour: first write a test that shows it, run it and confirm it FAILS (failedFirst true), then change the code. ${
+      VERIFY ? `After each change run \`${VERIFY}\`; when it passes, run \`${VERIFY} --full\` once. Report green and fullSuiteGreen only if that full run passed after your last change.` : `Run \`${COMMAND}\` and report whether it is green; set fullSuiteGreen to the same.`
+    }
+
+Never stage or commit: the run commits the card after a fresh experts check. Never make a finding go away by weakening or deleting a test. Nothing beyond the findings.`,
+    { agentType: agentName('uw-implementer'), label: `${card.name}:fix-round`, phase: currentPhase, schema: FIXED, ...modelOpt(IMPLEMENTER_MODEL) }
+  )
+}
+
 async function runCard(card, { adhoc = false } = {}) {
   log(`card ${card.name}: ${card.title}`)
   const pre = card.preflight || { ok: false, reason: 'no context pack was written for this card' }
@@ -661,15 +707,49 @@ async function runCard(card, { adhoc = false } = {}) {
   const outOfScope = scope && Array.isArray(scope.outOfScope) ? scope.outOfScope : null
   if (!prepared || prepared.ok !== true) return parkCard(card, 'the experts check could not start: experts.js prepare did not report success', { build: buildSummary })
 
-  const check = await expertsCheck(card, carried)
+  let check = await expertsCheck(card, carried)
   lanes.push({ card: card.name, lane: check.lane, refuted: check.refuted.length })
-  for (const f of check.stillPresent) findingsQueue.push({ ...f, from: f.from || card.name, notFixedBy: card.name })
   if (check.failed.length > 0 && check.lane.ran.length === 0 && check.lane.selected.length > 0) {
     return parkCard(card, `the experts check failed: ${check.failed.join(', ')} returned nothing`, { build: buildSummary })
   }
+  // A blocking finding in this card's own files gets one fix round in the card, then a fresh
+  // experts check on the new diff. Only what is still blocking after it, or a blocking finding in a
+  // file the card may not touch, parks the card. Three real runs of four parked a card on a missing
+  // test in its own test file that one more round would have written.
+  let fixRound = null
   if (check.blocking.length > 0) {
-    return parkCard(card, `blocking finding${check.blocking.length > 1 ? 's' : ''} from the experts check:\n${check.blocking.map((f) => `- ${f.expert}: ${f.file}:${f.line} ${f.what}`).join('\n')}`, { build: buildSummary, findings: check.blocking })
+    const outside = check.blocking.filter((f) => !inCard(card, f.file, buildSummary.testFiles))
+    if (outside.length === 0) {
+      const fixed = await fixFindings(card, locate, brief, check.blocking)
+      fixRound = { round: buildSummary.rounds + 1, findings: check.blocking.map((f) => ({ expert: f.expert, file: f.file, line: f.line, what: f.what })), green: Boolean(fixed && fixed.green === true && fixed.fullSuiteGreen === true), summary: (fixed && fixed.summary) || 'the fix round returned nothing' }
+      if (fixRound.green) {
+        buildSummary.testFiles = [...new Set([...buildSummary.testFiles, ...((fixed && fixed.testFiles) || [])])]
+        const [, again] = await runSteps(`${card.name}:prepare-fix`, [
+          cliCmd('scope', '--plan', q(PLAN), '--card', card.name),
+          `${cliCmd('prepare', '--range', 'working')} > ${q(`${cardDir(card.name)}/prepare.json`)} && node -e "console.log(JSON.stringify({ok:true}))"`,
+        ])
+        if (!again || again.ok !== true) fixRound.outcome = 'the experts check could not start again after the fix round'
+        else {
+          const recheck = await expertsCheck(card, carried, '-fix')
+          lanes.push({ card: card.name, lane: recheck.lane, refuted: recheck.refuted.length, fixRound: true })
+          if (recheck.failed.length > 0 && recheck.lane.ran.length === 0 && recheck.lane.selected.length > 0) fixRound.outcome = `the experts check after the fix round failed: ${recheck.failed.join(', ')} returned nothing`
+          else {
+            fixRound.outcome = recheck.blocking.length === 0 ? 'fixed' : 'still blocking'
+            check = recheck
+          }
+        }
+      } else fixRound.outcome = 'not green'
+      if (fixRound.outcome !== 'fixed') {
+        const still = fixRound.outcome === 'still blocking' ? check.blocking : fixRound.findings
+        return parkCard(card, `blocking finding${still.length > 1 ? 's' : ''} from the experts check, not fixed by the fix round (${fixRound.outcome}):\n${still.map((f) => `- ${f.expert}: ${f.file}:${f.line} ${f.what}`).join('\n')}`, { build: buildSummary, findings: still, fixRound })
+      }
+    } else {
+      return parkCard(card, `blocking finding${check.blocking.length > 1 ? 's' : ''} from the experts check, outside this card's paths so no fix round:\n${check.blocking.map((f) => `- ${f.expert}: ${f.file}:${f.line} ${f.what}`).join('\n')}`, { build: buildSummary, findings: check.blocking })
+    }
   }
+
+  // Carried findings this card did not fix, from the last check only, so a fix round does not add them twice.
+  for (const f of check.stillPresent) findingsQueue.push({ ...f, from: f.from || card.name, notFixedBy: card.name })
 
   const laneFile = `${cardDir(card.name)}/lane.json`
   const [recorded, committed] = await runSteps(
@@ -703,7 +783,7 @@ async function runCard(card, { adhoc = false } = {}) {
   if (carriedOn.length) {
     await runSteps(`${card.name}:carry`, carriedOn.map((c) => cliCmd('card-field', '--plan', q(PLAN), '--card', c.to, '--carried', q(`${c.finding.expert} at ${c.finding.file}:${c.finding.line}: ${c.finding.what}`.replace(/;/g, ',')))))
   }
-  const entry = { card: card.name, title: card.title, status: 'committed', commit: committed.commit, handoff: committed.handoff, missingClaims: committed.missingClaims || [], outOfScope, build: buildSummary, experts: { ran: check.lane.ran, added: check.lane.added, findings: check.lane.findings.length, refuted: check.refuted.length, carriedOn: carriedOn.map((c) => c.to) }, ...(recordOk ? {} : { recordMismatch: recorded }) }
+  const entry = { card: card.name, title: card.title, status: 'committed', commit: committed.commit, handoff: committed.handoff, missingClaims: committed.missingClaims || [], outOfScope, build: buildSummary, experts: { ran: check.lane.ran, added: check.lane.added, findings: check.lane.findings.length, refuted: check.refuted.length, carriedOn: carriedOn.map((c) => c.to) }, ...(fixRound ? { fixRound } : {}),...(recordOk ? {} : { recordMismatch: recorded }) }
   report.push(entry)
   await journal(card, 'committed', `rounds: ${buildSummary.rounds}; files: ${committed.files}; findings: ${check.lane.findings.length}`)
   return entry

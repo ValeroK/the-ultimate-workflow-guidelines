@@ -36,7 +36,8 @@ function responder(o = {}) {
     if (role === 'write-tests') return { filesWritten: [`test/${who}.test.js`], testsFailAsExpected: true, summary: 'red' };
     if (/^attempt-/.test(role)) return (o.red || []).includes(who) ? { green: false, filesChanged: [`src/${who}/x.js`], failureOutput: `fail ${role}`, summary: role } : { green: true, fullSuiteGreen: true, filesChanged: [`src/${who}/x.js`], summary: 'done' };
     if (/^diagnose-/.test(role)) return { cause: 'wrong', signature: `sig-${role}`, suggestedFix: 'fix', confidence: 'medium' };
-    if (role === 'prepare') return steps({ card: who, outOfScope: [] }, { ok: true });
+    if (role === 'prepare' || role === 'prepare-fix') return steps({ card: who, outOfScope: [] }, { ok: true });
+    if (role === 'fix-round') return (o.fixRound && o.fixRound[who]) || { green: true, fullSuiteGreen: true, filesChanged: [`test/${who}.test.js`], testFiles: [`test/${who}.test.js`], newTests: [{ name: 'b guard', failedFirst: false, why: 'the code was right' }], summary: 'wrote the missing test' };
     if (role === 'recheck') return { experts: [] };
     if (role === 'quality' && who !== 'review') return { lensVerdict: 'ok', findings: (o.findings && o.findings[who]) || [], stillPresent: (o.stillPresent && o.stillPresent[who]) || [] };
     if (role === 'refute' && who !== 'review') return { verdicts: [] };
@@ -147,13 +148,51 @@ test('a non-blocking finding goes to the later card that covers its file; unfixe
   assert.match(calls.find((c) => c.label === 'findings:write-tests').prompt, /items carried to this card/);
 });
 
-test('a high-confidence expert finding parks the card; the next card still runs', async () => {
-  const r = responder({ findings: { 1: [{ file: 'src/1/x.js', line: 9, what: 'secret logged', howItFails: 'log', confidence: 'high' }] } });
+// The in-card fix round (2026-11-09): three real runs of four parked a card on a missing test in its
+// own test file. A blocking finding in the card's files now gets one more round in the card and a
+// fresh experts check; only what is still blocking after it, or a finding outside the card, parks it.
+test('a blocking finding in the card\'s own files is fixed in one more round, re-checked, and the card commits', async () => {
+  const blocking = { file: 'C:/proj/src/1/x.js', line: 3, what: 'b guard untested', howItFails: 'delete it, all green', confidence: 'high' };
+  const r = responder({ findings: { 1: [blocking], '1-fix': [] } });
+  const { result } = await run(baseArgs([card('1')]), r);
+  const c = result.cards[0];
+  assert.equal(c.status, 'committed', JSON.stringify(c));
+  assert.equal(c.fixRound.outcome, 'fixed');
+  assert.equal(c.fixRound.round, 2, 'one build round, then the fix round');
+  assert.deepStrictEqual(c.fixRound.findings.map((f) => f.what), ['b guard untested']);
+  assert.ok(r.seen.indexOf('1:fix-round') < r.seen.indexOf('1-fix:quality') && r.seen.indexOf('1-fix:quality') < r.seen.indexOf('1:commit'), 'fix, re-check, then commit');
+  assert.ok(!r.seen.includes('1:park'));
+  assert.equal(result.expertLanes.filter((l) => l.card === '1').length, 2, 'both checks are in the lanes, the second marked');
+  assert.ok(result.expertLanes.some((l) => l.card === '1' && l.fixRound === true));
+});
+
+test('a finding still blocking after the fix round parks the card, with the round on record', async () => {
+  const blocking = { file: 'src/1/x.js', line: 3, what: 'b guard untested', howItFails: 'h', confidence: 'high' };
+  const r = responder({ findings: { 1: [blocking], '1-fix': [{ ...blocking, what: 'still no b test' }] } });
   const { result } = await run(baseArgs([card('1'), card('2')]), r);
   assert.equal(result.cards[0].status, 'parked');
-  assert.match(result.cards[0].reason, /blocking finding/);
+  assert.match(result.cards[0].reason, /not fixed by the fix round \(still blocking\).*still no b test/);
+  assert.equal(result.cards[0].fixRound.outcome, 'still blocking');
+  assert.ok(!r.seen.includes('1:commit'));
+  assert.equal(result.cards[1].status, 'committed', 'the next card still runs');
+});
+
+test('a fix round that does not go green parks the card without a second experts check', async () => {
+  const r = responder({ findings: { 1: [{ file: 'src/1/x.js', line: 3, what: 'w', howItFails: 'h', confidence: 'high' }] }, fixRound: { 1: { green: false, fullSuiteGreen: false, filesChanged: [], summary: 'red', failureOutput: 'x' } } });
+  const { result } = await run(baseArgs([card('1')]), r);
+  assert.equal(result.cards[0].status, 'parked');
+  assert.equal(result.cards[0].fixRound.outcome, 'not green');
+  assert.ok(!r.seen.includes('1-fix:quality'));
+});
+
+test('a blocking finding outside the card\'s paths parks it with no fix round; the next card still runs', async () => {
+  const r = responder({ findings: { 1: [{ file: 'src/other/x.js', line: 9, what: 'secret logged', howItFails: 'log', confidence: 'high' }] } });
+  const { result } = await run(baseArgs([card('1'), card('2')]), r);
+  assert.equal(result.cards[0].status, 'parked');
+  assert.match(result.cards[0].reason, /outside this card's paths so no fix round/);
+  assert.ok(!r.seen.includes('1:fix-round'));
   // 2026-11-08: the reason was cut at its first line, so the report said only "blocking finding from the experts check:".
-  assert.match(result.cards[0].reason, /src\/1\/x\.js:9 secret logged/, 'the report row names the finding, not just its heading');
+  assert.match(result.cards[0].reason, /src\/other\/x\.js:9 secret logged/, 'the report row names the finding, not just its heading');
   assert.doesNotMatch(result.cards[0].reason, /\n/, 'one line, for the report table');
   assert.ok(!r.seen.includes('1:commit'));
   assert.equal(result.cards[1].status, 'committed');

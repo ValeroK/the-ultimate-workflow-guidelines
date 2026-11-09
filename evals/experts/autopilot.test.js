@@ -564,6 +564,25 @@ test('run-finish keeps the output file, writes the report and the ledger row fro
   assert.equal(read(dir, '.ultimate-workflow/run/run.result.json'), JSON.stringify(wrapper));
 });
 
+test('a card\'s fix round is in the report (row note and its own section) and in the ledger row', () => {
+  const dir = repo();
+  const fixRound = { round: 2, outcome: 'fixed', summary: 'wrote the b test', findings: [{ expert: 'quality', file: 'test/add.test.js', line: 10, what: 'b guard untested' }] };
+  const result = {
+    ok: true, feature: 'calc', branch: 'uw/run/calc', base: 'abc', plan: 'PLAN-calc.md', summary: '1 committed.',
+    counts: { committed: 1 }, cards: [{ card: 'add', title: 'adder', status: 'committed', commit: 'c1', build: { rounds: 1 }, fixRound, missingClaims: [], outOfScope: [] }],
+    expertLanes: [], review: { ran: true, range: 'abc..HEAD', findings: [], refuted: [], unverified: [] }, harvest: { ran: true, proposals: 0, branch: null },
+  };
+  write(dir, 'out/wf_fix-1.output', JSON.stringify({ agentCount: 3, totalTokens: 10, result: JSON.stringify(result) }));
+  const r = json(cli(dir, 'run-finish', '--output', 'out/wf_fix-1.output'));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const report = read(dir, r.report);
+  assert.match(report, /\| add \| adder \| committed \| c1 \| 1 round\(s\) and a fix round \(fixed\) \|/);
+  assert.match(report, /## Fix rounds\n\n- add: round 2, fixed \(wrote the b test\)\n  - quality: test\/add\.test\.js:10 b guard untested/);
+  const rows = read(dir, '.ultimate-workflow/ledger.jsonl').trim().split('\n').map((l) => JSON.parse(l));
+  const run = rows.find((x) => x.run);
+  assert.deepStrictEqual(run.run.cards[0].fixRound, { round: 2, outcome: 'fixed', findings: ['quality: test/add.test.js:10 b guard untested'] });
+});
+
 test('handoff takes an absolute claimed path inside the project as the same file', () => {
   const dir = repo();
   const base = git(dir, 'rev-parse', 'HEAD');

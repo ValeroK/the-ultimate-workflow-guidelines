@@ -126,7 +126,7 @@ function addRun(cwd, phase, row, rawResult) {
     entry.run = {
       feature: result.feature || null,
       counts: result.counts || {},
-      cards: (result.cards || []).map((c) => ({ card: c.card, status: c.status, ...(c.build ? { rounds: c.build.rounds } : {}), ...(c.reason ? { reason: String(c.reason).slice(0, 200) } : {}) })),
+      cards: (result.cards || []).map((c) => ({ card: c.card, status: c.status, ...(c.build ? { rounds: c.build.rounds } : {}), ...(c.reason ? { reason: String(c.reason).slice(0, 200) } : {}), ...(c.fixRound ? { fixRound: { round: c.fixRound.round, outcome: c.fixRound.outcome || null, findings: (c.fixRound.findings || []).map((f) => `${f.expert}: ${f.file}:${f.line} ${f.what}`.slice(0, 200)) } } : {}) })),
       ...(result.stopped ? { stopped: result.stopped } : {}),
       harvest: result.harvest && result.harvest.branch ? result.harvest.branch : null,
     };

@@ -46,7 +46,9 @@ function responder(o = {}) {
       const reason = o.commitFails && o.commitFails[who];
       return steps({ stage: 'review', recorded: lane.ran, findings: lane.findings.length, open: [] }, reason ? { ok: false, reason } : { ok: true, card: who, commit: `c-${who}`, files: 1, handoff: 'h', missingClaims: [] });
     }
-    if (role === 'park') return steps({ ok: true, card: who, branch: `uw/parked/f/${who}` });
+    if (role === 'park') return steps({ ok: true, card: who, branch: `uw/parked/f/${who}` }, { ok: true, desktop: 'sent' });
+    if (role === 'notify') return steps({ ok: true, desktop: 'sent' });
+    if (role === 'decisions') return steps((o.decisions && o.decisions[who]) || { ok: true, card: who, major: [], minor: [] });
     if (role === 'journal') return steps({ ok: true });
     if (role === 'carry') return steps({ ok: true });
     if (role === 'start' || (who === 'blocked' && role === 'status')) return steps(...String(call.prompt).split('\n').filter((l) => /card-status/.test(l)).map(() => ({ ok: true })));
@@ -229,6 +231,65 @@ test('a resumed card shows running (resumed)', async () => {
   const r = async (c) => { calls.push(c); return base(c); };
   await run(baseArgs([card('1')], { resume: { card: '1', reason: 'try again', testFiles: ['test/1.test.js'] } }), r);
   assert.equal(statusOf(calls, '1:start'), 'running (resumed)');
+});
+
+// Major decisions the plan does not state, and the notices (2026-11-09).
+test('an unplanned dependency holds the card as needs-decision, tells the user, and the independent cards go on', async () => {
+  const calls = [];
+  const base = responder({ decisions: { 1: { ok: true, card: '1', major: [{ kind: 'dependency', what: 'added dependency left-pad@1.3.0 in package.json' }], minor: [] } } });
+  const r = async (c) => { calls.push(c); return base(c); };
+  const { result } = await run(baseArgs([card('1'), card('2'), card('3', { depends: ['1'] })]), r);
+  const one = result.cards.find((c) => c.card === '1');
+  assert.equal(one.status, 'needs-decision');
+  assert.match(one.reason, /needs a decision the plan does not state: - dependency: added dependency left-pad/);
+  assert.match(one.action, /--resume 1 --accept/);
+  const park = calls.find((c) => c.label === '1:park').prompt;
+  assert.match(park, /experts\.js" park [^\n]*--needs-decision/, 'parked with its work, as needs-decision');
+  assert.match(park, /experts\.js" notify [^\n]*--kind needs-decision --card 1/, 'the user is told from the same step');
+  assert.ok(!base.seen.includes('1:commit'), 'nothing is committed silently');
+  assert.equal(result.cards.find((c) => c.card === '2').status, 'committed', 'an independent card goes on');
+  assert.equal(result.cards.find((c) => c.card === '3').status, 'blocked');
+  assert.match(calls.find((c) => c.label === 'blocked:status').prompt, /notify [^\n]*--kind blocked --card 3/);
+  assert.match(calls.find((c) => c.label === 'finished:notify').prompt, /--kind finished/);
+});
+
+test('a planned dependency (or a minor choice) is committed, the minor choice on record', async () => {
+  const r = responder({ decisions: { 1: { ok: true, card: '1', major: [], minor: [{ kind: 'declared', what: 'named the helper toInt' }] } } });
+  const { result } = await run(baseArgs([card('1')]), r);
+  assert.equal(result.cards[0].status, 'committed');
+  assert.deepStrictEqual(result.cards[0].decisions.minor.map((d) => d.what), ['named the helper toInt']);
+});
+
+test('the implementer\'s declared decisions reach the decisions check', async () => {
+  const calls = [];
+  const base = responder();
+  const r = async (c) => {
+    calls.push(c);
+    if (/^1:attempt-/.test(c.label)) return { green: true, fullSuiteGreen: true, filesChanged: ['src/1/x.js'], summary: 'done', decisions: [{ what: 'added a cache', major: false }] };
+    return base(c);
+  };
+  await run(baseArgs([card('1')]), r);
+  assert.match(calls.find((c) => c.label === '1:decisions').prompt, /added a cache/);
+});
+
+test('a parked card and a stopped run each notify, naming the card and the command', async () => {
+  const calls = [];
+  const base = responder({ red: ['1', '2'] });
+  const r = async (c) => { calls.push(c); return base(c); };
+  const { result } = await run(baseArgs([card('1'), card('2'), card('3')]), r);
+  assert.match(calls.find((c) => c.label === '1:park').prompt, /notify [^\n]*--kind parked --card 1 [^\n]*--resume 1/);
+  assert.ok(result.stopped, 'two parks for the same reason stop the run');
+  assert.match(calls.find((c) => c.label === 'stopped:notify').prompt, /--kind stopped/);
+});
+
+test('--resume without --accept runs the held card again from its tests, told to stay within the plan', async () => {
+  const calls = [];
+  const base = responder();
+  const r = async (c) => { calls.push(c); return base(c); };
+  await run(baseArgs([card('1')], { resume: { card: '1', rerun: true, reason: 'stay within the plan', avoid: 'added dependency left-pad' } }), r);
+  const tests = calls.find((c) => c.label === '1:write-tests');
+  assert.ok(tests, 'it starts again from the tests');
+  assert.match(tests.prompt, /did not accept it: added dependency left-pad\. Stay within the plan/);
 });
 
 test('a finding still blocking after the fix round parks the card, with the round on record', async () => {

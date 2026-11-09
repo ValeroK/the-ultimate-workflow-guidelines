@@ -23,7 +23,7 @@
 
 const NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const ITEM = /^[-*]\s+([A-Za-z0-9][A-Za-z0-9._-]*):(?:\s+(.*))?$/;
-const FIELD = /^[ \t]+(paths|carried|experts|depends|parked|committed|status):\s*(.*)$/i;
+const FIELD = /^[ \t]+(paths|carried|experts|depends|parked|committed|status|decision):\s*(.*)$/i;
 const HEADING = /^(#{1,6})\s+(.*?)\s*#*\s*$/;
 
 const lines = (text) => String(text || '').split(/\r?\n/);
@@ -79,6 +79,7 @@ function parseCards(planText) {
         cur.parked = { branch: (at === -1 ? field[2] : field[2].slice(0, at)).trim(), reason: at === -1 ? '' : field[2].slice(at + 1).trim() };
       } else if (key === 'committed') cur.committed = field[2].trim();
       else if (key === 'status') cur.status = field[2].trim();
+      else if (key === 'decision') cur.decision = field[2].trim();
       else cur.carried.push(...split(field[2], ';'));
       continue;
     }
@@ -175,19 +176,21 @@ function addCard(planText, { name, title, paths = [], carried = [], experts = nu
  * `parked` and `committed` this way, so the Cards section stays the state a resumed run reads.
  * Throws, changing nothing, when there is no such card.
  */
-const SETTABLE = ['parked', 'committed', 'carried', 'depends', 'status'];
+const SETTABLE = ['parked', 'committed', 'carried', 'depends', 'status', 'decision'];
 
 /**
  * A card's `status:` line, the run's state as the plan shows it. Written by code on every transition
  * (`card-status`, `card-commit`, `park`, `unpark`, `run-start`), never by an agent:
  *   pending | running | running (resumed) | resumed | committed <sha> | fixed-in-round <sha>
- *   | parked <branch>; <reason> | blocked by <card>
+ *   | parked <branch>; <reason> | needs-decision <branch>; <decision> | blocked by <card>
  * A run that dies inside a card leaves it at `running`, which `run-start --resume` reports.
+ * `needs-decision` is a card held for a major decision the plan does not state; its `decision:`
+ * line says which, and its work is on the branch.
  */
-const STATUS = /^(pending|running(?: \(resumed\))?|resumed|committed(?: [0-9a-f]{7,40})?|fixed-in-round(?: [0-9a-f]{7,40})?|parked \S+(?:; .*)?|blocked by [A-Za-z0-9][A-Za-z0-9._-]*)$/;
+const STATUS = /^(pending|running(?: \(resumed\))?|resumed|committed(?: [0-9a-f]{7,40})?|fixed-in-round(?: [0-9a-f]{7,40})?|parked \S+(?:; .*)?|needs-decision \S+(?:; .*)?|blocked by [A-Za-z0-9][A-Za-z0-9._-]*)$/;
 function checkStatus(value) {
   const v = String(value || '').replace(/\s+/g, ' ').trim();
-  if (!STATUS.test(v)) throw new Error(`card status "${v}" is not one of: pending, running, running (resumed), resumed, committed <sha>, fixed-in-round <sha>, parked <branch>; <reason>, blocked by <card>`);
+  if (!STATUS.test(v)) throw new Error(`card status "${v}" is not one of: pending, running, running (resumed), resumed, committed <sha>, fixed-in-round <sha>, parked <branch>; <reason>, needs-decision <branch>; <decision>, blocked by <card>`);
   return v;
 }
 /** The status's first word, for counting: `parked`, `committed`, `blocked`, ... */

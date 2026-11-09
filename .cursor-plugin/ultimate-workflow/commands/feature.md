@@ -1,11 +1,11 @@
 ---
 description: Build a feature or a PRD end to end with the workflow, choosing how much of it the change needs (skip, light or full), running each phase in order and stopping only for the user's two confirmations, a blocking finding or a real failure. Use this for any feature request instead of calling the phases one by one.
-argument-hint: "<what you want built, or a PRD to start from> | --plan <confirmed plan file> | --resume [<card>]"
+argument-hint: "<what you want built, or a PRD to start from> | --plan <confirmed plan file> | --resume [<card> [--accept]]"
 ---
 
 # Feature: the whole workflow in one command
 
-`$ARGUMENTS` is what the user wants. `--plan <file>` naming a plan whose front matter has `plan_confirmed: true` and `tests_confirmed: true`, or `--resume [<card>]`, is the Full tier's unattended run: on Claude Code go straight to `${CLAUDE_PLUGIN_ROOT}/phases/run.md` and follow it. Otherwise run the workflow for it from start to finish, and stop only where this file says. Each phase is run by reading its command file under `${CLAUDE_PLUGIN_ROOT}/commands/` and following it exactly, as if the user had typed it. Nothing here replaces a phase's own steps, including its ledger step.
+`$ARGUMENTS` is what the user wants. `--plan <file>` naming a plan whose front matter has `plan_confirmed: true` and `tests_confirmed: true`, or `--resume [<card> [--accept]]`, is the Full tier's unattended run: on Claude Code go straight to `${CLAUDE_PLUGIN_ROOT}/phases/run.md` and follow it. Otherwise run the workflow for it from start to finish, and stop only where this file says. Each phase is run by reading its command file under `${CLAUDE_PLUGIN_ROOT}/commands/` and following it exactly, as if the user had typed it. Nothing here replaces a phase's own steps, including its ledger step.
 
 ## 1. Choose the tier, and say which
 

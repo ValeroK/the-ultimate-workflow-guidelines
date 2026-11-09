@@ -81,6 +81,11 @@ const BUILT = {
     filesChanged: { type: 'array', items: { type: 'string' } },
     notDone: { type: 'array', items: { type: 'string' }, description: 'Deliberately left undone, and why' },
     noticed: { type: 'array', items: { type: 'string' }, description: 'Worth a later change; not done now' },
+    decisions: {
+      type: 'array',
+      description: 'Every choice you made that the plan does not state; empty when there was none',
+      items: { type: 'object', required: ['what', 'major'], properties: { what: { type: 'string' }, why: { type: 'string' }, major: { type: 'boolean', description: 'True for a dependency, a schema or migration, an external service or environment variable, a changed public interface, security or permission configuration, or a file outside the card' } } },
+    },
     failureOutput: { type: 'string', description: 'Verbatim, when not green' },
     fullSuiteGreen: { type: 'boolean', description: 'True only if the full run (verify --full) was run after the last change and passed' },
     summary: { type: 'string' },
@@ -173,6 +178,8 @@ ${o.implementCommitRule || IMPLEMENT_COMMIT_RULE}
 
 Smallest change that works. Nothing beyond the plan. Do not improve adjacent code, reformat untouched lines, or rename anything not in scope -- every changed line must trace to a plan item.
 
+List in decisions every choice you made that the plan does not state, each with major true or false. Major: a new or changed dependency, a schema or migration, an external service or environment variable, a removed or renamed exported name, security or permission configuration, a file outside this change's scope. Minor: everything else (a helper's name, an error message, an internal structure). A major one is not committed without the user, so prefer the plan's way when there is one.
+
 Never make a test pass by weakening it. Deleting an assertion or special-casing the test input converts a failing test into a lie that outlives you. If a test is genuinely wrong, say so and leave it failing.
 
 Some tests may have been failing before this change and been accepted by the user as known (the plan lists them under "Known failures"). They are not yours: do not edit, skip or work around them. The full run already allows exactly those, and it says "N known failures ... and 0 new" when only they fail; any other failing test is yours.
@@ -204,6 +211,7 @@ When not green, include the failure output verbatim.`,
         filesChanged: attempt.filesChanged,
         notDone: attempt.notDone || [],
         noticed: attempt.noticed || [],
+        decisions: attempt.decisions || [],
         history,
         summary: attempt.summary,
       }
@@ -567,14 +575,23 @@ let stoppedBecause = ''
 
 const parkKey = (reason) => String(reason || '').toLowerCase().replace(/[0-9a-f]{7,}/g, '').replace(/[^a-z ]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80)
 
+// The command that acts on a held card, for the notice and the report.
+const resumeCmd = (name, needsDecision) => (needsDecision ? `/ultimate-workflow:feature --resume ${name} --accept (take the decision into the plan), or --resume ${name} (run it again within the plan)` : `/ultimate-workflow:feature --resume ${name}`)
+
 async function parkCard(card, reason, extra = {}) {
+  const needsDecision = extra.needsDecision === true
+  const reasonFile = `${cardDir(card.name)}/park-reason.txt`
+  // The user hears about it now, from the same step: the notice names the card, why and what to run.
   const [parked] = await runSteps(
     `${card.name}:park`,
-    [cliCmd('park', '--plan', q(PLAN), '--card', card.name, '--feature', FEATURE, '--reason-file', q(`${cardDir(card.name)}/park-reason.txt`))],
-    [{ path: `${cardDir(card.name)}/park-reason.txt`, text: reason }]
+    [
+      cliCmd('park', '--plan', q(PLAN), '--card', card.name, '--feature', FEATURE, '--reason-file', q(reasonFile), ...(needsDecision ? ['--needs-decision'] : [])),
+      cliCmd('notify', '--feature', FEATURE, '--kind', needsDecision ? 'needs-decision' : 'parked', '--card', card.name, '--reason-file', q(reasonFile), '--action', q(resumeCmd(card.name, needsDecision))),
+    ],
+    [{ path: reasonFile, text: reason }]
   )
-  status[card.name] = 'parked'
-  const entry = { card: card.name, title: card.title, status: 'parked', reason: String(reason).trim().replace(/\s*\r?\n\s*/g, ' ').slice(0, 300), branch: parked && parked.ok ? parked.branch : null, parkOk: Boolean(parked && parked.ok), ...(parked && !parked.ok ? { parkError: parked.reason || 'the park command printed nothing' } : {}), ...extra }
+  status[card.name] = needsDecision ? 'needs-decision' : 'parked'
+  const entry = { card: card.name, title: card.title, status: status[card.name], action: resumeCmd(card.name, needsDecision), reason: String(reason).trim().replace(/\s*\r?\n\s*/g, ' ').slice(0, 300), branch: parked && parked.ok ? parked.branch : null, parkOk: Boolean(parked && parked.ok), ...(parked && !parked.ok ? { parkError: parked.reason || 'the park command printed nothing' } : {}), ...extra }
   report.push(entry)
   const key = parkKey(entry.reason)
   if (key && key === lastParkKey) stoppedBecause = `two cards in a row were parked for the same reason: ${entry.reason}`
@@ -631,6 +648,7 @@ const FIXED = {
     fullSuiteGreen: { type: 'boolean', description: 'True only if the full run (verify --full) was run after the last change and passed' },
     filesChanged: { type: 'array', items: { type: 'string' } },
     testFiles: { type: 'array', items: { type: 'string' }, description: 'Test files written or changed in this round' },
+    decisions: { type: 'array', items: { type: 'object', required: ['what', 'major'], properties: { what: { type: 'string' }, why: { type: 'string' }, major: { type: 'boolean' } } } },
     newTests: { type: 'array', items: { type: 'object', required: ['name', 'failedFirst'], properties: { name: { type: 'string' }, failedFirst: { type: 'boolean' }, why: { type: 'string' } } } },
     failureOutput: { type: 'string' },
     summary: { type: 'string' },
@@ -649,7 +667,7 @@ Fix each one, in this card's files only. A missing test: write it. It may pass a
       VERIFY ? `After each change run \`${VERIFY}\`; when it passes, run \`${VERIFY} --full\` once. Report green and fullSuiteGreen only if that full run passed after your last change.` : `Run \`${COMMAND}\` and report whether it is green; set fullSuiteGreen to the same.`
     }
 
-Never stage or commit: the run commits the card after a fresh experts check. Never make a finding go away by weakening or deleting a test. Nothing beyond the findings.`,
+Never stage or commit: the run commits the card after a fresh experts check. Never make a finding go away by weakening or deleting a test. Nothing beyond the findings. List in decisions any choice you made that the plan does not state, with major true for a dependency, schema, external service, environment variable, public interface, security configuration or a file outside the card.`,
     { agentType: agentName('uw-implementer'), label: `${card.name}:fix-round`, phase: currentPhase, schema: FIXED, ...modelOpt(IMPLEMENTER_MODEL) }
   )
 }
@@ -661,11 +679,14 @@ async function runCard(card, { adhoc = false } = {}) {
   // The plan shows the card as running before any work, so a run that dies inside it leaves it there.
   await runSteps(`${card.name}:start`, [cliCmd('card-status', '--plan', q(PLAN), '--card', card.name, '--status', q(RESUME && RESUME.card === card.name ? 'running (resumed)' : 'running'))])
   const carried = handed[card.name] || []
-  const resume = RESUME && RESUME.card === card.name ? { reason: String(RESUME.reason || 'resumed from its parked branch'), testFiles: Array.isArray(RESUME.testFiles) ? RESUME.testFiles : [] } : null
+  // --resume <card> without --accept on a card held for a decision runs it again from its tests,
+  // told what it did last time; with --accept (or for a parked card) it continues where it stopped.
+  const rerun = RESUME && RESUME.card === card.name && RESUME.rerun ? RESUME : null
+  const resume = RESUME && RESUME.card === card.name && !RESUME.rerun ? { reason: String(RESUME.reason || 'resumed from its parked branch'), testFiles: Array.isArray(RESUME.testFiles) ? RESUME.testFiles : [] } : null
   const briefs = (Array.isArray(card.briefs) ? card.briefs : []).filter((b) => b && typeof b.name === 'string' && typeof b.text === 'string' && b.text.trim())
   const skills = briefs.flatMap((b) => skillsOf(b.skills)).filter((s, i, all) => all.findIndex((x) => x.name === s.name) === i)
   const brief = briefs.length === 0 ? '' : `\n\nSTANDING BRIEF, from ${briefs.map((b) => b.name).join(', ')}. It applies to every line you write, and it adds no work: do nothing the plan did not ask for.\n\n${briefs.map((b) => b.text.trim()).join('\n\n')}\n${skills.length ? `\nSKILLS for this card (${skills.map((s) => s.name).join(', ')}), chosen from its planned files and text. Write the code so that none of them would find anything. They add no work.\n\n${skills.map((s) => s.text.trim()).join('\n\n')}\n` : ''}`
-  const carriedText = [...(card.carried || []), ...carried.map((f) => `${f.expert} found at ${f.file}:${f.line}: ${f.what}${f.fix ? ` (fix: ${f.fix})` : ''}`)]
+  const carriedText = [...(rerun ? [`The last attempt at this card was stopped for a decision the plan does not state, and the user did not accept it: ${rerun.avoid}. Stay within the plan: do not take that decision again. If the card cannot be done without it, say so and stop.`] : []), ...(RESUME && RESUME.card === card.name && RESUME.accepted ? [`The user accepted this decision, which is now in the plan's Decisions: ${RESUME.accepted}`] : []), ...(card.carried || []), ...carried.map((f) => `${f.expert} found at ${f.file}:${f.line}: ${f.what}${f.fix ? ` (fix: ${f.fix})` : ''}`)]
   const locate = `This is card ${card.name} (${card.title}) of the plan ${PLAN}. Read its context pack ${pre.contextFile} and every file it lists before you write anything; the run journal in it holds what earlier cards learned. Change only files under this card's paths (${(card.paths || []).join(', ')}) and the tests for it.${carriedText.length ? `\n\nCARRIED to this card, part of its work:\n${carriedText.map((c) => `- ${c}`).join('\n')}` : ''}`
   const loopOpts = {
     locate,
@@ -723,7 +744,7 @@ async function runCard(card, { adhoc = false } = {}) {
     const outside = check.blocking.filter((f) => !inCard(card, f.file, buildSummary.testFiles))
     if (outside.length === 0) {
       const fixed = await fixFindings(card, locate, brief, check.blocking)
-      fixRound = { round: buildSummary.rounds + 1, findings: check.blocking.map((f) => ({ expert: f.expert, file: f.file, line: f.line, what: f.what })), green: Boolean(fixed && fixed.green === true && fixed.fullSuiteGreen === true), summary: (fixed && fixed.summary) || 'the fix round returned nothing' }
+      fixRound = { round: buildSummary.rounds + 1, findings: check.blocking.map((f) => ({ expert: f.expert, file: f.file, line: f.line, what: f.what })), green: Boolean(fixed && fixed.green === true && fixed.fullSuiteGreen === true), summary: (fixed && fixed.summary) || 'the fix round returned nothing', decisions: (fixed && Array.isArray(fixed.decisions) && fixed.decisions) || [] }
       if (fixRound.green) {
         buildSummary.testFiles = [...new Set([...buildSummary.testFiles, ...((fixed && fixed.testFiles) || [])])]
         const [, again] = await runSteps(`${card.name}:prepare-fix`, [
@@ -749,6 +770,19 @@ async function runCard(card, { adhoc = false } = {}) {
       return parkCard(card, `blocking finding${check.blocking.length > 1 ? 's' : ''} from the experts check, outside this card's paths so no fix round:\n${check.blocking.map((f) => `- ${f.expert}: ${f.file}:${f.line} ${f.what}`).join('\n')}`, { build: buildSummary, findings: check.blocking })
     }
   }
+
+  // Decisions the plan does not state (2026-11-09): the implementer's own list, and what code finds
+  // in the diff. A major one is not committed: the card is held as needs-decision, its work kept on
+  // the branch and the user told now; the cards that do not depend on it go on. Minor ones go into
+  // the handoff and the report.
+  const declared = [...((build && build.decisions) || []), ...((fixRound && fixRound.decisions) || [])]
+  const declaredFile = `${cardDir(card.name)}/declared-decisions.json`
+  const [decided] = await runSteps(`${card.name}:decisions`, [cliCmd('decisions', '--plan', q(PLAN), '--card', card.name, '--feature', FEATURE, '--declared', q(declaredFile))], [{ path: declaredFile, text: JSON.stringify(declared) }])
+  if (!decided || decided.ok !== true) return parkCard(card, 'the check for decisions the plan does not state could not run: experts.js decisions did not report success', { build: buildSummary })
+  if ((decided.major || []).length > 0) {
+    return parkCard(card, `needs a decision the plan does not state:\n${decided.major.map((d) => `- ${d.kind}: ${d.what}`).join('\n')}`, { build: buildSummary, needsDecision: true, decisions: { major: decided.major, minor: decided.minor || [] } })
+  }
+  const minorDecisions = decided.minor || []
 
   // Carried findings this card did not fix, from the last check only, so a fix round does not add them twice.
   for (const f of check.stillPresent) findingsQueue.push({ ...f, from: f.from || card.name, notFixedBy: card.name })
@@ -785,7 +819,7 @@ async function runCard(card, { adhoc = false } = {}) {
   if (carriedOn.length) {
     await runSteps(`${card.name}:carry`, carriedOn.map((c) => cliCmd('card-field', '--plan', q(PLAN), '--card', c.to, '--carried', q(`${c.finding.expert} at ${c.finding.file}:${c.finding.line}: ${c.finding.what}`.replace(/;/g, ',')))))
   }
-  const entry = { card: card.name, title: card.title, status: 'committed', commit: committed.commit, handoff: committed.handoff, missingClaims: committed.missingClaims || [], outOfScope, build: buildSummary, experts: { ran: check.lane.ran, added: check.lane.added, findings: check.lane.findings.length, refuted: check.refuted.length, carriedOn: carriedOn.map((c) => c.to) }, ...(fixRound ? { fixRound } : {}),...(recordOk ? {} : { recordMismatch: recorded }) }
+  const entry = { card: card.name, title: card.title, status: 'committed', commit: committed.commit, handoff: committed.handoff, missingClaims: committed.missingClaims || [], outOfScope, build: buildSummary, experts: { ran: check.lane.ran, added: check.lane.added, findings: check.lane.findings.length, refuted: check.refuted.length, carriedOn: carriedOn.map((c) => c.to) }, ...(fixRound ? { fixRound } : {}), ...(minorDecisions.length ? { decisions: { major: [], minor: minorDecisions } } : {}), ...(recordOk ? {} : { recordMismatch: recorded }) }
   report.push(entry)
   await journal(card, 'committed', `rounds: ${buildSummary.rounds}; files: ${committed.files}; findings: ${check.lane.findings.length}`)
   return entry
@@ -806,7 +840,7 @@ function nextReady() {
     let changed = false
     for (const c of CARDS) {
       if (status[c.name] !== undefined) continue
-      const bad = (c.depends || []).find((d) => !names.has(d) || status[d] === 'parked' || status[d] === 'blocked')
+      const bad = (c.depends || []).find((d) => !names.has(d) || status[d] === 'parked' || status[d] === 'needs-decision' || status[d] === 'blocked')
       if (bad) {
         status[c.name] = 'blocked'
         report.push({ card: c.name, title: c.title, status: 'blocked', reason: names.has(bad) ? `depends on ${bad}, which is ${status[bad]}` : `depends on ${bad}, which is not a card of the plan` })
@@ -828,8 +862,16 @@ for (const c of CARDS) {
 // Each card blocked behind a parked one says which in the plan; a card not started stays pending.
 const blockedSteps = report
   .filter((e) => e.status === 'blocked' && /^depends on (\S+), which is/.test(e.reason || ''))
-  .map((e) => cliCmd('card-status', '--plan', q(PLAN), '--card', e.card, '--status', q(`blocked by ${/^depends on (\S+),/.exec(e.reason)[1]}`)))
+  .flatMap((e) => {
+    const by = /^depends on (\S+),/.exec(e.reason)[1]
+    return [
+      cliCmd('card-status', '--plan', q(PLAN), '--card', e.card, '--status', q(`blocked by ${by}`)),
+      cliCmd('notify', '--feature', FEATURE, '--kind', 'blocked', '--card', e.card, '--reason', q(e.reason), '--action', q(`settle ${by} first: ${resumeCmd(by, status[by] === 'needs-decision')}`)),
+    ]
+  })
 if (blockedSteps.length) await runSteps('blocked:status', blockedSteps)
+// A stop is a blocker too, and the user hears about it when it happens.
+if (stoppedBecause) await runSteps('stopped:notify', [cliCmd('notify', '--feature', FEATURE, '--kind', 'stopped', '--reason', q(stoppedBecause.replace(/\s*\r?\n\s*/g, ' ').slice(0, 300)), '--action', q('read the report, then /ultimate-workflow:feature --resume'))])
 
 // ---- the findings card, the review and its fix-up card ----
 
@@ -950,6 +992,9 @@ Route each lesson worth keeping: "Beware / Don't / Note that" is a Gotcha (path 
 }
 
 const counts = report.reduce((n, r) => ({ ...n, [r.status]: (n[r.status] || 0) + 1 }), {})
+// One notice when the run ends, with the counts, whatever the outcome.
+const held = report.filter((e) => e.status === 'parked' || e.status === 'needs-decision').map((e) => e.card)
+await runSteps('finished:notify', [cliCmd('notify', '--feature', FEATURE, '--kind', 'finished', '--reason', q(`${Object.entries(counts).map(([k, n]) => `${n} ${k}`).join(', ') || 'no cards'}${stoppedBecause ? '; stopped' : ''}`), '--action', q(held.length ? `settle ${held.join(', ')}: the report lists the command for each` : `review and merge uw/run/${FEATURE}`))])
 return {
   ok: true,
   feature: FEATURE,

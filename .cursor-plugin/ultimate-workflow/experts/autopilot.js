@@ -258,12 +258,16 @@ function handoff(cwd, { card, feature, range, claimed = [] }) {
   const asRel = (c) => (path.isAbsolute(c) ? fwd(path.relative(cwd, c)) : fwd(c)).replace(/^\.\//, '');
   const missingClaims = claimed.map(asRel).filter((c) => c && !inDiff.has(c));
   const kind = { A: 'added', M: 'changed', D: 'deleted' };
+  // The choices the card made that the plan does not state (minor ones; a major one never commits).
+  const decisionsFile = path.join(cardDir(cwd, feature, card), 'decisions.md');
+  const minorLines = fs.existsSync(decisionsFile) ? fs.readFileSync(decisionsFile, 'utf8').split(/\r?\n/).slice(fs.readFileSync(decisionsFile, 'utf8').split(/\r?\n/).findIndex((l) => /^## Minor/.test(l)) + 1).filter((l) => /^- /.test(l) && l !== '- none') : [];
   const text = [
     `# Handoff: card ${card} (${range})`,
     '',
     ...files.slice(0, 40).map((f) => `- ${kind[f.status[0]] || f.status} ${f.file}${added[f.file] ? `: exports ${added[f.file].slice(0, 8).join(', ')}` : ''}`),
     ...(files.length > 40 ? [`- ...and ${files.length - 40} more files`] : []),
     ...(missingClaims.length ? ['', `Claimed by the build but not in the diff: ${missingClaims.join(', ')}`] : []),
+    ...(minorLines.length ? ['', 'Choices not in the plan (minor):', ...minorLines] : []),
     '',
   ].join('\n');
   const dir = cardDir(cwd, feature, card);
@@ -341,6 +345,206 @@ function commitPlan(cwd, plan, message) {
   return { committed: true, commit: git(cwd, ['rev-parse', 'HEAD']).stdout.trim().slice(0, 12) };
 }
 
+/**
+ * Tell the user about a blocker as it happens, not only in the final report (2026-11-09). Every
+ * notice is appended to the run's `notifications.md` (and `.jsonl`), and a desktop notification is
+ * fired on the machine the session runs on: a Windows toast, `osascript` on macOS, `notify-send` on
+ * Linux. That reaches a user at the desktop app or a terminal on that machine; it does not reach a
+ * phone over Remote Control, which only the main session's PushNotification at the end does.
+ * `ULTIMATE_WORKFLOW_NOTIFY=off` keeps the file and skips the desktop notification.
+ */
+const NOTIFY_KINDS = ['parked', 'needs-decision', 'blocked', 'stopped', 'finished'];
+function notify(cwd, { feature, kind, card = '', reason = '', reasonFile = '', action = '' }) {
+  checkFeature(feature);
+  if (!NOTIFY_KINDS.includes(kind)) throw new Error(`notify --kind is one of ${NOTIFY_KINDS.join(', ')}`);
+  let why = String(reason || '');
+  if (reasonFile) why = fs.readFileSync(path.resolve(cwd, reasonFile), 'utf8');
+  why = why.replace(/\s*\r?\n\s*/g, ' ').trim();
+  const title = `ultimate-workflow ${feature}: ${kind === 'finished' ? 'run finished' : `${card ? `card ${card} ` : ''}${kind}`}`;
+  const body = [why.slice(0, 220), action ? `Next: ${action}` : ''].filter(Boolean).join(' ');
+  const at = new Date().toISOString();
+  const dir = runDir(cwd, feature);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.appendFileSync(path.join(dir, 'notifications.jsonl'), `${JSON.stringify({ at, kind, card, reason: why, action })}\n`);
+  fs.appendFileSync(path.join(dir, 'notifications.md'), `- ${at.slice(0, 19).replace('T', ' ')} **${kind}**${card ? ` card ${card}` : ''}: ${why}${action ? ` Next: \`${action}\`` : ''}\n`);
+  const off = /^(off|0|false|no)$/i.test(String(process.env.ULTIMATE_WORKFLOW_NOTIFY || ''));
+  const desktop = off ? 'off' : desktopNotify(title, body);
+  return { ok: true, kind, card: card || null, file: rel(cwd, path.join(dir, 'notifications.md')), desktop };
+}
+
+function desktopNotify(title, body) {
+  const t = String(title).replace(/[\r\n"`$]/g, ' ').slice(0, 120);
+  const b = String(body).replace(/[\r\n"`$]/g, ' ').slice(0, 300);
+  let r;
+  if (process.platform === 'win32') {
+    const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/'/g, '&apos;');
+    const ps = [
+      '[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] > $null',
+      '[Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] > $null',
+      "$x = New-Object Windows.Data.Xml.Dom.XmlDocument",
+      `$x.LoadXml('<toast><visual><binding template="ToastGeneric"><text>${esc(t)}</text><text>${esc(b)}</text></binding></visual></toast>')`,
+      "$app = '{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\\WindowsPowerShell\\v1.0\\powershell.exe'",
+      '[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($app).Show([Windows.UI.Notifications.ToastNotification]::new($x))',
+    ].join('; ');
+    r = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], { encoding: 'utf8', timeout: 15000 });
+  } else if (process.platform === 'darwin') {
+    r = spawnSync('osascript', ['-e', `display notification "${b}" with title "${t}"`], { encoding: 'utf8', timeout: 15000 });
+  } else {
+    r = spawnSync('notify-send', [t, b], { encoding: 'utf8', timeout: 15000 });
+  }
+  if (r.error) return `failed: ${r.error.code || r.error.message}`;
+  if (r.status !== 0) return `failed: exit ${r.status}${r.stderr ? `: ${r.stderr.trim().split(/\r?\n/)[0].slice(0, 160)}` : ''}`;
+  return 'sent';
+}
+
+/**
+ * The decisions a card's work took that the plan does not state (2026-11-09). Some are found in
+ * code from the diff against HEAD; the rest are the ones the implementer declared. A major one is
+ * a change the user has to agree to: a dependency, a schema or migration, an external service or
+ * environment variable, a removed or renamed exported name, security or permission configuration,
+ * a file deleted or renamed outside the card's paths. Anything else is minor: recorded in the
+ * handoff and the report, never escalated. A finding is planned when the plan names it (the
+ * package, the variable, the host, the name, the file), so a decision written into the plan,
+ * by the user or by `--resume <card> --accept`, is no longer one.
+ */
+const MANIFEST = /(^|\/)(package\.json|requirements[^/]*\.txt|pyproject\.toml|Pipfile|setup\.py|setup\.cfg|go\.mod|Cargo\.toml|Gemfile|composer\.json|pom\.xml|build\.gradle(\.kts)?|[^/]+\.csproj|packages\.config)$/i;
+const LOCKFILE = /(^|\/)(package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml|Pipfile\.lock|poetry\.lock|go\.sum|Cargo\.lock|Gemfile\.lock|composer\.lock)$/i;
+const SCHEMA = /(^|\/)(migrations?|db\/migrate|alembic)\/|\.sql$|\.prisma$|(^|\/)schema\.(graphql|gql|json|ya?ml)$/i;
+const SECURITY = /(^|\/)(\.env[^/]*|\.npmrc|CODEOWNERS|Dockerfile|docker-compose[^/]*\.ya?ml)$|(^|\/)\.github\/workflows\/|(^|\/)[^/]*(auth|security|permission|policy|cors|csp|iam|rbac|secret)[^/]*\.(json|ya?ml|toml|ini|conf|config)$/i;
+const DOC_OR_TEST = /\.(md|txt)$|(^|\/)(test|tests|__tests__|spec)\/|\.(test|spec)\.[a-z]+$/i;
+
+function commonExports(text) {
+  const names = new Set(require('./experts.js').exportedNames(text));
+  for (const m of text.matchAll(/module\.exports\s*=\s*(?:async\s+)?function\s+([A-Za-z_$][\w$]*)/g)) names.add(m[1]);
+  for (const m of text.matchAll(/module\.exports\s*=\s*\{([^}]*)\}/g)) for (const p of m[1].split(',')) { const n = p.split(':')[0].trim(); if (/^[A-Za-z_$][\w$]*$/.test(n)) names.add(n); }
+  for (const m of text.matchAll(/(?:module\.)?exports\.([A-Za-z_$][\w$]*)\s*=/g)) names.add(m[1]);
+  return names;
+}
+
+function packageDeps(text) {
+  try {
+    const j = JSON.parse(text);
+    return Object.assign({}, j.dependencies, j.devDependencies, j.peerDependencies, j.optionalDependencies);
+  } catch {
+    return {};
+  }
+}
+
+function detectDecisions(cwd, { plan, card: name, feature = '', declaredFile = '' }) {
+  if (!plan) throw new Error('decisions needs --plan');
+  const planText = fs.readFileSync(path.resolve(cwd, plan), 'utf8');
+  const card = cardsLib.findCard(planText, name);
+  if (!card) throw new Error(`no card "${name}" in ${plan}`);
+  const expertsLib = require('./experts.js');
+  const esc = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // Named in the plan as a whole word: `add` in `src/add.js` counts, `add` inside `adder` does not.
+  const planned = (s) => new RegExp(`(^|[^A-Za-z0-9_$-])${esc(s)}($|[^A-Za-z0-9_$-])`, 'i').test(planText);
+  // A name the plan mentions is part of what the user confirmed, so removing it is planned only
+  // when the plan says to remove or rename it.
+  const plannedRemoval = (s) => new RegExp(`\\b(remove|rename|drop|delete|replace)[^.\\n]{0,60}(^|[^A-Za-z0-9_$-])${esc(s)}($|[^A-Za-z0-9_$-])`, 'i').test(planText);
+  const inCard = (f) => cardsLib.outOfScope([f], card.paths, expertsLib.globToRegExp).length === 0;
+  const major = [];
+  const minor = [];
+  const add = (isMajor, kind, what, item) => (isMajor && !planned(item) ? major : minor).push({ kind, what });
+  const status = git(cwd, ['diff', '--name-status', 'HEAD', '--', '.', ...EXCLUDES]).stdout.split(/\r?\n/).filter(Boolean).map((l) => l.split('\t'));
+  const untracked = git(cwd, ['ls-files', '--others', '--exclude-standard', '--', '.', ...EXCLUDES]).stdout.split(/\r?\n/).filter(Boolean);
+  const changed = [...status.filter((s) => s[0] !== 'D').map((s) => fwd(s[s.length - 1])), ...untracked.map(fwd)];
+  for (const s of status) {
+    if ((s[0] === 'D' || s[0][0] === 'R') && !inCard(fwd(s[1]))) add(true, 'file', `${s[0] === 'D' ? 'deleted' : 'renamed'} ${fwd(s[1])}, outside the card's paths`, fwd(s[1]));
+  }
+  let manifestPlanned = true;
+  for (const f of changed) {
+    const before = git(cwd, ['show', `HEAD:${f}`], { allowFail: true });
+    const old = before.status === 0 ? before.stdout : null;
+    const now = fs.existsSync(path.join(cwd, f)) ? fs.readFileSync(path.join(cwd, f), 'utf8') : '';
+    if (/(^|\/)package\.json$/.test(f)) {
+      const a = packageDeps(old || '{}');
+      const b = packageDeps(now);
+      for (const [dep, ver] of Object.entries(b)) {
+        if (a[dep] === ver) continue;
+        const what = `${a[dep] ? 'changed' : 'added'} dependency ${dep}@${ver} in ${f}`;
+        if (!planned(dep)) manifestPlanned = false;
+        add(true, 'dependency', what, dep);
+      }
+      for (const dep of Object.keys(a)) if (!(dep in b)) { if (!planned(dep)) manifestPlanned = false; add(true, 'dependency', `removed dependency ${dep} from ${f}`, dep); }
+      continue;
+    }
+    if (MANIFEST.test(f)) { if (!planned(f)) manifestPlanned = false; add(true, 'dependency', `changed the dependency manifest ${f}`, f); continue; }
+    if (SCHEMA.test(f)) { add(true, 'schema', `${old === null ? 'added' : 'changed'} the schema or migration ${f}`, f); continue; }
+    if (SECURITY.test(f)) { add(true, 'security', `${old === null ? 'added' : 'changed'} the security or permission configuration ${f}`, f); continue; }
+    if (LOCKFILE.test(f)) continue;
+    if (DOC_OR_TEST.test(f)) continue;
+    const oldLines = new Set((old || '').split(/\r?\n/));
+    const addedText = now.split(/\r?\n/).filter((l) => !oldLines.has(l)).join('\n');
+    for (const m of addedText.matchAll(/process\.env\.([A-Z_][A-Z0-9_]*)|process\.env\[['"]([A-Z_][A-Z0-9_]*)['"]\]|os\.environ(?:\.get)?\(?\[?['"]([A-Z_][A-Z0-9_]*)|getenv\(\s*['"]([A-Z_][A-Z0-9_]*)/g)) {
+      const v = m[1] || m[2] || m[3] || m[4];
+      add(true, 'env', `reads the environment variable ${v} in ${f}`, v);
+    }
+    for (const m of addedText.matchAll(/https?:\/\/([a-z0-9-]+(?:\.[a-z0-9-]+)+)/gi)) {
+      const host = m[1].toLowerCase();
+      if (/^(localhost|127\.0\.0\.1|example\.(com|org|net))$/.test(host) || host.endsWith('.example.com')) continue;
+      add(true, 'service', `calls the external host ${host} in ${f}`, host);
+    }
+    if (old !== null) {
+      const had = commonExports(old);
+      const has = commonExports(now);
+      for (const n of had) if (!has.has(n)) (plannedRemoval(n) ? minor : major).push({ kind: 'interface', what: `removed or renamed the exported name ${n} in ${f}` });
+    }
+  }
+  for (const f of changed) if (LOCKFILE.test(f)) add(!manifestPlanned || !changed.some((x) => MANIFEST.test(x) || /package\.json$/.test(x)), 'dependency', `changed the lockfile ${f}`, f);
+  let declared = [];
+  if (declaredFile && fs.existsSync(path.resolve(cwd, declaredFile))) {
+    try {
+      declared = JSON.parse(fs.readFileSync(path.resolve(cwd, declaredFile), 'utf8').replace(/^﻿/, ''));
+    } catch {
+      declared = [];
+    }
+  }
+  for (const d of Array.isArray(declared) ? declared : []) {
+    if (!d || typeof d.what !== 'string' || !d.what.trim()) continue;
+    (d.major === true ? major : minor).push({ kind: 'declared', what: d.what.trim().replace(/\s+/g, ' ') });
+  }
+  const dedupe = (xs) => xs.filter((x, i) => xs.findIndex((y) => y.what === x.what) === i);
+  const out = { ok: true, card: card.name, major: dedupe(major), minor: dedupe(minor) };
+  if (feature) {
+    // The handoff reads this, so the next cards see the minor choices too.
+    const dir = cardDir(cwd, checkFeature(feature), card.name);
+    fs.mkdirSync(dir, { recursive: true });
+    const line = (x) => `- ${x.kind}: ${x.what}`;
+    fs.writeFileSync(path.join(dir, 'decisions.md'), [`# Decisions not in the plan: card ${card.name}`, '', '## Major (need the user)', '', ...(out.major.length ? out.major.map(line) : ['- none']), '', '## Minor (recorded only)', '', ...(out.minor.length ? out.minor.map(line) : ['- none']), ''].join('\n'));
+    out.file = rel(cwd, path.join(dir, 'decisions.md'));
+  }
+  return out;
+}
+
+/**
+ * The user accepted a card's held decision: it becomes a line of the plan's Decisions section and
+ * the card's `decision:` line goes. The plan is hashed again, since the user's --accept is a
+ * confirmation of this one change.
+ */
+function acceptDecision(cwd, plan, card) {
+  const file = path.resolve(cwd, plan);
+  const text = fs.readFileSync(file, 'utf8');
+  const nl = text.includes('\r\n') ? '\r\n' : '\n';
+  const line = `- Accepted during the run for card ${card.name}: ${card.decision}`;
+  const all = text.split(/\r?\n/);
+  const at = all.findIndex((l) => /^##\s+Decisions\s*$/i.test(l));
+  if (at !== -1) {
+    let end = all.length;
+    for (let i = at + 1; i < all.length; i++) if (/^#{1,2}\s/.test(all[i])) { end = i; break; }
+    while (end > at + 1 && all[end - 1].trim() === '') end--;
+    all.splice(end, 0, line);
+  } else {
+    const cards = all.findIndex((l) => /^##\s+Cards\s*$/i.test(l));
+    all.splice(cards === -1 ? all.length : cards, 0, '## Decisions', '', line, '');
+  }
+  let next = all.join(nl);
+  next = cardsLib.setField(next, card.name, 'decision', null);
+  const ex = require('./experts.js');
+  next = ex.setFrontLine(next, 'confirmed_hash', ex.confirmHash(next));
+  fs.writeFileSync(file, next);
+}
+
 /** `card-status`: one transition the run makes without a commit (running, blocked by). */
 function cardStatus(cwd, { plan, card: name, status }) {
   if (!plan) throw new Error('card-status needs --plan');
@@ -389,7 +593,7 @@ function writeRunStatus(cwd, plan, { branch, harvest, report, date }) {
  * the branch and the reason. The plan and the run folder are kept as they are. A branch, not a
  * stash: a stash is one positional stack, leaves new files out without -u, and is tied to no branch.
  */
-function park(cwd, { plan, card: name, feature, reasonFile = '', reason = '' }) {
+function park(cwd, { plan, card: name, feature, reasonFile = '', reason = '', needsDecision = false }) {
   if (!plan) throw new Error('park needs --plan');
   const planText = fs.readFileSync(path.resolve(cwd, plan), 'utf8');
   const card = cardsLib.findCard(planText, name);
@@ -412,7 +616,7 @@ function park(cwd, { plan, card: name, feature, reasonFile = '', reason = '' }) 
     git(cwd, ['read-tree', 'HEAD'], { env });
     stage(cwd, work.all, env);
     const tree = git(cwd, ['write-tree'], { env }).stdout.trim();
-    const msg = `parked: card ${card.name} (${card.title})\n\n${why}\n\nPlan: ${fwd(plan)}`;
+    const msg = `${needsDecision ? 'needs decision' : 'parked'}: card ${card.name} (${card.title})\n\n${why}\n\nPlan: ${fwd(plan)}`;
     commit = git(cwd, ['commit-tree', tree, '-p', head, '-m', msg], { env: who }).stdout.trim();
   } finally {
     fs.rmSync(index, { force: true });
@@ -427,10 +631,12 @@ function park(cwd, { plan, card: name, feature, reasonFile = '', reason = '' }) 
   // only "...so no fix round:" in the plan, as the report once did (2026-11-09, a real run).
   const short = why.replace(/\s*\r?\n\s*/g, ' ').replace(/;/g, ',').slice(0, 240);
   writePlanField(cwd, plan, card.name, 'parked', `${branch}; ${short}`);
-  setStatus(cwd, plan, card.name, `parked ${branch}; ${short}`);
+  // A card held for a major decision the plan does not state says so, and the plan holds the decision.
+  setStatus(cwd, plan, card.name, `${needsDecision ? 'needs-decision' : 'parked'} ${branch}; ${short}`);
+  if (needsDecision) writePlanField(cwd, plan, card.name, 'decision', short);
   markClean(cwd, plan);
   // The run branch gets the plan's new state as its own commit, so the plan there matches git.
-  const planCommit = commitPlan(cwd, plan, `plan: card ${card.name} parked on ${branch}`);
+  const planCommit = commitPlan(cwd, plan, `plan: card ${card.name} ${needsDecision ? 'needs a decision' : 'parked'}, work on ${branch}`);
   return { ok: true, card: card.name, branch, commit: commit.slice(0, 12), resetTo: head.slice(0, 12), files: [...new Set([...changed, ...untracked])].length, parked: rel(cwd, path.join(dir, 'parked.md')), planCommit };
 }
 
@@ -721,8 +927,21 @@ function runStart(cwd, { plan, feature, resume = null, implementerModel = '', di
   const planCards = cardsLib.parseCards(fs.readFileSync(path.resolve(cwd, plan), 'utf8'));
   const interrupted = planCards.filter((c) => /^running\b/.test(c.status || '')).map((c) => c.name);
   if (resume && resume.card) {
-    const back = unpark(cwd, { plan, card: resume.card, feature });
-    resume = { ...resume, testFiles: back.testFiles };
+    const held = planCards.find((c) => c.name.toLowerCase() === String(resume.card).toLowerCase());
+    if (held && held.decision && !resume.accept) {
+      // Not accepted: the card runs again from its tests, told to stay within the plan. Its held
+      // work stays on the parked branch for reference and is not brought back.
+      writePlanField(cwd, plan, held.name, 'parked', null);
+      writePlanField(cwd, plan, held.name, 'decision', null);
+      setStatus(cwd, plan, held.name, 'pending');
+      resume = { card: held.name, rerun: true, reason: resume.reason, avoid: held.decision };
+    } else {
+      // Accepted: the decision goes into the plan's Decisions, so it is planned from now on, and the
+      // plan is confirmed again with it, by the user's own --accept.
+      if (held && held.decision) acceptDecision(cwd, plan, held);
+      const back = unpark(cwd, { plan, card: resume.card, feature });
+      resume = { card: resume.card, reason: resume.reason, testFiles: back.testFiles, ...(held && held.decision ? { accepted: held.decision } : {}) };
+    }
   }
   for (const c of planCards) {
     if (c.committed || c.parked || c.status) continue;
@@ -832,7 +1051,7 @@ function cli(argv, cwd, out, fail) {
   if (sub === 'journal') action = rest.shift();
   for (let i = 0; i < rest.length; i++) {
     const a = rest[i];
-    if (a === '--resume' || a === '--adhoc' || a === '--fixed-round') {
+    if (a === '--resume' || a === '--adhoc' || a === '--fixed-round' || a === '--accept' || a === '--needs-decision') {
       o[a.slice(2)] = true;
       continue;
     }
@@ -856,7 +1075,9 @@ function cli(argv, cwd, out, fail) {
   };
   if (sub === 'pack') return run(() => pack(cwd, { plan: o.plan, card: o.card, feature: o.feature, resume: Boolean(o.resume), adhoc: Boolean(o.adhoc) }));
   if (sub === 'handoff') return run(() => handoff(cwd, { card: o.card, feature: o.feature, range: o.range, claimed }));
-  if (sub === 'park') return run(() => park(cwd, { plan: o.plan, card: o.card, feature: o.feature, reasonFile: o['reason-file'] || '', reason: o.reason || '' }));
+  if (sub === 'park') return run(() => park(cwd, { plan: o.plan, card: o.card, feature: o.feature, reasonFile: o['reason-file'] || '', reason: o.reason || '', needsDecision: Boolean(o['needs-decision']) }));
+  if (sub === 'notify') return run(() => notify(cwd, { feature: o.feature, kind: o.kind, card: o.card || '', reason: o.reason || '', reasonFile: o['reason-file'] || '', action: o.action || '' }));
+  if (sub === 'decisions') return run(() => detectDecisions(cwd, { plan: o.plan, card: o.card, feature: o.feature || '', declaredFile: o.declared || '' }));
   if (sub === 'unpark') return run(() => unpark(cwd, { plan: o.plan, card: o.card, feature: o.feature }));
   if (sub === 'card-commit') return run(() => cardCommit(cwd, { plan: o.plan, card: o.card, feature: o.feature, claimed, fixedRound: Boolean(o['fixed-round']) }));
   if (sub === 'card-status') return run(() => cardStatus(cwd, { plan: o.plan, card: o.card, status: o.status }));
@@ -867,7 +1088,7 @@ function cli(argv, cwd, out, fail) {
   if (sub === 'run-start') {
     return run(() => {
       let resume = null;
-      if (o['resume-card']) resume = { card: o['resume-card'], reason: o['resume-reason'] || 'resumed by the user' };
+      if (o['resume-card']) resume = { card: o['resume-card'], reason: o['resume-reason'] || 'resumed by the user', accept: Boolean(o.accept) };
       else if (o.resume) resume = { all: true };
       return runStart(cwd, { plan: o.plan, feature: o.feature, resume, implementerModel: o['implementer-model'] || '', diagnoserModel: o['diagnoser-model'] || '' });
     });
@@ -888,6 +1109,6 @@ function cli(argv, cwd, out, fail) {
   return fail(`unknown autopilot command ${sub}`);
 }
 
-const COMMANDS = ['pack', 'handoff', 'park', 'unpark', 'journal', 'card-commit', 'card-status', 'card-field', 'run-branch', 'ensure-ignored', 'harvest-branch', 'run-report', 'run-start', 'run-finish'];
+const COMMANDS = ['pack', 'handoff', 'park', 'unpark', 'journal', 'card-commit', 'card-status', 'notify', 'decisions', 'card-field', 'run-branch', 'ensure-ignored', 'harvest-branch', 'run-report', 'run-start', 'run-finish'];
 
-module.exports = { COMMANDS, cardStatus, writeRunStatus, commitPlan, pack, handoff, park, unpark, journalAdd, journalCompact, cardCommit, runBranch, ensureIgnored, harvestBranch, withAddition, matchingTopicals, testSection, sections, cli, JOURNAL_CARD_LINES, JOURNAL_MAX_LINES };
+module.exports = { COMMANDS, cardStatus, notify, detectDecisions, acceptDecision, writeRunStatus, commitPlan, pack, handoff, park, unpark, journalAdd, journalCompact, cardCommit, runBranch, ensureIgnored, harvestBranch, withAddition, matchingTopicals, testSection, sections, cli, JOURNAL_CARD_LINES, JOURNAL_MAX_LINES };

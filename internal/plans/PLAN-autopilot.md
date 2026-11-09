@@ -135,6 +135,32 @@ progress into the conversation (progress is visible in `/workflows`).
 7. **Card handoff** (W2) and **journal lines** (W4), both written from the diff and the run's own
    results, never from what the build agent says it did (bug 5).
 
+### Approvals, blockers and decisions not in the plan (2026-11-09)
+
+**Approvals.** The user's two confirmations are the only stops, and the run cannot start without
+them. `plan_confirmed` and `tests_confirmed` are front matter lines set by `present --confirm`;
+confirming the test plan also writes `confirmed_hash`, a hash of the plan as the user saw it without
+the run's own state. `run-start` refuses before it creates anything when either flag is not true,
+when there is no hash, or when the plan changed since. Gates G1 and G2 check the same two flags on
+every edit. The stop removed on 2026-11-09 was a third one, after both confirmations: a session
+reviewing the code itself before the run.
+
+**Blockers are notified when they happen.** Parked, needs-decision, blocked, stopped, and finished
+(with counts): each notice names the card, the reason and the command, goes to the run folder's
+`notifications.md`, and fires a desktop notification on the session's machine (Windows toast,
+`osascript`, `notify-send`). Nothing inside a workflow reaches a phone over Remote Control; the
+main session's PushNotification after `run-finish` does.
+
+**Major and minor decisions.** Major, needing the user: a dependency (any manifest or lockfile), a
+schema or migration, an external service or environment variable, a removed or renamed exported
+name, security or permission configuration, a file deleted or renamed outside the card's paths.
+Planned when the plan names it (a removal only when the plan says to remove or rename it). The
+implementer also declares its choices, each major or minor. An unplanned major decision holds the
+card as `needs-decision` (work on the parked branch, `decision:` line in the plan, the user
+notified, independent cards go on). `--resume <card> --accept` writes it into the plan's Decisions
+and continues; `--resume <card>` runs the card again within the plan. Minor choices go to the
+handoff and the report only.
+
 ### Card status in the plan
 
 The plan is where the user looks, so it shows every card's state as it changes, not only the report

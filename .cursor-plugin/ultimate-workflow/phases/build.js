@@ -123,6 +123,11 @@ const BUILT = {
     filesChanged: { type: 'array', items: { type: 'string' } },
     notDone: { type: 'array', items: { type: 'string' }, description: 'Deliberately left undone, and why' },
     noticed: { type: 'array', items: { type: 'string' }, description: 'Worth a later change; not done now' },
+    decisions: {
+      type: 'array',
+      description: 'Every choice you made that the plan does not state; empty when there was none',
+      items: { type: 'object', required: ['what', 'major'], properties: { what: { type: 'string' }, why: { type: 'string' }, major: { type: 'boolean', description: 'True for a dependency, a schema or migration, an external service or environment variable, a changed public interface, security or permission configuration, or a file outside the card' } } },
+    },
     failureOutput: { type: 'string', description: 'Verbatim, when not green' },
     fullSuiteGreen: { type: 'boolean', description: 'True only if the full run (verify --full) was run after the last change and passed' },
     summary: { type: 'string' },
@@ -215,6 +220,8 @@ ${o.implementCommitRule || IMPLEMENT_COMMIT_RULE}
 
 Smallest change that works. Nothing beyond the plan. Do not improve adjacent code, reformat untouched lines, or rename anything not in scope -- every changed line must trace to a plan item.
 
+List in decisions every choice you made that the plan does not state, each with major true or false. Major: a new or changed dependency, a schema or migration, an external service or environment variable, a removed or renamed exported name, security or permission configuration, a file outside this change's scope. Minor: everything else (a helper's name, an error message, an internal structure). A major one is not committed without the user, so prefer the plan's way when there is one.
+
 Never make a test pass by weakening it. Deleting an assertion or special-casing the test input converts a failing test into a lie that outlives you. If a test is genuinely wrong, say so and leave it failing.
 
 Some tests may have been failing before this change and been accepted by the user as known (the plan lists them under "Known failures"). They are not yours: do not edit, skip or work around them. The full run already allows exactly those, and it says "N known failures ... and 0 new" when only they fail; any other failing test is yours.
@@ -246,6 +253,7 @@ When not green, include the failure output verbatim.`,
         filesChanged: attempt.filesChanged,
         notDone: attempt.notDone || [],
         noticed: attempt.noticed || [],
+        decisions: attempt.decisions || [],
         history,
         summary: attempt.summary,
       }

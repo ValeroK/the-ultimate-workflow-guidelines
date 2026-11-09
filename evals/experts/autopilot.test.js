@@ -216,6 +216,95 @@ test('the run\'s own writes to the plan do not count as a change to what the use
   assert.equal(r.ok, true, JSON.stringify(r));
 });
 
+// --- decisions the plan does not state, and notices (2026-11-09) ------------------------------
+
+test('decisions: an unplanned dependency, env var, external host, removed export and deleted outside file are major', () => {
+  const dir = repo();
+  write(dir, 'package.json', JSON.stringify({ name: 'calc', dependencies: {} }, null, 2));
+  write(dir, 'src/old.js', 'module.exports = 1;\n');
+  write(dir, 'src/add.js', 'module.exports = function add(a, b) { return a + b; };\nmodule.exports.sum = 1;\n');
+  git(dir, 'add', '-A');
+  git(dir, 'commit', '-q', '-m', 'base');
+  write(dir, 'package.json', JSON.stringify({ name: 'calc', dependencies: { 'left-pad': '1.3.0' } }, null, 2));
+  write(dir, 'src/add.js', "const key = process.env.CALC_KEY;\nfetch('https://api.numbers.io/x');\nmodule.exports = function plus(a, b) { return a + b; };\n");
+  fs.rmSync(path.join(dir, 'src/old.js'));
+  const r = json(cli(dir, 'decisions', '--plan', 'PLAN-calc.md', '--card', '1', '--feature', 'calc'));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const kinds = r.major.map((d) => d.kind).sort();
+  assert.deepStrictEqual(kinds, ['dependency', 'env', 'file', 'interface', 'interface', 'service'], JSON.stringify(r.major));
+  assert.ok(r.major.some((d) => /left-pad@1\.3\.0/.test(d.what)));
+  assert.ok(r.major.some((d) => /deleted src\/old\.js/.test(d.what)));
+  assert.match(read(dir, r.file), /## Major \(need the user\)/);
+});
+
+test('decisions: the same changes, named in the plan, are planned; a declared minor choice is recorded only', () => {
+  const dir = repo({ plan: PLAN.replace('- integers only', '- integers only\n- uses the left-pad package, reads CALC_KEY, calls api.numbers.io') });
+  write(dir, 'package.json', JSON.stringify({ name: 'calc', dependencies: {} }, null, 2));
+  git(dir, 'add', '-A');
+  git(dir, 'commit', '-q', '-m', 'base');
+  write(dir, 'package.json', JSON.stringify({ name: 'calc', dependencies: { 'left-pad': '1.3.0' } }, null, 2));
+  write(dir, 'src/add.js', "const key = process.env.CALC_KEY;\nfetch('https://api.numbers.io/x');\nmodule.exports = (a, b) => a + b;\n");
+  write(dir, 'declared.json', JSON.stringify([{ what: 'named the helper toInt', major: false }, { what: 'kept the cache in memory', major: false }]));
+  const r = json(cli(dir, 'decisions', '--plan', 'PLAN-calc.md', '--card', '1', '--feature', 'calc', '--declared', 'declared.json'));
+  assert.deepStrictEqual(r.major, [], JSON.stringify(r));
+  assert.ok(r.minor.some((d) => d.what === 'named the helper toInt'));
+});
+
+test('decisions: a declared major decision is major', () => {
+  const dir = repo();
+  write(dir, 'declared.json', JSON.stringify([{ what: 'switched the result type to BigInt', major: true }]));
+  const r = json(cli(dir, 'decisions', '--plan', 'PLAN-calc.md', '--card', '1', '--declared', 'declared.json'));
+  assert.deepStrictEqual(r.major, [{ kind: 'declared', what: 'switched the result type to BigInt' }]);
+});
+
+test('park --needs-decision holds the card with its decision in the plan; --accept takes it into Decisions and resumes', () => {
+  const dir = repo();
+  json(cli(dir, 'run-branch', '--feature', 'calc'));
+  write(dir, 'src/add.js', 'module.exports = require("left-pad");\n');
+  write(dir, 'why.txt', 'needs a decision the plan does not state:\n- dependency: added dependency left-pad@1.3.0 in package.json\n');
+  const p = json(cli(dir, 'park', '--plan', 'PLAN-calc.md', '--card', '1', '--feature', 'calc', '--reason-file', 'why.txt', '--needs-decision'));
+  assert.equal(p.ok, true, JSON.stringify(p));
+  const held = cards.findCard(read(dir, 'PLAN-calc.md'), '1');
+  assert.match(held.status, /^needs-decision uw\/parked\/calc\/1; needs a decision the plan does not state: - dependency: added dependency left-pad/);
+  assert.match(held.decision, /added dependency left-pad@1\.3\.0/);
+  assert.match(git(dir, 'log', '-1', '--format=%s', 'uw/parked/calc/1'), /^needs decision: card 1/);
+  const r = json(cli(dir, 'run-start', '--plan', 'PLAN-calc.md', '--feature', 'calc', '--resume-card', '1', '--accept'));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const plan = read(dir, 'PLAN-calc.md');
+  assert.match(plan, /## Decisions\n\n- integers only\n- Accepted during the run for card 1: needs a decision the plan does not state: - dependency: added dependency left-pad/);
+  assert.equal(cards.findCard(plan, '1').decision, undefined);
+  assert.equal(read(dir, 'src/add.js'), 'module.exports = require("left-pad");\n', 'the held work is back');
+  assert.equal(expertsLib.checkConfirmed(plan).ok, true, 'the accepted decision is part of the confirmed plan');
+  assert.match(JSON.parse(read(dir, '.ultimate-workflow/run/run.args.json')).resume.accepted, /left-pad/);
+});
+
+test('--resume <card> without --accept runs a held card again without its work, told what to avoid', () => {
+  const dir = repo();
+  json(cli(dir, 'run-branch', '--feature', 'calc'));
+  write(dir, 'src/add.js', 'module.exports = require("left-pad");\n');
+  json(cli(dir, 'park', '--plan', 'PLAN-calc.md', '--card', '1', '--feature', 'calc', '--reason', 'needs a decision the plan does not state: - dependency: left-pad', '--needs-decision'));
+  const r = json(cli(dir, 'run-start', '--plan', 'PLAN-calc.md', '--feature', 'calc', '--resume-card', '1'));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(read(dir, 'src/add.js'), 'module.exports = (a, b) => a + b;\n', 'the held work is not brought back');
+  const c = cards.findCard(read(dir, 'PLAN-calc.md'), '1');
+  assert.equal(c.status, 'pending');
+  assert.equal(c.parked, undefined);
+  const resume = JSON.parse(read(dir, '.ultimate-workflow/run/run.args.json')).resume;
+  assert.equal(resume.rerun, true);
+  assert.match(resume.avoid, /left-pad/);
+});
+
+test('notify appends the notice to the run folder and reports the desktop result', () => {
+  const dir = repo();
+  const r = spawnSync(process.execPath, [CLI, 'notify', '--feature', 'calc', '--kind', 'needs-decision', '--card', '1', '--reason', 'added left-pad', '--action', '/ultimate-workflow:feature --resume 1 --accept'], { cwd: dir, encoding: 'utf8', env: { ...env, ULTIMATE_WORKFLOW_NOTIFY: 'off' } });
+  const out = JSON.parse(r.stdout.trim().split('\n').pop());
+  assert.equal(out.ok, true);
+  assert.equal(out.desktop, 'off');
+  assert.match(read(dir, '.ultimate-workflow/run/calc/notifications.md'), /\*\*needs-decision\*\* card 1: added left-pad Next: `\/ultimate-workflow:feature --resume 1 --accept`/);
+  const bad = spawnSync(process.execPath, [CLI, 'notify', '--feature', 'calc', '--kind', 'oops'], { cwd: dir, encoding: 'utf8', env });
+  assert.match(bad.stdout, /notify --kind is one of/);
+});
+
 test('run-start marks every open card pending and reports a card a run died inside', () => {
   const dir = repo();
   const r = json(cli(dir, 'run-start', '--plan', 'PLAN-calc.md', '--feature', 'calc'));

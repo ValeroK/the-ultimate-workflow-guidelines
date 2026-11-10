@@ -207,30 +207,38 @@ harvest that creates a new topical shows it in memory.md on the harvest branch.
 - index: generated memory index from topical headers
   paths: .cursor-plugin/ultimate-workflow/experts/memory.js, .cursor-plugin/ultimate-workflow/experts/experts.js, evals/experts/memory.test.js
   experts: [quality]
+  status: parked uw/parked/memory-index/index; not green: Verification failed 1 times. Stopping. What is wrong: The code is not functionally broken, the change runs into a size cap that the plan never accounted for. evals/security-expert/provenance.test.js:137-151 sums every file under
+  parked: uw/parked/memory-index/index; not green: Verification failed 1 times. Stopping. What is wrong: The code is not functionally broken, the change runs into a size cap that the plan never accounted for. evals/security-expert/provenance.test.js:137-151 sums every file under
 - links: link check for the entry and memory files
   paths: .cursor-plugin/ultimate-workflow/experts/links.js, .cursor-plugin/ultimate-workflow/experts/memory.js, .cursor-plugin/ultimate-workflow/experts/experts.js, evals/experts/links.test.js, evals/experts/memory.test.js
   depends: index
   experts: [quality]
+  status: pending
 - match: cards pick topicals from the headers
   paths: .cursor-plugin/ultimate-workflow/experts/autopilot.js, evals/experts/autopilot.test.js, evals/experts/memory-match.test.js
   depends: index
   experts: [quality]
+  status: pending
 - budget: pack size, budget and do-not-load list
   paths: .cursor-plugin/ultimate-workflow/experts/autopilot.js, .cursor-plugin/ultimate-workflow/experts/experts.js, .cursor-plugin/ultimate-workflow/phases/run.js, evals/experts/autopilot.test.js, evals/experts/pack-budget.test.js
   depends: match
   experts: [quality, genai]
+  status: pending
 - harvest: harvest writes headers and regenerates the index
   paths: .cursor-plugin/ultimate-workflow/experts/autopilot.js, .cursor-plugin/ultimate-workflow/phases/harvest.js, .cursor-plugin/ultimate-workflow/phases/run.js, .cursor-plugin/ultimate-workflow/commands/harvest.md, .cursor-plugin/ultimate-workflow/agents/uw-harvester.md, evals/experts/harvest.test.js, evals/experts/autopilot.test.js
   depends: index, match, budget
   experts: [quality]
+  status: pending
 - gate: commit refused on a stale index or a broken link
   paths: .cursor-plugin/ultimate-workflow/hooks/lib/gates.js, .cursor-plugin/ultimate-workflow/hooks/lib/gates.test.js, .cursor-plugin/ultimate-workflow/hooks/gate.js, .cursor-plugin/ultimate-workflow/experts/experts.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, evals/experts/experts.test.js, evals/experts/autopilot.test.js, evals/experts/memory-gate.test.js
   depends: index, links, harvest
   experts: [quality, security]
+  status: pending
 - docs: templates, protocol, migration of this repo, release
   paths: .cursor-plugin/ultimate-workflow/memory.md, .cursor-plugin/ultimate-workflow/memory/**, .cursor-plugin/ultimate-workflow/skills/the-ultimate-workflow-guidelines/references/memory-protocol.md, .cursor-plugin/ultimate-workflow/skills/the-ultimate-workflow-guidelines/references/memory-template.md, .cursor-plugin/ultimate-workflow/skills/project-bootstrap-guidelines/references/memory-template.md, .cursor-plugin/ultimate-workflow/skills/project-bootstrap-guidelines/SKILL.md, .cursor-plugin/ultimate-workflow/skills/the-ultimate-workflow-guidelines/SKILL.md, .cursor-plugin/ultimate-workflow/rules/**, .cursor-plugin/ultimate-workflow/phases/run.md, mirrors.test.js, CHANGELOG.md, .cursor-plugin/plugin.json, .claude-plugin/marketplace.json
   depends: index, links, match, budget, harvest, gate
   experts: [quality]
+  status: pending
 
 ### Card index
 

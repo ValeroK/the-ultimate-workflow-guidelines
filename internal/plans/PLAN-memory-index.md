@@ -213,32 +213,32 @@ harvest that creates a new topical shows it in memory.md on the harvest branch.
   paths: .cursor-plugin/ultimate-workflow/experts/links.js, .cursor-plugin/ultimate-workflow/experts/memory.js, .cursor-plugin/ultimate-workflow/experts/experts.js, evals/experts/links.test.js, evals/experts/memory.test.js
   depends: index
   experts: [quality]
-  status: pending
+  status: blocked by index
 - match: cards pick topicals from the headers
   paths: .cursor-plugin/ultimate-workflow/experts/autopilot.js, evals/experts/autopilot.test.js, evals/experts/memory-match.test.js
   depends: index
   experts: [quality]
-  status: pending
+  status: blocked by index
 - budget: pack size, budget and do-not-load list
   paths: .cursor-plugin/ultimate-workflow/experts/autopilot.js, .cursor-plugin/ultimate-workflow/experts/experts.js, .cursor-plugin/ultimate-workflow/phases/run.js, evals/experts/autopilot.test.js, evals/experts/pack-budget.test.js
   depends: match
   experts: [quality, genai]
-  status: pending
+  status: blocked by match
 - harvest: harvest writes headers and regenerates the index
   paths: .cursor-plugin/ultimate-workflow/experts/autopilot.js, .cursor-plugin/ultimate-workflow/phases/harvest.js, .cursor-plugin/ultimate-workflow/phases/run.js, .cursor-plugin/ultimate-workflow/commands/harvest.md, .cursor-plugin/ultimate-workflow/agents/uw-harvester.md, evals/experts/harvest.test.js, evals/experts/autopilot.test.js
   depends: index, match, budget
   experts: [quality]
-  status: pending
+  status: blocked by index
 - gate: commit refused on a stale index or a broken link
   paths: .cursor-plugin/ultimate-workflow/hooks/lib/gates.js, .cursor-plugin/ultimate-workflow/hooks/lib/gates.test.js, .cursor-plugin/ultimate-workflow/hooks/gate.js, .cursor-plugin/ultimate-workflow/experts/experts.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, evals/experts/experts.test.js, evals/experts/autopilot.test.js, evals/experts/memory-gate.test.js
   depends: index, links, harvest
   experts: [quality, security]
-  status: pending
+  status: blocked by index
 - docs: templates, protocol, migration of this repo, release
   paths: .cursor-plugin/ultimate-workflow/memory.md, .cursor-plugin/ultimate-workflow/memory/**, .cursor-plugin/ultimate-workflow/skills/the-ultimate-workflow-guidelines/references/memory-protocol.md, .cursor-plugin/ultimate-workflow/skills/the-ultimate-workflow-guidelines/references/memory-template.md, .cursor-plugin/ultimate-workflow/skills/project-bootstrap-guidelines/references/memory-template.md, .cursor-plugin/ultimate-workflow/skills/project-bootstrap-guidelines/SKILL.md, .cursor-plugin/ultimate-workflow/skills/the-ultimate-workflow-guidelines/SKILL.md, .cursor-plugin/ultimate-workflow/rules/**, .cursor-plugin/ultimate-workflow/phases/run.md, mirrors.test.js, CHANGELOG.md, .cursor-plugin/plugin.json, .claude-plugin/marketplace.json
   depends: index, links, match, budget, harvest, gate
   experts: [quality]
-  status: pending
+  status: blocked by index
 
 ### Card index
 
@@ -508,3 +508,11 @@ index, links, match, budget, harvest, gate, docs, one at a time (several share `
 - **The plan file is gitignored** (`PLAN-*.md`). It must be committed with `git add -f` before the run,
   or the run cannot commit card statuses into it (`commitPlan` refuses an ignored path; a tracked file
   is not ignored).
+
+## Run status
+
+- Date: 2026-11-10
+- Run branch: uw/run/memory-index
+- Cards: 1 parked, 6 blocked
+- Harvest: none
+- Report: .ultimate-workflow/run/memory-index/report.md

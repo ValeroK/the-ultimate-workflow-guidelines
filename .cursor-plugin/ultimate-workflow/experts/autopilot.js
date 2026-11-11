@@ -31,6 +31,7 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
 const cardsLib = require('./cards.js');
+const memoryLib = require('../lib/memory.js');
 
 const FEATURE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const JOURNAL_CARD_LINES = 15;
@@ -125,38 +126,19 @@ function summaryOf(file) {
   return first.replace(/^#+\s*/, '').trim().slice(0, 100);
 }
 
-const STOP = new Set(['when', 'what', 'with', 'this', 'that', 'from', 'into', 'read', 'file', 'files', 'adding', 'editing', 'touching', 'changing', 'about', 'which', 'there', 'their', 'before', 'after', 'whether']);
-
 /**
- * The topical memory files whose "Read when" cue matches the card (its title, paths and carried
- * items), chosen here and not by a model. A cue matches when one of its backticked terms appears in
- * the card's text (globs and trailing slashes stripped), or one of its plain words of five letters or
- * more is a word of the card's title.
+ * The topical memory files a card reads, chosen here and not by a model: the headers of
+ * <memoryRoot>/memory/*.md decide (lib/memory.js), a file without one falls back to its memory.md
+ * cue. Returns [{ path, how }] with path from the project root.
  */
-function matchingTopicals(cwd, card) {
-  const index = path.join(cwd, 'memory.md');
-  let text = '';
-  try {
-    text = fs.readFileSync(index, 'utf8');
-  } catch {
-    return [];
-  }
-  const cardText = cardsLib.cardText(card).toLowerCase();
-  const titleWords = new Set(String(card.title).toLowerCase().split(/[^a-z0-9]+/).filter(Boolean));
-  const out = [];
-  for (const line of lines(text)) {
-    const link = /\]\((memory\/[^)\s]+\.md)\)/.exec(line);
-    if (!link) continue;
-    const at = line.search(/read when/i);
-    const cue = at === -1 ? '' : line.slice(at + 9);
-    if (!cue) continue;
-    const terms = [...cue.matchAll(/`([^`]+)`/g)].map((m) => m[1].replace(/\*+/g, '').replace(/\/+$/, '').trim().toLowerCase()).filter((t) => t.length >= 3);
-    const words = cue.replace(/`[^`]*`/g, ' ').toLowerCase().split(/[^a-z0-9-]+/).filter((w) => w.length >= 5 && !STOP.has(w));
-    if (terms.some((t) => cardText.includes(t)) || words.some((w) => titleWords.has(w))) {
-      if (!out.includes(link[1])) out.push(link[1]);
-    }
-  }
-  return out;
+function matchingTopicals(cwd, card, memoryRoot = '') {
+  const base = path.join(cwd, memoryRoot);
+  const read = (f) => fs.readFileSync(path.join(base, f), 'utf8');
+  const dir = path.join(base, 'memory');
+  const topicals = {};
+  if (fs.existsSync(dir)) for (const f of fs.readdirSync(dir).filter((n) => n.endsWith('.md'))) topicals[`memory/${f}`] = read(`memory/${f}`);
+  const memoryMd = fs.existsSync(path.join(base, 'memory.md')) ? read('memory.md') : '';
+  return memoryLib.matchTopicals(memoryMd, topicals, card, memoryRoot).map((m) => ({ path: fwd(path.join(memoryRoot, m.file)), how: m.how }));
 }
 
 /**
@@ -203,7 +185,8 @@ function pack(cwd, { plan, card: name, feature, resume = false, adhoc = false })
     else if (!byCard) problems.push(`the plan cites ${doc}, which does not exist`);
   }
   for (const f of ['AGENTS.md', 'CLAUDE.md']) if (fs.existsSync(path.join(cwd, f))) add(f, 'project rules and Gotchas');
-  for (const topical of matchingTopicals(cwd, card)) if (fs.existsSync(path.join(cwd, topical))) add(topical, summaryOf(path.join(cwd, topical)) || 'project memory');
+  const memoryRoot = String(require('../hooks/lib/state.js').parseFrontMatter(planText).data.memory_root || '').trim();
+  for (const { path: topical } of matchingTopicals(cwd, card, memoryRoot)) add(topical, summaryOf(path.join(cwd, topical)) || 'project memory');
   for (const dep of card.depends || []) {
     if (!all.some((c) => c.name.toLowerCase() === dep.toLowerCase())) problems.push(`card ${card.name} depends on ${dep}, which is not a card of the plan`);
     add(rel(cwd, path.join(cardDir(cwd, feature, dep), 'handoff.md')), `what card ${dep} left for this one`, { optional: true });

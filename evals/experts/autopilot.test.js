@@ -534,8 +534,17 @@ test('pack lists the memory topicals whose Read-when cue matches the card, chose
     '',
   ].join('\n'));
   for (const f of ['parsing', 'deploy', 'adders']) write(dir, `memory/${f}.md`, `# ${f}\n`);
-  assert.deepStrictEqual(autopilot.matchingTopicals(dir, cards.findCard(PLAN, '2')), ['memory/parsing.md']);
-  assert.deepStrictEqual(autopilot.matchingTopicals(dir, cards.findCard(PLAN, '1')), ['memory/adders.md']);
+  assert.deepStrictEqual(autopilot.matchingTopicals(dir, cards.findCard(PLAN, '2')).map((m) => m.path), ['memory/parsing.md']);
+  assert.deepStrictEqual(autopilot.matchingTopicals(dir, cards.findCard(PLAN, '1')).map((m) => m.path), ['memory/adders.md']);
+});
+
+test('pack reads memory from the plan memory_root and lists the matched topical from the project root', () => {
+  const plan = PLAN.replace('experts: []', 'experts: []\nmemory_root: sub/dir').replace('paths: src/parse.js', 'paths: sub/dir/hooks/x.js');
+  const dir = repo({ plan });
+  write(dir, 'sub/dir/memory.md', '# Memory\n');
+  write(dir, 'sub/dir/memory/h.md', '---\ndescription: Hooks.\nread_when:\n  paths:\n    - hooks/**\n---\n\n# Hooks\n');
+  const r = json(cli(dir, 'pack', '--plan', 'PLAN-calc.md', '--card', '2', '--feature', 'calc'));
+  assert.match(read(dir, r.contextFile), /^- sub\/dir\/memory\/h\.md: /m);
 });
 
 test('pack refuses a feature name that cannot be a branch or a folder', () => {

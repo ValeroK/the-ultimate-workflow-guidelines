@@ -241,9 +241,8 @@ evals/security-expert/provenance.test.js caps the `experts/` folder at 430,080 b
   paths: .cursor-plugin/ultimate-workflow/lib/memory.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, evals/experts/autopilot.test.js, evals/experts/memory-match.test.js
   depends: index
   experts: [quality, genai, security]
-  status: parked uw/parked/memory-index/match; the commit was refused: Gate G6: no review from genai covers these changes. Run /ultimate-workflow:experts, which re-asks which domain experts apply (it can only add) and runs them, then commit again.
+  status: committed
   carried: developer at .cursor-plugin/ultimate-workflow/lib/memory.js:257: A second glob-to-regex converter was written instead of reusing globToRegExp from experts.js (line 213), and the two disagree on `**/`.
-  parked: uw/parked/memory-index/match; the commit was refused: Gate G6: no review from genai covers these changes. Run /ultimate-workflow:experts, which re-asks which domain experts apply (it can only add) and runs them, then commit again.
 - budget: pack size, budget and do-not-load list
   paths: .cursor-plugin/ultimate-workflow/lib/pack.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, .cursor-plugin/ultimate-workflow/experts/experts.js, .cursor-plugin/ultimate-workflow/phases/run.js, evals/experts/autopilot.test.js, evals/experts/pack-budget.test.js
   depends: match

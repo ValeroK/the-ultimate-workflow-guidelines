@@ -268,13 +268,16 @@ evals/security-expert/provenance.test.js caps the `experts/` folder at 430,080 b
   paths: .cursor-plugin/ultimate-workflow/lib/memory.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, .cursor-plugin/ultimate-workflow/phases/harvest.js, .cursor-plugin/ultimate-workflow/phases/run.js, .cursor-plugin/ultimate-workflow/commands/harvest.md, .cursor-plugin/ultimate-workflow/agents/uw-harvester.md, evals/experts/harvest.test.js, evals/experts/autopilot.test.js
   depends: index, match, budget
   experts: [quality, genai, security]
-  status: fixed-in-round
+  status: fixed-in-round 137a59267bff
   carried: developer at .cursor-plugin/ultimate-workflow/phases/run.js:136: The invalid-pack_budget warning that pack() returns is never read by the run, so a mistyped budget silently becomes 15000.
+  committed: 137a59267bff
 - gate: commit refused on a stale index or a broken link
   paths: .cursor-plugin/ultimate-workflow/hooks/lib/gates.js, .cursor-plugin/ultimate-workflow/hooks/lib/gates.test.js, .cursor-plugin/ultimate-workflow/hooks/gate.js, .cursor-plugin/ultimate-workflow/lib/memory.js, .cursor-plugin/ultimate-workflow/experts/experts.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, evals/experts/experts.test.js, evals/experts/autopilot.test.js, evals/experts/memory-gate.test.js
   depends: index, links, harvest
   experts: [quality, genai, security]
-  status: blocked by harvest
+  status: parked uw/parked/memory-index/gate; blocking finding from the experts check, not fixed by the fix round (still blocking): - quality: C:\Users\kobiv\Projects\the-ultimate-workflow-guidelines\.cursor-plugin\ultimate-workflow\experts\autopilot.js:1025 The plan requires that runR
+  carried: genai at .cursor-plugin/ultimate-workflow/lib/memory.js:263: harvestMemory classifies model-supplied proposal paths with regexes on the raw string (MEMORY_MD, TOPICAL), but harvestBranch only normalizes absolute paths and never converts backslashes or a leading ./ before calling it, so such proposals skip the memory.md refusal and the header requirement.; developer at .cursor-plugin/ultimate-workflow/experts/autopilot.js:813: Proposal paths are normalised only for absolute paths, so a relative path written with a leading ./ or backslashes reaches memoryLib.harvestMemory raw and slips past the memory.md refusal and the TOPICAL/root routing.
+  parked: uw/parked/memory-index/gate; blocking finding from the experts check, not fixed by the fix round (still blocking): - quality: C:\Users\kobiv\Projects\the-ultimate-workflow-guidelines\.cursor-plugin\ultimate-workflow\experts\autopilot.js:1025 The plan requires that runR
 - docs: templates, protocol, migration of this repo, release
   paths: .cursor-plugin/ultimate-workflow/memory.md, .cursor-plugin/ultimate-workflow/memory/**, .cursor-plugin/ultimate-workflow/skills/the-ultimate-workflow-guidelines/references/memory-protocol.md, .cursor-plugin/ultimate-workflow/skills/the-ultimate-workflow-guidelines/references/memory-template.md, .cursor-plugin/ultimate-workflow/skills/project-bootstrap-guidelines/references/memory-template.md, .cursor-plugin/ultimate-workflow/skills/project-bootstrap-guidelines/SKILL.md, .cursor-plugin/ultimate-workflow/skills/the-ultimate-workflow-guidelines/SKILL.md, .cursor-plugin/ultimate-workflow/rules/**, .cursor-plugin/ultimate-workflow/phases/run.md, mirrors.test.js, CHANGELOG.md, .cursor-plugin/plugin.json, .claude-plugin/marketplace.json
   depends: index, links, match, budget, fixes, harvest, gate

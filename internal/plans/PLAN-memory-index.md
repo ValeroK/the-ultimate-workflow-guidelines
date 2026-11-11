@@ -11,7 +11,7 @@ verify_rounds: 0
 last_verify: green
 escalated: false
 gate_violation: 
-confirmed_hash: 0547164f24d2d7d5
+confirmed_hash: 7d75cc8a3134f14d
 ---
 
 # PLAN: memory-index
@@ -224,6 +224,7 @@ evals/security-expert/provenance.test.js caps the `experts/` folder at 430,080 b
 - A card that needs more room moves the function it is changing out of `autopilot.js` or
   `experts.js` into `lib/`, and leaves a call behind. It never edits the budget test.
 - The commands keep their names (`node experts/experts.js memory index`, `links`).
+- Accepted during the run for card docs: - declared: Set version 4.8.0 in the two payload plugin.json files and in .cursor-plugin/marketplace.json, which are not in the card's file list.
 
 ## Out of scope
 
@@ -282,9 +283,8 @@ evals/security-expert/provenance.test.js caps the `experts/` folder at 430,080 b
   paths: .cursor-plugin/ultimate-workflow/memory.md, .cursor-plugin/ultimate-workflow/memory/**, .cursor-plugin/ultimate-workflow/skills/the-ultimate-workflow-guidelines/references/memory-protocol.md, .cursor-plugin/ultimate-workflow/skills/the-ultimate-workflow-guidelines/references/memory-template.md, .cursor-plugin/ultimate-workflow/skills/project-bootstrap-guidelines/references/memory-template.md, .cursor-plugin/ultimate-workflow/skills/project-bootstrap-guidelines/SKILL.md, .cursor-plugin/ultimate-workflow/skills/the-ultimate-workflow-guidelines/SKILL.md, .cursor-plugin/ultimate-workflow/rules/**, .cursor-plugin/ultimate-workflow/phases/run.md, mirrors.test.js, CHANGELOG.md, .cursor-plugin/plugin.json, .claude-plugin/marketplace.json
   depends: index, links, match, budget, fixes, harvest, gate
   experts: [quality, genai, security]
-  status: needs-decision uw/parked/memory-index/docs; needs a decision the plan does not state: - declared: Set version 4.8.0 in the two payload plugin.json files and in .cursor-plugin/marketplace.json, which are not in the card's file list.
-  parked: uw/parked/memory-index/docs; needs a decision the plan does not state: - declared: Set version 4.8.0 in the two payload plugin.json files and in .cursor-plugin/marketplace.json, which are not in the card's file list.
-  decision: - declared: Set version 4.8.0 in the two payload plugin.json files and in .cursor-plugin/marketplace.json, which are not in the card's file list.
+  status: parked uw/parked/memory-index/docs; the commit was refused: Gate G6: the re-check dropped developer, softarch, which the plan named. Experts can be added, never removed. Run /ultimate-workflow:experts, which re-asks which domain experts apply (it can only add) and runs them,
+  parked: uw/parked/memory-index/docs; the commit was refused: Gate G6: the re-check dropped developer, softarch, which the plan named. Experts can be added, never removed. Run /ultimate-workflow:experts, which re-asks which domain experts apply (it can only add) and runs them,
 - fixup: confirmed review findings
   paths: .cursor-plugin/ultimate-workflow/lib/memory.js, .cursor-plugin/ultimate-workflow/lib/links.js, .cursor-plugin/ultimate-workflow/lib/memory.js, .cursor-plugin/ultimate-workflow/lib/links.js, evals/experts/links.test.js, evals/experts/memory.test.js
   experts: [quality, genai, security]

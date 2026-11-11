@@ -10,12 +10,13 @@ const path = require('node:path');
 const LINK = /\[[^\]]*\]\((<[^>]*>|[^)\s]*)(?:\s+"[^"]*")?\)/g;
 const IMPORT = /^@(\S+)$/;
 const FENCE = /^\s*(```|~~~)/;
+const CODE_SPAN = /`[^`]*`/g;
 const SCHEME = /^[a-z][a-z0-9+.-]*:/i;
 
 // The file part of a link target, or null when the target is not a file to check.
 function fileTarget(raw) {
   const target = raw.replace(/^<(.*)>$/, '$1');
-  if (!target || target.startsWith('#') || target.startsWith('/') || target.includes('{') || SCHEME.test(target)) return null;
+  if (!target || target.startsWith('#') || target.startsWith('/') || target.startsWith('~') || target.includes('{') || SCHEME.test(target)) return null;
   const file = target.replace(/[?#].*$/, '');
   if (!file) return null;
   try {
@@ -40,7 +41,7 @@ function brokenLinks(files, exists) {
         return;
       }
       if (fence) return;
-      const raws = [...line.matchAll(LINK)].map((m) => m[1]);
+      const raws = [...line.replace(CODE_SPAN, '').matchAll(LINK)].map((m) => m[1]);
       const imp = IMPORT.exec(line.trim());
       if (imp) raws.push(imp[1]);
       for (const raw of raws) {
@@ -65,19 +66,18 @@ function listFiles(root, dir = '') {
 }
 
 // The texts of the files in scope that exist under root, keyed by their path from root.
-function scopeFiles(root, all = listFiles(root)) {
+function scopeFiles(root) {
+  const memoryDir = fs.existsSync(path.join(root, 'memory')) ? listFiles(root, 'memory').filter((f) => f.endsWith('.md')) : [];
   const files = {};
-  for (const f of all) {
-    if (f === 'AGENTS.md' || f === 'CLAUDE.md' || f === 'memory.md' || (f.startsWith('memory/') && f.endsWith('.md'))) {
-      files[f] = fs.readFileSync(path.join(root, f), 'utf8');
-    }
+  for (const f of ['AGENTS.md', 'CLAUDE.md', 'memory.md', ...memoryDir]) {
+    if (fs.existsSync(path.join(root, f))) files[f] = fs.readFileSync(path.join(root, f), 'utf8');
   }
   return files;
 }
 
 // The broken links of a project as printable lines, one per link.
-function projectLinkErrors(root, all = listFiles(root)) {
-  return brokenLinks(scopeFiles(root, all), (p) => fs.existsSync(path.join(root, p))).map((b) => `${b.file}:${b.line}: broken link to ${b.target}`);
+function projectLinkErrors(root) {
+  return brokenLinks(scopeFiles(root), (p) => fs.existsSync(path.join(root, p))).map((b) => `${b.file}:${b.line}: broken link to ${b.target}`);
 }
 
 /** `links [--root <dir>]`: prints the broken links and returns the exit code. */

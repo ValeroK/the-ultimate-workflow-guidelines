@@ -142,7 +142,7 @@ function withHeader(text, entryRest) {
   const phrases = cueText
     .replace(/`[^`]+`/g, '')
     .split(',')
-    .map((p) => unquote(p.trim().replace(/^(?:or|and)\s+/, '').replace(LEADING_VERB, '').trim()))
+    .map((p) => unquote(p.trim().replace(/^(?:or|and)(?:\s+|$)/, '').replace(LEADING_VERB, '').trim()))
     .filter((p) => /\w/.test(p));
   const paths = [...new Set(terms.filter((t) => /[/*]/.test(t)))];
   const keywords = [...new Set([...terms.filter((t) => !/[/*]/.test(t)), ...phrases])];
@@ -253,16 +253,16 @@ function check(memoryMd, topicals) {
   return { errors, warnings };
 }
 
-// A header path glob as a regular expression: `**` crosses folders, `*` stays in one.
-const globRe = (glob) => new RegExp(`^${glob.split('**').map((part) => part.split('*').map((s) => s.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('[^/]*')).join('.*')}$`);
-
 // Header paths that match none of the project's files.
 function cueWarnings(topicals, files) {
+  const { globToRegExp } = require('../experts/experts.js'); // lazy: experts.js requires this file
   const warnings = [];
   for (const [file, text] of Object.entries(topicals)) {
     const { header } = parseHeader(text);
     for (const glob of header ? header.paths : []) {
-      if (!files.some((f) => globRe(glob).test(f))) warnings.push(`${file}: path "${glob}" matches no file`);
+      // globToRegExp reads a trailing `**` as one level; in a header `src/**` means everything below src/.
+      const re = globToRegExp(glob.replace(/\*\*$/, '**/*'));
+      if (!files.some((f) => re.test(f))) warnings.push(`${file}: path "${glob}" matches no file`);
     }
   }
   return warnings;
@@ -282,7 +282,7 @@ function cli(argv, cwd, write, fail) {
   if (command === 'check') {
     const files = links.listFiles(root);
     const { errors, warnings } = check(project.memoryMd, project.topicals);
-    const linkErrors = links.projectLinkErrors(root, files);
+    const linkErrors = links.projectLinkErrors(root);
     for (const w of [...warnings, ...cueWarnings(project.topicals, files)]) write(`warning: ${w}\n`);
     for (const e of [...errors, ...linkErrors]) write(`error: ${e}\n`);
     if (errors.some((e) => !e.includes('invalid header'))) write(`fix the index with: ${INDEX_COMMAND}\n`);

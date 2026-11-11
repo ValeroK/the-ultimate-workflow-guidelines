@@ -85,6 +85,15 @@ test('a link in a file under memory/ resolves from that folder, not from the roo
   assert.deepStrictEqual(links.brokenLinks(files, existing('b.md', 'memory.md')), [{ file: 'memory/a.md', line: 1, target: 'b.md' }]);
 });
 
+test('a home-relative import (@~/...) is not a path in the project', () => {
+  assert.deepStrictEqual(links.brokenLinks({ 'CLAUDE.md': '@~/.claude/my-rules.md\n' }, existing()), []);
+});
+
+test('a link shown as an example inside an inline code span is not checked; one beside it is', () => {
+  const files = { 'memory.md': 'Write `[text](example-missing.md)` like so, see [real](gone.md).\n' };
+  assert.deepStrictEqual(links.brokenLinks(files, existing()), [{ file: 'memory.md', line: 1, target: 'gone.md' }]);
+});
+
 // ---- the commands ------------------------------------------------------------------------------
 
 const HEADER = ['---', 'description: About A.', 'read_when:', '  paths: [src/**]', '---', '', '# A', ''].join('\n');
@@ -151,6 +160,50 @@ test('a header path glob that matches a file gives no warning', () => {
   const r = cli(migrated(), 'memory', 'check');
   assert.strictEqual(r.status, 0, r.out);
   assert.doesNotMatch(r.out, /matches no file/);
+});
+
+// The glob semantics are the ones experts.js already has (globToRegExp): `*` stays in one folder,
+// a leading `**/` also matches the root.
+function warnsFor(glob, files) {
+  const root = migrated({ 'memory/a.md': HEADER.replace('src/**', glob), ...files });
+  assert.strictEqual(cli(root, 'memory', 'index').status, 0);
+  const r = cli(root, 'memory', 'check');
+  assert.strictEqual(r.status, 0, r.out);
+  return /matches no file/.test(r.out);
+}
+
+test('header path globs: * stays inside one folder', () => {
+  assert.strictEqual(warnsFor('lib/*.js', { 'lib/a.js': 'x\n' }), false);
+  assert.strictEqual(warnsFor('lib/*.js', { 'lib/deep/a.js': 'x\n' }), true);
+});
+
+test('header path globs: a leading **/ matches the root and any depth', () => {
+  assert.strictEqual(warnsFor('**/q.js', { 'q.js': 'x\n' }), false, 'at the root');
+  assert.strictEqual(warnsFor('**/q.js', { 'a/b/q.js': 'x\n' }), false, 'deep');
+  assert.strictEqual(warnsFor('**/q.js', { 'a/y.js': 'x\n' }), true, 'no such name');
+});
+
+test('header path globs: a trailing ** matches files at any depth below the folder', () => {
+  assert.strictEqual(warnsFor('lib/**', { 'lib/deep/er/a.js': 'x\n' }), false, 'deep only');
+  assert.strictEqual(warnsFor('lib/**', { 'lib/a.js': 'x\n' }), false, 'one level');
+  assert.strictEqual(warnsFor('lib/**', { 'other/a.js': 'x\n' }), true, 'other folder');
+});
+
+test('the links command reads only the entry and memory files, not the whole tree', () => {
+  const root = migrated({ 'AGENTS.md': '[ok](memory.md)\n', 'src/deep/y.js': 'y\n' });
+  const real = fs.readdirSync;
+  const read = [];
+  fs.readdirSync = (dir, ...rest) => {
+    read.push(String(dir));
+    return real(dir, ...rest);
+  };
+  try {
+    assert.strictEqual(links.cli(['--root', root], process.cwd(), () => {}, (m) => { throw new Error(m); }), 0);
+  } finally {
+    fs.readdirSync = real;
+  }
+  assert.ok(read.length > 0, 'the project was read');
+  assert.deepStrictEqual(read.filter((d) => d.includes(`${path.sep}src`)), [], 'src/ was never listed');
 });
 
 // ---- carried: the write order of memory index / migrate ----------------------------------------

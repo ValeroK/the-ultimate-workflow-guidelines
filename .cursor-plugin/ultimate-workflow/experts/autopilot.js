@@ -353,7 +353,7 @@ function commitPlan(cwd, plan, message) {
  * phone over Remote Control, which only the main session's PushNotification at the end does.
  * `ULTIMATE_WORKFLOW_NOTIFY=off` keeps the file and skips the desktop notification.
  */
-const NOTIFY_KINDS = ['over-budget', 'parked', 'needs-decision', 'blocked', 'stopped', 'resumed', 'finished'];
+const NOTIFY_KINDS = ['over-budget', 'parked', 'needs-decision', 'blocked', 'stopped', 'resumed', 'finished', 'warning'];
 function notify(cwd, { feature, kind, card = '', reason = '', reasonFile = '', action = '' }) {
   checkFeature(feature);
   if (!NOTIFY_KINDS.includes(kind)) throw new Error(`notify --kind is one of ${NOTIFY_KINDS.join(', ')}`);
@@ -790,29 +790,6 @@ function runBranch(cwd, { feature }) {
 }
 
 /**
- * The text of `file` with `addition` added: under the "## Gotchas" heading (after its last line)
- * for a gotcha when the file has one, otherwise at the end. Line endings follow the file.
- */
-function withAddition(existing, addition, destination) {
-  const eol = existing.includes('\r\n') ? '\r\n' : '\n';
-  const add = String(addition).trim().replace(/\r?\n/g, eol);
-  if (!existing.trim()) return `${add}${eol}`;
-  if (destination === 'gotcha') {
-    const all = existing.split(/\r?\n/);
-    const at = all.findIndex((l) => /^##\s+gotchas\b/i.test(l));
-    if (at !== -1) {
-      let end = all.length;
-      for (let i = at + 1; i < all.length; i++) if (/^#{1,2}\s/.test(all[i])) { end = i; break; }
-      let last = end;
-      while (last > at + 1 && all[last - 1].trim() === '') last--;
-      all.splice(last, 0, ...add.split(eol));
-      return all.join(eol);
-    }
-  }
-  return `${existing.replace(/\s+$/, '')}${eol}${eol}${add}${eol}`;
-}
-
-/**
  * Harvest proposals as commits on uw/harvest/<feature>, one per destination file, from the current
  * tip, built from a temporary index so nothing is checked out and the working branch is untouched.
  * The user merges the branch or drops it; nothing reaches project memory unseen.
@@ -821,7 +798,6 @@ function harvestBranch(cwd, { feature, from }) {
   const branch = `uw/harvest/${checkFeature(feature)}`;
   const raw = JSON.parse(fs.readFileSync(path.resolve(cwd, from), 'utf8').replace(/^﻿/, ''));
   const proposals = (Array.isArray(raw) ? raw : raw.proposals || []).filter((p) => p && typeof p.path === 'string' && typeof p.text === 'string' && p.text.trim());
-  if (proposals.length === 0) return { ok: true, branch: null, commits: [], note: 'no proposals, so no branch' };
   // A harvester may name a file by its absolute path; one inside the project is taken as relative to it.
   const root = path.resolve(cwd);
   for (const p of proposals) {
@@ -831,34 +807,52 @@ function harvestBranch(cwd, { feature, from }) {
   }
   const bad = proposals.find((p) => path.isAbsolute(p.path) || /^[A-Za-z]:/.test(p.path) || fwd(p.path).split('/').includes('..') || /(^|\/)\.git(\/|$)/.test(fwd(p.path)));
   if (bad) throw new Error(`proposal path "${bad.path}" must be relative to the project and stay inside it`);
-  if (git(cwd, ['rev-parse', '--verify', '-q', `refs/heads/${branch}`], { allowFail: true }).status === 0) {
-    return { ok: false, branch, reason: `${branch} already exists: merge or delete it before harvesting this feature again` };
-  }
   const who = { GIT_AUTHOR_NAME: 'ultimate-workflow', GIT_AUTHOR_EMAIL: 'uw@localhost', GIT_COMMITTER_NAME: 'ultimate-workflow', GIT_COMMITTER_EMAIL: 'uw@localhost' };
+  let tip = git(cwd, ['rev-parse', 'HEAD']).stdout.trim();
+  // The memory proposals and the migration of a project not yet on headers come from lib/memory.js;
+  // every other proposal is one commit per file, as before.
+  const tracked = git(cwd, ['ls-tree', '-r', '--name-only', tip]).stdout.split(/\r?\n/).filter(Boolean);
+  const read = (file) => git(cwd, ['show', `${tip}:${file}`], { allowFail: true });
+  const made = memoryLib.harvestMemory(tracked, (file) => read(file).stdout, proposals, new Date().toISOString().slice(0, 10));
+  if (made.error) return { ok: false, branch, reason: made.error };
   const byFile = new Map();
-  for (const p of proposals) {
+  for (const p of made.rest) {
     const f = fwd(p.path).replace(/^\.\//, '');
     if (!byFile.has(f)) byFile.set(f, []);
     byFile.get(f).push(p);
   }
+  const steps = [...made.steps];
+  for (const [file, list] of byFile) {
+    const shown = read(file);
+    let text = shown.status === 0 ? shown.stdout : '';
+    for (const p of list) text = memoryLib.withAddition(text, p.text, p.destination);
+    steps.push({ subject: `harvest: ${[...new Set(list.map((p) => p.destination || 'note'))].join(', ')} -> ${file}`, files: { [file]: text }, list });
+  }
+  if (steps.length === 0) return { ok: true, branch: null, commits: [], note: 'no proposals, so no branch' };
+  if (git(cwd, ['rev-parse', '--verify', '-q', `refs/heads/${branch}`], { allowFail: true }).status === 0) {
+    return { ok: false, branch, reason: `${branch} already exists: merge or delete it before harvesting this feature again` };
+  }
+  // Merging a second harvest branch can conflict in the generated block of memory.md.
+  if (steps.some((s) => Object.keys(s.files).some((f) => /(^|\/)memory\.md$/.test(f)))) {
+    steps[steps.length - 1].note = 'If merging this branch conflicts in memory.md, take either side, run `node experts/experts.js memory index`, and commit.';
+  }
   const dir = runDir(cwd, feature);
   fs.mkdirSync(dir, { recursive: true });
   const index = path.join(dir, 'harvest.index');
-  let tip = git(cwd, ['rev-parse', 'HEAD']).stdout.trim();
   const commits = [];
   try {
     fs.rmSync(index, { force: true });
     git(cwd, ['read-tree', tip], { env: { GIT_INDEX_FILE: index } });
-    for (const [file, list] of byFile) {
-      const shown = git(cwd, ['show', `${tip}:${file}`], { allowFail: true });
-      let text = shown.status === 0 ? shown.stdout : '';
-      for (const p of list) text = withAddition(text, p.text, p.destination);
-      const blob = spawnSync('git', ['hash-object', '-w', '--stdin'], { cwd, input: text, encoding: 'utf8' }).stdout.trim();
-      git(cwd, ['update-index', '--add', '--cacheinfo', `100644,${blob},${file}`], { env: { GIT_INDEX_FILE: index } });
+    for (const step of steps) {
+      for (const [file, text] of Object.entries(step.files)) {
+        const blob = spawnSync('git', ['hash-object', '-w', '--stdin'], { cwd, input: text, encoding: 'utf8' }).stdout.trim();
+        git(cwd, ['update-index', '--add', '--cacheinfo', `100644,${blob},${file}`], { env: { GIT_INDEX_FILE: index } });
+      }
       const tree = git(cwd, ['write-tree'], { env: { GIT_INDEX_FILE: index } }).stdout.trim();
-      const msg = `harvest: ${[...new Set(list.map((p) => p.destination || 'note'))].join(', ')} -> ${file}\n\n${list.map((p) => `- ${p.source ? `from ${p.source}: ` : ''}${p.rationale || ''}`.trim()).join('\n')}\n\nRun: uw/run/${feature}`;
+      const body = step.list.map((p) => `- ${p.source ? `from ${p.source}: ` : ''}${p.rationale || ''}`.trim()).join('\n');
+      const msg = [step.subject, body, step.note, `Run: uw/run/${feature}`].filter(Boolean).join('\n\n');
       tip = git(cwd, ['commit-tree', tree, '-p', tip, '-m', msg], { env: who }).stdout.trim();
-      commits.push({ commit: tip.slice(0, 12), file, proposals: list.length });
+      commits.push({ commit: tip.slice(0, 12), file: Object.keys(step.files).join(', '), proposals: step.list.length });
     }
   } finally {
     fs.rmSync(index, { force: true });
@@ -1134,4 +1128,4 @@ function cli(argv, cwd, out, fail) {
 
 const COMMANDS = ['pack', 'handoff', 'park', 'unpark', 'journal', 'card-commit', 'card-status', 'notify', 'decisions', 'card-field', 'run-branch', 'ensure-ignored', 'harvest-branch', 'run-report', 'run-start', 'run-finish'];
 
-module.exports = { COMMANDS, cardStatus, notify, detectDecisions, acceptDecision, writeRunStatus, commitPlan, pack, handoff, park, unpark, journalAdd, journalCompact, cardCommit, runBranch, ensureIgnored, harvestBranch, withAddition, matchingTopicals, testSection, sections, cli, JOURNAL_CARD_LINES, JOURNAL_MAX_LINES };
+module.exports = { COMMANDS, cardStatus, notify, detectDecisions, acceptDecision, writeRunStatus, commitPlan, pack, handoff, park, unpark, journalAdd, journalCompact, cardCommit, runBranch, ensureIgnored, harvestBranch, withAddition: memoryLib.withAddition, matchingTopicals, testSection, sections, cli, JOURNAL_CARD_LINES, JOURNAL_MAX_LINES };

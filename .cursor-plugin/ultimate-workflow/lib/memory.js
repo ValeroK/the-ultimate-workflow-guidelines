@@ -132,6 +132,16 @@ function renderIndex(memoryMd, topicals) {
 
 // ---- the migration -----------------------------------------------------------------------------
 
+const headerLines = ({ description, paths, keywords, updated }) => [
+  '---',
+  `description: ${description}`,
+  'read_when:',
+  ...(paths.length ? ['  paths:', ...paths.map((p) => `    - ${p}`)] : []),
+  ...(keywords.length ? ['  keywords:', ...keywords.map((k) => `    - ${k}`)] : []),
+  ...(updated ? [`updated: ${updated}`] : []),
+  '---',
+];
+
 // The topical text with a header written from its memory.md entry, or null when the entry has no
 // description or no cue to build a valid header from.
 function withHeader(text, entryRest) {
@@ -158,17 +168,7 @@ function withHeader(text, entryRest) {
     body.splice(at2, 1);
     if (body[at2 - 1] === '' && body[at2] === '') body.splice(at2, 1);
   }
-  const head = [
-    '---',
-    `description: ${description}`,
-    'read_when:',
-    ...(paths.length ? ['  paths:', ...paths.map((p) => `    - ${p}`)] : []),
-    ...(keywords.length ? ['  keywords:', ...keywords.map((k) => `    - ${k}`)] : []),
-    ...(updated ? [`updated: ${updated}`] : []),
-    '---',
-    '',
-  ];
-  return head.join(eol) + eol + body.join(eol);
+  return [...headerLines({ description, paths, keywords, updated }), ''].join(eol) + eol + body.join(eol);
 }
 
 /**
@@ -328,6 +328,111 @@ function matchTopicals(memoryMd, topicals, card, memoryRoot = '') {
   return ['path', 'keyword', 'cue'].flatMap((how) => found.filter((m) => m.how === how));
 }
 
+// ---- harvest -----------------------------------------------------------------------------------
+
+/**
+ * The text of `existing` with `addition` added: under the "## Gotchas" heading (after its last line)
+ * for a gotcha, under "## Key decisions" for a memory proposal, when the file has that heading,
+ * otherwise at the end. Line endings follow the file.
+ */
+function withAddition(existing, addition, destination) {
+  const eol = eolOf(existing);
+  const add = String(addition).trim().replace(/\r?\n/g, eol);
+  if (!existing.trim()) return `${add}${eol}`;
+  const heading = destination === 'gotcha' ? /^##\s+gotchas\b/i : destination === 'memory' ? /^##\s+key decisions\b/i : null;
+  if (heading) {
+    const all = existing.split(/\r?\n/);
+    const at = all.findIndex((l) => heading.test(l));
+    if (at !== -1) {
+      let end = all.length;
+      for (let i = at + 1; i < all.length; i++) if (/^#{1,2}\s/.test(all[i])) { end = i; break; }
+      let last = end;
+      while (last > at + 1 && all[last - 1].trim() === '') last--;
+      all.splice(last, 0, ...add.split(eol));
+      return all.join(eol);
+    }
+  }
+  return `${existing.replace(/\s+$/, '')}${eol}${eol}${add}${eol}`;
+}
+
+// The topical text with its header replaced by `header`.
+function setHeader(text, header) {
+  const eol = eolOf(text);
+  const all = text.replace(/^﻿/, '').split(eol);
+  return [...headerLines(header), ...all.slice(all.findIndex((l, i) => i > 0 && l.trimEnd() === '---') + 1)].join(eol);
+}
+
+const union = (a, b = []) => [...new Set([...a, ...b])];
+
+// The memory proposals of one harvest applied to the topicals of one memory root (paths relative to
+// it): { memoryMd, topicals } with the index regenerated, or { error } and nothing written.
+function applyMemory(memoryMd, topicals, proposals, today) {
+  const out = { ...topicals };
+  for (const p of proposals) {
+    const current = out[p.path];
+    if (current === undefined) {
+      const paths = p.paths || [];
+      const keywords = p.keywords || [];
+      if (!p.description) return { error: `${p.path} is a new topical and needs a description` };
+      if (!paths.length && !keywords.length) return { error: `${p.path} is a new topical and needs paths or keywords` };
+      out[p.path] = `${[...headerLines({ description: p.description, paths, keywords, updated: today }), '', String(p.text).trim()].join('\n')}\n`;
+      const { errors } = parseHeader(out[p.path]);
+      if (errors.length) return { error: `${p.path}: the header would be invalid: ${errors[0].reason}` };
+      continue;
+    }
+    const { header } = parseHeader(current);
+    let text = current;
+    if (header) {
+      const paths = union(header.paths.filter((g) => !(p.remove_paths || []).includes(g)), p.add_paths);
+      const keywords = union(header.keywords, p.add_keywords);
+      if (!paths.length && !keywords.length) return { error: `${p.path}: removing those paths would leave the topical with no cue (the last cue cannot be removed)` };
+      text = setHeader(current, { ...header, paths, keywords, updated: today });
+    } else if ([p.add_paths, p.add_keywords, p.remove_paths].some((l) => l && l.length)) return { error: `${p.path} has no valid header, so its cues cannot be changed` };
+    out[p.path] = withAddition(text, p.text, 'memory');
+  }
+  return { memoryMd: renderIndex(memoryMd, out), topicals: out };
+}
+
+const MEMORY_MD = /(^|\/)memory\.md$/i;
+const TOPICAL = /^(.*\/)?memory\/[^/]+\.md$/;
+const rootOf = (p) => (TOPICAL.exec(p.path) || [])[1] || '';
+const filesOf = (state, root) => ({ [`${root}memory.md`]: state.memoryMd, ...Object.fromEntries(Object.entries(state.topicals).map(([k, v]) => [root + k, v])) });
+const changes = (before, after) => Object.fromEntries(Object.entries(after).filter(([k, v]) => v !== before[k]));
+
+/**
+ * What a harvest does to memory, from the tracked files and a reader of their text: { error } (a
+ * refusal, nothing to commit) or { steps, rest }. A step is a commit, { subject, files, list }: first
+ * the migration of a project not yet on headers (only when it changes something), then one commit
+ * for every memory proposal with the regenerated memory.md. `rest` is the proposals left for the
+ * caller. A memory root is a folder that holds a memory.md: the project root, or the one a memory
+ * proposal's path sits under.
+ */
+function harvestMemory(tracked, show, proposals, today) {
+  if (proposals.some((p) => MEMORY_MD.test(p.path))) return { error: 'a proposal names memory.md: the index is generated from the topical headers, so a harvest never writes it' };
+  const memory = proposals.filter((p) => p.destination === 'memory' && TOPICAL.test(p.path));
+  const roots = union([''], memory.map(rootOf)).filter((r) => tracked.includes(`${r}memory.md`));
+  const migration = {};
+  const written = {};
+  const handled = [];
+  for (const root of roots) {
+    const topicals = {};
+    for (const f of tracked) if (f.startsWith(root) && /^memory\/[^/]+\.md$/.test(f.slice(root.length))) topicals[f.slice(root.length)] = show(f);
+    const base = { memoryMd: show(`${root}memory.md`), topicals };
+    const migrated = migrateTexts(base.memoryMd, base.topicals);
+    Object.assign(migration, changes(filesOf(base, root), filesOf(migrated, root)));
+    const mine = memory.filter((p) => rootOf(p) === root);
+    if (!mine.length) continue;
+    const done = applyMemory(migrated.memoryMd, migrated.topicals, mine.map((p) => ({ ...p, path: p.path.slice(root.length) })), today);
+    if (done.error) return { error: done.error };
+    Object.assign(written, changes(filesOf(migrated, root), filesOf(done, root)));
+    handled.push(...mine);
+  }
+  const steps = [];
+  if (Object.keys(migration).length) steps.push({ subject: 'harvest: migrate memory to headers', files: migration, list: [] });
+  if (Object.keys(written).length) steps.push({ subject: `harvest: memory -> ${Object.keys(written).join(', ')}`, files: written, list: handled });
+  return { steps, rest: proposals.filter((p) => !handled.includes(p)) };
+}
+
 /**
  * `memory index|check|migrate [--root <dir>]`. Prints through write and returns the exit code
  * (check returns 1 on a failure); fail is for a command that cannot run at all.
@@ -367,4 +472,4 @@ function cli(argv, cwd, write, fail) {
   return 0;
 }
 
-module.exports = { parseHeader, renderIndex, migrateTexts, check, matchTopicals, cli };
+module.exports = { parseHeader, renderIndex, migrateTexts, check, matchTopicals, harvestMemory, withAddition, cli };

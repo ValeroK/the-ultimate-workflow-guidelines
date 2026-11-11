@@ -268,7 +268,7 @@ evals/security-expert/provenance.test.js caps the `experts/` folder at 430,080 b
   paths: .cursor-plugin/ultimate-workflow/lib/memory.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, .cursor-plugin/ultimate-workflow/phases/harvest.js, .cursor-plugin/ultimate-workflow/phases/run.js, .cursor-plugin/ultimate-workflow/commands/harvest.md, .cursor-plugin/ultimate-workflow/agents/uw-harvester.md, evals/experts/harvest.test.js, evals/experts/autopilot.test.js
   depends: index, match, budget
   experts: [quality, genai, security]
-  status: blocked by budget
+  status: fixed-in-round
   carried: developer at .cursor-plugin/ultimate-workflow/phases/run.js:136: The invalid-pack_budget warning that pack() returns is never read by the run, so a mistyped budget silently becomes 15000.
 - gate: commit refused on a stale index or a broken link
   paths: .cursor-plugin/ultimate-workflow/hooks/lib/gates.js, .cursor-plugin/ultimate-workflow/hooks/lib/gates.test.js, .cursor-plugin/ultimate-workflow/hooks/gate.js, .cursor-plugin/ultimate-workflow/lib/memory.js, .cursor-plugin/ultimate-workflow/experts/experts.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, evals/experts/experts.test.js, evals/experts/autopilot.test.js, evals/experts/memory-gate.test.js

@@ -573,6 +573,7 @@ const status = {}
 const grownExperts = new Set()
 const report = []
 const packs = {}
+const warned = new Set()
 const lanes = []
 const handed = {}
 const findingsQueue = []
@@ -689,6 +690,11 @@ async function runCard(card, { adhoc = false } = {}) {
   const pre = card.preflight || { ok: false, reason: 'no context pack was written for this card' }
   if (!pre.ok) return parkCard(card, pre.reason || 'missing input')
   if (pre.tokens !== undefined) packs[card.name] = { tokens: pre.tokens, budget: pre.budget }
+  // A warning the pack returned (a mistyped pack_budget) is shown once, however many cards carry it.
+  for (const w of (pre.warnings || []).filter((x) => !warned.has(x))) {
+    warned.add(w)
+    await runSteps(`${card.name}:warning`, [cliCmd('notify', '--feature', FEATURE, '--kind', 'warning', '--card', card.name, '--reason', q(w))])
+  }
   if (pre.overBudget) await runSteps(`${card.name}:budget`, [cliCmd('notify', '--feature', FEATURE, '--kind', 'over-budget', '--card', card.name, '--reason', q(`the context pack is about ${pre.tokens} tokens, over its budget of ${pre.budget}: the required entries alone are too large`))])
   // The plan shows the card as running before any work, so a run that dies inside it leaves it there.
   await runSteps(`${card.name}:start`, [cliCmd('card-status', '--plan', q(PLAN), '--card', card.name, '--status', q(RESUME && RESUME.card === card.name ? 'running (resumed)' : 'running'))])
@@ -986,22 +992,43 @@ const PROPOSALS = {
       items: {
         type: 'object',
         required: ['destination', 'path', 'text', 'source', 'rationale'],
-        properties: { destination: { type: 'string', enum: ['gotcha', 'memory', 'progress'] }, path: { type: 'string' }, text: { type: 'string' }, source: { type: 'string' }, rationale: { type: 'string' } },
+        properties: {
+          destination: { type: 'string', enum: ['gotcha', 'memory', 'progress'] },
+          path: { type: 'string', description: 'Target file, e.g. CLAUDE.md or memory/gates.md' },
+          text: { type: 'string', description: 'The exact text to add, ready to paste' },
+          source: { type: 'string' },
+          rationale: { type: 'string', description: 'Which threshold it met, and why this store not the other' },
+          description: { type: 'string', description: 'A new memory topical: one line on what it covers (required for a new file)' },
+          paths: { type: 'array', items: { type: 'string' }, description: 'A new memory topical: globs of the paths it is about, relative to the folder that holds memory.md' },
+          keywords: { type: 'array', items: { type: 'string' }, description: 'A new memory topical: words or short phrases that cue it (paths or keywords is required for a new file)' },
+          add_paths: { type: 'array', items: { type: 'string' }, description: 'An existing memory topical: globs to add to its header' },
+          add_keywords: { type: 'array', items: { type: 'string' }, description: 'An existing memory topical: keywords to add to its header' },
+          remove_paths: { type: 'array', items: { type: 'string' }, description: 'An existing memory topical: globs to remove from its header (a cue that matches no file)' },
+        },
       },
     },
-    discarded: { type: 'array', items: { type: 'object', required: ['lesson', 'why'], properties: { lesson: { type: 'string' }, why: { type: 'string' } } } },
+    discarded: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['lesson', 'why'],
+        properties: {
+          lesson: { type: 'string' },
+          why: { type: 'string', description: 'Already recorded, not durable, obvious from code, or one-off' },
+        },
+      },
+    },
   },
 }
 let harvest = { ran: false, reason: anyCommitted ? '' : 'nothing was committed' }
 if (anyCommitted) {
   const routed = await agent(
-    `Harvest the durable lessons of this run. Read the run journal ${RUN_DIR}/journal.md (what each card learned), the plan ${PLAN}, \`git diff ${BASE}..HEAD --stat\` and \`git log ${BASE}..HEAD\`, and what the project already records: the "## Gotchas" of AGENTS.md (or CLAUDE.md), memory.md and memory/*.md.
+    `Harvest the durable lessons of this run. Read the run journal ${RUN_DIR}/journal.md (what each card learned), the plan ${PLAN}, \`git diff ${BASE}..HEAD --stat\` and \`git log ${BASE}..HEAD\`, and what the project already records: the "## Gotchas" of AGENTS.md (or CLAUDE.md), memory.md and memory/*.md. First run \`${CLI} memory check\` (add \`--root <folder>\` when memory.md is not in the project root) and use its warnings: a topical not migrated, or a header path that matches no file, which you correct with add_paths, add_keywords and remove_paths on that topical.
 
-Route each lesson worth keeping: "Beware / Don't / Note that" is a Gotcha (path AGENTS.md, or CLAUDE.md when there is no AGENTS.md); "how X works / why we picked Y" extends or starts a memory/<topic>.md; one dated summary of the whole run is a progress.md entry. Discard what is already recorded, obvious from the code, a one-off slip, or not durable, and say why. For each kept one write the exact text to add, in the voice of the target file. ${NO_QUOTA}`,
+Route each lesson worth keeping: "Beware / Don't / Note that" is a Gotcha (path AGENTS.md, or CLAUDE.md when there is no AGENTS.md); "how X works / why we picked Y" extends or starts a memory/<topic>.md (a new topical needs description, paths and keywords, its header; never propose an edit to memory.md, its index is generated); one dated summary of the whole run is a progress.md entry. Discard what is already recorded, obvious from the code, a one-off slip, or not durable, and say why. For each kept one write the exact text to add, in the voice of the target file. ${NO_QUOTA}`,
     { agentType: agentName('uw-harvester'), label: 'harvest', phase: 'Harvest', schema: PROPOSALS }
   )
   if (!routed) harvest = { ran: false, reason: 'the harvest agent returned nothing' }
-  else if (routed.proposals.length === 0) harvest = { ran: true, proposals: 0, discarded: routed.discarded.length, branch: null }
   else {
     const file = `${RUN_DIR}/harvest.json`
     const [branch] = await runSteps('harvest:branch', [cliCmd('harvest-branch', '--feature', FEATURE, '--from', q(file))], [{ path: file, text: JSON.stringify(routed.proposals) }])

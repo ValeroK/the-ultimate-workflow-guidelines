@@ -97,6 +97,12 @@ const PROPOSALS = {
           text: { type: 'string', description: 'The exact text to add, ready to paste' },
           source: { type: 'string' },
           rationale: { type: 'string', description: 'Which threshold it met, and why this store not the other' },
+          description: { type: 'string', description: 'A new memory topical: one line on what it covers (required for a new file)' },
+          paths: { type: 'array', items: { type: 'string' }, description: 'A new memory topical: globs of the paths it is about, relative to the folder that holds memory.md' },
+          keywords: { type: 'array', items: { type: 'string' }, description: 'A new memory topical: words or short phrases that cue it (paths or keywords is required for a new file)' },
+          add_paths: { type: 'array', items: { type: 'string' }, description: 'An existing memory topical: globs to add to its header' },
+          add_keywords: { type: 'array', items: { type: 'string' }, description: 'An existing memory topical: keywords to add to its header' },
+          remove_paths: { type: 'array', items: { type: 'string' }, description: 'An existing memory topical: globs to remove from its header (a cue that matches no file)' },
         },
       },
     },
@@ -119,6 +125,9 @@ const PROPOSALS = {
 // reader to skim past it, which costs more than the gap it was papering over.
 const NO_QUOTA =
   'You have no quota. Returning an empty list is a correct and common answer. Do not stretch to fill it. Every item must be something a future session would genuinely be worse off not knowing.'
+
+// The memory check the harvester runs first; its warnings say which cues have gone stale.
+const MEMORY_CHECK = `${(args && args.cli) || 'node experts/experts.js'} memory check`
 
 phase('Read')
 
@@ -154,6 +163,8 @@ ${NO_QUOTA}`,
 Read: the "## Gotchas" section of CLAUDE.md, the memory.md index if present, and every memory/*.md topical if present.
 
 Return each existing Gotcha verbatim, and for each topical its path and what it covers. Note anything a router should know -- for example a topical that a new lesson would naturally extend rather than replace.
+
+Run \`${MEMORY_CHECK}\` first (add \`--root <folder>\` when memory.md is not in the project root) and put its warnings in notes: a topical not migrated, a header path that matches no file.
 
 Propose nothing. This is an inventory.`,
       { agentType: agentName('uw-harvester'), label: 'existing', phase: 'Read', schema: EXISTING }
@@ -231,6 +242,8 @@ Merge candidates that are the same lesson seen from two angles. Two readers look
 
 For anything you keep, write the exact text to add, ready to paste, in the voice the target file already uses. Cite its source.
 
+A new memory topical also needs description, paths and keywords (its header). For an existing topical, use the warnings of \`${MEMORY_CHECK}\` in the inventory: a header path that matches no file is corrected with add_paths, add_keywords and remove_paths. Never propose an edit to memory.md: its index is generated from the headers.
+
 ${NO_QUOTA} A short, well-sourced list is the goal. Discarding most candidates is a good outcome, not a failure.`,
   { agentType: agentName('uw-harvester'), label: 'route', phase: 'Route', schema: PROPOSALS }
 )
@@ -249,7 +262,6 @@ if (args && args.mode === 'branch') {
   if (!args.cli || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(feature)) {
     return { ok: false, ...routed, error: 'mode "branch" needs cli and feature in the arguments (experts.js script writes cli in). The proposals are above; nothing was committed.' }
   }
-  if (routed.proposals.length === 0) return { ok: true, mode: 'branch', ...routed, branch: null, commits: [], reviewedRange: range }
   const file = `.ultimate-workflow/run/${feature}/harvest.json`
   const command = `${args.cli} harvest-branch --feature ${feature} --from "${file}"`
   const wrote = await agent(

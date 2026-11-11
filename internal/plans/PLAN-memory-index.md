@@ -610,6 +610,6 @@ index, links, match, budget, fixes, harvest, gate, docs, one at a time (several 
 
 - Date: 2026-11-11
 - Run branch: uw/run/memory-index
-- Cards: 5 committed, 2 parked, 2 fixed-in-round, 1 blocked
+- Cards: 7 committed, 2 fixed-in-round, 1 needs-decision
 - Harvest: uw/harvest/memory-index
 - Report: .ultimate-workflow/run/memory-index/report.md

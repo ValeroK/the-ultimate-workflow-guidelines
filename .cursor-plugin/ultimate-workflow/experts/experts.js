@@ -1493,6 +1493,15 @@ function main(argv) {
       return fail(err.message);
     }
   }
+  // The link check for the entry and memory files.
+  if (argv[0] === 'links') {
+    try {
+      process.exitCode = require('../lib/links.js').cli(argv.slice(1), process.cwd(), (s) => process.stdout.write(s), fail);
+      return;
+    } catch (err) {
+      return fail(err.message);
+    }
+  }
   // The topical headers and the generated index in memory.md: memory index|check|migrate.
   if (argv[0] === 'memory') {
     try {

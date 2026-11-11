@@ -228,12 +228,14 @@ evals/security-expert/provenance.test.js caps the `experts/` folder at 430,080 b
 - index: generated memory index from topical headers
   paths: .cursor-plugin/ultimate-workflow/lib/memory.js, .cursor-plugin/ultimate-workflow/experts/experts.js, evals/experts/memory.test.js
   experts: [quality, genai, security]
-  status: committed
+  status: committed c0921ac8b8ee
+  committed: c0921ac8b8ee
 - links: link check for the entry and memory files
   paths: .cursor-plugin/ultimate-workflow/lib/links.js, .cursor-plugin/ultimate-workflow/lib/memory.js, .cursor-plugin/ultimate-workflow/experts/experts.js, evals/experts/links.test.js, evals/experts/memory.test.js
   depends: index
   experts: [quality, genai, security]
-  status: blocked by index
+  status: committed
+  carried: developer at .cursor-plugin/ultimate-workflow/lib/memory.js:301: cli writes memory.md first and the topicals afterwards, with no rollback if a later write throws.
 - match: cards pick topicals from the headers
   paths: .cursor-plugin/ultimate-workflow/lib/memory.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, evals/experts/autopilot.test.js, evals/experts/memory-match.test.js
   depends: index

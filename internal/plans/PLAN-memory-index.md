@@ -256,18 +256,20 @@ evals/security-expert/provenance.test.js caps the `experts/` folder at 430,080 b
   paths: .cursor-plugin/ultimate-workflow/lib/pack.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, .cursor-plugin/ultimate-workflow/experts/experts.js, .cursor-plugin/ultimate-workflow/phases/run.js, evals/experts/autopilot.test.js, evals/experts/pack-budget.test.js
   depends: match
   experts: [quality, genai, security]
-  status: committed
+  status: committed e2f0f66f60a5
+  committed: e2f0f66f60a5
 - fixes: review findings of 2026-11-11 in the migration and the matcher
   paths: .cursor-plugin/ultimate-workflow/lib/memory.js, evals/experts/memory.test.js, evals/experts/memory-match.test.js, evals/experts/links.test.js
   depends: match
   experts: [quality, genai, security]
-  status: parked uw/parked/memory-index/fixes; the commit was refused: Gate G6: the re-check dropped softarch, which the plan named. Experts can be added, never removed. Run /ultimate-workflow:experts, which re-asks which domain experts apply (it can only add) and runs them, then commit
-  parked: uw/parked/memory-index/fixes; the commit was refused: Gate G6: the re-check dropped softarch, which the plan named. Experts can be added, never removed. Run /ultimate-workflow:experts, which re-asks which domain experts apply (it can only add) and runs them, then commit
+  status: parked uw/parked/memory-index/fixes; blocking findings from the experts check, not fixed by the fix round (still blocking): - quality: evals/experts/memory-match.test.js:102 The capital-letter keyword test cannot fail if keywordRe loses its case-insensitive flag, because the k
+  parked: uw/parked/memory-index/fixes; blocking findings from the experts check, not fixed by the fix round (still blocking): - quality: evals/experts/memory-match.test.js:102 The capital-letter keyword test cannot fail if keywordRe loses its case-insensitive flag, because the k
 - harvest: harvest writes headers and regenerates the index
   paths: .cursor-plugin/ultimate-workflow/lib/memory.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, .cursor-plugin/ultimate-workflow/phases/harvest.js, .cursor-plugin/ultimate-workflow/phases/run.js, .cursor-plugin/ultimate-workflow/commands/harvest.md, .cursor-plugin/ultimate-workflow/agents/uw-harvester.md, evals/experts/harvest.test.js, evals/experts/autopilot.test.js
   depends: index, match, budget
   experts: [quality, genai, security]
   status: blocked by budget
+  carried: developer at .cursor-plugin/ultimate-workflow/phases/run.js:136: The invalid-pack_budget warning that pack() returns is never read by the run, so a mistyped budget silently becomes 15000.
 - gate: commit refused on a stale index or a broken link
   paths: .cursor-plugin/ultimate-workflow/hooks/lib/gates.js, .cursor-plugin/ultimate-workflow/hooks/lib/gates.test.js, .cursor-plugin/ultimate-workflow/hooks/gate.js, .cursor-plugin/ultimate-workflow/lib/memory.js, .cursor-plugin/ultimate-workflow/experts/experts.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, evals/experts/experts.test.js, evals/experts/autopilot.test.js, evals/experts/memory-gate.test.js
   depends: index, links, harvest

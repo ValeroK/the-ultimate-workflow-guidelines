@@ -275,13 +275,16 @@ evals/security-expert/provenance.test.js caps the `experts/` folder at 430,080 b
   paths: .cursor-plugin/ultimate-workflow/hooks/lib/gates.js, .cursor-plugin/ultimate-workflow/hooks/lib/gates.test.js, .cursor-plugin/ultimate-workflow/hooks/gate.js, .cursor-plugin/ultimate-workflow/lib/memory.js, .cursor-plugin/ultimate-workflow/experts/experts.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, evals/experts/experts.test.js, evals/experts/autopilot.test.js, evals/experts/memory-gate.test.js
   depends: index, links, harvest
   experts: [quality, genai, security]
-  status: committed
+  status: committed 465c615c9770
   carried: genai at .cursor-plugin/ultimate-workflow/lib/memory.js:263: harvestMemory classifies model-supplied proposal paths with regexes on the raw string (MEMORY_MD, TOPICAL), but harvestBranch only normalizes absolute paths and never converts backslashes or a leading ./ before calling it, so such proposals skip the memory.md refusal and the header requirement.; developer at .cursor-plugin/ultimate-workflow/experts/autopilot.js:813: Proposal paths are normalised only for absolute paths, so a relative path written with a leading ./ or backslashes reaches memoryLib.harvestMemory raw and slips past the memory.md refusal and the TOPICAL/root routing.
+  committed: 465c615c9770
 - docs: templates, protocol, migration of this repo, release
   paths: .cursor-plugin/ultimate-workflow/memory.md, .cursor-plugin/ultimate-workflow/memory/**, .cursor-plugin/ultimate-workflow/skills/the-ultimate-workflow-guidelines/references/memory-protocol.md, .cursor-plugin/ultimate-workflow/skills/the-ultimate-workflow-guidelines/references/memory-template.md, .cursor-plugin/ultimate-workflow/skills/project-bootstrap-guidelines/references/memory-template.md, .cursor-plugin/ultimate-workflow/skills/project-bootstrap-guidelines/SKILL.md, .cursor-plugin/ultimate-workflow/skills/the-ultimate-workflow-guidelines/SKILL.md, .cursor-plugin/ultimate-workflow/rules/**, .cursor-plugin/ultimate-workflow/phases/run.md, mirrors.test.js, CHANGELOG.md, .cursor-plugin/plugin.json, .claude-plugin/marketplace.json
   depends: index, links, match, budget, fixes, harvest, gate
   experts: [quality, genai, security]
-  status: blocked by fixes
+  status: needs-decision uw/parked/memory-index/docs; needs a decision the plan does not state: - declared: Set version 4.8.0 in the two payload plugin.json files and in .cursor-plugin/marketplace.json, which are not in the card's file list.
+  parked: uw/parked/memory-index/docs; needs a decision the plan does not state: - declared: Set version 4.8.0 in the two payload plugin.json files and in .cursor-plugin/marketplace.json, which are not in the card's file list.
+  decision: - declared: Set version 4.8.0 in the two payload plugin.json files and in .cursor-plugin/marketplace.json, which are not in the card's file list.
 - fixup: confirmed review findings
   paths: .cursor-plugin/ultimate-workflow/lib/memory.js, .cursor-plugin/ultimate-workflow/lib/links.js, .cursor-plugin/ultimate-workflow/lib/memory.js, .cursor-plugin/ultimate-workflow/lib/links.js, evals/experts/links.test.js, evals/experts/memory.test.js
   experts: [quality, genai, security]

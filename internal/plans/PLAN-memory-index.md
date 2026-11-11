@@ -262,7 +262,8 @@ evals/security-expert/provenance.test.js caps the `experts/` folder at 430,080 b
   paths: .cursor-plugin/ultimate-workflow/lib/memory.js, evals/experts/memory.test.js, evals/experts/memory-match.test.js, evals/experts/links.test.js
   depends: match
   experts: [quality, genai, security]
-  status: pending
+  status: parked uw/parked/memory-index/fixes; the commit was refused: Gate G6: the re-check dropped softarch, which the plan named. Experts can be added, never removed. Run /ultimate-workflow:experts, which re-asks which domain experts apply (it can only add) and runs them, then commit
+  parked: uw/parked/memory-index/fixes; the commit was refused: Gate G6: the re-check dropped softarch, which the plan named. Experts can be added, never removed. Run /ultimate-workflow:experts, which re-asks which domain experts apply (it can only add) and runs them, then commit
 - harvest: harvest writes headers and regenerates the index
   paths: .cursor-plugin/ultimate-workflow/lib/memory.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, .cursor-plugin/ultimate-workflow/phases/harvest.js, .cursor-plugin/ultimate-workflow/phases/run.js, .cursor-plugin/ultimate-workflow/commands/harvest.md, .cursor-plugin/ultimate-workflow/agents/uw-harvester.md, evals/experts/harvest.test.js, evals/experts/autopilot.test.js
   depends: index, match, budget

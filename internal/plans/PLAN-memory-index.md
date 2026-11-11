@@ -10,7 +10,7 @@ verify_rounds: 0
 last_verify: green
 escalated: false
 gate_violation: 
-confirmed_hash: 3d273d9d0ff49508
+confirmed_hash: fd8d02389358568e
 ---
 
 # PLAN: memory-index
@@ -62,6 +62,11 @@ harvest that creates a new topical shows it in memory.md on the harvest branch.
 6. A plan with no per-card sections keeps today's behaviour for cited documents.
 7. The pack budget is fixed here (15,000), and only topicals are ever dropped.
 8. Cue paths that match no file are given to the harvester, which proposes corrected cues.
+
+## Changes after the run of 2026-11-11
+
+9. The new code lives in a new `lib/` folder, not in `experts/`, because of the byte budget on
+   `experts/` (Decisions, "Where the new code lives"). Card paths and card sections say so.
 
 ## Why
 
@@ -196,6 +201,22 @@ harvest that creates a new topical shows it in memory.md on the harvest branch.
   not at the git root. The commands take `--root <dir>` (default: the current folder);
   `mirrors.test.js` runs them with the payload as root.
 
+### Where the new code lives
+
+Decided by the owner on 2026-11-11, after the first run parked card index. The test "shipped
+experts/ stays under a byte budget that grows with each expert" in
+evals/security-expert/provenance.test.js caps the `experts/` folder at 430,080 bytes, and about
+5,200 bytes were free. The budget is not raised. Instead:
+
+- New code goes into a new payload folder, `.cursor-plugin/ultimate-workflow/lib/`: `memory.js`, `links.js` and `pack.js`. The
+  release ZIP takes every payload folder except the two it excludes, so nothing in packaging changes.
+- `lib/` holds no tests and no fixtures; they stay under evals/.
+- The `experts/` folder may grow by glue only: a command route, a call into `lib/`, a changed
+  argument. All seven cards together have about 4,700 bytes there.
+- A card that needs more room moves the function it is changing out of `autopilot.js` or
+  `experts.js` into `lib/`, and leaves a call behind. It never edits the budget test.
+- The commands keep their names (`node experts/experts.js memory index`, `links`).
+
 ## Out of scope
 
 - `## Gotchas` in `CLAUDE.md`. It is a section of a file, not an index.
@@ -205,32 +226,32 @@ harvest that creates a new topical shows it in memory.md on the harvest branch.
 ## Cards
 
 - index: generated memory index from topical headers
-  paths: .cursor-plugin/ultimate-workflow/experts/memory.js, .cursor-plugin/ultimate-workflow/experts/experts.js, evals/experts/memory.test.js
+  paths: .cursor-plugin/ultimate-workflow/lib/memory.js, .cursor-plugin/ultimate-workflow/experts/experts.js, evals/experts/memory.test.js
   experts: [quality]
   status: parked uw/parked/memory-index/index; not green: Verification failed 1 times. Stopping. What is wrong: The code is not functionally broken, the change runs into a size cap that the plan never accounted for. evals/security-expert/provenance.test.js:137-151 sums every file under
   parked: uw/parked/memory-index/index; not green: Verification failed 1 times. Stopping. What is wrong: The code is not functionally broken, the change runs into a size cap that the plan never accounted for. evals/security-expert/provenance.test.js:137-151 sums every file under
 - links: link check for the entry and memory files
-  paths: .cursor-plugin/ultimate-workflow/experts/links.js, .cursor-plugin/ultimate-workflow/experts/memory.js, .cursor-plugin/ultimate-workflow/experts/experts.js, evals/experts/links.test.js, evals/experts/memory.test.js
+  paths: .cursor-plugin/ultimate-workflow/lib/links.js, .cursor-plugin/ultimate-workflow/lib/memory.js, .cursor-plugin/ultimate-workflow/experts/experts.js, evals/experts/links.test.js, evals/experts/memory.test.js
   depends: index
   experts: [quality]
   status: blocked by index
 - match: cards pick topicals from the headers
-  paths: .cursor-plugin/ultimate-workflow/experts/autopilot.js, evals/experts/autopilot.test.js, evals/experts/memory-match.test.js
+  paths: .cursor-plugin/ultimate-workflow/lib/memory.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, evals/experts/autopilot.test.js, evals/experts/memory-match.test.js
   depends: index
   experts: [quality]
   status: blocked by index
 - budget: pack size, budget and do-not-load list
-  paths: .cursor-plugin/ultimate-workflow/experts/autopilot.js, .cursor-plugin/ultimate-workflow/experts/experts.js, .cursor-plugin/ultimate-workflow/phases/run.js, evals/experts/autopilot.test.js, evals/experts/pack-budget.test.js
+  paths: .cursor-plugin/ultimate-workflow/lib/pack.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, .cursor-plugin/ultimate-workflow/experts/experts.js, .cursor-plugin/ultimate-workflow/phases/run.js, evals/experts/autopilot.test.js, evals/experts/pack-budget.test.js
   depends: match
   experts: [quality, genai]
   status: blocked by match
 - harvest: harvest writes headers and regenerates the index
-  paths: .cursor-plugin/ultimate-workflow/experts/autopilot.js, .cursor-plugin/ultimate-workflow/phases/harvest.js, .cursor-plugin/ultimate-workflow/phases/run.js, .cursor-plugin/ultimate-workflow/commands/harvest.md, .cursor-plugin/ultimate-workflow/agents/uw-harvester.md, evals/experts/harvest.test.js, evals/experts/autopilot.test.js
+  paths: .cursor-plugin/ultimate-workflow/lib/memory.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, .cursor-plugin/ultimate-workflow/phases/harvest.js, .cursor-plugin/ultimate-workflow/phases/run.js, .cursor-plugin/ultimate-workflow/commands/harvest.md, .cursor-plugin/ultimate-workflow/agents/uw-harvester.md, evals/experts/harvest.test.js, evals/experts/autopilot.test.js
   depends: index, match, budget
   experts: [quality]
   status: blocked by index
 - gate: commit refused on a stale index or a broken link
-  paths: .cursor-plugin/ultimate-workflow/hooks/lib/gates.js, .cursor-plugin/ultimate-workflow/hooks/lib/gates.test.js, .cursor-plugin/ultimate-workflow/hooks/gate.js, .cursor-plugin/ultimate-workflow/experts/experts.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, evals/experts/experts.test.js, evals/experts/autopilot.test.js, evals/experts/memory-gate.test.js
+  paths: .cursor-plugin/ultimate-workflow/hooks/lib/gates.js, .cursor-plugin/ultimate-workflow/hooks/lib/gates.test.js, .cursor-plugin/ultimate-workflow/hooks/gate.js, .cursor-plugin/ultimate-workflow/lib/memory.js, .cursor-plugin/ultimate-workflow/experts/experts.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, evals/experts/experts.test.js, evals/experts/autopilot.test.js, evals/experts/memory-gate.test.js
   depends: index, links, harvest
   experts: [quality, security]
   status: blocked by index
@@ -242,7 +263,7 @@ harvest that creates a new topical shows it in memory.md on the harvest branch.
 
 ### Card index
 
-New `experts/memory.js`: the header parser (the fixed subset), `renderIndex` (pure), and the
+New `lib/memory.js` (see Decisions, "Where the new code lives"): the header parser (the fixed subset), `renderIndex` (pure), and the
 commands `memory index [--root <dir>]`, `memory check [--root <dir>]` (index part only until the
 links card) and `memory migrate [--root <dir>]`, routed from `experts.js` the way the autopilot
 commands are. The migration is a pure function too, `migrateTexts(memoryMdText, topicals)`, which
@@ -255,15 +276,20 @@ linked entries where the first one stood; every other line of memory.md keeps it
 prints what it changed; it changes nothing outside memory.md and `memory/`. A project that is not
 migrated makes `memory check` warn and exit 0.
 
+A version that passes this card's tests is on the branch uw/parked/memory-index/index, as
+`experts/memory.js` with `evals/experts/memory.test.js`. Reuse it: the file moves to `lib/memory.js`,
+and `experts.js` and the test require it from there.
+
 ### Card links
 
-New `experts/links.js` with a pure `brokenLinks(files: { [path]: text }, exists: (path) => bool)` and
+New `lib/links.js` with a pure `brokenLinks(files: { [path]: text }, exists: (path) => bool)` and
 a CLI `links [--root <dir>]`. `memory check` calls it for the scope in Decisions. Header path globs
 that match no tracked file are printed as warnings and do not change the exit code.
 
 ### Card match
 
-`matchingTopicals` reads the topicals' headers (through `memory.js`) and matches as Decisions says,
+The matching is a pure function in `lib/memory.js`; `matchingTopicals` in `autopilot.js` calls it.
+It reads the topicals' headers and matches as Decisions says,
 falling back to today's parser per topical without a header. It returns topicals in a stable order:
 path matches first, then keyword matches, each by path. It also returns how each one matched, which
 the budget card uses. It reads memory from `memory_root:` when the plan sets it, else the project
@@ -271,7 +297,8 @@ root.
 
 ### Card budget
 
-`pack` lists each file once (merging the reasons), marks a plan-cited document required only when
+The new pack logic (merging, required or pointer, sizes, the budget and the drop order) is pure
+code in a new `lib/pack.js`, which `pack` in `autopilot.js` calls. `pack` lists each file once (merging the reasons), marks a plan-cited document required only when
 the card's own section, tests or paths name it (all of them when the plan has no per-card
 sections) and lists the rest as pointers, counts the size of each counted entry and of the pack,
 applies the budget (default 15,000) and the drop order from Decisions, writes
@@ -285,6 +312,7 @@ of this plan, before and after.
 
 The proposal schema gains, for `destination: memory`, `description`, `paths`, `keywords` (required
 when the file does not exist) and `add_paths`, `add_keywords` (optional, for an existing topical).
+The header writing and the cue merging are pure functions in `lib/memory.js`.
 `harvestBranch` writes the header for a new topical, merges the added cue terms into an existing
 one, sets `updated:`, adds the text under `## Key decisions` when present, puts all memory proposals
 and the regenerated memory.md in one commit, and refuses a proposal that names memory.md. Before
@@ -300,7 +328,8 @@ for a new topical; never edit memory.md.
 
 `experts.js` gathers the memory evidence (`memory check` on the commit's root) before the
 documentation-only skip in `commitEvidence`, when the commit includes a file in the scope.
-The evidence holds the problems now and the problems at `HEAD`; `gates.js` `commitGate` (or a
+The evidence holds the problems now and the problems at `HEAD` (the comparison is a pure function in
+`lib/memory.js`); `gates.js` `commitGate` (or a
 sibling predicate the commit path already calls) denies only for the new ones, with the problems
 and `node experts/experts.js memory index` / the broken links, and passes the old ones on as
 warnings. It also runs when no expert is installed. `hooks/gate.js` passes the plan's
@@ -505,6 +534,9 @@ index, links, match, budget, harvest, gate, docs, one at a time (several share `
   keep today's behaviour.
 - **The migration writes a poor cue** in someone's project. It arrives as a commit on the harvest
   branch, which the owner reads before merging, and the old matcher's results are the test's floor.
+- **A later card runs out of room in `experts/`.** About 4,700 bytes are left for glue. The rule in
+  Decisions tells the card to move the function it is changing into `lib/`; the full suite fails on
+  the budget test if it does not.
 - **The plan file is gitignored** (`PLAN-*.md`). It must be committed with `git add -f` before the run,
   or the run cannot commit card statuses into it (`commitPlan` refuses an ignored path; a tracked file
   is not ignored).

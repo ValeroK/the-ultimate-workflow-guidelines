@@ -189,6 +189,30 @@ test('header path globs: a trailing ** matches files at any depth below the fold
   assert.strictEqual(warnsFor('lib/**', { 'other/a.js': 'x\n' }), true, 'other folder');
 });
 
+test('header path globs: a path ending in / covers the files below the folder', () => {
+  assert.strictEqual(warnsFor('lib/', { 'lib/deep/a.js': 'x\n' }), false, 'a file lies below');
+  assert.strictEqual(warnsFor('lib/', { 'other/a.js': 'x\n' }), true, 'no file lies below');
+});
+
+test('cueWarnings and the matcher agree: a header path the matcher covers for a file is never warned about', () => {
+  const shapes = ['only/', 'none/', 'sub/**', 'edge/**', 'flat/*.js', '**/name.js', 'nothing/**'];
+  const topicals = (i) => `memory/t${i}.md`;
+  const extra = { 'only/deep/a.js': 'x\n', 'sub/x/y.js': 'x\n', edge: 'x\n', 'flat/deep/z.js': 'x\n', 'name.js': 'x\n' };
+  shapes.forEach((glob, i) => { extra[topicals(i)] = HEADER.replace('src/**', glob); });
+  const root = migrated(extra);
+  assert.strictEqual(cli(root, 'memory', 'index').status, 0);
+  const r = cli(root, 'memory', 'check');
+  assert.strictEqual(r.status, 0, r.out);
+  const files = links.listFiles(root);
+  shapes.forEach((glob, i) => {
+    const topical = { [topicals(i)]: HEADER.replace('src/**', glob) };
+    const matched = files.some((f) => memory.matchTopicals('', topical, { title: 'a card', paths: [f], carried: [] }).length > 0);
+    assert.strictEqual(r.out.includes(`${topicals(i)}: path "${glob}" matches no file`), !matched, `${glob}: the matcher ${matched ? 'covers' : 'covers no'} file`);
+  });
+  assert.ok(shapes.some((_, i) => r.out.includes(`${topicals(i)}: path`)), 'some shape is warned about');
+  assert.ok(shapes.some((_, i) => !r.out.includes(`${topicals(i)}: path`)), 'some shape is not');
+});
+
 test('the links command reads only the entry and memory files, not the whole tree', () => {
   const root = migrated({ 'AGENTS.md': '[ok](memory.md)\n', 'src/deep/y.js': 'y\n' });
   const real = fs.readdirSync;

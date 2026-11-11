@@ -106,6 +106,9 @@ const REJECTED = [
   ['a nested map deeper than read_when', ['description: x', 'read_when:', '  paths:', '    deep: y'], /nest|deep/i, 5],
   ['an unknown key', ['description: x', 'read_when:', '  paths: [a/**]', 'colour: red'], /unknown/i, 5],
   ['a tab-indented list', ['description: x', 'read_when:', '  keywords:', '\t- one'], /tab/i, 5],
+  ['an updated that is no month', ['description: x', 'read_when:', '  paths: [a/**]', 'updated: 2026-13-40'], /updated/i, 1],
+  ['an updated that is no day of its month', ['description: x', 'read_when:', '  paths: [a/**]', 'updated: 2026-02-30'], /updated/i, 1],
+  ['an updated that is not a date', ['description: x', 'read_when:', '  paths: [a/**]', 'updated: yesterday'], /updated/i, 1],
 ];
 
 for (const [name, lines, reason, line] of REJECTED) {
@@ -117,6 +120,14 @@ for (const [name, lines, reason, line] of REJECTED) {
     assert.match(r.errors[0].reason, reason);
   });
 }
+
+test('a real date is accepted as updated, a leap day included', () => {
+  for (const day of ['2026-02-28', '2024-02-29']) {
+    const r = memory.parseHeader(header(['description: x', 'read_when:', '  paths: [a/**]', `updated: ${day}`]));
+    assert.deepStrictEqual(r.errors, [], day);
+    assert.strictEqual(r.header.updated, day);
+  }
+});
 
 test('rejected: an unclosed header', () => {
   const r = memory.parseHeader('---\ndescription: x\nread_when:\n  paths: [a/**]\n\n# Body with no closing line\n');
@@ -238,6 +249,41 @@ test('a cue fragment that is only a conjunction is not kept as a keyword', () =>
   const parsed = memory.parseHeader(r.topicals['memory/a.md']);
   assert.deepStrictEqual(parsed.errors, []);
   assert.deepStrictEqual(parsed.header.keywords, ['gate.js']);
+});
+
+test('a topical that starts with a BOM keeps it first, followed by the header, and has it nowhere else', () => {
+  const r = memory.migrateTexts(MEMORY_MD, { 'memory/a.md': '﻿' + OLD_A, 'memory/b.md': OLD_B });
+  const text = r.topicals['memory/a.md'];
+  assert.ok(text.startsWith('﻿---\n'), 'the BOM, then the opening --- line');
+  assert.strictEqual(text.split('﻿').length - 1, 1, 'one BOM only');
+  const parsed = memory.parseHeader(text);
+  assert.deepStrictEqual(parsed.errors, []);
+  assert.ok(parsed.header.paths.includes('hooks/**'));
+  assert.ok(text.includes('body of a'));
+});
+
+test('an entry that cannot give a valid header keeps its memory.md line and its topical text', () => {
+  const noDescription = '- [memory/n.md](memory/n.md) — **Read when** editing `src/**`.';
+  const noCue = '- [memory/c.md](memory/c.md) — About C. **Read when** .';
+  const md = [MEMORY_MD, noDescription, noCue, ''].join('\n');
+  const N = '# N\n\nbody of n\n';
+  const C = '# C\n\nbody of c\n';
+  const r = memory.migrateTexts(md, { 'memory/a.md': OLD_A, 'memory/n.md': N, 'memory/c.md': C });
+  assert.ok(r.memoryMd.includes(noDescription), 'the entry without a description stays');
+  assert.ok(r.memoryMd.includes(noCue), 'the entry without a cue stays');
+  assert.strictEqual(r.topicals['memory/n.md'], N);
+  assert.strictEqual(r.topicals['memory/c.md'], C);
+  assert.strictEqual(memory.parseHeader(r.topicals['memory/a.md']).errors.length, 0, 'the buildable one is still migrated');
+  assert.ok(!r.memoryMd.includes('- [memory/a.md](memory/a.md) —'), 'and its old entry is replaced');
+});
+
+test('when no entry can give a header, no entry and no text changes', () => {
+  const md = '# Memory\n\n- [memory/n.md](memory/n.md) — **Read when** editing `src/**`.\n- [memory/c.md](memory/c.md) — About C. **Read when** .\n';
+  const topicals = { 'memory/n.md': '# N\n', 'memory/c.md': '# C\n' };
+  const r = memory.migrateTexts(md, topicals);
+  assert.deepStrictEqual(r.topicals, topicals);
+  assert.ok(r.memoryMd.includes('- [memory/n.md](memory/n.md) — **Read when** editing `src/**`.'));
+  assert.ok(r.memoryMd.includes('- [memory/c.md](memory/c.md) — About C. **Read when** .'));
 });
 
 test('a start marker with no end marker is refused, never guessed: renderIndex throws, the CLI exits non-zero and writes nothing', () => {

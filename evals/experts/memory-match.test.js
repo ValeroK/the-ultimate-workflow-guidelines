@@ -106,6 +106,29 @@ test('order is path matches first, then keyword matches, each by path, and says 
   ]);
 });
 
+test('a keyword with a capital letter matches a card text in lower case, and the reverse', () => {
+  // 'Gate' has four letters, so the title-word route cannot match it: only the keyword route can.
+  const upper = { 'memory/a.md': topical({ keywords: ['Gate'] }) };
+  const lower = { 'memory/a.md': topical({ keywords: ['gate'] }) };
+  assert.deepStrictEqual(memory.matchTopicals('', upper, card(['x.js'], { carried: ['the gate is stuck'] })), [{ file: 'memory/a.md', how: 'keyword' }]);
+  assert.deepStrictEqual(memory.matchTopicals('', lower, card(['x.js'], { carried: ['The Gate is stuck'] })), [{ file: 'memory/a.md', how: 'keyword' }]);
+  assert.deepStrictEqual(memory.matchTopicals('', upper, card(['x.js'], { carried: ['the gateway'] })), []);
+});
+
+test('a backticked cue term with a / that the card text mentions still matches after migrate, though no card path covers it', () => {
+  const memoryMd = '# Memory\n- [memory/a.md](memory/a.md) - About A. **Read when** touching `docs/api`.\n';
+  const old = { 'memory/a.md': '# A\n\nbody\n' };
+  const mentions = card(['x.js'], { carried: ['reviewer: update docs/api before release'] });
+  const silent = card(['x.js'], { carried: ['reviewer: nothing here'] });
+  assert.deepStrictEqual(memory.matchTopicals(memoryMd, old, mentions), [{ file: 'memory/a.md', how: 'cue' }], 'the old cue gave this match');
+
+  const migrated = memory.migrateTexts(memoryMd, old);
+  assert.deepStrictEqual(memory.parseHeader(migrated.topicals['memory/a.md']).header.paths, ['docs/api']);
+  assert.deepStrictEqual(names(memory.matchTopicals(migrated.memoryMd, migrated.topicals, mentions)), ['memory/a.md']);
+  assert.deepStrictEqual(names(memory.matchTopicals(migrated.memoryMd, migrated.topicals, card(['sub/x.js'], { carried: mentions.carried }), 'sub')), ['memory/a.md'], 'with a memory root too');
+  assert.deepStrictEqual(memory.matchTopicals(migrated.memoryMd, migrated.topicals, silent), [], 'a card that does not mention it still does not match');
+});
+
 // ---- matchingTopicals reads a memory root ------------------------------------------------------
 
 const made = [];

@@ -262,8 +262,7 @@ evals/security-expert/provenance.test.js caps the `experts/` folder at 430,080 b
   paths: .cursor-plugin/ultimate-workflow/lib/memory.js, evals/experts/memory.test.js, evals/experts/memory-match.test.js, evals/experts/links.test.js
   depends: match
   experts: [quality, genai, security]
-  status: parked uw/parked/memory-index/fixes; blocking findings from the experts check, not fixed by the fix round (still blocking): - quality: evals/experts/memory-match.test.js:102 The capital-letter keyword test cannot fail if keywordRe loses its case-insensitive flag, because the k
-  parked: uw/parked/memory-index/fixes; blocking findings from the experts check, not fixed by the fix round (still blocking): - quality: evals/experts/memory-match.test.js:102 The capital-letter keyword test cannot fail if keywordRe loses its case-insensitive flag, because the k
+  status: committed
 - harvest: harvest writes headers and regenerates the index
   paths: .cursor-plugin/ultimate-workflow/lib/memory.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, .cursor-plugin/ultimate-workflow/phases/harvest.js, .cursor-plugin/ultimate-workflow/phases/run.js, .cursor-plugin/ultimate-workflow/commands/harvest.md, .cursor-plugin/ultimate-workflow/agents/uw-harvester.md, evals/experts/harvest.test.js, evals/experts/autopilot.test.js
   depends: index, match, budget

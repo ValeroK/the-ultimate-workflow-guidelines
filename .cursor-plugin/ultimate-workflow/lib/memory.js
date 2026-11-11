@@ -20,6 +20,8 @@ const ENTRY = /^- \[[^\]]+\]\(([^)]+)\)\s+[—–-]\s+(.*)$/;
 const LEADING_VERB = /^(?:editing|touching|changing|diagnosing|deciding(?: whether)?)\b\s*/i;
 
 const eolOf = (text) => (text.includes('\r\n') ? '\r\n' : '\n');
+// A real calendar day: the round trip through Date refuses 2026-13-40.
+const isDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s) && new Date(s).toJSON()?.slice(0, 10) === s;
 const unquote = (s) => s.replace(/^(["'])(.*)\1$/, '$2');
 
 // ---- the header --------------------------------------------------------------------------------
@@ -85,7 +87,7 @@ function parseHeader(text) {
   if (!errors.length) {
     if (!h.description) err(1, 'description is required');
     if (!(h.paths && h.paths.length) && !(h.keywords && h.keywords.length)) err(1, 'read_when needs at least one of paths or keywords');
-    if (h.updated !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(h.updated)) err(1, 'updated must be YYYY-MM-DD');
+    if (h.updated !== undefined && !isDate(h.updated)) err(1, 'updated must be YYYY-MM-DD');
   }
   if (errors.length) return { header: null, errors };
   return { header: { description: h.description, paths: h.paths || [], keywords: h.keywords || [], ...(h.updated ? { updated: h.updated } : {}) }, errors };
@@ -159,8 +161,9 @@ function withHeader(text, entryRest) {
   const keywords = [...new Set([...terms.filter((t) => !/[/*]/.test(t)), ...phrases])];
   if (!description || !(paths.length || keywords.length)) return null;
 
+  const bom = text.startsWith('\uFEFF') ? '\uFEFF' : '';
   const eol = eolOf(text);
-  const body = text.split(eol);
+  const body = text.slice(bom.length).split(eol);
   const at2 = body.findIndex((l) => /^>?\s*Last updated \d{4}-\d{2}-\d{2}\.?\s*$/i.test(l));
   let updated = null;
   if (at2 >= 0) {
@@ -168,7 +171,7 @@ function withHeader(text, entryRest) {
     body.splice(at2, 1);
     if (body[at2 - 1] === '' && body[at2] === '') body.splice(at2, 1);
   }
-  return [...headerLines({ description, paths, keywords, updated }), ''].join(eol) + eol + body.join(eol);
+  return bom + [...headerLines({ description, paths, keywords, updated }), ''].join(eol) + eol + body.join(eol);
 }
 
 /**
@@ -256,14 +259,11 @@ function check(memoryMd, topicals) {
 
 // Header paths that match none of the project's files.
 function cueWarnings(topicals, files) {
-  const { globToRegExp } = require('../experts/experts.js'); // lazy: experts.js requires this file
   const warnings = [];
   for (const [file, text] of Object.entries(topicals)) {
     const { header } = parseHeader(text);
     for (const glob of header ? header.paths : []) {
-      // globToRegExp reads a trailing `**` as one level; in a header `src/**` means everything below src/.
-      const re = globToRegExp(glob.replace(/\*\*$/, '**/*'));
-      if (!files.some((f) => re.test(f))) warnings.push(`${file}: path "${glob}" matches no file`);
+      if (!files.some((f) => covers([glob], f))) warnings.push(`${file}: path "${glob}" matches no file`);
     }
   }
   return warnings;
@@ -300,6 +300,13 @@ function cueMatches(memoryMd, card, text) {
   return out;
 }
 
+// A literal header path found in the card's text: the old cue matched a backticked term anywhere in
+// it, also one that is no path under the memory root.
+function mentioned(glob, text) {
+  const term = glob.replace(/\/+$/, '').toLowerCase();
+  return !glob.includes('*') && term.length >= 3 && text.includes(term);
+}
+
 const keywordRe = (k) => new RegExp(`(?<![a-z0-9])${k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![a-z0-9])`, 'i');
 
 /**
@@ -321,7 +328,7 @@ function matchTopicals(memoryMd, topicals, card, memoryRoot = '') {
   for (const file of Object.keys(topicals).sort()) {
     const { header, errors } = parseHeader(topicals[file]);
     if (header) {
-      if (header.paths.some((g) => own.some((p) => covers([g], p) || covers([p], g)))) found.push({ file, how: 'path' });
+      if (header.paths.some((g) => own.some((p) => covers([g], p) || covers([p], g)) || mentioned(g, text))) found.push({ file, how: 'path' });
       else if (header.keywords.some((k) => keywordRe(k).test(text) || cueWords(k).some((w) => titleWords.has(w)))) found.push({ file, how: 'keyword' });
     } else if (!errors.length && cue.has(file)) found.push({ file, how: 'cue' });
   }

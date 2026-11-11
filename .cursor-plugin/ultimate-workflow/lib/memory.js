@@ -440,6 +440,55 @@ function harvestMemory(tracked, show, proposals, today) {
   return { steps, rest: proposals.filter((p) => !handled.includes(p)) };
 }
 
+// ---- the commit check ----------------------------------------------------------------------------
+
+// The files whose change makes a commit worth a memory check, relative to the memory root.
+const IN_SCOPE = /^(AGENTS\.md|CLAUDE\.md|memory\.md|memory\/.+\.md)$/;
+const inScope = (rel) => IN_SCOPE.test(rel);
+const rootOfPlan = (planText) => String(require('../hooks/lib/state.js').parseFrontMatter(planText).data.memory_root || '').trim();
+
+// What check() and brokenLinks() report, as { file, kind, target, text } (line too for a link).
+function problemsOf(files, exists) {
+  const memoryMd = files['memory.md'];
+  const topicals = Object.fromEntries(Object.entries(files).filter(([f]) => /^memory\/[^/]+\.md$/.test(f)));
+  const problems = [];
+  if (memoryMd !== undefined) {
+    for (const text of check(memoryMd, topicals).errors) {
+      const header = /^(.+?):\d+: invalid header: (.*)$/.exec(text);
+      problems.push(header ? { file: header[1], kind: 'header', target: header[2], text } : { file: 'memory.md', kind: 'index', target: text, text });
+    }
+  }
+  for (const b of links.brokenLinks(files, exists)) problems.push({ file: b.file, kind: 'link', line: b.line, target: b.target, text: `${b.file}:${b.line}: broken link to ${b.target}` });
+  return problems;
+}
+
+/** The problems of the memory files of the working tree under root (what `memory check` fails on). */
+function workingProblems(root) {
+  const files = Object.fromEntries(links.listFiles(root).filter(inScope).map((f) => [f, fs.readFileSync(path.join(root, f), 'utf8')]));
+  return problemsOf(files, (p) => fs.existsSync(path.join(root, p)));
+}
+
+/** Split the problems now into { added, existing } by the ones at HEAD: same file, kind and target, whatever the line. */
+function newProblems(now, head) {
+  const key = (p) => `${p.file}\0${p.kind}\0${p.target}`;
+  const old = new Set(head.map(key));
+  return { added: now.filter((p) => !old.has(key(p))), existing: now.filter((p) => old.has(key(p))) };
+}
+
+/**
+ * The memory check of a commit, for the gate: { added, existing } of the memory under root against
+ * HEAD. `atHead` is { names, show } (the tracked files under root and a reader of their text), or
+ * null before the first commit.
+ */
+function commitProblems(root, atHead) {
+  const now = workingProblems(root);
+  if (!atHead) return { added: now, existing: [] };
+  const names = new Set(atHead.names);
+  const dirs = new Set(atHead.names.flatMap((n) => n.split('/').slice(0, -1).map((_, i, parts) => parts.slice(0, i + 1).join('/'))));
+  const files = Object.fromEntries(atHead.names.filter(inScope).map((n) => [n, atHead.show(n)]));
+  return newProblems(now, problemsOf(files, (p) => names.has(p) || dirs.has(p)));
+}
+
 /**
  * `memory index|check|migrate [--root <dir>]`. Prints through write and returns the exit code
  * (check returns 1 on a failure); fail is for a command that cannot run at all.
@@ -479,4 +528,4 @@ function cli(argv, cwd, write, fail) {
   return 0;
 }
 
-module.exports = { parseHeader, renderIndex, migrateTexts, check, matchTopicals, harvestMemory, withAddition, cli };
+module.exports = { parseHeader, renderIndex, migrateTexts, check, matchTopicals, harvestMemory, withAddition, inScope, rootOfPlan, workingProblems, newProblems, commitProblems, cli };

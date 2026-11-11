@@ -263,7 +263,7 @@ function isCommitCommand(command) {
 // A fingerprint that moved with no code edit is usually a file the tests or the app rewrite (4.2.1).
 const VOLATILE_HINT = 'If you have not changed code since, a file your tests or app rewrite is moving it: list that file in the plan\'s `volatile_paths` (verify.js names the files a run rewrote).';
 
-function commitGate(ev) {
+function expertsGate(ev) {
   if (!ev || ev.skip) return ALLOW;
   const how = 'Run /ultimate-workflow:experts, which re-asks which domain experts apply (it can only add) and runs them, then commit again.';
 
@@ -295,6 +295,22 @@ function commitGate(ev) {
     );
   }
   return ALLOW;
+}
+
+/**
+ * The commit gate: the memory check (PLAN-memory-index), then G6. `ev.memory` is { added, existing },
+ * gathered by experts.js: the memory problems this commit introduces and the ones already at HEAD.
+ * A new one denies, with the fixing command for a stale index; an old one comes back as a warning.
+ * The check comes first because a memory-only commit is skipped by G6 as documentation.
+ */
+function commitGate(ev) {
+  const { added = [], existing = [] } = (ev && ev.memory) || {};
+  if (added.length > 0) {
+    const fix = added.some((p) => p.kind === 'index') ? '\nFix the index with: node experts/experts.js memory index' : '';
+    return deny(`Memory check: this commit leaves memory broken:\n${added.map((p) => `  - ${p.text}`).join('\n')}${fix}`);
+  }
+  const verdict = expertsGate(ev);
+  return verdict.allow && existing.length > 0 ? { ...verdict, warnings: existing.map((p) => p.text) } : verdict;
 }
 
 /**

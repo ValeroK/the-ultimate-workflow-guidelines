@@ -951,3 +951,134 @@ test('handoff takes an absolute claimed path inside the project as the same file
   const r = json(cli(dir, 'handoff', '--card', '2', '--feature', 'calc', '--range', `${base}..HEAD`, '--claimed', path.join(dir, 'test', 'parse.test.js')));
   assert.deepStrictEqual(r.missingClaims, []);
 });
+
+// --- PLAN-memory-index, card gate: the autopilot and the memory check ------------------------------
+// card-commit regenerates a stale index and commits it with the card; it refuses a new broken link or an
+// invalid header, not one already there at HEAD. run-start reports what the check finds as warnings.
+
+const memoryLib = require(path.join(PLUGIN, 'lib', 'memory.js'));
+
+const topic = (desc) => `---\ndescription: ${desc}\nread_when:\n  paths:\n    - src/**\n---\n\n# ${desc}\n\nbody\n`;
+const AGENTS_OK = '# Rules\n\nSee [memory](memory.md).\n';
+
+// repo() plus a migrated memory (one topical, a current index) and AGENTS.md, committed on main.
+function memoryRepo({ agents = AGENTS_OK, extraTopicals = {} } = {}) {
+  const dir = repo();
+  const topicals = { 'memory/a.md': topic('Topic A.'), ...extraTopicals };
+  for (const [file, text] of Object.entries(topicals)) write(dir, file, text);
+  write(dir, 'memory.md', memoryLib.renderIndex('# Memory\n', { 'memory/a.md': topicals['memory/a.md'] }));
+  write(dir, 'AGENTS.md', agents);
+  git(dir, 'add', '-A');
+  git(dir, 'commit', '-q', '-m', 'memory');
+  return dir;
+}
+
+// The checks card-commit wants before it commits: a passing full run and a review of these changes.
+function checked(dir) {
+  json(cli(dir, 'run-branch', '--feature', 'calc'));
+  const v = spawnSync(process.execPath, [VERIFY, '--full', '--plan', 'PLAN-calc.md'], { cwd: dir, encoding: 'utf8', env });
+  assert.equal(v.status, 0, v.stdout + v.stderr);
+  cli(dir, 'prepare', '--range', 'working');
+  write(dir, '.ultimate-workflow/run/lane.json', LANE);
+  assert.equal(cli(dir, 'record', '--stage', 'review', '--plan', 'PLAN-calc.md', '--result', '.ultimate-workflow/run/lane.json').status, 0);
+}
+const commitCard = (dir) => json(cli(dir, 'card-commit', '--plan', 'PLAN-calc.md', '--card', '1', '--feature', 'calc'));
+
+test('card-commit on a migrated project whose card changed a topical header commits the regenerated memory.md with the card', () => {
+  const dir = memoryRepo();
+  write(dir, 'memory/a.md', topic('Topic A, reworded.'));
+  checked(dir);
+  const r = commitCard(dir);
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.deepStrictEqual(git(dir, 'show', '--name-only', '--format=', 'HEAD').split('\n').sort(), ['PLAN-calc.md', 'memory.md', 'memory/a.md']);
+  assert.match(git(dir, 'show', 'HEAD:memory.md'), /Topic A, reworded\./);
+  assert.equal(cli(dir, 'memory', 'check').status, 0, 'the committed memory passes its own check');
+});
+
+test('card-commit refuses a card that adds a broken link, with the link in the reason, and commits nothing', () => {
+  const dir = memoryRepo();
+  write(dir, 'AGENTS.md', `${AGENTS_OK}See [gone](gone.md).\n`);
+  checked(dir);
+  const tip = git(dir, 'rev-parse', 'HEAD');
+  const r = commitCard(dir);
+  assert.equal(r.ok, false);
+  assert.match(r.reason, /AGENTS\.md:4: broken link to gone\.md/);
+  assert.equal(git(dir, 'rev-parse', 'HEAD'), tip);
+});
+
+test('card-commit refuses a card that makes a header invalid, naming the problem', () => {
+  const dir = memoryRepo();
+  write(dir, 'memory/a.md', topic('Topic A.').replace('description:', 'colour: blue\ndescription:'));
+  checked(dir);
+  const r = commitCard(dir);
+  assert.equal(r.ok, false);
+  assert.match(r.reason, /memory\/a\.md.*invalid header.*colour/);
+});
+
+test('card-commit does not refuse for a link already broken at HEAD', () => {
+  const dir = memoryRepo({ agents: `${AGENTS_OK}See [old](old.md).\n` });
+  write(dir, 'AGENTS.md', `${AGENTS_OK}See [old](old.md).\nA new line.\n`);
+  checked(dir);
+  const r = commitCard(dir);
+  assert.equal(r.ok, true, JSON.stringify(r));
+});
+
+test('run-start with a stale index and a broken link returns both as warnings and still starts', () => {
+  const dir = memoryRepo({ agents: `${AGENTS_OK}See [gone](gone.md).\n`, extraTopicals: { 'memory/b.md': topic('Topic B.') } });
+  const r = json(cli(dir, 'run-start', '--plan', 'PLAN-calc.md', '--feature', 'calc'));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const warnings = (r.warnings || []).join('\n');
+  assert.match(warnings, /AGENTS\.md:4: broken link to gone\.md/);
+  assert.match(warnings, /memory\/b\.md is missing from the index/);
+});
+
+test('run-start on a project with healthy memory returns no warnings', () => {
+  const dir = memoryRepo();
+  const r = json(cli(dir, 'run-start', '--plan', 'PLAN-calc.md', '--feature', 'calc'));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.deepStrictEqual(r.warnings || [], []);
+  assert.ok(Array.isArray(r.warnings), 'the field is there, and empty');
+});
+
+test('run-start with a malformed memory.md still starts and reports the failure as a warning', () => {
+  const dir = memoryRepo();
+  write(dir, 'memory.md', '# Memory\n\n<!-- uw:memory-index:start -->\n- [A](memory/a.md)\n');
+  const r = json(cli(dir, 'run-start', '--plan', 'PLAN-calc.md', '--feature', 'calc'));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.match((r.warnings || []).join('\n'), /memory check failed.*no "<!-- uw:memory-index:end -->"/);
+});
+
+// A harvester may name a file with a leading ./ or with backslashes; the memory.md refusal and the
+// topical routing must see the same path the branch would write.
+test('harvest-branch routes a backslash path to a new topical with its header, and refuses memory.md however it is spelled', () => {
+  const dir = memoryRepo();
+  write(dir, 'in.json', JSON.stringify([{ destination: 'memory', path: '.\\memory\\c.md', text: '# C\n\nHow C works.', description: 'Topic C.', paths: ['src/**'] }]));
+  const r = json(cli(dir, 'harvest-branch', '--feature', 'bs', '--from', 'in.json'));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.match(git(dir, 'show', 'uw/harvest/bs:memory/c.md'), /^---\ndescription: Topic C\./, 'the new topical has a header');
+  assert.match(git(dir, 'show', 'uw/harvest/bs:memory.md'), /memory\/c\.md/, 'and is in the regenerated index');
+  for (const [i, p] of ['.\\memory.md', './memory.md', 'memory.md'].entries()) {
+    write(dir, `idx${i}.json`, JSON.stringify([{ destination: 'memory', path: p, text: 'x' }]));
+    const bad = json(cli(dir, 'harvest-branch', '--feature', `idx${i}`, '--from', `idx${i}.json`));
+    assert.equal(bad.ok, false, p);
+    assert.match(bad.reason, /memory\.md/, p);
+  }
+});
+
+test('run-report shows the memory warnings run-start found, and no memory section when it found none', () => {
+  const result = { ok: true, feature: 'calc', branch: 'uw/run/calc', base: 'abc1234abcd', summary: '1 committed', counts: { committed: 1 }, cards: [{ card: '1', title: 'first', status: 'committed', commit: 'c1' }], review: { ran: false }, harvest: { ran: false } };
+  const report = (dir) => {
+    write(dir, 'result.json', JSON.stringify(result));
+    const r = json(cli(dir, 'run-report', '--result', 'result.json'));
+    assert.equal(r.ok, true, JSON.stringify(r));
+    return fs.readFileSync(path.join(dir, r.report), 'utf8');
+  };
+  const bad = memoryRepo({ agents: `${AGENTS_OK}See [gone](gone.md).\n`, extraTopicals: { 'memory/b.md': topic('Topic B.') } });
+  assert.equal(json(cli(bad, 'run-start', '--plan', 'PLAN-calc.md', '--feature', 'calc')).ok, true);
+  const shown = report(bad);
+  assert.match(shown, /AGENTS\.md:4: broken link to gone\.md/);
+  assert.match(shown, /memory\/b\.md is missing from the index/);
+  const good = memoryRepo();
+  assert.equal(json(cli(good, 'run-start', '--plan', 'PLAN-calc.md', '--feature', 'calc')).ok, true);
+  assert.doesNotMatch(report(good), /memory/i);
+});

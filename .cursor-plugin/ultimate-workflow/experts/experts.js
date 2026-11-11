@@ -1214,14 +1214,35 @@ function record(cwd, stage, result, { planFile = '', pluginRoot = PLUGIN_ROOT } 
   return { stage, recorded: lane.ran || [], failed: lane.failed || [], hash, plan, findings: found.length, open, ...(stage === 'review' ? { concerns: concerns.length, ...(concerns.length > 0 ? { concernList: concerns } : {}) } : {}), ...(basisProblems.length > 0 ? { basisProblems } : {}) };
 }
 
+/**
+ * The memory check of a commit (lib/memory.js): { added, existing } of the memory in the plan's
+ * memory_root, when the commit touches a file of it; undefined otherwise, and on an internal
+ * error, so the commit is allowed (fail open, like every other gate).
+ */
+function memoryEvidence(cwd, planFile, files) {
+  try {
+    const memory = require('../lib/memory.js');
+    const rootDir = path.resolve(cwd, planFile ? memory.rootOfPlan(fs.readFileSync(path.resolve(cwd, planFile), 'utf8')) : '');
+    const prefix = path.relative(cwd, rootDir).split(path.sep).filter(Boolean).map((d) => `${d}/`).join('');
+    if (!fs.existsSync(rootDir) || !files.some((f) => f.startsWith(prefix) && memory.inScope(f.slice(prefix.length)))) return undefined;
+    const atHead = hasHead(cwd) ? { names: git(rootDir, ['ls-tree', '-r', '--name-only', 'HEAD']).split(/\r?\n/).filter(Boolean), show: (f) => git(rootDir, ['show', `HEAD:./${f}`]) } : null;
+    return memory.commitProblems(rootDir, atHead);
+  } catch {
+    return undefined;
+  }
+}
+
 /** What the commit gate needs to decide, gathered once. Fails open to a skip. */
 function commitEvidence(cwd, planFile, pluginRoot = PLUGIN_ROOT) {
   try {
     const available = list(pluginRoot).experts.map((e) => e.name);
-    if (available.length === 0) return { skip: 'no experts are installed' };
     const changes = workingChanges(cwd);
+    // The memory check runs before the skips below: a commit of memory files alone is documentation only.
+    const memory = memoryEvidence(cwd, planFile, changes.files);
+    const withMemory = (ev) => (memory ? { ...ev, memory } : ev);
+    if (available.length === 0) return withMemory({ skip: 'no experts are installed' });
     if (changes.files.length === 0) return { skip: changes.merge ? 'a merge that adds nothing beyond its parents' : 'nothing to commit' };
-    if (changes.files.every((f) => gates.isDocPath(f))) return { skip: 'only documentation changed' };
+    if (changes.files.every((f) => gates.isDocPath(f))) return withMemory({ skip: 'only documentation changed' });
 
     const recheck = readJson(evidenceFile(cwd, 'review', '_recheck'));
     const records = {};
@@ -1240,7 +1261,7 @@ function commitEvidence(cwd, planFile, pluginRoot = PLUGIN_ROOT) {
     }
     const hash = sha(changes.diff);
     const open = allFindings(cwd, hash, available).filter((f) => f.current && blocking(f) && !f.waived);
-    return { hash, recheck: recheck ? { hash: recheck.hash, final: recheck.final || [] } : null, records, planExperts, cards, available, open };
+    return withMemory({ hash, recheck: recheck ? { hash: recheck.hash, final: recheck.final || [] } : null, records, planExperts, cards, available, open });
   } catch {
     return { skip: 'the working tree could not be inspected' };
   }

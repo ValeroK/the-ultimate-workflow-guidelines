@@ -506,3 +506,59 @@ test('the missing-review and stale-evidence reasons come before the findings, be
   const r = gates.commitGate(evidence({ recheck: null, open: [openFinding()] }));
   assert.match(r.reason, /have not been re-checked/);
 });
+
+// ---- the memory check inside commitGate (PLAN-memory-index, card gate) ----
+// gates.js reads no files: it is handed evidence.memory = { added, existing }, the problems a commit
+// introduces and the ones already there at HEAD. A problem is { file, kind, text } plus line and
+// target for a link; kind is 'index', 'header' or 'link'.
+
+const staleIndex = { file: 'memory.md', kind: 'index', text: 'memory/new.md is missing from the index in memory.md' };
+const brokenLink = { file: 'AGENTS.md', kind: 'link', line: 7, target: 'gone.md', text: 'AGENTS.md:7: broken link to gone.md' };
+const oldLink = { file: 'AGENTS.md', kind: 'link', line: 3, target: 'old.md', text: 'AGENTS.md:3: broken link to old.md' };
+
+test('commitGate denies a commit that adds a stale index, and the reason names the problem and the fixing command', () => {
+  const r = gates.commitGate({ skip: 'only documentation changed', memory: { added: [staleIndex], existing: [] } });
+  assert.equal(r.allow, false);
+  assert.match(r.reason, /memory\/new\.md is missing from the index in memory\.md/);
+  assert.match(r.reason, /node experts\/experts\.js memory index/);
+});
+
+test('commitGate denies a new broken link naming file, line and target, and does not offer the index command for it', () => {
+  const r = gates.commitGate({ skip: 'only documentation changed', memory: { added: [brokenLink], existing: [] } });
+  assert.equal(r.allow, false);
+  assert.match(r.reason, /AGENTS\.md:7: broken link to gone\.md/);
+  assert.doesNotMatch(r.reason, /memory index/);
+});
+
+test('commitGate lets a problem that was already there through, and returns it as a warning', () => {
+  const r = gates.commitGate({ skip: 'only documentation changed', memory: { added: [], existing: [oldLink] } });
+  assert.equal(r.allow, true);
+  assert.deepStrictEqual(r.warnings, [oldLink.text]);
+});
+
+test('commitGate denies for the new problem only and does not repeat the old one in the reason', () => {
+  const r = gates.commitGate({ skip: 'only documentation changed', memory: { added: [brokenLink], existing: [oldLink] } });
+  assert.equal(r.allow, false);
+  assert.match(r.reason, /gone\.md/);
+  assert.doesNotMatch(r.reason, /old\.md/);
+});
+
+test('commitGate checks memory before the experts, so a memory-only commit is not waved through and a new problem is not hidden by G6', () => {
+  const r = gates.commitGate(evidence({ recheck: null, memory: { added: [brokenLink], existing: [] } }));
+  assert.equal(r.allow, false);
+  assert.match(r.reason, /gone\.md/);
+});
+
+test('commitGate keeps the old warnings when the experts gate then allows, and still denies on G6 when it must', () => {
+  const ok = gates.commitGate(evidence({ memory: { added: [], existing: [oldLink] } }));
+  assert.equal(ok.allow, true);
+  assert.deepStrictEqual(ok.warnings, [oldLink.text]);
+  const no = gates.commitGate(evidence({ recheck: null, memory: { added: [], existing: [oldLink] } }));
+  assert.equal(no.allow, false);
+  assert.match(no.reason, /Gate G6/);
+});
+
+test('commitGate: evidence with no memory part, or an empty one, behaves as before', () => {
+  assert.deepStrictEqual(gates.commitGate(evidence()), { allow: true });
+  assert.equal(gates.commitGate({ skip: 'nothing to commit', memory: { added: [], existing: [] } }).allow, true);
+});

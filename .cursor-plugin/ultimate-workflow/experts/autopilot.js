@@ -748,8 +748,13 @@ function cardCommit(cwd, { plan, card: name, feature, claimed = [], fixedRound =
   if (stateLib.gatesEnabled(process.env)) {
     const tests = gates.fullSuiteGate(state, verify.fullEvidence(cwd), 'verify.js');
     if (!tests.allow) return { ok: false, card: card.name, gate: 'G7', reason: tests.reason };
-    const g = gates.commitGate(expertsLib.commitEvidence(cwd, path.resolve(cwd, plan)));
-    if (!g.allow) return { ok: false, card: card.name, gate: 'G6', reason: g.reason };
+    const ev = expertsLib.commitEvidence(cwd, path.resolve(cwd, plan));
+    // A stale index is no reason to refuse: it is regenerated below and committed with the card.
+    const stale = Boolean(ev.memory) && ev.memory.added.some((p) => p.kind === 'index');
+    if (stale) ev.memory = { ...ev.memory, added: ev.memory.added.filter((p) => p.kind !== 'index') };
+    const g = gates.commitGate(ev);
+    if (!g.allow) return { ok: false, card: card.name, gate: ev.memory && ev.memory.added.length ? 'memory' : 'G6', reason: g.reason };
+    if (stale) memoryLib.cli(['index', '--root', memoryLib.rootOfPlan(planText) || '.'], cwd, () => {}, (m) => { throw new Error(m); });
   }
   const before = git(cwd, ['rev-parse', 'HEAD']).stdout.trim();
   const files = workFiles(cwd).all;
@@ -801,9 +806,12 @@ function harvestBranch(cwd, { feature, from }) {
   // A harvester may name a file by its absolute path; one inside the project is taken as relative to it.
   const root = path.resolve(cwd);
   for (const p of proposals) {
-    if (!path.isAbsolute(p.path)) continue;
-    const rel = path.relative(root, path.resolve(p.path));
-    if (rel && !path.isAbsolute(rel) && !fwd(rel).split('/').includes('..')) p.path = fwd(rel);
+    if (path.isAbsolute(p.path)) {
+      const rel = path.relative(root, path.resolve(p.path));
+      if (rel && !path.isAbsolute(rel) && !fwd(rel).split('/').includes('..')) p.path = fwd(rel);
+    }
+    // Backslashes and a leading ./ would slip past the memory.md refusal and the topical routing, which read the raw string.
+    p.path = fwd(p.path).replace(/^(\.\/)+/, '');
   }
   const bad = proposals.find((p) => path.isAbsolute(p.path) || /^[A-Za-z]:/.test(p.path) || fwd(p.path).split('/').includes('..') || /(^|\/)\.git(\/|$)/.test(fwd(p.path)));
   if (bad) throw new Error(`proposal path "${bad.path}" must be relative to the project and stay inside it`);
@@ -871,6 +879,8 @@ function runReport(cwd, { result: resultFile, out = '' }) {
   const r = require('./ledger.js').unwrapResult(fs.readFileSync(path.resolve(cwd, resultFile), 'utf8'));
   if (r.ok !== true) throw new Error(`the run result is not ok: ${r.error || 'no error given'}`);
   const row = (c) => `| ${c.card} | ${c.title || ''} | ${c.status} | ${c.commit || c.branch || ''} | ${String(c.reason || (c.build ? `${c.build.rounds} round(s)${c.fixRound ? ` and a fix round (${c.fixRound.outcome})` : ''}${c.superseded ? `; ran again within the plan, the held work on ${c.superseded} is superseded (kept for reference, delete it when done)` : ''}` : '')).replace(/\|/g, '/').replace(/\r?\n/g, ' ')}${c.pack ? ` (pack ${c.pack.tokens} of ${c.pack.budget} tokens)` : ''} |`;
+  const warningsFile = path.join(runDir(cwd, r.feature), 'memory-warnings.json');
+  const memoryWarnings = fs.existsSync(warningsFile) ? JSON.parse(fs.readFileSync(warningsFile, 'utf8')) : [];
   const all = [...(r.cards || []), ...(r.findingsCard ? [r.findingsCard] : []), ...(r.fixupCard ? [r.fixupCard] : [])];
   const unique = all.filter((c, i) => all.findIndex((x) => x.card === c.card && x.status === c.status) === i);
   const lines2 = [
@@ -901,6 +911,7 @@ function runReport(cwd, { result: resultFile, out = '' }) {
     '',
     r.harvest && r.harvest.ran ? (r.harvest.branch ? `${r.harvest.proposals} proposal(s) on \`${r.harvest.branch}\`, one commit per file: ${(r.harvest.commits || []).map((c) => `${c.file} (${c.commit})`).join(', ')}. Merge it to keep them, or delete it.` : `${r.harvest.proposals || 0} proposals${r.harvest.error ? `; not committed: ${r.harvest.error}` : ''}.`) : `Not run: ${(r.harvest && r.harvest.reason) || 'unknown'}.`,
     ...((r.pendingFindings || []).length ? ['', '## Findings not fixed', '', ...r.pendingFindings.map((f) => `- ${f.expert}: ${f.file}:${f.line} ${f.what}`)] : []),
+    ...(memoryWarnings.length ? ['', '## Memory', '', ...memoryWarnings.map((w) => `- ${w}`)] : []),
     '',
     'Parked cards resume with `/ultimate-workflow:feature --resume <card>`. Nothing was pushed.',
     '',
@@ -1002,10 +1013,23 @@ function runStart(cwd, { plan, feature, resume = null, implementerModel = '', di
   const argsFile = path.join(cwd, '.ultimate-workflow', 'run', 'run.args.json');
   fs.mkdirSync(path.dirname(argsFile), { recursive: true });
   fs.writeFileSync(argsFile, `${JSON.stringify({ plan: fwd(plan), feature, ...(resume ? { resume } : {}), ...(implementerModel ? { implementerModel } : {}), ...(diagnoserModel ? { diagnoserModel } : {}) }, null, 2)}\n`);
+  const memoryRoot = path.resolve(cwd, memoryLib.rootOfPlan(fs.readFileSync(path.resolve(cwd, plan), 'utf8')));
+  let warnings = [];
+  if (fs.existsSync(path.join(memoryRoot, 'memory.md'))) {
+    try {
+      warnings = memoryLib.workingProblems(memoryRoot).map((p) => p.text);
+    } catch (e) {
+      warnings = [`memory check failed: ${e.message}`];
+    }
+  }
+  // runReport reads them back from here: the report is built from the run's result, which never held them.
+  fs.mkdirSync(runDir(cwd, feature), { recursive: true });
+  fs.writeFileSync(path.join(runDir(cwd, feature), 'memory-warnings.json'), `${JSON.stringify(warnings)}
+`);
   const s = require('./experts.js').stageScript(pluginRoot, cwd, 'run', { argsFile });
   const embedded = JSON.parse(/^const EMBEDDED_ARGS = (.*)$/m.exec(fs.readFileSync(s.scriptPath, 'utf8'))[1]);
   const failed = embedded.cards.filter((c) => c.preflight && c.preflight.ok === false).map((c) => ({ card: c.name, reason: c.preflight.reason }));
-  return { ok: true, branch: branch.branch, created: branch.created, ...(ignoreCommit ? { ignoreCommit } : {}), baseline, scriptPath: s.scriptPath, cards: embedded.cards.map((c) => c.name), preflightFailed: failed, ...(interrupted.length ? { interrupted } : {}), ...(resumeNotice ? { resumeNotice } : {}) };
+  return { ok: true, branch: branch.branch, created: branch.created, warnings, ...(ignoreCommit ? { ignoreCommit } : {}), baseline, scriptPath: s.scriptPath, cards: embedded.cards.map((c) => c.name), preflightFailed: failed, ...(interrupted.length ? { interrupted } : {}), ...(resumeNotice ? { resumeNotice } : {}) };
 }
 
 /**

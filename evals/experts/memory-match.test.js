@@ -83,6 +83,12 @@ test('a topical with no header matches through its memory.md cue, as before', ()
 test('a topical missing from memory.md is matched from its header; an invalid header matches nothing', () => {
   const topicals = { 'memory/a.md': topical({ paths: ['hooks/**'] }), 'memory/bad.md': '---\nbogus: 1\n---\n' };
   assert.deepStrictEqual(names(memory.matchTopicals('# Memory\n', topicals, card(['hooks/x.js']))), ['memory/a.md']);
+
+  // The invalid header must be what keeps bad.md out: memory.md has a cue for it that the card meets,
+  // and the same cue does match a topical with no header at all.
+  const memoryMd = '# Memory\n- [memory/bad.md](memory/bad.md) - broken. **Read when** touching `src/bad.js`.\n';
+  assert.deepStrictEqual(memory.matchTopicals(memoryMd, { 'memory/bad.md': topicals['memory/bad.md'] }, card(['src/bad.js'])), []);
+  assert.deepStrictEqual(memory.matchTopicals(memoryMd, { 'memory/bad.md': '# bad\n' }, card(['src/bad.js'])), [{ file: 'memory/bad.md', how: 'cue' }]);
 });
 
 test('order is path matches first, then keyword matches, each by path, and says how it matched', () => {

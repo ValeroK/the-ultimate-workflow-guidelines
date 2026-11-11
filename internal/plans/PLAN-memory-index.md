@@ -228,8 +228,7 @@ evals/security-expert/provenance.test.js caps the `experts/` folder at 430,080 b
 - index: generated memory index from topical headers
   paths: .cursor-plugin/ultimate-workflow/lib/memory.js, .cursor-plugin/ultimate-workflow/experts/experts.js, evals/experts/memory.test.js
   experts: [quality]
-  status: parked uw/parked/memory-index/index; not green: Verification failed 1 times. Stopping. What is wrong: The code is not functionally broken, the change runs into a size cap that the plan never accounted for. evals/security-expert/provenance.test.js:137-151 sums every file under
-  parked: uw/parked/memory-index/index; not green: Verification failed 1 times. Stopping. What is wrong: The code is not functionally broken, the change runs into a size cap that the plan never accounted for. evals/security-expert/provenance.test.js:137-151 sums every file under
+  status: pending
 - links: link check for the entry and memory files
   paths: .cursor-plugin/ultimate-workflow/lib/links.js, .cursor-plugin/ultimate-workflow/lib/memory.js, .cursor-plugin/ultimate-workflow/experts/experts.js, evals/experts/links.test.js, evals/experts/memory.test.js
   depends: index

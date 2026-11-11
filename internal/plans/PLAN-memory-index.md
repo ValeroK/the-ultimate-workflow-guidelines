@@ -5,12 +5,13 @@ tests_confirmed: true
 test_command: node --test ".cursor-plugin/ultimate-workflow/hooks/**/*.test.js" "evals/**/*.test.js" mirrors.test.js
 experts: [quality, genai, security, developer, softarch]
 memory_root: .cursor-plugin/ultimate-workflow
+pack_budget: 25000
 dirty: false
 verify_rounds: 0
 last_verify: green
 escalated: false
 gate_violation: 
-confirmed_hash: 9ee6d86557eeef4b
+confirmed_hash: 0547164f24d2d7d5
 ---
 
 # PLAN: memory-index
@@ -67,6 +68,11 @@ harvest that creates a new topical shows it in memory.md on the harvest branch.
 
 9. The new code lives in a new `lib/` folder, not in `experts/`, because of the byte budget on
    `experts/` (Decisions, "Where the new code lives"). Card paths and card sections say so.
+10. This plan sets `pack_budget: 25000` for now: the docs card's required entries alone are 22,537
+    tokens. The budget test names the seven plan cards and checks a card's own section is counted
+    once (owner, 2026-11-11).
+11. New card `fixes`: the seven findings the review of 2026-11-11 confirmed and no card fixed. The
+    docs card depends on it, so the migration is fixed before it runs on this repo.
 
 ## Why
 
@@ -191,7 +197,9 @@ harvest that creates a new topical shows it in memory.md on the harvest branch.
   diagnosis, the journal) is never dropped. Dropped entries are
   listed in the pack as "not loaded (budget)". A pack never fails or parks a card for its size: if
   the required entries alone are over budget, the run sends one notice naming the card and the
-  size, and goes on.
+  size, and goes on. **This plan sets `pack_budget: 25000` for now** (owner, 2026-11-11): measured
+  on 2026-11-11, the docs card's required entries alone are 22,537 tokens (the seven documents its
+  paths name are 15,646), so it cannot fit the default. The default stays 15,000.
 - **Do-not-load list.** Every pack ends with a short fixed list: other cards' folders except the
   handoffs listed, topicals not listed, the plan outside the listed line ranges, other `PLAN-*.md`
   files.
@@ -250,6 +258,10 @@ evals/security-expert/provenance.test.js caps the `experts/` folder at 430,080 b
   experts: [quality, genai, security]
   status: parked uw/parked/memory-index/budget; not green: Verification failed 1 times. Stopping. What is wrong: The test's assertion is unsatisfiable for the docs card on this plan, the code is doing what the plan's Decisions specify. Evidence (ran `pack` for every card of internal/plan
   parked: uw/parked/memory-index/budget; not green: Verification failed 1 times. Stopping. What is wrong: The test's assertion is unsatisfiable for the docs card on this plan, the code is doing what the plan's Decisions specify. Evidence (ran `pack` for every card of internal/plan
+- fixes: review findings of 2026-11-11 in the migration and the matcher
+  paths: .cursor-plugin/ultimate-workflow/lib/memory.js, evals/experts/memory.test.js, evals/experts/memory-match.test.js, evals/experts/links.test.js
+  depends: match
+  experts: [quality, genai, security]
 - harvest: harvest writes headers and regenerates the index
   paths: .cursor-plugin/ultimate-workflow/lib/memory.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, .cursor-plugin/ultimate-workflow/phases/harvest.js, .cursor-plugin/ultimate-workflow/phases/run.js, .cursor-plugin/ultimate-workflow/commands/harvest.md, .cursor-plugin/ultimate-workflow/agents/uw-harvester.md, evals/experts/harvest.test.js, evals/experts/autopilot.test.js
   depends: index, match, budget
@@ -262,7 +274,7 @@ evals/security-expert/provenance.test.js caps the `experts/` folder at 430,080 b
   status: blocked by harvest
 - docs: templates, protocol, migration of this repo, release
   paths: .cursor-plugin/ultimate-workflow/memory.md, .cursor-plugin/ultimate-workflow/memory/**, .cursor-plugin/ultimate-workflow/skills/the-ultimate-workflow-guidelines/references/memory-protocol.md, .cursor-plugin/ultimate-workflow/skills/the-ultimate-workflow-guidelines/references/memory-template.md, .cursor-plugin/ultimate-workflow/skills/project-bootstrap-guidelines/references/memory-template.md, .cursor-plugin/ultimate-workflow/skills/project-bootstrap-guidelines/SKILL.md, .cursor-plugin/ultimate-workflow/skills/the-ultimate-workflow-guidelines/SKILL.md, .cursor-plugin/ultimate-workflow/rules/**, .cursor-plugin/ultimate-workflow/phases/run.md, mirrors.test.js, CHANGELOG.md, .cursor-plugin/plugin.json, .claude-plugin/marketplace.json
-  depends: index, links, match, budget, harvest, gate
+  depends: index, links, match, budget, fixes, harvest, gate
   experts: [quality, genai, security]
   status: blocked by budget
 - fixup: confirmed review findings
@@ -364,6 +376,14 @@ gains one line: name the documents a card must read in that card's own section. 
 CHANGELOG 4.8.0 entry, version 4.8.0 in `plugin.json` and `marketplace.json`, and the per-commit
 load check from the CHANGELOG release steps.
 
+### Card fixes
+
+The seven findings the review of 2026-11-11 confirmed and no card fixed (the run could not add a
+second fix-up card). All in `lib/memory.js` and its tests; no new command, no new file. Decisions
+are unchanged: header paths stay relative to the memory root. The migration keeps every match the
+old cue gave; `cueWarnings` uses the same `covers` rule the matcher uses, and its own glob rewrite
+goes; `withHeader` keeps a leading BOM first.
+
 ## Tests
 
 Command: `node --test ".cursor-plugin/ultimate-workflow/hooks/**/*.test.js" "evals/**/*.test.js" mirrors.test.js`
@@ -446,8 +466,12 @@ Command: `node --test ".cursor-plugin/ultimate-workflow/hooks/**/*.test.js" "eva
 - A plan with no per-card section at all: every cited document is required for every card, as
   today (the calc fixture's packs list the same documents before and after).
 - On this plan, the measured pack of every card except docs no longer carries the workflow skill
-  as required, and each card's counted size is under 15,000 and smaller than the 2026-11-10 measure
-  (about 22,500 tokens).
+  as required and is smaller than the 2026-11-10 measure (about 22,500 tokens); every card's
+  counted size, docs included, is under the plan's `pack_budget` (25,000). The test names the seven
+  plan cards (index, links, match, budget, harvest, gate, docs); cards a run adds (fixup, findings)
+  are not measured.
+- A card's own section appears once in its pack and is counted once, though it lies inside the
+  `## Cards` range.
 - The default budget is 15,000. Under budget: nothing is dropped and the pack states its size and
   the budget.
 - Over budget: only topicals are dropped, keyword-only ones before path-matched ones, and among
@@ -531,9 +555,26 @@ Command: `node --test ".cursor-plugin/ultimate-workflow/hooks/**/*.test.js" "eva
 - `plugin.json` and `marketplace.json` say 4.8.0; the CHANGELOG has a 4.8.0 entry.
 - The full suite passes; every changed `.js` file parses at its own commit.
 
+### fixes: review findings of 2026-11-11 in the migration and the matcher
+
+- A card that matched a topical through a backticked cue term containing `/` before the migration
+  still matches it after, including when the term is in the card's text and is not a path under
+  the memory root.
+- A header path that ends in `/` (`agents/`) gives no "matches no file" warning when a file lies
+  below that folder, and gives one when none does.
+- `cueWarnings` and the matcher agree on every header path shape the tests use (`dir/`, `dir/**`,
+  `dir/*.js`, `**/name.js`): a path the matcher would match for a file is never warned about.
+- A topical that starts with a BOM still starts with it after the migration, followed by the
+  header; the BOM appears nowhere else.
+- A keyword with a capital letter (`Cursor`) matches a card text that has it in lower case, and the
+  reverse.
+- `migrateTexts` leaves a topical's memory.md entry and its text unchanged when it cannot build a
+  valid header for it (an entry with no description, and one with no cue).
+- A header whose `updated` is not `YYYY-MM-DD` (`2026-13-40`, `yesterday`) is rejected.
+
 ## Order and versions
 
-index, links, match, budget, harvest, gate, docs, one at a time (several share `autopilot.js` and
+index, links, match, budget, fixes, harvest, gate, docs, one at a time (several share `autopilot.js` and
 `experts.js`). One release, 4.8.0.
 
 ## Risks

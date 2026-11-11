@@ -1493,6 +1493,15 @@ function main(argv) {
       return fail(err.message);
     }
   }
+  // The topical headers and the generated index in memory.md: memory index|check|migrate.
+  if (argv[0] === 'memory') {
+    try {
+      process.exitCode = require('../lib/memory.js').cli(argv.slice(1), process.cwd(), (s) => process.stdout.write(s), fail);
+      return;
+    } catch (err) {
+      return fail(err.message);
+    }
+  }
   // The autopilot run's card steps (4.7.0): pack, handoff, park, unpark, journal, card-commit, ...
   if (require('./autopilot.js').COMMANDS.includes(argv[0])) {
     try {

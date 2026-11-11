@@ -228,8 +228,7 @@ evals/security-expert/provenance.test.js caps the `experts/` folder at 430,080 b
 - index: generated memory index from topical headers
   paths: .cursor-plugin/ultimate-workflow/lib/memory.js, .cursor-plugin/ultimate-workflow/experts/experts.js, evals/experts/memory.test.js
   experts: [quality, genai, security]
-  status: parked uw/parked/memory-index/index; the commit was refused: Gate G6: the re-check dropped genai, security, which card index, links, budget, gate, match, harvest names. Experts can be added, never removed. Run /ultimate-workflow:experts, which re-asks which domain experts appl
-  parked: uw/parked/memory-index/index; the commit was refused: Gate G6: the re-check dropped genai, security, which card index, links, budget, gate, match, harvest names. Experts can be added, never removed. Run /ultimate-workflow:experts, which re-asks which domain experts appl
+  status: committed
 - links: link check for the entry and memory files
   paths: .cursor-plugin/ultimate-workflow/lib/links.js, .cursor-plugin/ultimate-workflow/lib/memory.js, .cursor-plugin/ultimate-workflow/experts/experts.js, evals/experts/links.test.js, evals/experts/memory.test.js
   depends: index

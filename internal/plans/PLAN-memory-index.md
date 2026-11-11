@@ -256,8 +256,7 @@ evals/security-expert/provenance.test.js caps the `experts/` folder at 430,080 b
   paths: .cursor-plugin/ultimate-workflow/lib/pack.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, .cursor-plugin/ultimate-workflow/experts/experts.js, .cursor-plugin/ultimate-workflow/phases/run.js, evals/experts/autopilot.test.js, evals/experts/pack-budget.test.js
   depends: match
   experts: [quality, genai, security]
-  status: parked uw/parked/memory-index/budget; the commit was refused: Gate G6: the domain experts have not been re-checked against these changes. Run /ultimate-workflow:experts, which re-asks which domain experts apply (it can only add) and runs them, then commit again. If you have not
-  parked: uw/parked/memory-index/budget; the commit was refused: Gate G6: the domain experts have not been re-checked against these changes. Run /ultimate-workflow:experts, which re-asks which domain experts apply (it can only add) and runs them, then commit again. If you have not
+  status: committed
 - fixes: review findings of 2026-11-11 in the migration and the matcher
   paths: .cursor-plugin/ultimate-workflow/lib/memory.js, evals/experts/memory.test.js, evals/experts/memory-match.test.js, evals/experts/links.test.js
   depends: match

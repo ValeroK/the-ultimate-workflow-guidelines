@@ -32,6 +32,7 @@ const { spawnSync } = require('node:child_process');
 
 const cardsLib = require('./cards.js');
 const memoryLib = require('../lib/memory.js');
+const packLib = require('../lib/pack.js');
 
 const FEATURE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const JOURNAL_CARD_LINES = 15;
@@ -160,18 +161,23 @@ function pack(cwd, { plan, card: name, feature, resume = false, adhoc = false })
 
   const heads = sections(planText);
   const entries = [];
-  const add = (p, why, { optional = false } = {}) => entries.push({ path: p, why, optional });
-  for (const h of heads.filter((x) => x.level === 2 && SHARED.test(x.title))) add(`${planRel} lines ${h.start}-${h.end}`, `## ${h.title}`);
+  const planLines = lines(planText);
+  const ofRange = (h) => planLines.slice(h.start - 1, h.end).join('\n');
+  const sizeOfFile = (f) => (fs.existsSync(path.join(cwd, f)) ? fs.readFileSync(path.join(cwd, f), 'utf8').length : 0);
+  const add = (p, why, { optional = false, role = 'required', chars = sizeOfFile(p), how, matches } = {}) => entries.push({ path: p, why, optional, role, chars, how, matches });
+  const addRange = (h, why) => add(`${planRel} lines ${h.start}-${h.end}`, why, { chars: ofRange(h).length });
+  for (const h of heads.filter((x) => x.level === 2 && SHARED.test(x.title))) addRange(h, `## ${h.title}`);
   const own = heads.find((h) => /^card\s/i.test(h.title) && nameRe(card.name).test(h.title));
-  if (own) add(`${planRel} lines ${own.start}-${own.end}`, `this card's section: ${own.title}`);
   const cardsHead = heads.find((h) => /^cards$/i.test(h.title));
-  if (cardsHead) add(`${planRel} lines ${cardsHead.start}-${cardsHead.end}`, `## Cards: this card is "${card.name}: ${card.title}"`);
+  // A card section under ## Cards is already inside that range: listed once, so counted once.
+  if (own && !(cardsHead && own.start >= cardsHead.start && own.end <= cardsHead.end)) addRange(own, `this card's section: ${own.title}`);
+  if (cardsHead) addRange(cardsHead, `## Cards: this card is "${card.name}: ${card.title}"`);
   // A card the run adds itself (the findings card, the review's fix-up card) has no test-plan
   // section: its work is the carried items, and the tests are written for them.
   const t = adhoc ? null : testSection(planText, card.name, all.length);
-  if (adhoc) add('(in this pack)', 'this card was added by the run and has no test-plan section: write a test for each carried item that can have one');
+  if (adhoc) add('(in this pack)', 'this card was added by the run and has no test-plan section: write a test for each carried item that can have one', { chars: 0 });
   else if (!t) problems.push(`no test-plan section for card ${card.name} (a heading under the plan's Tests section that names it)`);
-  else add(`${planRel} lines ${t.start}-${t.end}`, `this card's tests: ${t.title}`);
+  else addRange(t, `this card's tests: ${t.title}`);
 
   // Documents the plan cites. One that a card's paths cover is to be written by the run, not read.
   const expertsLib = require('./experts.js');
@@ -179,20 +185,27 @@ function pack(cwd, { plan, card: name, feature, resume = false, adhoc = false })
   // user cited: a report missing on a fresh checkout parked the next card as "missing input".
   const cited = expertsLib.planPaths(planText).map((p) => fwd(p).replace(/^\.\//, '')).filter((p) => DOC_EXT.test(p) && !/(^|\/)PLAN-[^/]*\.md$/.test(p) && !/^\.ultimate-workflow\//.test(p));
   const globRe = expertsLib.globToRegExp;
+  const namedByText = [own, t].filter(Boolean).map(ofRange).join('\n');
+  const perCard = all.some((c) => heads.some((h) => /^card\s/i.test(h.title) && nameRe(c.name).test(h.title)));
   for (const doc of [...new Set(cited)]) {
     const byCard = all.some((c) => c.paths.length > 0 && cardsLib.covers(c.paths, doc, globRe));
-    if (fs.existsSync(path.join(cwd, doc))) add(doc, summaryOf(path.join(cwd, doc)) || 'cited by the plan');
+    if (fs.existsSync(path.join(cwd, doc))) add(doc, summaryOf(path.join(cwd, doc)) || 'cited by the plan', { role: packLib.citedRole(doc, { perCard, namedByText, namedByPaths: cardsLib.covers(card.paths, doc, globRe) }) });
     else if (!byCard) problems.push(`the plan cites ${doc}, which does not exist`);
   }
-  for (const f of ['AGENTS.md', 'CLAUDE.md']) if (fs.existsSync(path.join(cwd, f))) add(f, 'project rules and Gotchas');
+  for (const f of ['AGENTS.md', 'CLAUDE.md']) if (fs.existsSync(path.join(cwd, f))) add(f, 'project rules and Gotchas', { role: 'conditional' });
   const memoryRoot = String(require('../hooks/lib/state.js').parseFrontMatter(planText).data.memory_root || '').trim();
-  for (const { path: topical } of matchingTopicals(cwd, card, memoryRoot)) add(topical, summaryOf(path.join(cwd, topical)) || 'project memory');
+  const budget = packLib.budgetOf(require('../hooks/lib/state.js').parseFrontMatter(planText).data.pack_budget);
+  const ownPaths = card.paths.map(cardsLib.cleanPath).filter((p) => p.startsWith(memoryRoot ? `${memoryRoot}/` : '')).map((p) => p.slice(memoryRoot ? memoryRoot.length + 1 : 0));
+  for (const { path: topical, how } of matchingTopicals(cwd, card, memoryRoot)) {
+    const header = memoryLib.parseHeader(fs.readFileSync(path.join(cwd, topical), 'utf8')).header;
+    add(topical, summaryOf(path.join(cwd, topical)) || 'project memory', { role: 'topical', how, matches: header ? packLib.matchCount(header.paths, ownPaths, (g, p) => cardsLib.covers(g, p, expertsLib.globToRegExp)) : 0 });
+  }
   for (const dep of card.depends || []) {
     if (!all.some((c) => c.name.toLowerCase() === dep.toLowerCase())) problems.push(`card ${card.name} depends on ${dep}, which is not a card of the plan`);
     add(rel(cwd, path.join(cardDir(cwd, feature, dep), 'handoff.md')), `what card ${dep} left for this one`, { optional: true });
   }
   add(rel(cwd, path.join(runDir(cwd, feature), 'journal.md')), 'lessons from the earlier cards of this run', { optional: true });
-  if (card.carried.length) add('(in this pack)', `carried to this card: ${card.carried.join('; ')}`);
+  if (card.carried.length) add('(in this pack)', `carried to this card: ${card.carried.join('; ')}`, { chars: 0 });
   if (resume) {
     const parked = path.join(dir, 'parked.md');
     // The run folder is not committed, so on another checkout (or after it was cleaned) the
@@ -209,22 +222,14 @@ function pack(cwd, { plan, card: name, feature, resume = false, adhoc = false })
     else problems.push(`--resume, but card ${card.name} has no parked.md and no ${branch} to read it from`);
   }
 
-  const body = [
-    `# Context pack: card ${card.name} (${card.title})`,
-    '',
-    'Read these before you write anything. Paths are relative to the project root; "lines a-b" is the part of the file that matters. An entry marked "if present" may not exist yet: skip it then.',
-    '',
-    ...entries.map((e) => `- ${e.path}${e.optional ? ' (if present)' : ''}: ${e.why}`),
-    '',
-    `Files this card may change: ${card.paths.join(', ') || '(none listed)'}`,
-    '',
-  ].join('\n');
+  const intro = 'Read these before you write anything. Paths are relative to the project root; "lines a-b" is the part of the file that matters. An entry marked "if present" may not exist yet: skip it then.';
+  const built = packLib.assemble({ title: `# Context pack: card ${card.name} (${card.title})`, intro, entries, mayChange: card.paths.join(', ') || '(none listed)', budget: budget.budget, warnings: budget.warning ? [budget.warning] : [] });
   fs.mkdirSync(dir, { recursive: true });
   const file = path.join(dir, 'context.md');
-  fs.writeFileSync(file, body);
+  fs.writeFileSync(file, built.body);
   const contextFile = rel(cwd, file);
   if (problems.length > 0) return { ok: false, card: card.name, reason: `missing input: ${problems.join('; ')}`, contextFile };
-  return { ok: true, card: card.name, contextFile, entries: entries.length };
+  return { ok: true, card: card.name, contextFile, entries: entries.length, tokens: built.tokens, budget: built.budget, dropped: built.dropped, overBudget: built.overBudget, warnings: built.warnings };
 }
 
 /**
@@ -348,7 +353,7 @@ function commitPlan(cwd, plan, message) {
  * phone over Remote Control, which only the main session's PushNotification at the end does.
  * `ULTIMATE_WORKFLOW_NOTIFY=off` keeps the file and skips the desktop notification.
  */
-const NOTIFY_KINDS = ['parked', 'needs-decision', 'blocked', 'stopped', 'resumed', 'finished'];
+const NOTIFY_KINDS = ['over-budget', 'parked', 'needs-decision', 'blocked', 'stopped', 'resumed', 'finished'];
 function notify(cwd, { feature, kind, card = '', reason = '', reasonFile = '', action = '' }) {
   checkFeature(feature);
   if (!NOTIFY_KINDS.includes(kind)) throw new Error(`notify --kind is one of ${NOTIFY_KINDS.join(', ')}`);
@@ -871,7 +876,7 @@ function harvestBranch(cwd, { feature, from }) {
 function runReport(cwd, { result: resultFile, out = '' }) {
   const r = require('./ledger.js').unwrapResult(fs.readFileSync(path.resolve(cwd, resultFile), 'utf8'));
   if (r.ok !== true) throw new Error(`the run result is not ok: ${r.error || 'no error given'}`);
-  const row = (c) => `| ${c.card} | ${c.title || ''} | ${c.status} | ${c.commit || c.branch || ''} | ${String(c.reason || (c.build ? `${c.build.rounds} round(s)${c.fixRound ? ` and a fix round (${c.fixRound.outcome})` : ''}${c.superseded ? `; ran again within the plan, the held work on ${c.superseded} is superseded (kept for reference, delete it when done)` : ''}` : '')).replace(/\|/g, '/').replace(/\r?\n/g, ' ')} |`;
+  const row = (c) => `| ${c.card} | ${c.title || ''} | ${c.status} | ${c.commit || c.branch || ''} | ${String(c.reason || (c.build ? `${c.build.rounds} round(s)${c.fixRound ? ` and a fix round (${c.fixRound.outcome})` : ''}${c.superseded ? `; ran again within the plan, the held work on ${c.superseded} is superseded (kept for reference, delete it when done)` : ''}` : '')).replace(/\|/g, '/').replace(/\r?\n/g, ' ')}${c.pack ? ` (pack ${c.pack.tokens} of ${c.pack.budget} tokens)` : ''} |`;
   const all = [...(r.cards || []), ...(r.findingsCard ? [r.findingsCard] : []), ...(r.fixupCard ? [r.fixupCard] : [])];
   const unique = all.filter((c, i) => all.findIndex((x) => x.card === c.card && x.status === c.status) === i);
   const lines2 = [

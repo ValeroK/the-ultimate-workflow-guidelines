@@ -572,6 +572,7 @@ For each: read the code around it, check whether the failure path is reachable, 
 const status = {}
 const grownExperts = new Set()
 const report = []
+const packs = {}
 const lanes = []
 const handed = {}
 const findingsQueue = []
@@ -687,6 +688,8 @@ async function runCard(card, { adhoc = false } = {}) {
   log(`card ${card.name}: ${card.title}`)
   const pre = card.preflight || { ok: false, reason: 'no context pack was written for this card' }
   if (!pre.ok) return parkCard(card, pre.reason || 'missing input')
+  if (pre.tokens !== undefined) packs[card.name] = { tokens: pre.tokens, budget: pre.budget }
+  if (pre.overBudget) await runSteps(`${card.name}:budget`, [cliCmd('notify', '--feature', FEATURE, '--kind', 'over-budget', '--card', card.name, '--reason', q(`the context pack is about ${pre.tokens} tokens, over its budget of ${pre.budget}: the required entries alone are too large`))])
   // The plan shows the card as running before any work, so a run that dies inside it leaves it there.
   await runSteps(`${card.name}:start`, [cliCmd('card-status', '--plan', q(PLAN), '--card', card.name, '--status', q(RESUME && RESUME.card === card.name ? 'running (resumed)' : 'running'))])
   const carried = handed[card.name] || []
@@ -1016,7 +1019,7 @@ return {
   branch: `uw/run/${FEATURE}`,
   base: BASE,
   plan: PLAN,
-  cards: report,
+  cards: report.map((e) => (packs[e.card] ? { ...e, pack: packs[e.card] } : e)),
   earlier,
   counts,
   findingsCard,

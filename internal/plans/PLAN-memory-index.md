@@ -10,7 +10,7 @@ verify_rounds: 0
 last_verify: green
 escalated: false
 gate_violation: 
-confirmed_hash: fd8d02389358568e
+confirmed_hash: 9ee6d86557eeef4b
 ---
 
 # PLAN: memory-index
@@ -227,38 +227,38 @@ evals/security-expert/provenance.test.js caps the `experts/` folder at 430,080 b
 
 - index: generated memory index from topical headers
   paths: .cursor-plugin/ultimate-workflow/lib/memory.js, .cursor-plugin/ultimate-workflow/experts/experts.js, evals/experts/memory.test.js
-  experts: [quality]
+  experts: [quality, genai, security]
   status: parked uw/parked/memory-index/index; the commit was refused: Gate G6: the re-check dropped genai, security, which card index, links, budget, gate, match, harvest names. Experts can be added, never removed. Run /ultimate-workflow:experts, which re-asks which domain experts appl
   parked: uw/parked/memory-index/index; the commit was refused: Gate G6: the re-check dropped genai, security, which card index, links, budget, gate, match, harvest names. Experts can be added, never removed. Run /ultimate-workflow:experts, which re-asks which domain experts appl
 - links: link check for the entry and memory files
   paths: .cursor-plugin/ultimate-workflow/lib/links.js, .cursor-plugin/ultimate-workflow/lib/memory.js, .cursor-plugin/ultimate-workflow/experts/experts.js, evals/experts/links.test.js, evals/experts/memory.test.js
   depends: index
-  experts: [quality]
+  experts: [quality, genai, security]
   status: blocked by index
 - match: cards pick topicals from the headers
   paths: .cursor-plugin/ultimate-workflow/lib/memory.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, evals/experts/autopilot.test.js, evals/experts/memory-match.test.js
   depends: index
-  experts: [quality]
+  experts: [quality, genai, security]
   status: blocked by index
 - budget: pack size, budget and do-not-load list
   paths: .cursor-plugin/ultimate-workflow/lib/pack.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, .cursor-plugin/ultimate-workflow/experts/experts.js, .cursor-plugin/ultimate-workflow/phases/run.js, evals/experts/autopilot.test.js, evals/experts/pack-budget.test.js
   depends: match
-  experts: [quality, genai]
+  experts: [quality, genai, security]
   status: blocked by match
 - harvest: harvest writes headers and regenerates the index
   paths: .cursor-plugin/ultimate-workflow/lib/memory.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, .cursor-plugin/ultimate-workflow/phases/harvest.js, .cursor-plugin/ultimate-workflow/phases/run.js, .cursor-plugin/ultimate-workflow/commands/harvest.md, .cursor-plugin/ultimate-workflow/agents/uw-harvester.md, evals/experts/harvest.test.js, evals/experts/autopilot.test.js
   depends: index, match, budget
-  experts: [quality]
+  experts: [quality, genai, security]
   status: blocked by index
 - gate: commit refused on a stale index or a broken link
   paths: .cursor-plugin/ultimate-workflow/hooks/lib/gates.js, .cursor-plugin/ultimate-workflow/hooks/lib/gates.test.js, .cursor-plugin/ultimate-workflow/hooks/gate.js, .cursor-plugin/ultimate-workflow/lib/memory.js, .cursor-plugin/ultimate-workflow/experts/experts.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, evals/experts/experts.test.js, evals/experts/autopilot.test.js, evals/experts/memory-gate.test.js
   depends: index, links, harvest
-  experts: [quality, security]
+  experts: [quality, genai, security]
   status: blocked by index
 - docs: templates, protocol, migration of this repo, release
   paths: .cursor-plugin/ultimate-workflow/memory.md, .cursor-plugin/ultimate-workflow/memory/**, .cursor-plugin/ultimate-workflow/skills/the-ultimate-workflow-guidelines/references/memory-protocol.md, .cursor-plugin/ultimate-workflow/skills/the-ultimate-workflow-guidelines/references/memory-template.md, .cursor-plugin/ultimate-workflow/skills/project-bootstrap-guidelines/references/memory-template.md, .cursor-plugin/ultimate-workflow/skills/project-bootstrap-guidelines/SKILL.md, .cursor-plugin/ultimate-workflow/skills/the-ultimate-workflow-guidelines/SKILL.md, .cursor-plugin/ultimate-workflow/rules/**, .cursor-plugin/ultimate-workflow/phases/run.md, mirrors.test.js, CHANGELOG.md, .cursor-plugin/plugin.json, .claude-plugin/marketplace.json
   depends: index, links, match, budget, harvest, gate
-  experts: [quality]
+  experts: [quality, genai, security]
   status: blocked by index
 
 ### Card index

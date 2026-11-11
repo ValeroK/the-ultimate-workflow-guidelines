@@ -3,7 +3,7 @@ phase: build
 plan_confirmed: true
 tests_confirmed: true
 test_command: node --test ".cursor-plugin/ultimate-workflow/hooks/**/*.test.js" "evals/**/*.test.js" mirrors.test.js
-experts: [quality, genai, security]
+experts: [quality, genai, security, developer]
 memory_root: .cursor-plugin/ultimate-workflow
 dirty: false
 verify_rounds: 0
@@ -228,7 +228,8 @@ evals/security-expert/provenance.test.js caps the `experts/` folder at 430,080 b
 - index: generated memory index from topical headers
   paths: .cursor-plugin/ultimate-workflow/lib/memory.js, .cursor-plugin/ultimate-workflow/experts/experts.js, evals/experts/memory.test.js
   experts: [quality]
-  status: pending
+  status: parked uw/parked/memory-index/index; the commit was refused: card-commit printed nothing
+  parked: uw/parked/memory-index/index; the commit was refused: card-commit printed nothing
 - links: link check for the entry and memory files
   paths: .cursor-plugin/ultimate-workflow/lib/links.js, .cursor-plugin/ultimate-workflow/lib/memory.js, .cursor-plugin/ultimate-workflow/experts/experts.js, evals/experts/links.test.js, evals/experts/memory.test.js
   depends: index

@@ -270,6 +270,11 @@ evals/security-expert/provenance.test.js caps the `experts/` folder at 430,080 b
   carried: correctness at C:\Users\kobiv\Projects\the-ultimate-workflow-guidelines\.cursor-plugin\ultimate-workflow\lib\memory.js:145: withHeader keeps a bare conjunction as a keyword: the strip `/^(?:or|and)\s+/` needs whitespace after the word, so a cue fragment that is only 'or' or 'and' (what is left once the backticked terms are removed) survives the `/\w/` filter.; correctness at C:\Users\kobiv\Projects\the-ultimate-workflow-guidelines\.cursor-plugin\ultimate-workflow\lib\links.js:18: fileTarget treats a home-relative import (`@~/...`) as a path relative to the project and reports it broken, only targets starting with `/`, `#`, a scheme or containing `{` are skipped.; correctness at C:\Users\kobiv\Projects\the-ultimate-workflow-guidelines\.cursor-plugin\ultimate-workflow\lib\links.js:43: brokenLinks runs the LINK regex over the whole line and does not skip inline code spans, so a markdown link shown as an example inside backticks is checked as a real link.; simplicity at .cursor-plugin/ultimate-workflow/lib/memory.js:257: A second glob-to-regex converter (`globRe`) was written although `globToRegExp` already exists and is exported from experts/experts.js:213 (and is passed around as a parameter by cardsLib and autopilot.js), and the two disagree on `**/`.; simplicity at .cursor-plugin/ultimate-workflow/lib/links.js:68: The `links` command walks the whole project tree (`listFiles(root)`, skipping only .git and node_modules) to select four fixed locations: AGENTS.md, CLAUDE.md, memory.md and memory/.; test-coverage at C:\Users\kobiv\Projects\the-ultimate-workflow-guidelines\evals\experts\links.test.js:142: The header-glob warning (globRe/cueWarnings in lib/memory.js:257-269) is only exercised with the shape `dir/**`, so the single-star and leading-`**/` semantics of the hand-written glob converter have no oracle.; test-coverage at C:\Users\kobiv\Projects\the-ultimate-workflow-guidelines\evals\experts\memory.test.js:154: No test covers a memory.md that has the start marker but no end marker, the one state where findBlock (lib/memory.js:96-102) deliberately throws instead of guessing.
   status: fixed-in-round b320f7b480da
   committed: b320f7b480da
+- findings: non-blocking expert findings no card fixed
+  paths: evals/experts/memory-match.test.js
+  carried: quality at evals/experts/memory-match.test.js:267: The 'invalid header matches nothing' half of the test cannot fail, because memory.md is '# Memory\n' and has no cue for bad.md.
+  status: committed 8c547194b7cc
+  committed: 8c547194b7cc
 
 ### Card index
 
@@ -358,11 +363,6 @@ gains one line: name the documents a card must read in that card's own section. 
 `mirrors.test.js` memory tests with one that runs `memory check --root .cursor-plugin/ultimate-workflow`.
 CHANGELOG 4.8.0 entry, version 4.8.0 in `plugin.json` and `marketplace.json`, and the per-commit
 load check from the CHANGELOG release steps.
-- findings: non-blocking expert findings no card fixed
-  paths: evals/experts/memory-match.test.js
-  carried: quality at evals/experts/memory-match.test.js:267: The 'invalid header matches nothing' half of the test cannot fail, because memory.md is '# Memory\n' and has no cue for bad.md.
-  status: committed 8c547194b7cc
-  committed: 8c547194b7cc
 
 ## Tests
 

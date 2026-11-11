@@ -241,13 +241,15 @@ evals/security-expert/provenance.test.js caps the `experts/` folder at 430,080 b
   paths: .cursor-plugin/ultimate-workflow/lib/memory.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, evals/experts/autopilot.test.js, evals/experts/memory-match.test.js
   depends: index
   experts: [quality, genai, security]
-  status: committed
+  status: committed 75a45bd552cb
   carried: developer at .cursor-plugin/ultimate-workflow/lib/memory.js:257: A second glob-to-regex converter was written instead of reusing globToRegExp from experts.js (line 213), and the two disagree on `**/`.
+  committed: 75a45bd552cb
 - budget: pack size, budget and do-not-load list
   paths: .cursor-plugin/ultimate-workflow/lib/pack.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, .cursor-plugin/ultimate-workflow/experts/experts.js, .cursor-plugin/ultimate-workflow/phases/run.js, evals/experts/autopilot.test.js, evals/experts/pack-budget.test.js
   depends: match
   experts: [quality, genai, security]
-  status: blocked by match
+  status: parked uw/parked/memory-index/budget; not green: Verification failed 1 times. Stopping. What is wrong: The test's assertion is unsatisfiable for the docs card on this plan, the code is doing what the plan's Decisions specify. Evidence (ran `pack` for every card of internal/plan
+  parked: uw/parked/memory-index/budget; not green: Verification failed 1 times. Stopping. What is wrong: The test's assertion is unsatisfiable for the docs card on this plan, the code is doing what the plan's Decisions specify. Evidence (ran `pack` for every card of internal/plan
 - harvest: harvest writes headers and regenerates the index
   paths: .cursor-plugin/ultimate-workflow/lib/memory.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, .cursor-plugin/ultimate-workflow/phases/harvest.js, .cursor-plugin/ultimate-workflow/phases/run.js, .cursor-plugin/ultimate-workflow/commands/harvest.md, .cursor-plugin/ultimate-workflow/agents/uw-harvester.md, evals/experts/harvest.test.js, evals/experts/autopilot.test.js
   depends: index, match, budget

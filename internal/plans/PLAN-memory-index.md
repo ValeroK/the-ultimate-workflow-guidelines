@@ -256,12 +256,13 @@ evals/security-expert/provenance.test.js caps the `experts/` folder at 430,080 b
   paths: .cursor-plugin/ultimate-workflow/lib/pack.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, .cursor-plugin/ultimate-workflow/experts/experts.js, .cursor-plugin/ultimate-workflow/phases/run.js, evals/experts/autopilot.test.js, evals/experts/pack-budget.test.js
   depends: match
   experts: [quality, genai, security]
-  status: parked uw/parked/memory-index/budget; not green: Verification failed 1 times. Stopping. What is wrong: The test's assertion is unsatisfiable for the docs card on this plan, the code is doing what the plan's Decisions specify. Evidence (ran `pack` for every card of internal/plan
-  parked: uw/parked/memory-index/budget; not green: Verification failed 1 times. Stopping. What is wrong: The test's assertion is unsatisfiable for the docs card on this plan, the code is doing what the plan's Decisions specify. Evidence (ran `pack` for every card of internal/plan
+  status: parked uw/parked/memory-index/budget; the commit was refused: Gate G6: the domain experts have not been re-checked against these changes. Run /ultimate-workflow:experts, which re-asks which domain experts apply (it can only add) and runs them, then commit again. If you have not
+  parked: uw/parked/memory-index/budget; the commit was refused: Gate G6: the domain experts have not been re-checked against these changes. Run /ultimate-workflow:experts, which re-asks which domain experts apply (it can only add) and runs them, then commit again. If you have not
 - fixes: review findings of 2026-11-11 in the migration and the matcher
   paths: .cursor-plugin/ultimate-workflow/lib/memory.js, evals/experts/memory.test.js, evals/experts/memory-match.test.js, evals/experts/links.test.js
   depends: match
   experts: [quality, genai, security]
+  status: pending
 - harvest: harvest writes headers and regenerates the index
   paths: .cursor-plugin/ultimate-workflow/lib/memory.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, .cursor-plugin/ultimate-workflow/phases/harvest.js, .cursor-plugin/ultimate-workflow/phases/run.js, .cursor-plugin/ultimate-workflow/commands/harvest.md, .cursor-plugin/ultimate-workflow/agents/uw-harvester.md, evals/experts/harvest.test.js, evals/experts/autopilot.test.js
   depends: index, match, budget

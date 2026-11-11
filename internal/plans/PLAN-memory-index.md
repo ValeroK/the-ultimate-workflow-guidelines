@@ -361,7 +361,8 @@ load check from the CHANGELOG release steps.
 - findings: non-blocking expert findings no card fixed
   paths: evals/experts/memory-match.test.js
   carried: quality at evals/experts/memory-match.test.js:267: The 'invalid header matches nothing' half of the test cannot fail, because memory.md is '# Memory\n' and has no cue for bad.md.
-  status: committed
+  status: committed 8c547194b7cc
+  committed: 8c547194b7cc
 
 ## Tests
 
@@ -559,6 +560,6 @@ index, links, match, budget, harvest, gate, docs, one at a time (several share `
 
 - Date: 2026-11-11
 - Run branch: uw/run/memory-index
-- Cards: 2 committed, 1 parked, 4 blocked, 1 fixed-in-round
-- Harvest: uw/harvest/memory-index
+- Cards: 4 committed, 1 parked, 3 blocked, 1 fixed-in-round
+- Harvest: none
 - Report: .ultimate-workflow/run/memory-index/report.md

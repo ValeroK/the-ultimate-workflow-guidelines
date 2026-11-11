@@ -679,7 +679,9 @@ function git(cwd, args) {
 
 // What the evidence is about must not change when the evidence is written, so the
 // evidence directory and the plan file (which gains an `experts:` line) are outside it.
-const BASE_EXCLUDES = [':(exclude).ultimate-workflow', ':(exclude)PLAN-*.md'];
+// The plan is left out wherever it is kept (4.7.1): `PLAN-*.md` alone matched at the root only, so
+// a plan in a subfolder moved the fingerprint when `record` wrote its experts line (Gate G6).
+const BASE_EXCLUDES = [':(exclude).ultimate-workflow', ':(exclude,glob)**/PLAN-*.md'];
 // The same diff text whatever the user's git config says (diff.noprefix, diff.mnemonicPrefix,
 // color.diff=always, an external diff tool): skill selection reads the a/ and b/ paths.
 const DIFF_FORMAT = ['--no-color', '--no-ext-diff', '--src-prefix=a/', '--dst-prefix=b/'];

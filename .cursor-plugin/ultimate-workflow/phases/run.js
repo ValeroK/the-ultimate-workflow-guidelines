@@ -318,7 +318,8 @@ const AVAILABLE = Array.isArray(args && args.available) ? args.available.filter(
 const PROTOCOL = String((args && args.protocol) || '').trim()
 const EXPERTS_DIR = String((args && args.expertsDir) || '')
 const PLAN_BRIEFS = Array.isArray(args && args.planBriefs) ? args.planBriefs : []
-const RESUME = args && args.resume && typeof args.resume.card === 'string' ? args.resume : null
+// A resume names one card, or is `{ all: true }` (bare --resume): every card not committed runs again.
+const RESUME = args && args.resume && (typeof args.resume.card === 'string' || args.resume.all === true) ? args.resume : null
 const RUN_DIR = `.ultimate-workflow/run/${FEATURE}`
 const cardDir = (name) => `${RUN_DIR}/cards/${name}`
 
@@ -365,16 +366,19 @@ function lastJson(text) {
   return null
 }
 
+/** What each command printed, as the agent reported it: read when no line of it parses as JSON. */
+const rawOutputs = new Map()
+
 /**
  * Run commands through one agent, in order, and return each one's JSON line (null when it printed
- * none). `files` are written first with the Write tool, exactly as given.
+ * none; `rawOutputs` then has what it did print). `files` are written first with the Write tool, exactly as given.
  */
 async function runSteps(label, commands, files = []) {
   const writes = files.map((f, i) => `${i + 1}. Write the file ${f.path} with the Write tool. Its whole content is between the markers, exactly, nothing added:\n<<<CONTENT\n${f.text}\nCONTENT>>>`)
   const r = await agent(
     `${AUTH}
 
-${files.length ? `First:\n${writes.join('\n')}\n\nThen run` : 'Run'} each of these shell commands with the Bash tool, one per Bash call, in order. Do not change them, do not add any, do not fix anything they report, and do not stage, commit, branch or reset by any other means. For each, report the command and the last line of its output, verbatim.
+${files.length ? `First:\n${writes.join('\n')}\n\nThen run` : 'Run'} each of these shell commands with the Bash tool, one per Bash call, in order. Do not change them, do not add any, do not fix anything they report, and do not stage, commit, branch or reset by any other means. For each, report the command and the last line of its output that is a JSON object (it starts with an opening brace), whole and verbatim; when no line is one, report its last line.
 
 ${commands.map((c, i) => `${i + 1}. ${c}`).join('\n')}`,
     runnerOpts(label)
@@ -382,6 +386,7 @@ ${commands.map((c, i) => `${i + 1}. ${c}`).join('\n')}`,
   const outs = r && Array.isArray(r.outputs) ? r.outputs : []
   return commands.map((c, i) => {
     const o = outs.find((x) => x && typeof x.command === 'string' && x.command.trim() === c.trim()) || outs[i]
+    if (o && typeof o.output === 'string') rawOutputs.set(c, o.output.trim())
     return o ? lastJson(o.output) : null
   })
 }
@@ -794,11 +799,12 @@ async function runCard(card, { adhoc = false } = {}) {
   for (const f of check.stillPresent) findingsQueue.push({ ...f, from: f.from || card.name, notFixedBy: card.name })
 
   const laneFile = `${cardDir(card.name)}/lane.json`
+  const commitCmd = cliCmd('card-commit', '--plan', q(PLAN), '--card', card.name, '--feature', FEATURE, ...(buildSummary.testFiles.length ? ['--claimed', q(buildSummary.testFiles.join(','))] : []), ...(fixRound && fixRound.outcome === 'fixed' ? ['--fixed-round'] : []))
   const [recorded, committed] = await runSteps(
     `${card.name}:commit`,
     [
       cliCmd('record', '--stage', 'review', '--plan', q(PLAN), '--result', q(laneFile)),
-      cliCmd('card-commit', '--plan', q(PLAN), '--card', card.name, '--feature', FEATURE, ...(buildSummary.testFiles.length ? ['--claimed', q(buildSummary.testFiles.join(','))] : []), ...(fixRound && fixRound.outcome === 'fixed' ? ['--fixed-round'] : [])),
+      commitCmd,
     ],
     [{ path: laneFile, text: JSON.stringify({ ok: true, expertLane: check.lane }) }]
   )
@@ -807,7 +813,7 @@ async function runCard(card, { adhoc = false } = {}) {
   // `record --plan` has now written this lane's selection into the plan's experts line.
   if (recorded && recorded.plan) for (const n of check.lane.selected) grownExperts.add(n)
   if (!committed || committed.ok !== true) {
-    const why = !recordOk ? `the experts' evidence was not recorded as built (record printed ${JSON.stringify(recorded)})` : `the commit was refused: ${(committed && (committed.reason || committed.gate)) || 'card-commit printed nothing'}`
+    const why = !recordOk ? `the experts' evidence was not recorded as built (record printed ${JSON.stringify(recorded)})` : `the commit was refused: ${(committed && (committed.reason || committed.gate)) || (rawOutputs.get(commitCmd) ? `card-commit printed no JSON line; it printed: ${rawOutputs.get(commitCmd).replace(/\s*\r?\n\s*/g, ' ').slice(0, 300)}` : 'card-commit printed nothing')}`
     return parkCard(card, why, { build: buildSummary })
   }
   status[card.name] = 'committed'
@@ -866,15 +872,18 @@ for (const c of CARDS) {
   report.push({ card: c.name, title: c.title, status: status[c.name], reason: stoppedBecause ? `the run stopped: ${stoppedBecause}` : 'its dependencies never became ready (a cycle)' })
 }
 // Each card blocked behind a parked one says which in the plan; a card not started stays pending.
-const blockedSteps = report
+// The user gets one notice for all of them (4.7.1): six cards behind one parked card were six
+// notices that said the same thing.
+const blockedCards = report
   .filter((e) => e.status === 'blocked' && /^depends on (\S+), which is/.test(e.reason || ''))
-  .flatMap((e) => {
-    const by = /^depends on (\S+),/.exec(e.reason)[1]
-    return [
-      cliCmd('card-status', '--plan', q(PLAN), '--card', e.card, '--status', q(`blocked by ${by}`)),
-      cliCmd('notify', '--feature', FEATURE, '--kind', 'blocked', '--card', e.card, '--reason', q(e.reason), '--action', q(`settle ${by} first: ${resumeCmd(by, status[by] === 'needs-decision')}`)),
-    ]
-  })
+  .map((e) => ({ card: e.card, by: /^depends on (\S+),/.exec(e.reason)[1] }))
+const blockedSteps = blockedCards.map((b) => cliCmd('card-status', '--plan', q(PLAN), '--card', b.card, '--status', q(`blocked by ${b.by}`)))
+if (blockedCards.length) {
+  const behind = [...new Set(blockedCards.map((b) => b.by))]
+  const roots = behind.filter((by) => status[by] === 'parked' || status[by] === 'needs-decision')
+  const why = `${blockedCards.length} ${blockedCards.length === 1 ? 'card is' : 'cards are'} blocked: ${behind.map((by) => `${blockedCards.filter((b) => b.by === by).map((b) => b.card).join(', ')} behind ${by}`).join('; ')}`
+  blockedSteps.push(cliCmd('notify', '--feature', FEATURE, '--kind', 'blocked', '--reason', q(why), ...(roots.length ? ['--action', q(roots.map((by) => `settle ${by} first: ${resumeCmd(by, status[by] === 'needs-decision')}`).join('; '))] : [])))
+}
 if (blockedSteps.length) await runSteps('blocked:status', blockedSteps)
 // A stop is a blocker too, and the user hears about it when it happens.
 if (stoppedBecause) await runSteps('stopped:notify', [cliCmd('notify', '--feature', FEATURE, '--kind', 'stopped', '--reason', q(stoppedBecause.replace(/\s*\r?\n\s*/g, ' ').slice(0, 300)), '--action', q('read the report, then /ultimate-workflow:feature --resume'))])

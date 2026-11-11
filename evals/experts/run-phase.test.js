@@ -249,7 +249,7 @@ test('an unplanned dependency holds the card as needs-decision, tells the user, 
   assert.ok(!base.seen.includes('1:commit'), 'nothing is committed silently');
   assert.equal(result.cards.find((c) => c.card === '2').status, 'committed', 'an independent card goes on');
   assert.equal(result.cards.find((c) => c.card === '3').status, 'blocked');
-  assert.match(calls.find((c) => c.label === 'blocked:status').prompt, /notify [^\n]*--kind blocked --card 3/);
+  assert.match(calls.find((c) => c.label === 'blocked:status').prompt, /notify [^\n]*--kind blocked --reason "1 card is blocked: 3 behind 1" --action "settle 1 first: [^\n]*--resume 1 --accept/);
   assert.match(calls.find((c) => c.label === 'finished:notify').prompt, /--kind finished/);
 });
 
@@ -489,4 +489,57 @@ test('an expert a recheck adds on one card is held to on every later card, unles
   assert.deepStrictEqual(lane('b').planned, ['quality', 'developer'], 'card b starts from the grown plan line');
   assert.ok(calls.some((c) => c.label === 'b:developer'));
   assert.deepStrictEqual(lane('c').planned, ['quality'], 'a card with its own experts keeps them');
+});
+
+// ---- 4.7.1: what the first memory-index runs hit ----
+
+test('bare --resume runs a parked card again from its tests, and the cards behind it; committed cards are left alone', async () => {
+  const cards = [card('0', { committed: 'c0' }), card('1', { parked: { branch: 'uw/parked/f/1', reason: 'red' } }), card('2', { depends: ['1'] })];
+  const r = responder();
+  const { result } = await run(baseArgs(cards, { resume: { all: true } }), r);
+  assert.ok(r.seen.includes('1:write-tests'), 'the parked card starts again at its tests');
+  assert.equal(result.cards.find((c) => c.card === '1').status, 'committed');
+  assert.equal(result.cards.find((c) => c.card === '2').status, 'committed');
+  assert.ok(!r.seen.some((l) => l.startsWith('0:')), 'nothing runs for a committed card');
+  assert.deepStrictEqual(result.earlier.map((e) => [e.card, e.status]), [['0', 'committed']]);
+});
+
+test('without a resume a parked card stays parked', async () => {
+  const cards = [card('1', { parked: { branch: 'uw/parked/f/1', reason: 'red' } }), card('2')];
+  const r = responder();
+  const { result } = await run(baseArgs(cards), r);
+  assert.ok(!r.seen.some((l) => l.startsWith('1:')));
+  assert.deepStrictEqual(result.earlier.map((e) => [e.card, e.status]), [['1', 'parked']]);
+});
+
+test('a refused commit whose output is not a JSON line still gives its text as the reason', async () => {
+  const r = responder();
+  const said = async (c) => {
+    if (c.label !== '1:commit') return r(c);
+    const lane = JSON.parse(/<<<CONTENT\n([\s\S]*?)\nCONTENT>>>/.exec(c.prompt)[1]).expertLane;
+    return steps({ stage: 'review', recorded: lane.ran, findings: lane.findings.length, open: [] }, 'Gate G6: the domain experts have not been re-checked against these changes');
+  };
+  const { result } = await run(baseArgs([card('1')]), said);
+  const got = result.cards.find((c) => c.card === '1');
+  assert.equal(got.status, 'parked');
+  assert.match(got.reason, /commit was refused: card-commit printed no JSON line; it printed: Gate G6: the domain experts have not been re-checked/);
+});
+
+test('the commit step asks for the JSON line of each command, not just its last line', async () => {
+  const calls = [];
+  const base = responder();
+  await run(baseArgs([card('1')]), async (c) => { calls.push(c); return base(c); });
+  assert.match(calls.find((c) => c.label === '1:commit').prompt, /the last line of its output that is a JSON object/);
+});
+
+test('the cards blocked behind one parked card make one notice, not one each', async () => {
+  const cards = [card('1'), card('2', { depends: ['1'] }), card('3', { depends: ['1'] }), card('4', { depends: ['2'] })];
+  const calls = [];
+  const base = responder({ red: ['1'] });
+  const { result } = await run(baseArgs(cards), async (c) => { calls.push(c); return base(c); });
+  assert.deepStrictEqual(result.counts, { parked: 1, blocked: 3 });
+  const prompt = calls.find((c) => c.label === 'blocked:status').prompt;
+  assert.equal(prompt.split('\n').filter((l) => / notify /.test(l)).length, 1);
+  assert.equal(prompt.split('\n').filter((l) => / card-status /.test(l)).length, 3, 'each card still gets its status line in the plan');
+  assert.match(prompt, /--kind blocked --reason "3 cards are blocked: 2, 3 behind 1; 4 behind 2" --action "settle 1 first: [^\n"]*--resume 1"/);
 });

@@ -252,6 +252,21 @@ test('evidence and the plan file are outside the fingerprint, or recording evide
   assert.deepStrictEqual(ex.workingChanges(dir).files, ['src/a.js']);
 });
 
+test('a plan kept in a subfolder is outside the fingerprint too', () => {
+  // 4.7.1: the exclude matched PLAN-*.md at the root only. A run whose plan was in internal/plans/
+  // had every card's commit refused by G6, because record writes the plan's experts line.
+  const dir = repo();
+  write(path.join(dir, 'internal', 'plans', 'PLAN-y.md'), '---\nplan_confirmed: true\n---\nbody\n');
+  git(dir, 'add', '-A');
+  git(dir, 'commit', '-q', '-m', 'plan in a subfolder');
+  write(path.join(dir, 'src', 'a.js'), 'module.exports = 2;\n');
+  const before = ex.fingerprint(dir);
+  write(path.join(dir, 'internal', 'plans', 'PLAN-y.md'), '---\nplan_confirmed: true\nexperts: [quality]\n---\nbody\n');
+  write(path.join(dir, 'docs', 'deep', 'PLAN-new.md'), 'an untracked plan\n');
+  assert.strictEqual(ex.fingerprint(dir), before);
+  assert.deepStrictEqual(ex.workingChanges(dir).files, ['src/a.js']);
+});
+
 test('a repository with no commit yet still fingerprints', () => {
   const dir = tmp('fresh');
   git(dir, 'init', '-q', '-b', 'main');

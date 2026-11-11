@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.7.1] - 2026-11-11
+
+Four faults the first unattended run on a real plan met (the memory-index plan, kept in `internal/plans/`). Each has a test that fails without its fix.
+
+### Fixed
+
+- **Bare `--resume` ran no parked card.** `phases/run.js` kept a resume only when it named a card, so `{ all: true }` was dropped and a parked card stayed parked, with every card behind it blocked again. `phases/run.md` already said that every card not committed runs again from its tests; now it does.
+- **A plan kept in a subfolder had every card's commit refused by Gate G6.** The change fingerprint left out `PLAN-*.md` at the repository root only. With the plan in `internal/plans/`, `record --stage review` wrote the plan's `experts:` line after the evidence was taken, the fingerprint moved, and `card-commit` refused. The plan is now left out wherever it is kept.
+- **A refused commit could lose its reason.** When the agent's report of `card-commit` held no line that parsed as JSON, the card was parked with "card-commit printed nothing". The step now asks for the JSON line of each command, and when none parses, the park reason carries what the command did print.
+- **One notice for the cards blocked behind a parked card.** Six cards behind one parked card were six desktop notifications that said the same thing, on every run. There is now one, naming the cards and the command for the card they wait on. Each card still gets its `blocked by` status line in the plan.
+
+### Known limits
+
+- The hooks and `volatile_paths` still read the active plan from the repository root only (`hooks/lib/state.js`). A run with its plan in a subfolder works, because the run's commands are given `--plan`, but `volatile_paths` in such a plan is not read.
+
 ## [4.7.0] - 2026-11-09
 
 ### Release steps

@@ -155,7 +155,8 @@ What is there, and what each card reuses.
 - release: changelog for these fixes in 4.8.0
   paths: CHANGELOG.md, internal/plans/PLAN-run-fixes.md
   depends: plan-subfolder, run-md
-  status: blocked by plan-subfolder
+  status: committed f544d4912e5a
+  committed: f544d4912e5a
 - findings: non-blocking expert findings no card fixed
   paths: .cursor-plugin/ultimate-workflow/experts/experts.js
   carried: quality at .cursor-plugin/ultimate-workflow/experts/experts.js:494: Nothing in the diff writes the `accepted:` run field, the diff only reads it and leaves it out of the confirm hash. The plan assigns the write to `--resume <card> --accept`.

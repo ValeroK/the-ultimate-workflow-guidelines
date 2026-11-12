@@ -283,7 +283,8 @@ evals/security-expert/provenance.test.js caps the `experts/` folder at 430,080 b
   paths: .cursor-plugin/ultimate-workflow/memory.md, .cursor-plugin/ultimate-workflow/memory/**, .cursor-plugin/ultimate-workflow/skills/the-ultimate-workflow-guidelines/references/memory-protocol.md, .cursor-plugin/ultimate-workflow/skills/the-ultimate-workflow-guidelines/references/memory-template.md, .cursor-plugin/ultimate-workflow/skills/project-bootstrap-guidelines/references/memory-template.md, .cursor-plugin/ultimate-workflow/skills/project-bootstrap-guidelines/SKILL.md, .cursor-plugin/ultimate-workflow/skills/the-ultimate-workflow-guidelines/SKILL.md, .cursor-plugin/ultimate-workflow/rules/**, .cursor-plugin/ultimate-workflow/phases/run.md, mirrors.test.js, CHANGELOG.md, .cursor-plugin/plugin.json, .claude-plugin/marketplace.json
   depends: index, links, match, budget, fixes, harvest, gate
   experts: [quality, genai, security]
-  status: committed
+  status: committed d3dd50f8c8d2
+  committed: d3dd50f8c8d2
 - fixup: confirmed review findings
   paths: .cursor-plugin/ultimate-workflow/lib/memory.js, .cursor-plugin/ultimate-workflow/lib/links.js, .cursor-plugin/ultimate-workflow/lib/memory.js, .cursor-plugin/ultimate-workflow/lib/links.js, evals/experts/links.test.js, evals/experts/memory.test.js
   experts: [quality, genai, security]

@@ -135,7 +135,8 @@ What is there, and what each card reuses.
 - one-notice: one desktop notification per run
   paths: .cursor-plugin/ultimate-workflow/experts/autopilot.js, evals/experts/autopilot-fixes.test.js
   depends: reasons
-  status: blocked by reasons
+  status: committed b4bd019fd370
+  committed: b4bd019fd370
 - dry-run: measure the plan's claims before the tests are confirmed
   paths: .cursor-plugin/ultimate-workflow/lib/claims.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, .cursor-plugin/ultimate-workflow/commands/tests.md, .cursor-plugin/ultimate-workflow/phases/tests.js, evals/experts/claims.test.js
   depends: one-notice

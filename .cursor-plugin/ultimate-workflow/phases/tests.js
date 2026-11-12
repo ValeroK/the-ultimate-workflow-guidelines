@@ -148,6 +148,31 @@ const MERGED = {
 
 phase('Draft')
 
+// The plan's size claims (4.8.0): the section states each size or count a test relies on as a
+// `measure:` line, and `experts.js claims` measures them before the user confirms. This script has no
+// file access, so it only reads the lines out of the final section and says which it cannot read; the
+// rule is the one in lib/claims.js (a test holds the two equal).
+const MEASURE_LINE = /^\s*[-*]\s+measure:\s*(.*)$/i
+const MEASURE_CLAIM = /^bytes\s+(\S+)\s+<=\s+([0-9][0-9_,]*)$/i
+const understoodGlob = (g) => /^[A-Za-z0-9._*/-]+$/.test(g) && !g.startsWith('/') && !g.split('/').includes('..')
+function claimsOf(text) {
+  const lines = String(text || '')
+    .split(/\r?\n/)
+    .map((l) => MEASURE_LINE.exec(l))
+    .filter(Boolean)
+    .map((m) => m[1].trim().replace(/^`|`$/g, ''))
+    .map((line) => {
+      const c = MEASURE_CLAIM.exec(line)
+      return { line, understood: Boolean(c) && understoodGlob(c[1].replace(/^`|`$/g, '')) }
+    })
+  return {
+    lines,
+    stop: lines.some((l) => !l.understood),
+    command: `node "${(args && args.expertsDir) || '<plugin>/experts'}/experts.js" claims --plan <the file the section was written to>`,
+    note: 'Run the command after the section is written and before the confirmation. When its `stop` is true, or `stop` here is true, ask the user before confirming: a line not understood is never shown as passing.',
+  }
+}
+
 const locate = planFile
   ? `Read ${planFile}.`
   : 'Find the active PLAN-*.md in this repository -- the most recently modified one if there are several -- and read it.'
@@ -162,6 +187,8 @@ Ground every test in a stated goal or success criterion from the plan. A criteri
 Also determine the project's real verification command by looking at how tests are actually run here -- CI config, scripts, existing test files -- not by guessing a convention.
 
 Name the specific tests that must exist and pass. That turns "is this done" from a judgement into something anyone can check.
+
+For each size or count a test relies on (a byte budget, a file that must stay under a limit), also write one list line in the section, exactly in this form, so code can measure it before the tests are confirmed: \`- measure: bytes <glob> <= <number>\` (the glob is relative to the project root; \`*\` stays in one folder, \`**\` crosses folders).
 
 If the plan splits the work into cards, put the cases that need the running system (a browser capture, an integration or end-to-end harness) in the first card's harness and list them before the source-level checks, so every later card is verified against them.`,
   { agentType: agentName('uw-critic'), label: 'draft', phase: 'Draft', schema: DRAFT }
@@ -310,6 +337,7 @@ if (gaps.length === 0) {
   return {
     ok: true,
     testsMarkdown: draft.testsMarkdown + expertCases,
+    claims: claimsOf(draft.testsMarkdown + expertCases),
     expertLane,
     testCommand: draft.testCommand,
     expectedTestNames: draft.expectedTestNames || [],
@@ -357,6 +385,7 @@ if (!merged) {
 return {
   ok: true,
   testsMarkdown: merged.testsMarkdown + expertCases,
+  claims: claimsOf(merged.testsMarkdown + expertCases),
   expertLane,
   testCommand: merged.testCommand,
   expectedTestNames: merged.expectedTestNames,

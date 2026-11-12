@@ -17,6 +17,7 @@
 //   experts.js card-field --plan P --card C --carried "x; y"          add carried work to a card that has not run
 //   experts.js run-branch --feature F                                 create and check out uw/run/F from the current tip
 //   experts.js harvest-branch --feature F --from FILE                 harvest proposals as commits on uw/harvest/F
+//   experts.js claims --plan P [--feature F]                          each card's pack size against the budget, and each `measure:` line of the plan measured
 //   experts.js ensure-ignored                                         add .ultimate-workflow/ to the project's .gitignore
 //   experts.js run-report --result R [--out P]                        the final report, written from the Workflow output file
 //   experts.js run-start --plan P --feature F [--resume | --resume-card C --resume-reason T]
@@ -34,6 +35,7 @@ const cardsLib = require('./cards.js');
 const memoryLib = require('../lib/memory.js');
 const packLib = require('../lib/pack.js');
 const runRules = require('../lib/run-rules.js');
+const claimsLib = require('../lib/claims.js');
 
 const FEATURE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const JOURNAL_CARD_LINES = 15;
@@ -910,6 +912,34 @@ function harvestBranch(cwd, { feature, from }) {
 }
 
 /**
+ * The plan's claims, measured before the tests are confirmed (lib/claims.js): each card's context pack
+ * against the budget, and each `measure:` line of the plan with the size now, the room left and the
+ * cards that write under its glob. `stop` is true when the user has to look before confirming: a line
+ * that was not understood, a claim that fails, a pack over its budget or a card whose pack has a problem.
+ */
+function claimsCheck(cwd, { plan, feature }) {
+  if (!plan) throw new Error('claims needs --plan');
+  const planText = fs.readFileSync(path.resolve(cwd, plan), 'utf8');
+  const name = feature || path.basename(plan).replace(/^PLAN-/i, '').replace(/\.md$/i, '');
+  const cards = cardsLib.parseCards(planText);
+  const packs = cards.map((c) => {
+    try {
+      const p = pack(cwd, { plan, card: c.name, feature: name });
+      return p.ok ? { card: c.name, tokens: p.tokens, budget: p.budget, overBudget: p.overBudget } : { card: c.name, problem: p.reason };
+    } catch (err) {
+      return { card: c.name, problem: err.message };
+    }
+  });
+  const globRe = require('./experts.js').globToRegExp;
+  const measures = claimsLib.measureAll(planText, path.resolve(cwd), cards, (paths, file) => cardsLib.covers(paths, file, globRe));
+  const overBudget = packs.filter((p) => p.overBudget).map((p) => p.card);
+  const packProblems = packs.filter((p) => p.problem).map((p) => p.card);
+  const notUnderstood = measures.filter((m) => !m.understood).length;
+  const failing = measures.filter((m) => m.understood && !m.passing).length;
+  return { ok: true, plan: fwd(plan), packs, overBudget, packProblems, measures, notUnderstood, failing, stop: notUnderstood + failing + overBudget.length + packProblems.length > 0 };
+}
+
+/**
  * The final report of a run, written in code from the Workflow output file (the completion notice is
  * cut off when a result is large, so the session never summarises it): every card with its outcome,
  * commit or parked branch and reason, the findings card, the review, the fix-up card, the harvest
@@ -1164,6 +1194,7 @@ function cli(argv, cwd, out, fail) {
   if (sub === 'card-status') return run(() => cardStatus(cwd, { plan: o.plan, card: o.card, status: o.status }));
   if (sub === 'run-branch') return run(() => runBranch(cwd, { feature: o.feature }));
   if (sub === 'ensure-ignored') return run(() => ensureIgnored(cwd));
+  if (sub === 'claims') return run(() => claimsCheck(cwd, { plan: o.plan, feature: o.feature }));
   if (sub === 'run-state') return run(() => runState(cwd, { feature: o.feature, record: Boolean(o.record), review: Boolean(o.review), harvest: Boolean(o.harvest), harvestBranch: o['harvest-branch'] || '', findingsFrom: o.findings }));
   if (sub === 'harvest-branch') return run(() => harvestBranch(cwd, { feature: o.feature, from: o.from }));
   if (sub === 'run-report') return run(() => runReport(cwd, { result: o.result, out: o.out || '' }));
@@ -1191,6 +1222,6 @@ function cli(argv, cwd, out, fail) {
   return fail(`unknown autopilot command ${sub}`);
 }
 
-const COMMANDS = ['pack', 'handoff', 'park', 'unpark', 'journal', 'card-commit', 'card-status', 'notify', 'decisions', 'card-field', 'run-branch', 'ensure-ignored', 'run-state', 'harvest-branch', 'run-report', 'run-start', 'run-finish'];
+const COMMANDS = ['pack', 'handoff', 'park', 'unpark', 'journal', 'card-commit', 'card-status', 'notify', 'decisions', 'card-field', 'run-branch', 'ensure-ignored', 'run-state', 'claims', 'harvest-branch', 'run-report', 'run-start', 'run-finish'];
 
 module.exports = { COMMANDS, NOTIFY_KINDS, cardStatus, notify, detectDecisions, acceptDecision, writeRunStatus, commitPlan, pack, handoff, park, unpark, journalAdd, journalCompact, cardCommit, runBranch, ensureIgnored, harvestBranch, withAddition: memoryLib.withAddition, matchingTopicals, testSection, sections, cli, JOURNAL_CARD_LINES, JOURNAL_MAX_LINES };

@@ -25,6 +25,23 @@ Memory reaches the cards that need it, and cannot silently drift. Taken from the
 - A header with an empty list item (`-` alone) is invalid, so an empty cue cannot stand in for the required path or keyword.
 - With `memory_root:`, a link from a memory file to a file outside that folder is checked against `HEAD` like any other, so a commit that breaks it is refused.
 
+### Fixed (the unattended run)
+
+The first unattended run of a real plan met faults in the plugin itself. These are fixed here; the plan is `internal/plans/PLAN-run-fixes.md`.
+
+- **The commit check judges the card being committed.** When two cards share a file and name different experts, `card-commit --card A` asks for A's experts, not for those of every card that lists the file. A commit by hand still asks for all of them, and a card the run adds itself is held to the experts of the plan cards that cover its files.
+- **An expert that returns nothing is asked once more.** If it fails again, the card is parked with the expert's name and is never committed. The refute and recheck agents get the same single retry.
+- **A card the run adds goes inside the card list**, so the plan's confirmed hash holds when the plan has `### Card` subsections under `## Cards`. A refused `card-add` prints its reason as one JSON line.
+- **There can be more than one fix-up card**: one per plan card the confirmed review findings fall under, at most four per run, each with a free name (`fixup`, `fixup-2`, ...). One that parks does not stop the others. Text an agent wrote (a finding's file, a title, the carried items, a stop reason) reaches the commands through files, never on a command line.
+- **A second harvest gets its own branch**: `uw/harvest/<feature>-2`, `-3` and so on. A later harvest is told the open branches and to drop what they already hold.
+- **The review, the fix-up cards, the findings card and the harvest wait until no card is parked**, held for a decision or blocked. They run once, on the resume that settles the last one, and the review and the harvest are recorded apart, so only the half that failed is run again.
+- **A park reason is whole in the report.** The plan's `status:` and `parked:` lines are cut at a word end and name `parked.md`, which holds the whole text. `unpark` on a conflict names the files in conflict.
+- **One desktop notification per run**, at the end, naming every card parked, held or blocked. Every notice is still written to `notifications.md`. This replaces a notice per blocker as it happens: a card that needs a decision early in a long run is seen at the end.
+- **`phases/run.md` says what the code does**: a card can be parked after one round when the diagnosis says the test or the plan is wrong, and after two when the same failure comes back; the `.gitignore` line is committed only when the line was missing.
+- **The gates follow a plan in a subfolder.** The active-plan pointer may hold a relative path under the project root (`internal/plans/PLAN-x.md`); a path that leaves the root is ignored. There is no folder search.
+- **`experts.js claims` measures a plan's size claims before the tests are confirmed**: each card's context pack against the budget, and each `- measure: bytes <glob> <= <number>` line with the size now, the room left and the cards that write under it. A line it cannot read is reported as not understood, never as passing, and the tests command stops to ask.
+- **The run report shows what each card cost**: the columns Pack (est.), Tokens and Cache read. A card with no number shows "unknown", never 0. The host gives one number per agent today, so Cache read is "unknown" until it reports the split.
+
 ## [4.7.1] - 2026-11-11
 
 Four faults the first unattended run on a real plan met (the memory-index plan, kept in `internal/plans/`). Each has a test that fails without its fix.

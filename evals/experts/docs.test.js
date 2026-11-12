@@ -224,3 +224,34 @@ test('one-notice 64: run.md tells the session to send notify --kind finished wit
   assert.match(rule, /notify --feature <feature> --kind finished --reason "stopped: /);
   assert.match(rule, /exactly one/);
 });
+
+// --- release (PLAN-run-fixes.md, card release, test 86) -------------------------------------------
+
+test('release 86: CHANGELOG 4.8.0 names the unattended-run fixes', () => {
+  const log = read('CHANGELOG.md');
+  const start = log.search(/^## \[4\.8\.0\]/m);
+  assert.ok(start >= 0, 'no 4.8.0 entry');
+  const entry = log.slice(start, log.indexOf('\n## [', start + 1));
+  const at = entry.indexOf('### Fixed (the unattended run)');
+  assert.ok(at > 0, 'the 4.8.0 entry has no "### Fixed (the unattended run)" section');
+  const section = entry.slice(at);
+  // One fixed phrase per fault of the first unattended run, items 4 to 16 of PLAN-run-fixes.md (and the cost columns).
+  const items = {
+    4: 'judges the card being committed',
+    5: 'asked once more',
+    6: 'goes inside the card list',
+    7: 'names the files in conflict',
+    8: 'more than one fix-up card',
+    9: 'gets its own branch',
+    10: 'wait until no card is parked',
+    11: 'whole in the report',
+    12: 'One desktop notification per run',
+    13: 'parked after one round',
+    14: 'a plan in a subfolder',
+    15: 'only when the line was missing',
+    16: '`experts.js claims`',
+    17: 'Pack (est.), Tokens and Cache read',
+  };
+  for (const [n, phrase] of Object.entries(items)) assert.ok(section.includes(phrase), `item ${n} is not named: "${phrase}"`);
+  assert.doesNotMatch(log, /^## \[4\.9\.0\]/m, 'these fixes ship inside 4.8.0');
+});

@@ -11,7 +11,7 @@ last_verify: unrun
 dirty: false
 escalated: false
 experts: [developer, quality, softarch, security, genai, architect, devops]
-confirmed_hash: 7140b5c7a1e8aebf
+confirmed_hash: f96ccac1bdce6fe7
 ---
 
 # PLAN: run-fixes (part of 4.8.0)
@@ -49,11 +49,11 @@ Each line can be checked by a test or by reading one output.
 5. **expert-retry**: an expert agent that returns nothing is run once more. If it fails again the card is parked with the expert's name, and `card-commit` is not called.
 6. **settle-first**: with one card parked or blocked, the run does no review, no fix-up card and no harvest, and the report says which cards they wait for. With all cards committed they run once.
 7. **harvest-name**: when `uw/harvest/<feature>` exists, the next harvest goes to the next free name and returns `ok: true`.
-8. **reasons**: a 900-character park reason is whole in `report.md`. The plan's `status:` and `parked:` lines end at a word and name `parked.md`. `unpark` on a real conflict names the file in conflict.
-9. **one-notice**: a run with two parked cards, blocked cards and a stop fires one desktop notification. `notifications.md` still holds every notice.
+8. **reasons**: a 900-character park reason is whole in report.md. The plan's `status:` and `parked:` lines end at a word and name parked.md. `unpark` on a real conflict names the file in conflict.
+9. **one-notice**: a run with two parked cards, blocked cards and a stop fires one desktop notification. notifications.md still holds every notice.
 10. **dry-run**: before the tests are confirmed, a command prints each card's pack size against the budget and each `measure:` line with the real number. A line it cannot read is reported as "not understood", never as passing.
-11. **report-cost**: `report.md` has a pack column and a tokens column per card. A card with no token data shows "unknown", not 0.
-12. **run-md**: `run.md` says a card can be parked after one round and why, and says the `.gitignore` commit happens only when the line was missing. A test fails if the text drifts back.
+11. **report-cost**: report.md has a pack column and a tokens column per card. A card with no token data shows "unknown", not 0.
+12. **run-md**: `.cursor-plugin/ultimate-workflow/phases/run.md` says a card can be parked after one round and why, and says the `.gitignore` commit happens only when the line was missing. A test fails if the text drifts back.
 13. **release**: the version stays 4.8.0 (the five fields and `mirrors.test.js` 239-248 already say it), the 4.8.0 entry of `CHANGELOG.md` gains a section for these fixes, and the full `test_command` is green.
 
 ## Files explored
@@ -88,7 +88,7 @@ What is there, and what each card reuses.
 - **The confirmed hash drops what the run writes.** `confirmHash` drops run fields and the cards named `findings` and `fixup`, but only while the current heading is `Cards`. The fix keeps this rule and adds `fixup-2`, `findings-2` and so on to the name test.
 - **Pure logic in `<P>/lib/`.** `PLAN-memory-index.md` put new code there to stay under the `experts/` limit. This plan adds two files: `lib/run-rules.js` (free name, short reason at a word end, reading a failed `git apply`, the experts of one card) and `lib/claims.js` (reading and judging `measure:` lines). Callers in `experts/` stay thin.
 - **Pack numbers.** `lib/pack.js` and `autopilot.pack` already give tokens and budget per card. The dry run and the report reuse them.
-- **Notices.** `notify()` writes `notifications.md` and `.jsonl` and then calls `desktopNotify`. Card `one-notice` changes only which kinds reach `desktopNotify`.
+- **Notices.** `notify()` writes notifications.md and `.jsonl` and then calls `desktopNotify`. Card `one-notice` changes only which kinds reach `desktopNotify`.
 - **Plan pointer.** `.ultimate-workflow/active-plan`, written by `setActivePlan`, read by `pointedPlanFile`. Card `plan-subfolder` lets the pointer hold a path. It adds no folder search, so the guess by file time stays root-only.
 - **Doc tests.** `evals/experts/docs.test.js` already checks that a guide and the code say the same number. Card `run-md` uses the same kind of test.
 - **Phase scripts stand alone.** A phase script cannot load a file from `lib/`. So the retry (card `expert-retry`) and the wait (card `settle-first`) are code inside `phases/run.js`. This is the one place where "new logic goes in `lib/`" cannot hold. If `expertsCheck` sits between the `// --- expert lane helpers` marks, every copy must get the same change; a test holds the copies equal.
@@ -173,17 +173,17 @@ No check here needs the running system. Every card is checked with `node:test` o
 
 ### harvest-name (item 9)
 
-`harvestBranch` takes the first free of `uw/harvest/<feature>`, `-2`, `-3` and so on, with the same free-name function as `card-add`. It returns the name it used; `runReport` and `writeRunStatus` already print what it returns. The note on a `memory.md` merge conflict (lines 843-846) stays.
+`harvestBranch` takes the first free of `uw/harvest/<feature>`, `-2`, `-3` and so on, with the same free-name function as `card-add`. It returns the name it used; `runReport` and `writeRunStatus` already print what it returns. The note on a `.cursor-plugin/ultimate-workflow/memory.md` merge conflict (lines 843-846) stays.
 
 ### reasons (items 7 and 11)
 
 - `run.js` 607: the report entry keeps the whole reason on one line. The cuts at 595, 825 and 898 go the same way.
-- `autopilot.js` 638: the plan lines stay short, but the cut is at a word end and is followed by the path of `parked.md`, which holds the whole text.
+- `autopilot.js` 638: the plan lines stay short, but the cut is at a word end and is followed by the path of parked.md, which holds the whole text.
 - `unpark` (675): a pure function reads the output of the failed `git apply --3way` and returns the files in conflict. When it finds none, it returns the last lines, not the first. The test takes git's real wording from a real conflict in a temporary repo.
 
 ### one-notice (item 12)
 
-In `notify()`, only kind `finished` goes to `desktopNotify`. Every other kind is still written to `notifications.md` and `.jsonl`, with `desktop: "file-only"`. A stopped run still ends with the `finished` step (`run.js` 1042, which says "; stopped"), so the user gets one. `run.md` line 44 changes in card `run-md`.
+In `notify()`, only kind `finished` goes to `desktopNotify`. Every other kind is still written to notifications.md and `.jsonl`, with `desktop: "file-only"`. A stopped run still ends with the `finished` step (`run.js` 1042, which says "; stopped"), so the user gets one. `.cursor-plugin/ultimate-workflow/phases/run.md` line 44 changes in card `run-md`.
 
 ### dry-run (item 16)
 
@@ -191,7 +191,7 @@ In `notify()`, only kind `finished` goes to `desktopNotify`. Every other kind is
 - Always: for each card, the pack size against `pack_budget`, from `autopilot.pack` and `lib/pack.js`. A card whose required entries alone are over the budget is listed.
 - For each `- measure: bytes <glob> <= <number>` line in the plan: the size now, the room left, and the cards whose paths fall under the glob. Code cannot know how many bytes a card will add. It shows the room so the user sees "4,700 bytes left and six cards write there" before confirming.
 - A `measure:` line it cannot read gives `understood: false` and is shown. It never counts as passing.
-- `commands/tests.md` runs it after the Tests section is written and before the confirmation, and shows the output. The tests phase is told to write a `measure:` line for each size or count it puts in a test.
+- `.cursor-plugin/ultimate-workflow/commands/tests.md` runs it after the Tests section is written and before the confirmation, and shows the output. The tests phase is told to write a `measure:` line for each size or count it puts in a test.
 - Reading and judging the lines is pure and goes in `lib/claims.js`.
 
 ### report-cost (item 17 of the task list, letter k)
@@ -207,7 +207,7 @@ Words only, plus tests in `evals/experts/docs.test.js`:
 - Line 38: review, fix-up and harvest wait for parked cards; the harvest branch may be `uw/harvest/<feature>-2`.
 - Line 44: one desktop notification, at the end.
 
-`run.md` has no mirror copy; `mirrors.test.js` (199-250) checks that it names its script and some of its text, so run that test after the edit (checked).
+`.cursor-plugin/ultimate-workflow/phases/run.md` has no mirror copy; `mirrors.test.js` (199-250) checks that it names its script and some of its text, so run that test after the edit (checked).
 
 ### release
 
@@ -221,7 +221,7 @@ No version change: 4.8.0 is not released yet, so these fixes go into its CHANGEL
    - For: the run's lane runs only that card's experts, so today such a card can never be committed. An argument of the command is not a stale pointer. The named card is used only when all changed files are under its paths.
    - Against: G6 is weaker for run commits than for hand commits. An expert of the other card does not see this change to the shared file.
 2. **One desktop notification per run.**
-   - Now: a notice per blocker as it happens (decision of 2026-11-09, `run.md` line 44).
+   - Now: a notice per blocker as it happens (decision of 2026-11-09, `.cursor-plugin/ultimate-workflow/phases/run.md` line 44).
    - Plan: only `finished` reaches the desktop; the file keeps all.
    - For: the user asked for it; a run with many cards sent many toasts.
    - Against: a card that needs a decision early in a long run is not seen until the end.
@@ -242,7 +242,7 @@ No version change: 4.8.0 is not released yet, so these fixes go into its CHANGEL
    - Now: refused with "merge or delete it".
    - Plan: the next free name.
    - For: four proposals were lost.
-   - Against: two open harvest branches can hold the same lesson or conflict in `memory.md`.
+   - Against: two open harvest branches can hold the same lesson or conflict in `.cursor-plugin/ultimate-workflow/memory.md`.
 7. **More than one fix-up card per run.**
    - Now: one card named `fixup`, refused when the name is taken.
    - Plan: one card per plan card the findings fall under, free names, at most four.
@@ -258,13 +258,13 @@ The experts' constraints below are part of the plan. Where they and a card secti
 - **expert-retry** touches only `phases/run.js` and `evals/experts/run-phase.test.js` (developer, softarch). Retry only an expert whose result is null; a valid empty result is a success. At most one retry per expert per check. Labels are built from card, tag and expert only, so a resume replays them. The **refute** and **recheck** agents get the same single retry; if refute is still null, the card parks instead of paying a fix round for unverified findings (genai). Tests count calls, not label shapes (quality).
 - **card-add**: a refusal prints one JSON line `{"ok":false,"reason":...}` with the try/out shape of `autopilot.js` `run()`, not `fail()`, for every refusal (developer). Free names come from one helper in `lib/run-rules.js`, bounded (up to `-99`), a git error counts as taken (architect). Every later use in `adhocCard` keys on the name `card-add` printed (developer). The same call twice adds one card: a not-committed card with the same title and carried text is returned, not duplicated (architect). One exported pattern gives both the free-name test and the `confirmHash` drop rule (softarch). One definition of where the card list ends, used by `addCard`, `parseCards` and `confirmHash`; the test uses a plan with `### Card` subsections and asserts `parseCards` returns only the list items (softarch, quality). `--experts` is passed only with names already in the plan's line (softarch, developer).
 - **gate-card floor (security, developer, softarch)**: a named card narrows G6 only for a card in the confirmed hash. A run-added card (`fixup*`, `findings*`) is held to the union of the experts of the confirmed cards whose paths cover its files, and an empty list means fall back, never "no experts". Experts the run's re-check added for the named card are also required. With no card named, behaviour is as today. New arguments are optional and at the end; `hooks/gate.js`, `hooks/status.js` and existing tests are unchanged. `lib/run-rules.js` and `lib/claims.js` have no top-level require of `experts/` files (load cycle).
-- **Test cases that rule out the wrong fix (quality)**: harvest-name with `<f>` and `<f>-2` both taken expects `-3`; gate-card with one file outside the named card's paths still asks for the union; reasons with a 5000-character reason cut inside a word, byte-equal in `report.md`; one-notice checks every kind in `NOTIFY_KINDS` through the `desktop` field, with `ULTIMATE_WORKFLOW_NOTIFY=off`; run-md reads the round rules from `run.js`, not a copied number; dry-run has a non-ASCII fixture; the unpark conflict test sets `LC_ALL=C`.
+- **Test cases that rule out the wrong fix (quality)**: harvest-name with `<f>` and `<f>-2` both taken expects `-3`; gate-card with one file outside the named card's paths still asks for the union; reasons with a 5000-character reason cut inside a word, byte-equal in report.md; one-notice checks every kind in `NOTIFY_KINDS` through the `desktop` field, with `ULTIMATE_WORKFLOW_NOTIFY=off`; run-md reads the round rules from `run.js`, not a copied number; dry-run has a non-ASCII fixture; the unpark conflict test sets `LC_ALL=C`.
 - **plan-subfolder (security, softarch)**: one containment check for the pointer: backslashes to slashes, refuse a drive prefix, a leading `/` or `//`, any `..`, a base name not `PLAN-*.md`, and a real path outside the root. `card-commit` reads G7 from its own `--plan`, so the two gates never judge different plans. `projectRoot` is unchanged. The new rule reaches the gates only once the installed plugin is updated, so the run that builds this plan is not judged by it.
 - **Agent text never goes inside `q()` (security)**: titles, paths, carried text, reasons and stop text that agents wrote go in files written by `runSteps` and are read with `--*-file` flags, as `parkCard` does. Test: a finding whose text is `$(touch PWNED)` leaves no file.
 - **dry-run**: a `measure:` glob is matched in JS under the root only; `..`, absolute or drive paths give `understood: false` (security). A "not understood" line or a failing claim **stops the tests phase and asks the user** before confirmation; it is never shown as passing (quality).
 - **settle-first (architect)**: the base stays the one in `run.json` (`experts.js` 1397-1406), so the review covers the whole feature. `run.json` also records the HEAD the review covered and the harvest branch made; a later settling resume reviews only `<recorded head>..HEAD` and harvests only when cards were committed after it.
 - **harvest-name (architect)**: a second harvest is given the names of the open `uw/harvest/<feature>*` branches and told to drop what they already hold.
-- **one-notice (architect)**: when a run ends without its `finished` step (a script error, a null runner, a stop), `phases/run.md` has the session send one `notify --kind finished` with "stopped", so the user always gets exactly one.
+- **one-notice (architect)**: when a run ends without its `finished` step (a script error, a null runner, a stop), `.cursor-plugin/ultimate-workflow/phases/run.md` has the session send one `notify --kind finished` with "stopped", so the user always gets exactly one.
 - **report-cost (genai)**: Tokens counts labels `<card>:`, `<card>-fix:` and the retry labels, matched on the exact card name. The Pack column is labelled an estimate. Tokens is the usage total with cache reads shown apart, or "unknown".
 - **many-fixups**: the split is by covering plan card (the user's request), at most four per run, and the report names which run each fix-up card came from (developer).
 
@@ -277,7 +277,7 @@ The experts' constraints below are part of the plan. Where they and a card secti
 - A dropped parked card: the report says how to run review and harvest by hand. No extra flag.
 - No token ceiling for a run (owner, 2026-11-12): the report shows tokens per card after the run, nothing stops a run on cost.
 - Two open harvest branches may hold the same lesson. Accepted; the report lists every open `uw/harvest/*` branch.
-- The `measure:` line format is new plan text the tests phase writes. Where `commands/tests.md` calls the dry run is found at build.
+- The `measure:` line format is new plan text the tests phase writes. Where `.cursor-plugin/ultimate-workflow/commands/tests.md` calls the dry run is found at build.
 
 ## Open questions
 
@@ -387,7 +387,7 @@ The review range on a resume is already safe. The script generator keeps `base` 
 - one-notice: a run that ends without its `finished:notify` step must still produce one desktop notification. That covers a script error, the runner agent returning null (`run.js` 395 depends on an agent step), or a stop. The command that started the Workflow checks `notifications.jsonl` for a `finished` entry newer than the run's start, and sends `notify --kind finished` with `stopped` when there is none. A test proves a run that stops early leaves exactly one desktop-kind entry.
 - The free-name search in lib/run-rules.js (card-add and harvest-name) tries a bounded number of names, for example up to -99. When none is free it returns `{ok:false, reason}` and never loops on a git error. A git error on `rev-parse --verify` counts as taken, not as free.
 **Risks**
-- harvest-name changes a refusal into a second branch, but the harvester reads the whole `RUN_DIR/journal.md` and `BASE..HEAD` (`run.js` 1026). So the second branch will propose the first branch's lessons again, and two branches will edit the same lines of `memory.md` and `AGENTS.md`. Unless the second harvest is given the first branch's name and told to drop what that branch already holds, the 'four proposals lost' fault turns into duplicate proposals and merge conflicts.
+- harvest-name changes a refusal into a second branch, but the harvester reads the whole journal.md of the run folder and `BASE..HEAD` (`run.js` 1026). So the second branch will propose the first branch's lessons again, and two branches will edit the same lines of `.cursor-plugin/ultimate-workflow/memory.md` and `AGENTS.md`. Unless the second harvest is given the first branch's name and told to drop what that branch already holds, the 'four proposals lost' fault turns into duplicate proposals and merge conflicts.
 - expert-retry doubles the agent cost of a failure that happens every time. Examples are a schema the expert cannot fill, or a reference file it cannot read. Each card can run up to 2 checks x 2 attempts per expert, plus the refute agent. That is bounded, but the run report should name the retried expert so the same failure is not paid for on every card. The token column of report-cost only shows this when the retry label (`<card><tag>:<expert>:retry`) counts under the card's prefix.
 - gate-card: when card A commits a shared file with only A's experts, card B's later `card-commit` judges only B's diff. So no expert from B's list ever sees A's change to that file. The only later check is the four-lens review, and settle-first can now hold that review back until every card is settled. A feature whose parked card is never resumed ships shared-file changes that no expert outside the committing card reviewed.
 - One desktop notification at the end means a card that needs a decision early in a long run sits unseen. The cards behind it are blocked and spend nothing, but the user only learns at the end. If the run then dies before `finished`, the user learns nothing, unless the run's launcher sends the end-of-run notice when the script did not (third constraint above).
@@ -441,7 +441,7 @@ The globs are in quotes so that Node expands them. A new test file must sit unde
 1. `pointer to internal/plans/PLAN-x.md: readState returns that file and its volatile_paths when the root has no PLAN file`. The plan path equals the fixture path, and `volatile_paths` deep-equals the fixture's list.
 2. `setActivePlan accepts a relative subfolder path and pointedPlanFile returns it`. `setActivePlan` returns `true`, and `.ultimate-workflow/active-plan` holds the forward-slash path.
 3. `setActivePlan normalises backslashes in a subfolder path`. `internal\\plans\\PLAN-x.md` is stored and read back as `internal/plans/PLAN-x.md`.
-4. `pointer refused: each unsafe form is ignored`, a table test. The rows are `../PLAN-x.md`, `internal/../../PLAN-x.md`, `/abs/PLAN-x.md`, `C:PLAN-x.md`, `C:\\x\\PLAN-x.md`, `//server/share/PLAN-x.md`, `internal\\..\\..\\PLAN-x.md`, `internal/plans/notes.md` (base name not `PLAN-*.md`) and `internal/plans/PLAN-missing.md` (no file). For each row, `setActivePlan` returns `false`. `readState`, with the pointer written by hand, returns a result deep-equal to the result with no pointer at all.
+4. `pointer refused: each unsafe form is ignored`, a table test. The rows are `../PLAN-x.md`, `internal/../../PLAN-x.md`, `/abs/PLAN-x.md`, `C:PLAN-x.md`, `C:\\x\\PLAN-x.md`, `//server/share/PLAN-x.md`, `internal\\..\\..\\PLAN-x.md`, notes.md under internal/plans (base name not `PLAN-*.md`) and `internal/plans/PLAN-missing.md` (no file). For each row, `setActivePlan` returns `false`. `readState`, with the pointer written by hand, returns a result deep-equal to the result with no pointer at all.
 5. `pointer through a directory junction out of the root is refused`. The junction points to a dir outside the root that holds a real `PLAN-x.md`. Same oracle as 4: `setActivePlan` is `false`, and `readState` deep-equals the no-pointer result.
 6. `pointer to a phase: done plan is ignored`. The root also holds an older `PLAN-old.md` that is not done. `readState` deep-equals the no-pointer result, and the test asserts that result by its plan path (it is `PLAN-old.md`, not the pointed plan).
 7. `without a pointer the root-only guess is unchanged`. A `PLAN-*.md` exists only under `internal/plans/`, and no pointer is set. `readState` finds no plan, so there is no folder walk.
@@ -531,11 +531,11 @@ Shared fixture: cards A (`experts: quality`), B (`experts: security`) and C (`ex
 
 ### reasons (criterion 8): `run-rules.test.js`, `autopilot-fixes.test.js`, `run-phase.test.js`
 
-55. `a 5000-character park reason cut inside a word at 240 is byte-equal in report.md`. The reason has no newline. The test finds the exact whole reason as a substring of `report.md`, all on one line.
+55. `a 5000-character park reason cut inside a word at 240 is byte-equal in report.md`. The reason has no newline. The test finds the exact whole reason as a substring of report.md, all on one line.
 56. `a reason holding newlines is one line in report.md`. The newlines are joined, and nothing is dropped.
-57. `the plan's status: and parked: lines are cut at the last word end and name parked.md`, a table test. In every row, `parked.md` holds the whole reason.
-    - (a) A 5000-character reason whose 240th character is inside a word. The kept prefix equals `reason.slice(0, reason.lastIndexOf(' ', 240))` after trimming. The line is at most the cap and holds the `parked.md` path.
-    - (b) A 600-character reason with no whitespace. Each line is at most the cap and still holds the `parked.md` path. The kept prefix is a hard cut of the reason at the room left, not `slice(0, -1)`.
+57. `the plan's status: and parked: lines are cut at the last word end and name parked.md`, a table test. In every row, parked.md holds the whole reason.
+    - (a) A 5000-character reason whose 240th character is inside a word. The kept prefix equals `reason.slice(0, reason.lastIndexOf(' ', 240))` after trimming. The line is at most the cap and holds the parked.md path.
+    - (b) A 600-character reason with no whitespace. Each line is at most the cap and still holds the parked.md path. The kept prefix is a hard cut of the reason at the room left, not `slice(0, -1)`.
     - (c) A 60-character reason with no `;`. The status: line holds the reason exactly, followed by the parked.md path, with nothing cut.
 58. `the cuts at run.js 595, 825 and 898 keep the whole reason`. One case each. The whole reason reaches its destination through a `--*-file` entry (test 21 checks that it is not on the command line).
 59. `unpark on a real 3-way conflict names the file in conflict`. Real temp repo with `LC_ALL=C`. The reason holds the conflicting file's path.
@@ -562,7 +562,7 @@ Shared fixture: cards A (`experts: quality`), B (`experts: security`) and C (`ex
     - size === N: passing `true`
     - size === N + 1: passing `false`
 71. `claims prints one JSON line with ok and is in COMMANDS`.
-72. `docs.test.js` (or a `phases/tests.js` test): `the tests phase runs claims before the confirmation and stops to ask on a not-understood or failing line`. It asserts both the order of the steps in `phases/tests.js` and the stop. Text in `commands/tests.md` alone is not enough.
+72. `docs.test.js` (or a `phases/tests.js` test): `the tests phase runs claims before the confirmation and stops to ask on a not-understood or failing line`. It asserts both the order of the steps in `phases/tests.js` and the stop. Text in `.cursor-plugin/ultimate-workflow/commands/tests.md` alone is not enough.
 
 ### report-cost (criterion 11): `autopilot-fixes.test.js`
 

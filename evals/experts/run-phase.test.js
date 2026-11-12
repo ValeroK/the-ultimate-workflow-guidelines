@@ -697,3 +697,127 @@ test('36: at most four fix-up cards per run; the findings of the rest stay in th
   assert.equal(result.review.findings.length, 5);
   assert.equal(result.review.leftInReport, 1, 'the fifth group stays in the report');
 });
+
+// --- expert-retry (PLAN-run-fixes.md, card expert-retry, tests 38 to 41) -----------------------------
+// A responder keyed by call count: the shared responder splits a label on ':' and keeps two parts, so
+// '<card>:<expert>:retry' would look like a first call. This one counts the calls per full label.
+
+function nullThen(base, nulls) {
+  const calls = [];
+  const count = {};
+  const asked = {};
+  const fn = async (c) => {
+    calls.push(c);
+    count[c.label] = (count[c.label] || 0) + 1;
+    // 'nulls' counts the calls of one expert across its first call and its retry: {x: 2} fails both.
+    const family = c.label.replace(/:retry$/, '');
+    asked[family] = (asked[family] || 0) + 1;
+    const wanted = nulls[family];
+    if (wanted !== undefined && asked[family] <= wanted) return null;
+    if (/:security$|:security:retry$/.test(c.label)) return { lensVerdict: 'ok', findings: [], stillPresent: [] };
+    return base(c);
+  };
+  fn.calls = calls;
+  fn.count = (label) => count[label] || 0;
+  fn.retries = () => calls.filter((c) => /:retry$/.test(c.label)).map((c) => c.label);
+  return fn;
+}
+
+test('38: an expert that returns null once is retried and the card commits', async () => {
+  const r = nullThen(responder(), { '1:quality': 1 });
+  const { result } = await run(baseArgs([card('1')]), r);
+  assert.equal(result.cards[0].status, 'committed', JSON.stringify(result.cards[0]));
+  assert.equal(r.count('1:quality') + r.count('1:quality:retry'), 2, 'one first call and one retry');
+  assert.equal(r.count('1:quality:retry'), 1);
+  assert.equal(r.count('1:commit'), 1);
+});
+
+test('39: experts that return null twice park the card with every failed name; card-commit and record are not called', async () => {
+  const r = nullThen(responder(), { '1:quality': 2, '1:security': 2 });
+  const { result } = await run(baseArgs([card('1', { experts: ['quality', 'security'] })], { available: TWO_EXPERTS }), r);
+  const got = result.cards[0];
+  assert.equal(got.status, 'parked', JSON.stringify(got));
+  assert.match(got.reason, /quality/);
+  assert.match(got.reason, /security/);
+  assert.match(got.reason, /first check/);
+  assert.equal(r.count('1:commit'), 0, 'no commit step');
+  assert.ok(!r.calls.some((c) => /card-commit|experts\.js" record /.test(String(c.prompt))), 'neither card-commit nor record was issued');
+});
+
+test('40: a valid empty result is a success and is not retried', async () => {
+  const r = nullThen(responder(), {});
+  const { result } = await run(baseArgs([card('1')]), r);
+  assert.equal(result.cards[0].status, 'committed');
+  assert.equal(r.count('1:quality'), 1);
+  assert.deepStrictEqual(r.retries(), []);
+});
+
+test('41: only the failed expert is retried', async () => {
+  const r = nullThen(responder(), { '1:quality': 1 });
+  const { result } = await run(baseArgs([card('1', { experts: ['quality', 'security'] })], { available: TWO_EXPERTS }), r);
+  assert.equal(result.cards[0].status, 'committed', JSON.stringify(result.cards[0]));
+  assert.equal(r.count('1:security'), 1);
+  assert.equal(r.count('1:security:retry'), 0);
+  assert.deepStrictEqual(r.retries(), ['1:quality:retry'], 'as many retries as experts that failed');
+});
+
+test('42b: the same retry and park rule applies after a fix round (-fix tag)', async () => {
+  const blocking = { file: 'src/1/x.js', line: 3, what: 'b guard untested', howItFails: 'delete it, all green', confidence: 'high' };
+  const once = nullThen(responder({ findings: { 1: [blocking], '1-fix': [] } }), { '1-fix:quality': 1 });
+  const ok = await run(baseArgs([card('1')]), once);
+  assert.equal(ok.result.cards[0].status, 'committed', JSON.stringify(ok.result.cards[0]));
+  assert.deepStrictEqual(once.retries(), ['1-fix:quality:retry']);
+  assert.equal(once.count('1:commit'), 1);
+
+  const twice = nullThen(responder({ findings: { 1: [blocking], '1-fix': [] } }), { '1-fix:quality': 2 });
+  const bad = await run(baseArgs([card('1')]), twice);
+  const got = bad.result.cards[0];
+  assert.equal(got.status, 'parked', JSON.stringify(got));
+  assert.match(got.reason, /after the fix round failed: quality/);
+  assert.equal(twice.count('1:commit'), 0);
+});
+
+test('43: a refute agent null twice parks the card; no fix round is paid', async () => {
+  const blocking = { file: 'src/1/x.js', line: 3, what: 'b guard untested', howItFails: 'delete it, all green', confidence: 'high' };
+  const r = nullThen(responder({ findings: { 1: [blocking] } }), { '1:refute': 2 });
+  const { result } = await run(baseArgs([card('1')]), r);
+  const got = result.cards[0];
+  assert.equal(got.status, 'parked', JSON.stringify(got));
+  assert.match(got.reason, /refute/);
+  assert.equal(r.count('1:refute'), 1);
+  assert.equal(r.count('1:refute:retry'), 1);
+  assert.equal(r.count('1:fix-round'), 0);
+  assert.equal(r.count('1:commit'), 0);
+});
+
+test('43b: a refute agent null once is retried and the card goes on', async () => {
+  const blocking = { file: 'src/1/x.js', line: 3, what: 'b guard untested', howItFails: 'delete it, all green', confidence: 'high' };
+  const r = nullThen(responder({ findings: { 1: [blocking], '1-fix': [] } }), { '1:refute': 1 });
+  const { result } = await run(baseArgs([card('1')]), r);
+  assert.equal(result.cards[0].status, 'committed', JSON.stringify(result.cards[0]));
+  assert.equal(r.count('1:refute:retry'), 1);
+});
+
+test('44: a recheck agent null is retried once', async () => {
+  const r = nullThen(responder(), { '1:recheck': 1 });
+  const { result } = await run(baseArgs([card('1')]), r);
+  assert.equal(result.cards[0].status, 'committed', JSON.stringify(result.cards[0]));
+  assert.equal(r.count('1:recheck'), 1);
+  assert.equal(r.count('1:recheck:retry'), 1);
+  const twice = nullThen(responder(), { '1:recheck': 2 });
+  await run(baseArgs([card('1')]), twice);
+  assert.equal(twice.count('1:recheck:retry'), 1, 'at most one retry');
+});
+
+// Carried from card-add: a refused card-add for the second fix-up card was recorded under 'fixup'.
+test('42: a refused card-add for fixup-2 is recorded under fixup-2, not under fixup', async () => {
+  const cards = [card('a', { experts: ['quality'] }), card('b', { experts: ['security'] })];
+  const r = withFreeNames(responder({ reviewFindings: [finding('src/a/x.js'), finding('src/b/y.js')] }));
+  const refuse = async (c) => (c.label === 'fixup-2:setup' ? steps({ ok: false, reason: 'REFUSED-FOR-2' }) : r(c));
+  const { result } = await run(baseArgs(cards, { available: TWO_EXPERTS, planExperts: ['quality', 'security'] }), refuse);
+  const notStarted = result.cards.filter((c) => c.status === 'not started');
+  assert.deepStrictEqual(notStarted.map((c) => c.card), ['fixup-2']);
+  assert.match(notStarted[0].reason, /fixup-2 card could not be added/);
+  assert.match(notStarted[0].reason, /REFUSED-FOR-2/);
+  assert.equal(result.cards.find((c) => c.card === 'fixup').status, 'committed', 'the first fix-up card is untouched');
+});

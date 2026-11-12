@@ -469,7 +469,7 @@ async function expertsCheck(card, carried, tag = '') {
   let recheck = false
   let added = []
   if (AVAILABLE.length > 0) {
-    const answer = await agent(
+    const askRecheck = (label) => agent(
       `Decide which domain experts should review this change. The diff is saved at .ultimate-workflow/review.diff; read it, and the surrounding code where a hunk is not clear on its own.
 
 Available experts (the only names you may answer with):
@@ -478,8 +478,10 @@ ${AVAILABLE.map((e) => `- ${e.name}: ${e.description}`).join('\n')}
 Already selected: ${selected.length ? selected.join(', ') : 'none'}.
 
 Name every available expert that applies to this change and is not already selected, each with one sentence tying it to something in the diff. You cannot remove one. If none apply, return an empty list.`,
-      { agentType: agentName('uw-explorer'), label: `${card.name}${tag}:recheck`, phase: currentPhase, schema: SELECTION, ...modelOpt(IMPLEMENTER_MODEL) }
+      { agentType: agentName('uw-explorer'), label, phase: currentPhase, schema: SELECTION, ...modelOpt(IMPLEMENTER_MODEL) }
     )
+    // Asked once more when it returns nothing, with a label built from card and tag only.
+    const answer = (await askRecheck(`${card.name}${tag}:recheck`)) || (await askRecheck(`${card.name}${tag}:recheck:retry`))
     if (answer) {
       recheck = true
       const names = (answer.experts || []).map((x) => String((x && x.name) || '').trim()).filter((n) => AVAILABLE.some((e) => e.name === n) && !selected.includes(n))
@@ -489,8 +491,7 @@ Name every available expert that applies to this change and is not already selec
   } else recheck = true
   const reviewing = selected.map((n) => AVAILABLE.find((e) => e.name === n)).filter((e) => e && e.stages.includes('review'))
   const skillsFor = (name) => skillsOf(card.reviewSkills && card.reviewSkills[name])
-  const results = await parallel(
-    reviewing.map((e) => () => {
+  const askExpert = (e, label) => {
       const mine = carried.map((f, i) => ({ ...f, index: i })).filter((f) => f.expert === e.name)
       const skills = skillsFor(e.name)
       return agent(
@@ -505,10 +506,16 @@ Name every available expert that applies to this change and is not already selec
         }
 
 Every finding needs a file, a line, one sentence on the defect and a concrete failure scenario. Set lensVerdict whether or not you find anything. ${NO_QUOTA}`,
-        { agentType: agentName(e.agent), label: `${card.name}${tag}:${e.name}`, phase: currentPhase, schema: FINDINGS, ...modelOpt(IMPLEMENTER_MODEL) }
+        { agentType: agentName(e.agent), label, phase: currentPhase, schema: FINDINGS, ...modelOpt(IMPLEMENTER_MODEL) }
       )
-    })
-  )
+  }
+  const results = await parallel(reviewing.map((e) => () => askExpert(e, `${card.name}${tag}:${e.name}`)))
+  // An expert that returned nothing is asked once more, with a label built from the card, tag and name only,
+  // so a resumed run replays the same calls. A valid empty result is a success and is not asked again.
+  const retried = await parallel(reviewing.map((e, i) => () => (results[i] ? null : askExpert(e, `${card.name}${tag}:${e.name}:retry`))))
+  retried.forEach((r, i) => {
+    if (r) results[i] = r
+  })
   const ran = reviewing.filter((_, i) => results[i]).map((e) => e.name)
   const failed = reviewing.filter((_, i) => !results[i]).map((e) => e.name)
   const all = []
@@ -527,14 +534,18 @@ Every finding needs a file, a line, one sentence on the defect and a concrete fa
   })
   let verdicts = new Map()
   if (all.length > 0) {
-    const v = await agent(
+    const askRefute = (label) => agent(
       `Try to REFUTE each finding below. Your job is not to agree.
 
 ${JSON.stringify(all.map((f, index) => ({ index, ...f })), null, 2)}
 
 For each: read the code around it, check whether the failure path is reachable, look for the guard the reviewer missed. Default to refuted when uncertain. Return one verdict per finding, by index.`,
-      { agentType: agentName('uw-reviewer'), label: `${card.name}${tag}:refute`, phase: currentPhase, schema: VERDICTS, ...modelOpt(IMPLEMENTER_MODEL) }
+      { agentType: agentName('uw-reviewer'), label, phase: currentPhase, schema: VERDICTS, ...modelOpt(IMPLEMENTER_MODEL) }
     )
+    // Asked once more when it returns nothing. Findings no skeptic checked must not drive a paid fix round,
+    // so a second null counts as a failed check and the card is parked by the caller.
+    const v = (await askRefute(`${card.name}${tag}:refute`)) || (await askRefute(`${card.name}${tag}:refute:retry`))
+    if (!v) failed.push('refute')
     verdicts = new Map(((v && v.verdicts) || []).map((x) => [x.index, x]))
   }
   const kept = []
@@ -753,8 +764,8 @@ async function runCard(card, { adhoc = false } = {}) {
 
   let check = await expertsCheck(card, carried)
   lanes.push({ card: card.name, lane: check.lane, refuted: check.refuted.length })
-  if (check.failed.length > 0 && check.lane.ran.length === 0 && check.lane.selected.length > 0) {
-    return parkCard(card, `the experts check failed: ${check.failed.join(', ')} returned nothing`, { build: buildSummary })
+  if (check.failed.length > 0) {
+    return parkCard(card, `the experts check failed (first check): ${check.failed.join(', ')} returned nothing, also on the retry`, { build: buildSummary })
   }
   // A blocking finding in this card's own files gets one fix round in the card, then a fresh
   // experts check on the new diff. Only what is still blocking after it, or a blocking finding in a
@@ -776,7 +787,7 @@ async function runCard(card, { adhoc = false } = {}) {
         else {
           const recheck = await expertsCheck(card, carried, '-fix')
           lanes.push({ card: card.name, lane: recheck.lane, refuted: recheck.refuted.length, fixRound: true })
-          if (recheck.failed.length > 0 && recheck.lane.ran.length === 0 && recheck.lane.selected.length > 0) fixRound.outcome = `the experts check after the fix round failed: ${recheck.failed.join(', ')} returned nothing`
+          if (recheck.failed.length > 0) fixRound.outcome = `the experts check after the fix round failed: ${recheck.failed.join(', ')} returned nothing, also on the retry`
           else {
             fixRound.outcome = recheck.blocking.length === 0 ? 'fixed' : 'still blocking'
             check = recheck
@@ -913,8 +924,8 @@ async function adhocCard(name, title, items, experts, label = name) {
   // A card that never reached the plan cannot be parked (park looks it up there), and nothing was
   // built for it, so it is recorded as not started and the run goes on to the harvest.
   if (!(added && added.ok)) {
-    status[name] = 'not started'
-    const entry = { card: name, title, status: 'not started', reason: `the ${name} card could not be added to the plan: ${(added && added.reason) || (rawOutputs.get(addCmd) ? `card-add printed no JSON line; it printed: ${rawOutputs.get(addCmd).replace(/\s*\r?\n\s*/g, ' ').slice(0, 300)}` : 'card-add printed nothing (see its error in the setup agent)')}`, items }
+    status[label] = 'not started'
+    const entry = { card: label, title, status: 'not started', reason: `the ${label} card could not be added to the plan: ${(added && added.reason) || (rawOutputs.get(addCmd) ? `card-add printed no JSON line; it printed: ${rawOutputs.get(addCmd).replace(/\s*\r?\n\s*/g, ' ').slice(0, 300)}` : 'card-add printed nothing (see its error in the setup agent)')}`, items }
     report.push(entry)
     return entry
   }

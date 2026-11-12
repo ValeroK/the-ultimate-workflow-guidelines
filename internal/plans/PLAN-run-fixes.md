@@ -107,16 +107,19 @@ What is there, and what each card reuses.
 - card-add: a run-added card goes inside the list, gets a free name, and there can be more than one
   paths: .cursor-plugin/ultimate-workflow/lib/run-rules.js, .cursor-plugin/ultimate-workflow/experts/cards.js, .cursor-plugin/ultimate-workflow/experts/experts.js, .cursor-plugin/ultimate-workflow/phases/run.js, evals/experts/run-rules.test.js, evals/experts/autopilot-fixes.test.js
   depends: gate-card
-  status: committed
+  status: committed 6a4eab4e61af
   carried: quality at .cursor-plugin/ultimate-workflow/phases/run.js:905: The adhocCard change that passes --experts to card-add (and the new PLAN_EXPERTS filter) has no test in the diff.; quality at .cursor-plugin/ultimate-workflow/experts/experts.js:494: Nothing in the diff writes the `accepted:` run field, the diff only reads it and leaves it out of the confirm hash. The plan assigns the write to `--resume <card> --accept`.
+  committed: 6a4eab4e61af
 - expert-retry: retry a failed expert once, never commit past one
   paths: .cursor-plugin/ultimate-workflow/phases/run.js, evals/experts/run-phase.test.js
   depends: card-add
-  status: pending
+  status: fixed-in-round
+  carried: developer at .cursor-plugin/ultimate-workflow/phases/run.js:916: A refused card-add for fixup-2, fixup-3 or fixup-4 writes status and the report entry under the literal base name 'fixup', not the label.
 - settle-first: review, fix-up and harvest wait for parked and blocked cards
   paths: .cursor-plugin/ultimate-workflow/phases/run.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, evals/experts/run-phase.test.js, evals/experts/autopilot-fixes.test.js
   depends: expert-retry
   status: pending
+  carried: quality at evals/experts/autopilot-fixes.test.js:364: Test 26 checks the replay-reuse rule only when the card to reuse has the exact base name `fixup`, the `-N` family match in reusableCard is never exercised.
 - harvest-name: a second harvest gets its own branch
   paths: .cursor-plugin/ultimate-workflow/lib/run-rules.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, evals/experts/autopilot-fixes.test.js
   depends: settle-first

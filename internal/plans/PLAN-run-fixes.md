@@ -150,7 +150,8 @@ What is there, and what each card reuses.
 - run-md: run.md says what the code does
   paths: .cursor-plugin/ultimate-workflow/phases/run.md, evals/experts/docs.test.js
   depends: report-cost
-  status: blocked by report-cost
+  status: committed d06e99a0758f
+  committed: d06e99a0758f
 - release: changelog for these fixes in 4.8.0
   paths: CHANGELOG.md, internal/plans/PLAN-run-fixes.md
   depends: plan-subfolder, run-md

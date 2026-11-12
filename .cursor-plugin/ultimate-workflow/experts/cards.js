@@ -33,18 +33,20 @@ const split = (value, sep) => value.split(sep).map((s) => s.trim()).filter(Boole
 // of its own and not the same as no field at all.
 const expertList = (value) => split(value.replace(/^\[|\]$/g, ''), ',');
 
-/** The first `## Cards` heading's line range: [first line after it, line after the last of its content). */
+/**
+ * The first `## Cards` heading's line range: [first line after it, line after the last of its content).
+ * The list ends at the next heading of any level, so the detail bullets of a `### Card` subsection
+ * are not cards, and a card added at the end of the range stays in the list.
+ */
 function cardsRange(all) {
   const at = all.findIndex((l) => {
     const m = HEADING.exec(l);
     return m && m[2].toLowerCase() === 'cards';
   });
   if (at === -1) return null;
-  const level = HEADING.exec(all[at])[1].length;
   let end = all.length;
   for (let i = at + 1; i < all.length; i++) {
-    const m = HEADING.exec(all[i]);
-    if (m && m[1].length <= level) {
+    if (HEADING.test(all[i])) {
       end = i;
       break;
     }

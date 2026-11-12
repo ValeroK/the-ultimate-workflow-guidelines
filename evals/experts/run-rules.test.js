@@ -129,3 +129,62 @@ test('19b: run-rules.js loaded first, then experts.js: commitEvidence --card sti
   assert.equal(r.status, 0, r.stderr);
   assert.deepStrictEqual(JSON.parse(r.stdout), ['quality']);
 });
+
+// --- card-add (PLAN-run-fixes.md, card card-add, tests 27 and 28) --------------------------------
+
+// 27: the free-name helper stops. A loop that never ends would hang the child and fail on its timeout.
+test('27: freeName is bounded, counts a throwing taken() as taken, and gives names the confirmHash drop rule knows', () => {
+  const outside = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'uw-rules-child-')));
+  made.push(outside);
+  write(outside, 'child.js', [
+    "'use strict';",
+    "const path = require('node:path');",
+    "const rules = require(path.join(process.argv[2], 'lib', 'run-rules.js'));",
+    'let thrown = 0;',
+    'const out = {',
+    '  all: rules.freeName("fixup", () => true),',
+    '  third: rules.freeName("fixup", (n) => n === "fixup" || n === "fixup-2"),',
+    '  thrown: rules.freeName("fixup", () => { thrown++; throw new Error("git failed"); }),',
+    '};',
+    'out.thrownCalls = thrown;',
+    'process.stdout.write(JSON.stringify(out));',
+    '',
+  ].join('\n'));
+  const r = spawnSync(process.execPath, [path.join(outside, 'child.js'), PLUGIN], { encoding: 'utf8', timeout: 5000 });
+  assert.equal(r.signal, null, 'the child was killed: freeName did not stop');
+  assert.equal(r.status, 0, r.stderr);
+  const out = JSON.parse(r.stdout);
+  assert.equal(out.all.ok, false);
+  assert.equal(typeof out.all.reason, 'string');
+  assert.equal(out.thrown.ok, false, 'a taken() that throws counts as taken');
+  assert.ok(out.thrownCalls >= 1 && out.thrownCalls <= 100, `taken() called ${out.thrownCalls} times`);
+  assert.deepStrictEqual(out.third, { ok: true, name: 'fixup-3' });
+  assert.match(out.third.name, require(path.join(PLUGIN, 'lib', 'run-rules.js')).RUN_ADDED);
+});
+
+// 28: inside ## Cards the hash drops fixup, fixup-2, findings-12 and nothing that merely looks like them.
+test('28: confirmHash drops the run-added names with a number, and only those, and only inside ## Cards', () => {
+  const plan = ({ cards = '', notes = '' } = {}) => `---
+phase: build
+plan_confirmed: true
+tests_confirmed: true
+experts: [quality]
+---
+
+# PLAN: names
+
+## Cards
+
+- A: first
+  paths: src/a/**
+${cards}
+## Notes
+
+- note: kept
+${notes}`;
+  const bullet = (n) => `- ${n}: x\n  paths: src/a/**\n`;
+  const base = expertsLib.confirmHash(plan());
+  for (const n of ['fixup', 'fixup-2', 'findings-12']) assert.equal(expertsLib.confirmHash(plan({ cards: bullet(n) })), base, `${n} is dropped`);
+  for (const n of ['fixups', 'fixup-x', 'myfixup']) assert.notEqual(expertsLib.confirmHash(plan({ cards: bullet(n) })), base, `${n} is kept`);
+  assert.notEqual(expertsLib.confirmHash(plan({ notes: bullet('fixup') })), base, 'a fixup bullet outside ## Cards is kept');
+});

@@ -900,27 +900,29 @@ if (stoppedBecause) await runSteps('stopped:notify', [cliCmd('notify', '--featur
 
 // ---- the findings card, the review and its fix-up card ----
 
+const MAX_FIXUP_CARDS = 4
 const adhocPaths = []
-async function adhocCard(name, title, items, experts) {
+async function adhocCard(name, title, items, experts, label = name) {
   const files = [...new Set(items.map((f) => String(f.file || '').replace(/\\/g, '/')).filter(Boolean))]
   // Only names the plan's line holds: card-add refuses any other, and a plan with no line takes no --experts.
   const laneExperts = experts.filter((n) => PLAN_EXPERTS.includes(n))
   const carriedText = items.map((f) => `${f.expert || f.lens} at ${f.file}:${f.line}: ${f.what}`.replace(/;/g, ','))
-  const [added, packed] = await runSteps(`${name}:setup`, [
-    cliCmd('card-add', '--plan', q(PLAN), '--name', name, '--title', q(title), '--paths', q(files.join(',') || '.'), '--carried', q(carriedText.join('; ')), ...(PLAN_EXPERTS.length > 0 ? ['--experts', laneExperts.length > 0 ? laneExperts.join(',') : 'none'] : [])),
-    cliCmd('pack', '--plan', q(PLAN), '--card', name, '--feature', FEATURE, '--adhoc'),
-  ])
+  // The name is free-chosen: every later step keys on the one card-add printed.
+  const addCmd = cliCmd('card-add', '--plan', q(PLAN), '--name', name, '--free-name', '--title', q(title), '--paths', q(files.join(',') || '.'), '--carried', q(carriedText.join('; ')), ...(PLAN_EXPERTS.length > 0 ? ['--experts', laneExperts.length > 0 ? laneExperts.join(',') : 'none'] : []))
+  const [added] = await runSteps(`${label}:setup`, [addCmd])
   // A card that never reached the plan cannot be parked (park looks it up there), and nothing was
   // built for it, so it is recorded as not started and the run goes on to the harvest.
   if (!(added && added.ok)) {
     status[name] = 'not started'
-    const entry = { card: name, title, status: 'not started', reason: `the ${name} card could not be added to the plan: ${(added && added.reason) || 'card-add printed nothing (see its error in the setup agent)'}`, items }
+    const entry = { card: name, title, status: 'not started', reason: `the ${name} card could not be added to the plan: ${(added && added.reason) || (rawOutputs.get(addCmd) ? `card-add printed no JSON line; it printed: ${rawOutputs.get(addCmd).replace(/\s*\r?\n\s*/g, ' ').slice(0, 300)}` : 'card-add printed nothing (see its error in the setup agent)')}`, items }
     report.push(entry)
     return entry
   }
+  const cardName = (added.card && added.card.name) || name
+  const [packed] = await runSteps(`${cardName}:pack`, [cliCmd('pack', '--plan', q(PLAN), '--card', cardName, '--feature', FEATURE, '--adhoc')])
   const cardPaths = (added.card && Array.isArray(added.card.paths) && added.card.paths) || files
   adhocPaths.push(...cardPaths)
-  const card = { name, title, paths: cardPaths, carried: [], depends: [], items, experts, briefs: PLAN_BRIEFS, reviewSkills: {}, preflight: packed && packed.ok ? { ok: true, contextFile: packed.contextFile } : { ok: false, reason: `the ${name} card could not be set up: ${(added && added.ok === false && added.reason) || (packed && packed.reason) || 'card-add or pack printed nothing'}` } }
+  const card = { name: cardName, title, paths: cardPaths, carried: [], depends: [], items, experts, briefs: PLAN_BRIEFS, reviewSkills: {}, preflight: packed && packed.ok ? { ok: true, contextFile: packed.contextFile } : { ok: false, reason: `the ${cardName} card could not be set up: ${(packed && packed.reason) || 'pack printed nothing'}` } }
   return runCard(card, { adhoc: true })
 }
 
@@ -973,14 +975,26 @@ For each: read the code, check the failure path is reachable, look for the guard
   }
   review = { ran: failedLenses.length < REVIEW_LENSES.length, range: `${BASE}..HEAD`, failedLenses, findings: confirmed, refuted, unverified }
   // Decision 2 applied to the review (2026-11-09): a confirmed finding is fixed, not only reported.
-  // High and medium ones in a file some card of this run could change go to the one fix-up card;
-  // low ones, and any outside the run's files, stay in the report.
+  // High and medium ones in a file some card of this run could change go to fix-up cards; low ones,
+  // and any outside the run's files, stay in the report. One card per plan card whose paths cover the
+  // file (the first in plan order), lane = the experts of every plan card covering the group's files,
+  // so G6 finds the evidence it asks for; files no plan card covers make one more card with the plan's
+  // line. At most MAX_FIXUP_CARDS cards: the findings of the groups past that stay in the report.
   const runCards = [...CARDS, { paths: adhocPaths }]
   const runTests = report.flatMap((e) => (e.build && e.build.testFiles) || [])
   const inRun = (f) => runCards.some((c) => inCard(c, f.file, runTests))
   const toFix = confirmed.filter((f) => (f.confidence === 'high' || f.confidence === 'medium') && inRun(f))
-  review.leftInReport = confirmed.filter((f) => !toFix.includes(f)).length
-  if (toFix.length > 0) fixupCard = await adhocCard('fixup', 'confirmed review findings', toFix, [])
+  const owners = [...CARDS.map((c) => c.name), '']
+  const ownerOf = (f) => (CARDS.find((c) => inCard(c, f.file)) || { name: '' }).name
+  const groups = owners.map((owner) => toFix.filter((f) => ownerOf(f) === owner)).filter((g) => g.length > 0).slice(0, MAX_FIXUP_CARDS)
+  review.leftInReport = confirmed.length - groups.reduce((n, g) => n + g.length, 0)
+  for (const [i, group] of groups.entries()) {
+    const covering = CARDS.filter((c) => group.some((f) => inCard(c, f.file)))
+    const lane = covering.length > 0 ? [...new Set(covering.flatMap((c) => c.experts || []))] : PLAN_EXPERTS
+    const entry = await adhocCard('fixup', 'confirmed review findings', group, lane, i === 0 ? 'fixup' : `fixup-${i + 1}`)
+    if (i === 0) fixupCard = entry
+    if (stoppedBecause) break
+  }
 }
 
 // ---- harvest to a branch ----

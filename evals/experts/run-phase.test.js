@@ -53,6 +53,7 @@ function responder(o = {}) {
     if (role === 'carry') return steps({ ok: true });
     if (role === 'start' || (who === 'blocked' && role === 'status')) return steps(...String(call.prompt).split('\n').filter((l) => /card-status/.test(l)).map(() => ({ ok: true })));
     if (role === 'setup') return steps({ ok: true }, { ok: true, contextFile: `.ultimate-workflow/run/f/cards/${who}/context.md` });
+    if (role === 'pack') return steps({ ok: true, contextFile: `.ultimate-workflow/run/f/cards/${who}/context.md` });
     if (who === 'review' && role === 'refute') return { verdicts: (o.reviewFindings || []).map((_, index) => ({ index, verdict: 'confirmed', reason: 'yes' })) };
     if (who === 'review') return { lensVerdict: 'ok', findings: role === 'correctness' ? o.reviewFindings || [] : [] };
     if (call.label === 'harvest') return { proposals: [{ destination: 'gotcha', path: 'AGENTS.md', text: '- Beware x.', source: 'card 1', rationale: 'r' }], discarded: [] };
@@ -542,4 +543,157 @@ test('the cards blocked behind one parked card make one notice, not one each', a
   assert.equal(prompt.split('\n').filter((l) => / notify /.test(l)).length, 1);
   assert.equal(prompt.split('\n').filter((l) => / card-status /.test(l)).length, 3, 'each card still gets its status line in the plan');
   assert.match(prompt, /--kind blocked --reason "3 cards are blocked: 2, 3 behind 1; 4 behind 2" --action "settle 1 first: [^\n"]*--resume 1"/);
+});
+
+// --- card-add (PLAN-run-fixes.md, card card-add, tests 20 and 30 to 33) ---------------------------
+
+const cardAddLine = (calls, label) => String(calls.find((c) => c.label === label).prompt).split('\n').find((l) => / card-add /.test(l));
+
+test('20: adhocCard passes --experts only with names already in the plan\'s line', async () => {
+  const GHOST = [...AVAILABLE, { name: 'ghost', agent: 'uw-expert-ghost', description: 'g', stages: ['review'] }];
+  const table = [
+    { name: 'one name in the line, one outside it', planExperts: ['quality'], want: 'quality' },
+    { name: 'the line is empty: no --experts at all', planExperts: [], want: null },
+    { name: 'no lane name in the line: none', planExperts: ['security'], want: 'none' },
+  ];
+  for (const t of table) {
+    const calls = [];
+    const base = responder({ findings: { 1: [{ file: 'docs/x.md', line: 2, what: 'stale doc', howItFails: 'misleads', confidence: 'low' }] } });
+    const respond = async (c) => {
+      calls.push(c);
+      if (c.label === '1:ghost') return { lensVerdict: 'ok', findings: [{ file: 'docs/y.md', line: 1, what: 'old note', howItFails: 'misleads', confidence: 'low' }], stillPresent: [] };
+      return base(c);
+    };
+    await run(baseArgs([card('1', { experts: ['quality', 'ghost'] })], { available: GHOST, planExperts: t.planExperts }), respond);
+    const line = cardAddLine(calls, 'findings:setup');
+    assert.match(line, /--name findings/, t.name);
+    const given = /--experts (\S+)/.exec(line);
+    assert.equal(given && given[1], t.want, t.name);
+  }
+});
+
+// The stub plays card-add: it prints the next free name, as the real one does with --free-name.
+function withFreeNames(base) {
+  const calls = [];
+  const given = [];
+  const fn = async (c) => {
+    calls.push(c);
+    if (/^fixup(-\d+)?:setup$/.test(c.label)) {
+      const paths = /--paths "([^"]*)"/.exec(c.prompt);
+      const name = given.length === 0 ? 'fixup' : `fixup-${given.length + 1}`;
+      given.push(name);
+      return steps({ ok: true, card: { name, paths: paths ? paths[1].split(',') : [] } }, { ok: true, contextFile: `.ultimate-workflow/run/f/cards/${name}/context.md` });
+    }
+    if (/:pack$/.test(c.label)) return steps({ ok: true, contextFile: `.ultimate-workflow/run/f/cards/${c.label.split(':')[0]}/context.md` });
+    if (/:security$/.test(c.label)) return { lensVerdict: 'ok', findings: [], stillPresent: [] };
+    return base(c);
+  };
+  fn.calls = calls;
+  return fn;
+}
+const labelsOf = (calls) => calls.map((c) => c.label);
+const TWO_EXPERTS = [...AVAILABLE, { name: 'security', agent: 'uw-expert-security', description: 's', stages: ['plan', 'tests', 'review'] }];
+const finding = (file, confidence = 'high') => ({ file, line: 3, what: `defect in ${file}`, howItFails: 'n=0', confidence });
+
+test('30: a refused card-add\'s reason reaches the report, not "printed nothing"', async () => {
+  const table = [
+    { name: 'a JSON refusal', out: steps({ ok: false, reason: 'card fixup is already in the plan (STUB-REASON)' }), want: 'card fixup is already in the plan (STUB-REASON)' },
+    { name: 'a refusal that printed text and no JSON', out: steps('experts.js: no card "x" in PLAN-f.md (RAW-REASON)'), want: 'RAW-REASON' },
+  ];
+  for (const t of table) {
+    const base = responder({ reviewFindings: [finding('src/1/x.js')] });
+    const { result } = await run(baseArgs([card('1')]), async (c) => (c.label === 'fixup:setup' ? t.out : base(c)));
+    assert.equal(result.fixupCard.status, 'not started', t.name);
+    assert.ok(result.fixupCard.reason.includes(t.want), `${t.name}: ${result.fixupCard.reason}`);
+    assert.doesNotMatch(result.fixupCard.reason, /printed nothing/, t.name);
+  }
+});
+
+test('31: every later step of a run-added card keys on the name card-add printed', async () => {
+  // card-add prints fixup-2 where the script asked for fixup; the card is red, so it is parked too.
+  const second = withFreeNames(responder({ reviewFindings: [finding('src/1/x.js')], red: ['fixup-2'] }));
+  const printed = async (c) => (c.label === 'fixup:setup' ? steps({ ok: true, card: { name: 'fixup-2', paths: ['src/1/x.js'] } }) : second(c));
+  const out = await run(baseArgs([card('1')]), printed);
+  assert.equal(out.result.fixupCard.card, 'fixup-2');
+  assert.equal(out.result.fixupCard.status, 'parked');
+  const labels = labelsOf(second.calls);
+  assert.ok(labels.includes('fixup-2:write-tests'), labels.join(' '));
+  assert.ok(labels.includes('fixup-2:park'), 'parkCard uses the printed name');
+  assert.deepStrictEqual(labels.filter((l) => /^fixup:/.test(l) && l !== 'fixup:setup'), [], 'no label keeps the literal name after setup');
+  const pack = second.calls.map((c) => c.prompt).filter((p) => /experts\.js" pack /.test(p)).join('\n');
+  assert.match(pack, /--card fixup-2(?!\w)/);
+  assert.doesNotMatch(pack, /--card fixup(?![-\w])/);
+});
+
+test('32: findings in files of two plan cards make two fix-up cards, each with its own findings and its card\'s experts', async () => {
+  const cards = [card('a', { experts: ['quality'] }), card('b', { experts: ['security'] })];
+  const r = withFreeNames(responder({ reviewFindings: [finding('src/a/x.js'), finding('src/b/y.js', 'medium')] }));
+  await run(baseArgs(cards, { available: TWO_EXPERTS, planExperts: ['quality', 'security'] }), r);
+  const adds = r.calls.filter((c) => /^fixup(-\d+)?:setup$/.test(c.label)).map((c) => c.prompt.split('\n').find((l) => / card-add /.test(l)));
+  assert.equal(adds.length, 2, 'two card-add calls');
+  const forA = adds.find((l) => l.includes('src/a/x.js'));
+  const forB = adds.find((l) => l.includes('src/b/y.js'));
+  assert.ok(forA && forB && forA !== forB, adds.join('\n'));
+  assert.match(forA, /--experts quality(?![,\w])/);
+  assert.match(forB, /--experts security(?![,\w])/);
+  assert.ok(!forA.includes('src/b/y.js') && !forB.includes('src/a/x.js'), 'nothing of the other group');
+  const labels = labelsOf(r.calls);
+  for (const name of ['fixup', 'fixup-2']) assert.ok(labels.includes(`${name}:commit`), `${name} was built and committed: ${labels.join(' ')}`);
+});
+
+test('33: findings in a file no plan card covers, or with no file, make one more card with the plan\'s line and none is dropped', async () => {
+  const cards = [card('a', { experts: ['quality'] }), card('b', { experts: ['security'] })];
+  const loose = [finding('test/a.test.js'), { ...finding(''), file: '' }, (({ file, ...rest }) => rest)(finding('x'))];
+  const r = withFreeNames(responder({ reviewFindings: loose }));
+  const { result } = await run(baseArgs(cards, { available: TWO_EXPERTS, planExperts: ['quality', 'security'] }), r);
+  const adds = r.calls.filter((c) => /^fixup(-\d+)?:setup$/.test(c.label)).map((c) => c.prompt.split('\n').find((l) => / card-add /.test(l)));
+  assert.equal(adds.length, 1, adds.join('\n'));
+  assert.match(adds[0], /--experts quality,security(?![,\w])/);
+  assert.match(adds[0], /test\/a\.test\.js/);
+  assert.equal(result.review.findings.length, 3);
+  assert.equal(result.review.leftInReport, 2, 'the two without a file stay in the report');
+});
+
+test('34: a fix-up on a file covered by two cards gets past the gate: the lane is the union, and the commit check passes', async () => {
+  const rules = require(path.join(PLUGIN, 'lib', 'run-rules.js'));
+  const cards = [card('a', { paths: ['src/a/**', 'src/s/**'], experts: ['quality'] }), card('b', { paths: ['src/b/**', 'src/s/**'], experts: ['security'] })];
+  const r = withFreeNames(responder({ reviewFindings: [finding('src/s/x.js')] }));
+  const required = [];
+  const gated = async (c) => {
+    if (c.label === 'fixup:commit') {
+      // The real G6 rule (lib/run-rules.js) on the plan as card-add wrote it: the run-added card has the lane's line.
+      const lane = JSON.parse(/<<<CONTENT\n([\s\S]*?)\nCONTENT>>>/.exec(c.prompt)[1]).expertLane;
+      const add = r.calls.find((x) => x.label === 'fixup:setup').prompt.split('\n').find((l) => / card-add /.test(l));
+      const written = /--experts (\S+)/.exec(add)[1].split(',');
+      const planCards = [{ name: 'a', paths: ['src/a/**', 'src/s/**'], experts: ['quality'] }, { name: 'b', paths: ['src/b/**', 'src/s/**'], experts: ['security'] }, { name: 'fixup', paths: ['src/s/x.js'], experts: written }];
+      const need = rules.narrowedExperts({ cards: planCards, name: 'fixup', changed: ['src/s/x.js'], accepted: [], covers: (paths, f) => paths.some((p) => f.startsWith(p.replace('**', ''))), valid: () => true });
+      required.push(...need.experts);
+      assert.deepStrictEqual(need.experts.filter((n) => !lane.ran.includes(n)), [], 'every expert G6 asks for ran on the fix-up');
+    }
+    return r(c);
+  };
+  const { result } = await run(baseArgs(cards, { available: TWO_EXPERTS, planExperts: ['quality', 'security'] }), gated);
+  assert.deepStrictEqual([...required].sort(), ['quality', 'security']);
+  assert.equal(result.fixupCard.status, 'committed', JSON.stringify(result.fixupCard));
+  assert.ok(labelsOf(r.calls).includes('fixup:security'), 'the security lane ran on the fix-up');
+});
+
+test('35: one fix-up card that parks does not stop the others', async () => {
+  const cards = [card('a', { experts: ['quality'] }), card('b', { experts: ['security'] })];
+  const r = withFreeNames(responder({ reviewFindings: [finding('src/a/x.js'), finding('src/b/y.js')], red: ['fixup'] }));
+  const { result } = await run(baseArgs(cards, { available: TWO_EXPERTS, planExperts: ['quality', 'security'] }), r);
+  const labels = labelsOf(r.calls);
+  assert.equal(result.fixupCard.status, 'parked');
+  assert.ok(labels.includes('fixup:park'), 'card 1 of 2 parked');
+  assert.ok(labels.includes('fixup-2:commit'), 'card 2 reached commit: ' + labels.join(' '));
+});
+
+test('36: at most four fix-up cards per run; the findings of the rest stay in the report', async () => {
+  const names = ['c1', 'c2', 'c3', 'c4', 'c5'];
+  const r = withFreeNames(responder({ reviewFindings: names.map((n) => finding(`src/${n}/x.js`)) }));
+  const { result } = await run(baseArgs(names.map((n) => card(n))), r);
+  const adds = r.calls.filter((c) => /^fixup(-\d+)?:setup$/.test(c.label));
+  assert.equal(adds.length, 4);
+  assert.equal(result.review.findings.length, 5);
+  assert.equal(result.review.leftInReport, 1, 'the fifth group stays in the report');
 });

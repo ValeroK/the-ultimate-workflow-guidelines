@@ -53,4 +53,37 @@ function narrowedExperts({ cards, name, changed, accepted, covers, valid }) {
   return { experts: [...experts], cards: [card.name] };
 }
 
-module.exports = { RUN_ADDED, acceptedFiles, narrowedExperts };
+const LAST_SUFFIX = 99;
+
+/**
+ * The first of `base`, `base-2`, ... `base-99` that `taken(name)` says is free. A `taken` that throws
+ * (a git error) counts as taken, so a failure never hands out a name that may be in use.
+ */
+function freeName(base, taken) {
+  for (let n = 1; n <= LAST_SUFFIX; n++) {
+    const name = n === 1 ? base : `${base}-${n}`;
+    let used = true;
+    try {
+      used = taken(name);
+    } catch {
+      // counts as taken
+    }
+    if (!used) return { ok: true, name };
+  }
+  return { ok: false, reason: `no free name: ${base} to ${base}-${LAST_SUFFIX} are all taken` };
+}
+
+const squash = (s) => String(s).replace(/\s+/g, ' ').trim();
+
+/**
+ * The card a repeated `card-add --free-name` call returns instead of adding a second one: in the name
+ * family of `base` (`base`, `base-2`, ...), not committed, with the same title and the same carried
+ * text. Text is compared as `addCard` writes it. `cards` come from `cards.parseCards`.
+ */
+function reusableCard(cards, base, title, carried) {
+  const family = new RegExp(`^${String(base).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(-\\d+)?$`, 'i');
+  const want = carried.map(squash).filter(Boolean).join(';');
+  return cards.find((c) => family.test(c.name) && !c.committed && !/^committed\b/.test(c.status || '') && c.title === squash(title) && c.carried.join(';') === want) || null;
+}
+
+module.exports = { RUN_ADDED, acceptedFiles, narrowedExperts, freeName, reusableCard };

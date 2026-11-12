@@ -458,7 +458,7 @@ test('card-add takes --depends and refuses a card that depends on itself', () =>
   assert.deepStrictEqual(cards.findCard(read(dir, 'PLAN-calc.md'), '4').depends, ['1', '2']);
   const self = cli(dir, 'card-add', '--plan', 'PLAN-calc.md', '--name', '5', '--title', 'x', '--paths', 'x.js', '--depends', '5');
   assert.equal(self.status, 2);
-  assert.match(self.stderr, /cannot depend/);
+  assert.match(self.stdout, /cannot depend/);
 });
 
 // 2026-11-08, a real run: the review named the fix-up card's file by absolute path and card-add refused it.
@@ -469,7 +469,7 @@ test('card-add takes an absolute path inside the project as relative, and still 
   assert.deepStrictEqual(cards.findCard(read(dir, 'PLAN-calc.md'), 'fixup').paths, ['test/sub.test.js']);
   const out = cli(dir, 'card-add', '--plan', 'PLAN-calc.md', '--name', 'out', '--title', 'x', '--paths', path.join(path.dirname(dir), 'x.js'));
   assert.equal(out.status, 2);
-  assert.match(out.stderr, /must be relative to the project root/);
+  assert.match(out.stdout, /must be relative to the project root/);
 });
 
 // --- pack ------------------------------------------------------------------------------------

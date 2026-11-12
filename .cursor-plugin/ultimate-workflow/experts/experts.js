@@ -19,7 +19,7 @@
 //   node experts.js list                                    available experts, as JSON
 //   node experts.js brief   [--plan P]                      the standing brief of every expert that declares the build stage,
 //                                                           with the skills each one selects for the plan
-//   node experts.js card-add --plan P --name N --title T --paths G[,G] [--carried X[;X]]   add a card to the plan's Cards section
+//   node experts.js card-add --plan P --name N --title T --paths G[,G] [--carried X[;X]] [--free-name]   add a card to the plan's Cards section (--free-name: the next free N, N-2, ...)
 //   node experts.js brief   --plan P --card N               the briefs for one card of the plan (its Cards entry, or a "Card N" heading)
 //   node experts.js scope   --plan P --card N [--result R]  the changed files outside the card's paths, from git
 //   node experts.js skills  --stage plan                    the skills each planning expert may be given, for the plan workflow to offer
@@ -511,7 +511,7 @@ function confirmHash(text) {
     if (inRunStatus) continue;
     if (section === 'cards') {
       const item = /^[-*]\s+([A-Za-z0-9][A-Za-z0-9._-]*):/.exec(l);
-      if (item) dropCard = /^(findings|fixup)$/i.test(item[1]);
+      if (item) dropCard = runRules.RUN_ADDED.test(item[1]);
       else if (l.trim() !== '' && !/^[ \t]/.test(l)) dropCard = false;
       if (dropCard) continue;
       if (RUN_FIELD.test(l)) continue;
@@ -1469,6 +1469,52 @@ function runArgs(pluginRoot, cwd, args) {
   };
 }
 
+/** card-add: the plan with one more card written. Throws the refusal; the caller prints it. */
+function cardAdd(o) {
+  if (!o.plan) throw new Error('card-add needs --plan');
+  const cardsLib = require('./cards.js');
+  const file = path.resolve(o.cwd, o.plan);
+  const text = fs.readFileSync(file, 'utf8');
+  let cardExperts = null;
+  if (o.experts !== undefined) {
+    const names = o.experts.trim() === 'none' ? [] : String(o.experts).split(',').map((s) => s.trim()).filter(Boolean);
+    const inPlan = readExperts(text);
+    if (!inPlan.present || inPlan.error) throw new Error(`the plan records no experts yet, so a card cannot narrow them. Record them first: node experts.js select --plan ${o.plan} --add <names> (or --add "" for none)`);
+    const installed = list(o.pluginRoot).experts.map((e) => e.name);
+    const unknown = names.filter((n) => !installed.includes(n));
+    if (unknown.length > 0) throw new Error(`unknown expert(s): ${unknown.join(', ')} (installed: ${installed.join(', ')})`);
+    const outside = names.filter((n) => !inPlan.experts.includes(n));
+    if (outside.length > 0) throw new Error(`${outside.join(', ')} is not in the plan's experts [${inPlan.experts.join(', ')}]. A card can only narrow the plan's list; add them to the plan first with select.`);
+    cardExperts = names;
+  }
+  const carried = String(o.carried || '').split(';').map((s) => s.trim()).filter(Boolean);
+  let name = o.name;
+  if (o.freeName) {
+    // The same request twice (a replayed step) returns the card it added, not a second one.
+    const again = runRules.reusableCard(cardsLib.parseCards(text), o.name, o.title, carried);
+    if (again) return { ok: true, plan: o.plan, card: again };
+    const free = runRules.freeName(o.name, (n) => cardsLib.findCard(text, n) !== null);
+    if (!free.ok) throw new Error(free.reason);
+    name = free.name;
+  }
+  const next = cardsLib.addCard(text, {
+    experts: cardExperts,
+    name,
+    title: o.title,
+    // Reviewers and builds often name files by absolute path; one inside the project is taken as
+    // relative to it. One outside it still reaches addCard's refusal unchanged.
+    paths: String(o.paths || '').split(',').map((s) => s.trim()).filter(Boolean).map((p) => {
+      if (!path.isAbsolute(p)) return p;
+      const rel = path.relative(path.resolve(o.cwd), path.resolve(p));
+      return rel && !path.isAbsolute(rel) && !rel.split(/[\\/]/).includes('..') ? rel.replace(/\\/g, '/') : p;
+    }),
+    carried,
+    depends: String(o.depends || '').split(',').map((s) => s.trim()).filter(Boolean),
+  });
+  fs.writeFileSync(file, next);
+  return { ok: true, plan: o.plan, card: cardsLib.findCard(next, name) };
+}
+
 // ---- command line ----
 
 function fail(message) {
@@ -1502,6 +1548,7 @@ function parseArgs(argv) {
     else if (a === '--carried') o.carried = need();
     else if (a === '--depends') o.depends = need();
     else if (a === '--experts') o.experts = need();
+    else if (a === '--free-name') o.freeName = true;
     else if (a === '--result') o.result = need();
     else if (a === '--field') o.field = need();
     else if (a === '--out') o.out = need();
@@ -1654,37 +1701,14 @@ function main(argv) {
       return out(stageScript(o.pluginRoot, o.cwd, o.phase, { argsFile: o.argsFile, files: o.files, merges: o.merges }));
     }
     if (o.cmd === 'card-add') {
-      if (!o.plan) fail('card-add needs --plan');
-      const cardsLib = require('./cards.js');
-      const file = path.resolve(o.cwd, o.plan);
-      let cardExperts = null;
-      if (o.experts !== undefined) {
-        const names = o.experts.trim() === 'none' ? [] : String(o.experts).split(',').map((s) => s.trim()).filter(Boolean);
-        const inPlan = readExperts(fs.readFileSync(file, 'utf8'));
-        if (!inPlan.present || inPlan.error) fail(`the plan records no experts yet, so a card cannot narrow them. Record them first: node experts.js select --plan ${o.plan} --add <names> (or --add "" for none)`);
-        const installed = list(o.pluginRoot).experts.map((e) => e.name);
-        const unknown = names.filter((n) => !installed.includes(n));
-        if (unknown.length > 0) fail(`unknown expert(s): ${unknown.join(', ')} (installed: ${installed.join(', ')})`);
-        const outside = names.filter((n) => !inPlan.experts.includes(n));
-        if (outside.length > 0) fail(`${outside.join(', ')} is not in the plan's experts [${inPlan.experts.join(', ')}]. A card can only narrow the plan's list; add them to the plan first with select.`);
-        cardExperts = names;
+      // One JSON line with ok, a refusal included: an agent does not see the exit code.
+      try {
+        out(cardAdd(o));
+      } catch (err) {
+        out({ ok: false, reason: err.message });
+        process.exitCode = 2;
       }
-      const next = cardsLib.addCard(fs.readFileSync(file, 'utf8'), {
-        experts: cardExperts,
-        name: o.name,
-        title: o.title,
-        // Reviewers and builds often name files by absolute path; one inside the project is taken as
-        // relative to it. One outside it still reaches addCard's refusal unchanged.
-        paths: String(o.paths || '').split(',').map((s) => s.trim()).filter(Boolean).map((p) => {
-          if (!path.isAbsolute(p)) return p;
-          const rel = path.relative(path.resolve(o.cwd), path.resolve(p));
-          return rel && !path.isAbsolute(rel) && !rel.split(/[\\/]/).includes('..') ? rel.replace(/\\/g, '/') : p;
-        }),
-        carried: String(o.carried || '').split(';').map((s) => s.trim()).filter(Boolean),
-        depends: String(o.depends || '').split(',').map((s) => s.trim()).filter(Boolean),
-      });
-      fs.writeFileSync(file, next);
-      return out({ ok: true, plan: o.plan, card: cardsLib.findCard(next, o.name) });
+      return;
     }
     if (o.cmd === 'scope') {
       if (!o.plan || !o.card) fail('scope needs --plan and --card');

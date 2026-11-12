@@ -102,11 +102,13 @@ What is there, and what each card reuses.
   parked: uw/parked/run-fixes/plan-subfolder; the commit was refused: Gate G7: the changes have changed since the last passing full test suite run. Run `verify.js --full` once, then commit again. If you have not changed code since, a file your tests or app rewrite is moving it: list th
 - gate-card: G6 judges the card being committed
   paths: .cursor-plugin/ultimate-workflow/lib/run-rules.js, .cursor-plugin/ultimate-workflow/experts/experts.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, .cursor-plugin/ultimate-workflow/phases/run.js, evals/experts/run-rules.test.js, evals/experts/autopilot-fixes.test.js
-  status: committed
+  status: committed dd6854b19499
+  committed: dd6854b19499
 - card-add: a run-added card goes inside the list, gets a free name, and there can be more than one
   paths: .cursor-plugin/ultimate-workflow/lib/run-rules.js, .cursor-plugin/ultimate-workflow/experts/cards.js, .cursor-plugin/ultimate-workflow/experts/experts.js, .cursor-plugin/ultimate-workflow/phases/run.js, evals/experts/run-rules.test.js, evals/experts/autopilot-fixes.test.js
   depends: gate-card
-  status: pending
+  status: committed
+  carried: quality at .cursor-plugin/ultimate-workflow/phases/run.js:905: The adhocCard change that passes --experts to card-add (and the new PLAN_EXPERTS filter) has no test in the diff.; quality at .cursor-plugin/ultimate-workflow/experts/experts.js:494: Nothing in the diff writes the `accepted:` run field, the diff only reads it and leaves it out of the confirm hash. The plan assigns the write to `--resume <card> --accept`.
 - expert-retry: retry a failed expert once, never commit past one
   paths: .cursor-plugin/ultimate-workflow/phases/run.js, evals/experts/run-phase.test.js
   depends: card-add

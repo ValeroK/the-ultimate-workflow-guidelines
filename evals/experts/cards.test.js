@@ -129,7 +129,7 @@ test('card-add refuses a name that is taken, and changes nothing', () => {
   const dir = planDir(PLAN);
   const r = cli(dir, 'card-add', '--plan', 'PLAN-x.md', '--name', '8a', '--title', 'again', '--paths', 'x/**');
   assert.equal(r.status, 2);
-  assert.match(r.stderr, /already/);
+  assert.match(r.stdout, /already/);
   assert.equal(fs.readFileSync(path.join(dir, 'PLAN-x.md'), 'utf8'), PLAN);
 });
 
@@ -139,7 +139,7 @@ test('card-add refuses a name with spaces or a colon, and a card with no paths',
   assert.equal(cli(dir, 'card-add', '--plan', 'PLAN-x.md', '--name', '9:b', '--title', 't', '--paths', 'x/**').status, 2);
   const noPaths = cli(dir, 'card-add', '--plan', 'PLAN-x.md', '--name', '9', '--title', 't');
   assert.equal(noPaths.status, 2);
-  assert.match(noPaths.stderr, /paths/);
+  assert.match(noPaths.stdout, /paths/);
   assert.equal(fs.readFileSync(path.join(dir, 'PLAN-x.md'), 'utf8'), PLAN);
 });
 

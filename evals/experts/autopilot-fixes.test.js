@@ -344,3 +344,121 @@ test('gate-card 17: a file accepted for card A is judged by A\'s experts, and th
   touch(g, 'src/out/o.js');
   assert.deepStrictEqual(required(g, 'A'), ['quality']);
 });
+
+// --- card-add (PLAN-run-fixes.md, card card-add, tests 22 to 26 and 29) ---------------------------
+
+const cardsLib = require(path.join(PLUGIN, 'experts', 'cards.js'));
+
+// A flat list of cards, then `### Card` subsections that hold detail bullets which are not cards.
+const subPlan = ({ extra = '', experts = `[${GATE_FIVE.join(', ')}]` } = {}) => `---
+phase: build
+plan_confirmed: true
+tests_confirmed: true
+${experts === null ? '' : `experts: ${experts}\n`}---
+
+# PLAN: sub
+
+## Cards
+
+- A: first
+  paths: src/a/**
+  experts: quality
+- B: second
+  paths: src/b/**
+  experts: security
+${extra}
+### Card A
+
+- Rounds: 3
+  paths: not a card
+
+### Card B
+
+- Rounds: 2
+
+## Tests
+
+- check it
+`;
+const FIXUP_TITLE = 'confirmed review findings';
+const oldFixup = (name, carried, done = false) => `- ${name}: ${FIXUP_TITLE}\n  paths: src/a/a.js\n  carried: ${carried}\n${done ? '  committed: abc1234\n  status: committed abc1234\n' : ''}`;
+const cardAddJson = (g, ...a) => {
+  const r = gateCli(g, 'card-add', '--plan', 'PLAN-gate.md', ...a);
+  const lines = r.stdout.trim().split(/\r?\n/).filter(Boolean);
+  assert.equal(lines.length, 1, `card-add must print one JSON line; stdout: ${r.stdout} stderr: ${r.stderr}`);
+  return JSON.parse(lines[0]);
+};
+const freeAdd = (g, carried = 'src/a/a.js:1: x') => cardAddJson(g, '--free-name', '--name', 'fixup', '--title', FIXUP_TITLE, '--paths', 'src/a/a.js', '--carried', carried);
+const cardNames = (g) => cardsLib.parseCards(fs.readFileSync(g.plan, 'utf8')).map((c) => c.name);
+
+test('card-add 22: a card added to a list followed by ### Card subsections lands inside the list and keeps confirmHash', () => {
+  const g = gateRepo(subPlan());
+  const before = expertsLib.confirmHash(fs.readFileSync(g.plan, 'utf8'));
+  const r = cardAddJson(g, '--name', 'fixup', '--title', FIXUP_TITLE, '--paths', 'src/a/a.js');
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const text = fs.readFileSync(g.plan, 'utf8');
+  const lines = text.split(/\r?\n/);
+  const at = lines.findIndex((l) => /^- fixup:/.test(l));
+  assert.ok(at > lines.findIndex((l) => /^- B:/.test(l)) && at < lines.findIndex((l) => /^### /.test(l)), 'after the last list item, before the first ### heading');
+  assert.equal(expertsLib.confirmHash(text), before);
+});
+
+test('card-add 23: parseCards on a plan with ### Card subsections returns only the list items, before and after an add', () => {
+  const g = gateRepo(subPlan());
+  assert.deepStrictEqual(cardNames(g), ['A', 'B']);
+  cardAddJson(g, '--name', 'fixup', '--title', FIXUP_TITLE, '--paths', 'src/a/a.js');
+  assert.deepStrictEqual(cardNames(g), ['A', 'B', 'fixup']);
+});
+
+test('card-add 24: --free-name with fixup taken adds fixup-2, prints it, and the hash still holds', () => {
+  const g = gateRepo(subPlan({ extra: oldFixup('fixup', 'an older finding') }));
+  const before = expertsLib.confirmHash(fs.readFileSync(g.plan, 'utf8'));
+  const r = freeAdd(g);
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.card.name, 'fixup-2');
+  assert.deepStrictEqual(cardNames(g), ['A', 'B', 'fixup', 'fixup-2']);
+  assert.equal(expertsLib.confirmHash(fs.readFileSync(g.plan, 'utf8')), before);
+});
+
+test('card-add 25: --free-name with fixup and fixup-2 taken adds fixup-3', () => {
+  const g = gateRepo(subPlan({ extra: oldFixup('fixup', 'first') + oldFixup('fixup-2', 'second') }));
+  const r = freeAdd(g);
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.card.name, 'fixup-3');
+});
+
+test('card-add 26: --free-name reuses a card only when it is uncommitted with the same title and the same carried text', () => {
+  const same = 'src/a/a.js:1: x';
+  const table = [
+    { name: 'a: the same call twice', extra: '', calls: 2, names: ['fixup', 'fixup'], added: 1 },
+    { name: 'b: uncommitted fixup with other carried text', extra: oldFixup('fixup', 'something else'), calls: 1, names: ['fixup-2'], added: 1 },
+    { name: 'c: committed fixup with the same carried text', extra: oldFixup('fixup', same, true), calls: 1, names: ['fixup-2'], added: 1 },
+  ];
+  for (const t of table) {
+    const g = gateRepo(subPlan({ extra: t.extra }));
+    const count = cardNames(g).length;
+    const names = [];
+    for (let i = 0; i < t.calls; i++) {
+      const r = freeAdd(g, same);
+      assert.equal(r.ok, true, `${t.name}: ${JSON.stringify(r)}`);
+      names.push(r.card.name);
+    }
+    assert.deepStrictEqual(names, t.names, t.name);
+    assert.equal(cardNames(g).length, count + t.added, t.name);
+  }
+});
+
+test('card-add 29: a refused card-add prints one JSON line with its own reason', () => {
+  const table = [
+    { name: 'a taken name', plan: subPlan({ extra: oldFixup('fixup', 'x') }), args: [], reason: /already in the plan/ },
+    { name: 'no experts line', plan: subPlan({ experts: null }), args: ['--experts', 'quality'], reason: /records no experts/ },
+    { name: 'an unknown expert', plan: subPlan(), args: ['--experts', 'nosuchexpert'], reason: /unknown expert/ },
+    { name: 'an expert outside the plan line', plan: subPlan({ experts: '[quality]' }), args: ['--experts', 'security'], reason: /not in the plan's experts/ },
+  ];
+  for (const t of table) {
+    const g = gateRepo(t.plan);
+    const r = cardAddJson(g, '--name', 'fixup', '--title', FIXUP_TITLE, '--paths', 'src/a/a.js', ...t.args);
+    assert.equal(r.ok, false, t.name);
+    assert.match(r.reason, t.reason, t.name);
+  }
+});

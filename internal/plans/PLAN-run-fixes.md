@@ -1,7 +1,7 @@
 ---
 phase: plan
 plan_confirmed: true
-tests_confirmed: false
+tests_confirmed: true
 test_command: node --test ".cursor-plugin/ultimate-workflow/hooks/**/*.test.js" "evals/**/*.test.js" mirrors.test.js
 test_related_command: node --test {tests}
 full_suite_paths: .cursor-plugin/ultimate-workflow/hooks/**, .cursor-plugin/ultimate-workflow/experts/*.js, .cursor-plugin/ultimate-workflow/phases/*.js, .cursor-plugin/ultimate-workflow/lib/*.js
@@ -11,6 +11,7 @@ last_verify: unrun
 dirty: false
 escalated: false
 experts: [developer, quality, softarch, security, genai, architect, devops]
+confirmed_hash: 7140b5c7a1e8aebf
 ---
 
 # PLAN: run-fixes (part of 4.8.0)
@@ -410,3 +411,218 @@ I assumed this is a developer tool released from main. Users install it from the
 **Questions for you**
 - Is 4.8.0 merged to main and tagged v4.8.0 before this run, or do 4.8.0 and 4.9.0 ship together from uw/run/memory-index (and then does CHANGELOG keep both sections)?
 - Are the uncommitted changes to experts/autopilot.js, lib/memory.js and evals/experts/harvest.test.js part of 4.8.0, to be committed before the run, or should they be dropped?
+
+## Tests
+
+Verification command. It is the same as `.github/workflows/validate.yml` line 24 and the plan's `test_command`:
+
+```
+node --test ".cursor-plugin/ultimate-workflow/hooks/**/*.test.js" "evals/**/*.test.js" mirrors.test.js
+```
+
+The globs are in quotes so that Node expands them. A new test file must sit under one of these globs (`evals/experts/*.test.js`, `<P>/hooks/**/*.test.js`), or it does not run.
+
+**No harness card.** All checks run on `node:test`. They use temporary git repos (as `autopilot.test.js` does), or they load `phases/run.js` through `evals/security-expert/lib/run-workflow.js` with a stub agent (as `run-phase.test.js` does). None needs a browser or a live Workflow. Every test that can reach `notify` sets `ULTIMATE_WORKFLOW_NOTIFY=off` and `ULTIMATE_WORKFLOW_GATES=''`, as `autopilot.test.js` line 41 does. Test 61b is the one exception, and it says why.
+
+**Rules for every test below:**
+- Count calls. Do not match label shapes. The existing `responder` in `run-phase.test.js` splits labels on `:` and keeps two parts, so `<card>:<expert>:retry` looks the same as the first call. Retry tests use a responder keyed by a per-label call counter, and they assert on `seen.filter(l => l === label).length`.
+- Never assert on `execFileSync(...).stderr`. Use `spawnSync` (AGENTS.md gotcha).
+- Each wrong-fix case named in "Changes from the expert input" is its own test. It is not folded into a happy-path test.
+- Lists of experts are compared with deep-equal after sorting, never with "includes", unless a test says otherwise.
+- Symlink cases on Windows use `fs.symlinkSync(target, link, 'junction')` for directories, so they run without admin rights. The test must not be skipped on win32.
+- Tests that parse git output set `LC_ALL=C` and `LANG=C` in the child env.
+- Any test that could loop forever (a synchronous search) runs in a child through `spawnSync(process.execPath, [...], { timeout: 5000 })` and asserts `signal === null`. The `node:test` timeout cannot interrupt a blocked event loop.
+- Fixtures that test expert routing give each plan card a different `experts:` line. This plan's own cards have none, and a fixture copied from it would make the "equal to its card's line" checks vacuous.
+
+---
+
+### plan-subfolder (criterion 2): `<P>/hooks/lib/state.test.js`
+
+1. `pointer to internal/plans/PLAN-x.md: readState returns that file and its volatile_paths when the root has no PLAN file`. The plan path equals the fixture path, and `volatile_paths` deep-equals the fixture's list.
+2. `setActivePlan accepts a relative subfolder path and pointedPlanFile returns it`. `setActivePlan` returns `true`, and `.ultimate-workflow/active-plan` holds the forward-slash path.
+3. `setActivePlan normalises backslashes in a subfolder path`. `internal\\plans\\PLAN-x.md` is stored and read back as `internal/plans/PLAN-x.md`.
+4. `pointer refused: each unsafe form is ignored`, a table test. The rows are `../PLAN-x.md`, `internal/../../PLAN-x.md`, `/abs/PLAN-x.md`, `C:PLAN-x.md`, `C:\\x\\PLAN-x.md`, `//server/share/PLAN-x.md`, `internal\\..\\..\\PLAN-x.md`, `internal/plans/notes.md` (base name not `PLAN-*.md`) and `internal/plans/PLAN-missing.md` (no file). For each row, `setActivePlan` returns `false`. `readState`, with the pointer written by hand, returns a result deep-equal to the result with no pointer at all.
+5. `pointer through a directory junction out of the root is refused`. The junction points to a dir outside the root that holds a real `PLAN-x.md`. Same oracle as 4: `setActivePlan` is `false`, and `readState` deep-equals the no-pointer result.
+6. `pointer to a phase: done plan is ignored`. The root also holds an older `PLAN-old.md` that is not done. `readState` deep-equals the no-pointer result, and the test asserts that result by its plan path (it is `PLAN-old.md`, not the pointed plan).
+7. `without a pointer the root-only guess is unchanged`. A `PLAN-*.md` exists only under `internal/plans/`, and no pointer is set. `readState` finds no plan, so there is no folder walk.
+8. `evals/experts/autopilot-fixes.test.js`: `card-commit reads G7 from its --plan, not from the pointer`. The pointer names plan P1, and `--plan` names P2. P1 and P2 have opposite `test_command` states, and the result follows P2's.
+
+### gate-card (criterion 3): `evals/experts/run-rules.test.js` (pure) and `evals/experts/autopilot-fixes.test.js` (temp repo, real `card-commit`)
+
+Shared fixture: cards A (`experts: quality`), B (`experts: security`) and C (`experts: genai`), and a plan line of five experts. A and B share one file.
+
+9. `card-commit --card A with all files under A needs only A's experts`. A's diff touches only A's paths, and only quality is on record. The result is `ok: true`, and a new commit exists.
+10. `hand commit with no card named still needs the union`. `commitEvidence` with no card: the missing list deep-equals `['security']`.
+11. `card named but the diff not wholly its own falls back to the union`, a table test:
+    - (a) card A is named, and one changed file is outside A's paths (under C). The required list deep-equals the sorted union of the covering cards (`['genai','quality']`, plus security if the shared file is touched). It is not the plan's five-expert line.
+    - (b) `--card nosuch` (not in the plan) on a diff touching A and B files. The commit is refused, or the required list deep-equals `['quality','security']`. It is never `[]`, and `ok` is never true with only quality on record.
+12. `run-added fixup card with experts: [] touching a file also under a security card still needs security`. `card-commit --card fixup` is refused, and the reason names security.
+13. `run-added card with an experts line is judged by its lane, not the plan's full line`. The fix-up card has `experts: quality` and touches only files of A. The required list deep-equals `['quality']`.
+14. `run-added card never narrows below the covering confirmed cards, and never widens to the plan line`. The fix-up card has `experts: quality` and touches the A/B shared file. The required list deep-equals `['quality','security']`. That rules out both "only quality" and the fallback to all five.
+15. `plan card with experts: none asks for nobody, never for an expert called none`. The required list deep-equals `[]`.
+16. `experts the recheck added for the named card are also required`. A has a recheck-added `genai`. The required list deep-equals `['genai','quality']`.
+17. `--resume A --accept writes accepted: on A; an accepted file outside every card is judged by A's experts; confirmHash is unchanged`. The plan line `accepted:` is present on A. The required list for the outside file deep-equals A's list, and `confirmHash` is equal before and after.
+18. `commitEvidence and effectiveExperts with no card: pinned outputs`. A new test in `run-rules.test.js` builds a fixed fixture (the shared-file plan above, plus a plan with no `experts:` lines). It asserts the no-card output of `commitEvidence` and of `effectiveExperts` is deep-equal to literals recorded from the pre-change code. The test is written and recorded on the first card, before any change to these functions. The existing `card-experts.test.js`, `experts.test.js` and `memory-gate.test.js` must also stay green. Whether they were edited is a review check, not a test (see declined gaps).
+19. `lib/run-rules.js and lib/claims.js have no top-level require of experts/`. This has two checks.
+    - (a) The source scan flags any top-level `require(` whose argument contains `experts`, whether as a string literal or inside `path.join`/`path.resolve` with an `'experts'` segment.
+    - (b) In a fresh child process, `require('lib/run-rules.js')` loads first and `experts/experts.js` loads after it. The child then runs `commitEvidence` with `--card A` on the gate fixture and prints the result. The required list deep-equals `['quality']`, the same as test 9. That proves `experts.js`'s binding to run-rules is the full module and not a partial cycle export.
+20. `run-phase.test.js`: `adhocCard passes --experts only with names already in the plan's line`. An expert added by recheck whose `record` failed is in the queue but not in the line. The `card-add` command holds only plan-line names, and the card is not `not started`.
+21. `run-phase.test.js`: `agent text never reaches a command line`, a table test. The table's text sources are:
+    - a finding's `what: '$(touch PWNED)'`
+    - a card title holding a backtick
+    - a park reason holding `$HOME`
+    - a `stoppedBecause` holding `$(touch PWNED)` (the stop step, run.js 898)
+    - the settle-first "waiting for <cards>" text, where a card title holds `$(touch PWNED)`
+    - the text of the finished notify step
+
+    For each one, the string appears in no command string of any step prompt. It appears only in a `files` entry that a `--*-file` flag reads (`--reason-file` for the stop, wait and finished steps). The live part runs only when a bash is found that is not `%SystemRoot%\System32\bash.exe` (the WSL launcher). Otherwise it is skipped with the reason stated, and the string check always runs. The live part runs every generated command line in a temp dir. It includes a positive control: a sentinel command built by the same code path, whose text is `touch SENTINEL` placed where a command is expected. It asserts that SENTINEL exists and that each command exits with the expected status. "No PWNED file" counts only when SENTINEL exists.
+
+### card-add and many-fixups (criteria 4, 4b): `run-rules.test.js`, `autopilot-fixes.test.js`, `run-phase.test.js`
+
+22. `card-add into a ## Cards list followed by ### Card subsections keeps confirmHash`. The fixture has exactly this shape. After `card-add fixup`, the new bullet sits after the last list item and before the first `###`. The hash equals the hash before.
+23. `parseCards on a plan with ### Card subsections returns only the list items`. The names deep-equal the list, both before and after the add. A `- Rounds: ...` detail bullet is not a card.
+24. `card-add --free-name with fixup taken adds fixup-2, prints it, and the hash still holds`. The existing `fixup` has a different title from the new call.
+25. `card-add --free-name with fixup and fixup-2 taken adds fixup-3`. This rules out "always append -2".
+26. `card-add --free-name reuses a card only when it is uncommitted with the same title and the same carried text`, a table test. All rows use the title `confirmed review findings`, as adhocCard does.
+    - (a) Same call twice on an uncommitted card: both calls print the same name, and the `parseCards` count rises by 1.
+    - (b) Existing uncommitted `fixup` with different carried text: `fixup-2` is added, and the count rises by 1.
+    - (c) Existing `fixup` marked committed, with identical carried text: `fixup-2` is added, and the count rises by 1.
+27. `free-name helper is bounded`. It runs in a child via `spawnSync(..., { timeout: 5000 })`. With every name up to `-99` taken, the child exits with `status === 0` and `signal === null`, and stdout parses to `{ok:false, reason}`. A `taken()` that throws counts as taken (same child, second case).
+28. `one exported pattern drives the free name and the confirmHash drop rule`. Inside `## Cards`, the hash drops `fixup`, `fixup-2` and `findings-12`. It does not drop `fixups`, `fixup-x`, `myfixup`, or a `fixup` bullet outside `## Cards`.
+29. `refused card-add prints one JSON line with its own reason`, a table test. The rows are: a taken name (no free-name), no experts line, an unknown expert, and an expert outside the plan's line. `spawnSync` stdout has exactly one line, and it parses to `ok: false`. The `reason` matches that refusal's own message, using four different regexes.
+30. `run-phase.test.js`: `a refused card-add's reason reaches the report, not "printed nothing"`. The report holds the stub's reason string verbatim.
+31. `run-phase.test.js`: `every later step of a run-added card keys on the name card-add printed`. The stub `card-add` prints `fixup-2`. The `pack --card` argument, the agent labels (`fixup-2:*`), `status[]`, the report entry and `parkCard` all use `fixup-2`. No label starts with `fixup:` after setup.
+32. `run-phase.test.js`: `findings in files of two plan cards make two fix-up cards, each with its own findings and its card's experts line`. Plan cards A (`quality`) and B (`security`) have no shared file. There are two `card-add` calls with distinct names. For each call, `--experts` equals its covering card's line. The `--paths`/`--carried` file read from `files` deep-equals that group's findings and files only, with nothing from the other group.
+33. `run-phase.test.js`: `findings in a file no card covers, or with no file, make one more card with the plan's line`. The findings are one on an uncovered path, one with `file: ''` and one with no `file` key. Exactly one extra `card-add` is made with the plan's line. Each of the three findings appears in its carried text, or (for the two with no file) in the report's findings section. None is dropped: the test counts them in the union of the two.
+34. `run-phase.test.js`: `a fix-up on a file covered by two cards gets past the gate`. A finding sits in the A/B shared file. The fix-up goes to A (first in plan order), and that grouping is asserted. The stub `card-commit` applies the real union rule by calling `run-rules`. The fix-up reaches status `committed`, which requires that the security lane ran on it (count >= 1 `<fixup>:security` label). The table has a second row that runs the same steps on a resume, where `ownExperts` is true, with the same assertions.
+35. `run-phase.test.js`: `one fix-up card that parks does not stop the others`. Card 1 of 2 parks, and card 2 reaches `commit`.
+36. `run-phase.test.js`: `at most four fix-up cards per run; the rest stay in the report`. Five groups give four `card-add` calls, and the fifth group's findings are in the report.
+37. `run-phase.test.js`: `the report names the run each fix-up card came from`. Each fix-up row holds the run id from `run.json`.
+
+### expert-retry (criterion 5): `run-phase.test.js`, with a responder keyed by call count
+
+38. `an expert that returns null once is retried and the card commits`. The expert's first call returns null and the retry returns a valid result. The status is `committed`, the expert has 2 calls (1 first, 1 `:retry`), and there is 1 `:commit` call.
+39. `experts that return null twice park the card with every failed name and card-commit is not called`. genai and security are both null on both calls. The reason holds both `genai` and `security` and names the first check. There are zero `:commit` calls and zero `record` calls.
+40. `a valid empty result is a success and is not retried`. There is 1 call, and zero `:retry` labels.
+41. `only the failed expert is retried`. Of two experts, one returns null. The other has 1 call, and the number of `:retry` labels equals the number of failed experts.
+42. `the same retry and park rule applies after a fix round (-fix tag)`. This mirrors 38 and 39 on `<card>-fix:<expert>` and `<card>-fix:<expert>:retry`.
+    - (a) Null once: the expert has 1 first call and 1 retry, and the card commits.
+    - (b) Null twice: zero `:commit` and zero `record` calls after the fix round. The reason names the expert and says the failure was in the check after the fix round, so it is a different string from 39's reason.
+43. `a refute agent null twice parks the card; no fix round is paid`. `seen.filter(l => l === '<card>:refute').length === 1`, and the `<card>:refute:retry` count is 1. There are zero `fix-round` calls.
+44. `a recheck agent null is retried once`. The recheck label has 1 first call and 1 `:retry`.
+45. `retry labels are in declared order and replay on resume`. With experts declared `[genai, quality, security]` and genai and security null, the retry labels deep-equal `['<card>:genai:retry','<card>:security:retry']`. The stub resolves the experts in reverse order (by `setTimeout` delays) and gives the same labels. Two runs with the same stub give a deep-equal `seen` sequence, and no label holds a digit run that is not in the card name.
+
+### settle-first (criterion 6): `run-phase.test.js`, `autopilot-fixes.test.js`
+
+46. `with one card parked: no review, no fixup, no findings card, no harvest`. There are zero labels matching `^review:`, `^harvest`, `^fixup` or `^findings`. `result` and the report name the waiting card and give `/ultimate-workflow:review` and `/ultimate-workflow:harvest`. `run.json` records no harvest branch.
+47. The same check for a waiting card, as one table test. Rows: a plan card that is `blocked`, `needs-decision` or `not started`, and a row where all plan cards are committed and fix-up card 1 of 2 parks. In the fix-up row there is no `^harvest` label, the report names the fix-up as the card waited for, and `run.json` records no harvest branch.
+48. `with all cards committed: each review lens and the harvest run exactly once`.
+49. `the review range is the base from run.json, not runBranch's resume HEAD`. On the second resume the stubbed `runBranch` returns a base SHA that is different from `run.json`'s base. The review prompt contains `<run.json base>..HEAD` and does not contain the runBranch base.
+50. `a later settling resume reviews only what is new since the recorded head`. This has two cases.
+    - (a) No new commit since the first settle: zero review and zero harvest labels.
+    - (b) A card is committed on a later resume. There is exactly one review per lens, whose prompt holds `<recorded head>..HEAD`, and exactly one harvest call. `run.json`'s recorded head moves to the new HEAD.
+
+### harvest-name (criterion 7): `autopilot-fixes.test.js`, temp repo
+
+51. `with uw/harvest/<f> taken, harvest makes <f>-2 and returns ok: true`. The branch exists in `git branch --list`.
+52. `with <f> and <f>-2 taken, harvest makes <f>-3`.
+53. `run-phase.test.js`: `a second harvest is told the open uw/harvest/<f>* branches`. The harvest prompt names each one.
+54. `the memory.md merge-conflict note is still given`.
+
+### reasons (criterion 8): `run-rules.test.js`, `autopilot-fixes.test.js`, `run-phase.test.js`
+
+55. `a 5000-character park reason cut inside a word at 240 is byte-equal in report.md`. The reason has no newline. The test finds the exact whole reason as a substring of `report.md`, all on one line.
+56. `a reason holding newlines is one line in report.md`. The newlines are joined, and nothing is dropped.
+57. `the plan's status: and parked: lines are cut at the last word end and name parked.md`, a table test. In every row, `parked.md` holds the whole reason.
+    - (a) A 5000-character reason whose 240th character is inside a word. The kept prefix equals `reason.slice(0, reason.lastIndexOf(' ', 240))` after trimming. The line is at most the cap and holds the `parked.md` path.
+    - (b) A 600-character reason with no whitespace. Each line is at most the cap and still holds the `parked.md` path. The kept prefix is a hard cut of the reason at the room left, not `slice(0, -1)`.
+    - (c) A 60-character reason with no `;`. The status: line holds the reason exactly, followed by the parked.md path, with nothing cut.
+58. `the cuts at run.js 595, 825 and 898 keep the whole reason`. One case each. The whole reason reaches its destination through a `--*-file` entry (test 21 checks that it is not on the command line).
+59. `unpark on a real 3-way conflict names the file in conflict`. Real temp repo with `LC_ALL=C`. The reason holds the conflicting file's path.
+60. `the conflict reader returns the last lines, not the first, when it finds no file`. A pure test on a multi-line sample. The result deep-equals the sample's last N lines.
+
+### one-notice (criterion 9): `autopilot-fixes.test.js`, `run-phase.test.js`
+
+61. `notify: every kind in NOTIFY_KINDS except finished is file-only`. The test loops over the exported `NOTIFY_KINDS`. This has two parts.
+    - (a) With `ULTIMATE_WORKFLOW_NOTIFY=off`: `desktop === 'file-only'` for each non-finished kind, and `desktop === 'off'` for `finished`. The kind filter must run before the off check.
+    - (b) Counter: `ULTIMATE_WORKFLOW_NOTIFY` is unset, and a counting desktop function is passed in as an option argument of `notify`. It is not an export swap, because `notify` calls its local binding (autopilot.js 367). The counter has exactly one call across the whole loop, made for `finished`, and the counted function never shells out. This part is why the test does not set NOTIFY=off. Line 367 skips the notifier entirely when off, so a counter cannot be seen under off.
+62. `notifications.md and .jsonl still hold every notice`. The line count equals the number of `notify` calls, and each kind is present.
+63. `run-phase.test.js`: `a run with two parked cards, blocked cards and a stop sends one finished notice that names every blocker`. Exactly one step command holds `notify --kind finished`. Park steps do not send to the desktop. The finished step's text (from its `--reason-file`/`--action` file entry) names each parked card and each blocked card by name.
+64. `docs.test.js`: `run.md tells the session to send notify --kind finished with stopped when the run ended without one`. This is the only check possible for the session-side rule, and the review must say so.
+
+### dry-run (criterion 10): `evals/experts/claims.test.js` (pure, plus CLI on a temp repo)
+
+65. `claims prints each card's pack size against pack_budget; a card whose required entries alone are over the budget is listed`. The numbers equal what `autopilot pack` gives for the same card.
+66. `a measure: bytes line gives the size now, the room left and the cards under the glob`. The exact numbers come from fixture files of known size.
+67. `measure counts bytes, not characters`. The fixture is non-ASCII, so `Buffer.byteLength` differs from `.length`. The size reported is the byte count.
+68. `a measure: line it cannot read gives understood: false and is never passing`.
+69. `a measure: glob with .., absolute or drive prefix gives understood: false and reads nothing outside the root`. A file outside the root, of known size, does not appear in the total.
+70. `a claim is passing exactly when it is within its limit`, a table test over `measure: bytes <glob> <= N`. Each row has `understood: true` and `room === N - size`.
+    - size < N: passing `true`
+    - size === N: passing `true`
+    - size === N + 1: passing `false`
+71. `claims prints one JSON line with ok and is in COMMANDS`.
+72. `docs.test.js` (or a `phases/tests.js` test): `the tests phase runs claims before the confirmation and stops to ask on a not-understood or failing line`. It asserts both the order of the steps in `phases/tests.js` and the stop. Text in `commands/tests.md` alone is not enough.
+
+### report-cost (criterion 11): `autopilot-fixes.test.js`
+
+73. `report.md has a Pack (est.) column with each card's pack tokens; the Note cell no longer holds the pack size`. In the test 74 fixture, each card's Pack (est.) cell equals the `tokens` that `lib/pack.js` `assemble` returns for that card. The value is not the budget.
+74. `a card with token data shows a number and a card without shows unknown, in one fixture`. The fixture holds both cards, and no Tokens cell is `0`.
+75. `Tokens counts <card>:, <card>-fix: and :retry labels`. The value equals the hand-summed fixture total.
+76. `Tokens matches the card name exactly`. Cards `x` and `xy` both exist, and `xy:*` agents are not counted for `x`. If the build also supports a card named `x-fix`, add the case that its labels are counted for `x-fix` only. Otherwise the rule must refuse such a name.
+77. `cache reads are shown apart from the token total`. Tokens equals the hand-summed input + cacheWrite + output. A separate cell equals the fixture's cacheRead, and cacheRead is not in Tokens.
+78. `when every card is unknown the report gives the run's total from the Workflow result`. The total equals the fixture's Workflow total.
+
+### run-md (criterion 12): `evals/experts/docs.test.js`
+
+79. `run.md round rules match run.js`. The test reads `ROUND_CAP` from `run.js` source, not a copied literal, and asserts that run.md states it. It also greps `run.js` for the two early-stop conditions: the diagnosis test (around line 244) and the same-signature test (around line 257). It fails if either is missing. For each one, it asserts that run.md holds that rule's fixed phrase (pinned in the test, one per rule). It also asserts that the old "up to three rounds" sentence with no exceptions is absent.
+80. `run.md says the .gitignore commit happens only when the line was missing`. The old "always committed" wording is absent.
+81. `run.md says review, fix-up and harvest wait for parked cards and the harvest branch may be uw/harvest/<feature>-2`.
+82. `run.md says one desktop notification, at the end`. The old "every blocker as it happens" wording is absent.
+83. `mirrors.test.js` passes after the edit.
+
+### release and limit (criteria 1, 13)
+
+84. `evals/security-expert/provenance.test.js` `experts/ budget` passes with every card in place (criterion 1). It cannot be made to fail first, because it passes today. The build's prove-red step for this criterion is "not applicable". It is checked at the end, on the last card's commit.
+85. `mirrors.test.js` 239-248 asserts 4.8.0 as a literal in the five fields and the `## [4.8.0]` heading.
+86. `docs.test.js`: `CHANGELOG 4.8.0 names the unattended-run fixes`. It reads `CHANGELOG.md`. The `## [4.8.0]` entry holds `### Fixed (the unattended run)`, and that section names items 4 to 16, each by a fixed phrase pinned in the test.
+87. The full verification command above is green on the release commit.
+
+**Done means:** every test named above exists under the quoted globs. Each one fails before its card's change and passes after it. Tests 18, 84, 85 and 87 are the exceptions: 18 is recorded green on the first card, and 84, 85 and 87 pass throughout. The full command is green. Review check (not a test): `card-experts.test.js`, `experts.test.js`, `memory-gate.test.js` and the 4.8.0 block of `mirrors.test.js` are not weakened. The reviewer reads their diffs in the PR.
+
+### Expert test cases
+
+#### quality
+
+The draft covers every constraint I set at plan: count-keyed retries, -3 harvest, a file outside the named card, a 5000-char reason, every NOTIFY_KINDS value, round rules read from source, a non-ASCII measure fixture, LC_ALL=C, and the ### Cards fixture. The release card staying at 4.8.0 was the owner's choice (plan line 20), so draft 85 is right. The cases below cover wrong fixes the draft still lets through: a retry whose result is thrown away, a hash rule that drops too much or moves the hash of existing plans, a dedupe that ignores committed cards, an unknown card name that narrows G6, a later resume that never harvests, a word cut on a reason with no space, and an arbitrary choice of which four fix-up cards are kept.
+
+- **retried expert's findings are used, not dropped**: run-phase.test.js, responder keyed by per-label call count: the expert's first call returns null and its retry returns one finding {file:'a.js', what:'X'}. The refute agent's prompt for that card contains 'X' (or a fix-round label for the card appears), and the card is not reported as committed with zero findings. (catches: Draft 38 has the retry return a valid result and checks only that the card committed. An implementation that makes the retry call but then treats the card as a clean empty result commits too, and so passes 38 while silently dropping the retry's findings.)
+- **confirmHash is unchanged for existing plans and still moves when a real card changes**: Two parts. (a) Characterisation: for an existing confirmed plan fixture with ### Card subsections and no fixup/findings cards (for example a copy of PLAN-memory-index.md), confirmHash after the change equals a literal hash recorded from the pre-change code. (b) In the draft-22 fixture, editing one character of a plan card's bullet, and separately one character inside a ### Card subsection, each gives a hash different from the original. (catches: Draft 22 and 28 prove only what is dropped. A shared end-of-list rule that stops hashing at the first ### keeps 22 equal and 28 green while hiding edits to card detail. A rule that moves the hash of existing plans un-confirms every plan in flight. Neither is caught today.)
+- **card-add dedupe never returns a committed card**: Plan with card 'fixup' whose status is committed, title T, carried text C. `card-add --free-name` with the same T and C prints 'fixup-2', and the parseCards count goes up by exactly 1. (catches: Draft 26 tests the same call twice on a not-committed card. An implementation that matches on title and carried text alone, ignoring status, passes 26 and returns the already-committed card, so the new findings are never built.)
+- **card-commit --card with a name that is not in the plan does not narrow G6**: autopilot-fixes.test.js temp repo: cards A (experts: quality) and B (experts: security) both cover file f. `card-commit --card nosuch` changing f with only quality on record prints ok:false with a reason naming security, and no commit is made (HEAD is unchanged). (catches: Every gate-card case names an existing card. An implementation that looks up the card, gets undefined, and reads its experts as [] (no experts needed) passes 9 to 17 and opens the very G6 bypass the security floor exists to close.)
+- **a later settling resume does harvest when cards were committed after the recorded head**: run-phase.test.js: run 1 settles (the harvest label is seen once and run.json records head H). Run 2 resumes with one more card committed after H: the review prompt holds 'H..HEAD', and the harvest label is seen exactly once in run 2. (catches: Draft 50 covers only the case where nothing was committed, which an implementation that never harvests again after the first settle also passes. This is the positive half of the 'harvests only when cards were committed after it' rule.)
+- **plan status line cut on a reason with no space and with a non-BMP character at the cap**: Two inputs: (a) 5000 characters of 'x' with no space; (b) 239 'a' followed by a U+1F600 and then more text. For each, the plan's status:/parked: line is non-empty, is at most the cap in length, names the parked.md path, and holds no lone surrogate (no unpaired code unit in U+D800 to U+DFFF). parked.md holds the full input byte-equal. (catches: Draft 57 assumes a space exists before the cap. A cut that backs up to the last space returns an empty or path-only line, or never ends, when there is none. A slice at 240 splits the surrogate pair, because JS slice counts UTF-16 units, and writes an invalid character into the plan.)
+- **the four kept fix-up cards are the first four groups in plan order**: run-phase.test.js: findings fall under five plan cards C1..C5, and the findingsQueue is filled in the order C5, C3, C1, C4, C2. The four card-add calls carry the experts lines of C1, C2, C3 and C4, and the report lists C5's findings as not carried. (catches: Draft 36 checks only that there are four calls. An implementation that takes the first four in queue order, which depends on agent finish order, passes 36. It then keeps a different set on each run and breaks the resume replay that the retry labels rely on.)
+- **agent text in a park reason and in the stopped notice never reaches a command line**: run-phase.test.js: a park reason and a stop reason each hold '$(touch PWNED)', a backtick and '$HOME'. None of the three strings appears in any command string of any step prompt for parkCard, the notify step or the stopped notice. Each appears only in a files entry read through a --*-file flag. (catches: Draft 21 plants the text only in a finding's what, a title and a park reason through adhocCard. The stopped notice at run.js 898, which the reasons card makes longer, and the notify --kind finished line can still q() agent text and pass 21.)
+
+#### security
+
+The security cases test each control from the attacker's side. A card the run adds, a card that does not exist, or an accepted change made under a fix-up card must never shrink the experts check. Every form of the plan pointer that can escape the root must be refused by all three readers. A `measure:` glob must not reach outside the root or run anything. Agent-written text in a finding's file field or in stop text must never reach a command line. A malformed expert result must fail closed. The draft already covers the fixup floor (12, 14), the main pointer forms (4, 5), adhocCard's `what`, title and reason text (21), and the `..`, absolute and drive globs (69). The cases below fill the gaps I found against my plan constraints at PLAN-run-fixes.md lines 342-345.
+
+- **card-commit --card naming a card that is not in the plan falls back to the union**: A temp repo with cards A (experts: quality) and B (experts: security), where the diff touches a file under B. `card-commit --card ghost` (no such card) and `card-commit --card A` with A's experts or paths line deleted by hand after confirmation (hash now broken) are each refused, and the reason names security. Neither returns ok: true with an empty missing list. (catches: If the per-card lookup treats 'card not found' or 'no experts parsed' as an empty requirement, the check is open to anyone who passes a made-up card name. The draft only tests real cards.)
+- **--resume fixup --accept on a run-added card still needs the covering cards' experts**: A run-added fixup card with experts: [] accepts a file that sits under a security plan card, and a second file outside every card. After `--resume fixup --accept`, card-commit is refused until security's evidence is on record, and the missing list includes security. It must not say 'judged by fixup's experts' and need nobody. (catches: Case 17 tests accept only on a plan card. Under the 'judged by A's experts' rule, accepting under an empty fix-up card would skip review of the accepted files, which is the floor I required at plan line 342.)
+- **all three pointer readers refuse the same unsafe pointer**: For each unsafe pointer in case 4's table, written by hand into .ultimate-workflow/active-plan: pointedPlanFile returns null. A `card-commit` run in that repo judges G6 and G7 exactly as it does with no pointer (same ok, same missing list). Also: a junction at internal/ that points outside the root and holds a real PLAN-x.md is refused by pointedPlanFile and by readState. A dangling junction (target deleted) makes no reader throw, and each gives the no-pointer result. (catches: Case 4 checks only setActivePlan and readState. The plan requires one shared function (line 343). A reader that keeps its own weaker check, or crashes when realpath throws, sends a gate to a plan outside the project or kills the hook.)
+- **measure: glob does not follow a junction out of the root**: Inside the fixture root, `data/` is a directory junction to a temp dir outside the root that holds a 7777-byte file. `claims` on `measure: bytes data/**` either gives understood: false or a total that leaves out the 7777 bytes. The outside file's path appears nowhere in claims' stdout. The test runs on win32. (catches: Case 69 tests only `..`, absolute and drive text. A JS walker that follows links reads and prints sizes outside the project through a path that passes every text check.)
+- **measure: glob with shell or Windows escape syntax is inert**: A table: `$(touch PWNED)`, `*;touch PWNED`, a backtick payload, `..\\x\\*`, `\\\\server\\share\\*` and `C:x*`. Each gives understood: false or zero matched files, and never passing. After all of them, no PWNED file exists in the root or the cwd. (catches: The plan says no shell or spawn expands the glob (line 345). A version that hands the glob to a shell, or that runs the `..` check before turning backslashes into slashes, passes case 69.)
+- **finding file field and stop text never reach a command line**: A stub run where a finding's `file` is `src/$(touch PWNED).js` and its `line` is the string '1`touch PWNED`'. The run ends stopped, with stop text and waiting-for text holding `$(touch PWNED)` and `$HOME`. These strings appear in no command string of any step prompt, including adhocCard's `--paths` and the `notify --kind finished` step. They appear only in `files` entries read through a `--*-file` flag. When bash is present, running the generated commands leaves no PWNED file. (catches: Case 21 covers only `what`, the title and the park reason. The plan names `--paths` and the stopped notice at run.js:898 as sinks (line 344), and the reasons card makes that text longer.)
+- **a malformed expert result is treated as nothing, not as an empty success**: A stub expert returns, on its first and second calls, a non-null value of the wrong shape: a plain string, then an object with no findings array (or a findings value that is a string). The card parks with that expert's name in the reason, and there are zero card-commit and zero record calls. Separately, the shape `{findings: []}` commits after one call. (catches: Cases 38 to 40 tell only null from valid-empty. A check that treats any non-null result as success would let an expert that never reviewed the card count as having cleared it, and the gate would pass.)
+
+#### genai
+
+For the run's own agent calls, the tests must show three things. Each expert, refute and recheck call has a fixed upper bound per card. A null from any of them takes a stated failure path and is never read as "no findings" or "no experts added". The park reason names exactly which agent failed and in which check. I read the genai constraints (plan lines 360-367), the folded rule at line 257, and draft cases 38-45 and 73-78. The Tokens cases (74-78) already cover what report-cost needs, so the cases below are all for expert-retry.
+
+- **an expert retried in both checks runs at most four times per card**: run-phase.test.js, responder keyed by per-label call count. Card has one expert. First check: its first call returns null and its retry returns a result with one high finding, which refute confirms. The fix round runs. Fix-round check (-fix tag): its first call returns null again and its retry returns a valid empty result. Assert the expert has exactly 4 agent calls across both checks. Exactly 2 of them carry the :retry label, one with tag '' and one with '-fix'. The card status is committed. (catches: A retry loop with no per-check cap, or a retry counter shared across the two checks, passes cases 38 and 42 one at a time. It still breaks the 4-calls-per-card bound the plan states at line 362.)
+- **park reason names every expert that failed twice and the check it failed in**: Two cases. (a) First check with experts genai and security both null on the first call and on the retry. The park reason contains both 'genai' and 'security', and a phrase marking the first check. Zero :commit calls and zero record calls. (b) Same setup, but the failure happens only in the -fix check after a fix round. The park reason names the expert and a phrase marking the check after the fix round, and it does not match the wording of case (a). (catches: Case 39 has one expert and one check, so a reason built from only the first failed name, or with no check named, passes it. The plan (line 363) requires every failed expert and the check to be named, so the user does not pay to rerun the wrong step.)
+- **a refute that returns null once and then refutes the high findings stops the fix round**: An expert returns one high finding. The refute agent's first call returns null, and its retry returns a verdict refuting that finding. Assert the refute label has exactly 2 calls, zero fix-round calls are made, and the card reaches :commit once. (catches: Case 43 covers only refute null twice. A build that retries refute but still treats the null first answer as 'unverified, still blocks' pays a fix round for findings the skeptic then refuted. That is the cost fault named in the plan at line 366.)
+- **a recheck that returns null twice is not read as 'no experts added'**: The recheck agent returns null on its first call and on its retry. Assert the recheck label has exactly 2 calls. The card either parks with a reason naming recheck, or reaches card-commit only with an explicit recheck-failed marker that the report shows. The required expert list must never be silently cut back to the card's own experts as if recheck had returned false (run.js 482 today). (catches: Case 44 checks only that the retry happens. The planned outcome after a second null is not stated (line 257 sets refute to park, but says nothing for recheck). Today recheck = false quietly drops the experts that recheck would add, so the card commits with fewer expert reviews and shows no sign of it.)
+- **retry counts only null, and a malformed result is handled as the plan states**: Pure check through expertsCheck with a stub agent. An expert that returns a valid result with findings: [] is not retried (1 call). An expert that returns an object without the findings field is either counted as failed and retried once, or rejected by the result schema before it reaches expertsCheck. In both cases its result is never merged as zero findings. Assert the call count, and that the card does not commit on that expert's empty merge. (catches: The plan defines failure as null (line 362). An object that is not null but malformed, read as 'no findings', lets a broken expert pass the gate without a retry and without a park.)

@@ -421,6 +421,12 @@ const changes = (before, after) => Object.fromEntries(Object.entries(after).filt
 function harvestMemory(tracked, show, proposals, today) {
   if (proposals.some((p) => MEMORY_MD.test(p.path))) return { error: 'a proposal names memory.md: the index is generated from the topical headers, so a harvest never writes it' };
   const memory = proposals.filter((p) => p.destination === 'memory' && TOPICAL.test(p.path));
+  // In a project that keeps a memory.md elsewhere, a topical outside that folder would be a plain file with
+  // no header and no index line, so no card would ever load it. A project with no memory.md at all has no
+  // index to miss, and its proposals are plain additions as before.
+  const indexed = tracked.some((f) => MEMORY_MD.test(f));
+  const orphan = indexed && memory.find((p) => !tracked.includes(`${rootOf(p)}memory.md`));
+  if (orphan) return { error: `${orphan.path}: no memory.md is tracked in ${rootOf(orphan) || 'the project root'}, so nothing would index this topical; name it under the folder that holds memory.md` };
   const roots = union([''], memory.map(rootOf)).filter((r) => tracked.includes(`${r}memory.md`));
   const migration = {};
   const written = {};

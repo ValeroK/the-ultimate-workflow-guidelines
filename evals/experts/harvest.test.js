@@ -408,3 +408,77 @@ test('notify accepts the kind warning', () => {
   const r = cli(dir, 'notify', '--feature', 'f', '--kind', 'warning', '--reason', 'pack_budget is not a number');
   assert.equal(json(r).ok, true, r.stdout + r.stderr);
 });
+
+// ---- review findings of 2026-11-11 ----
+
+test('not migrated, and a gotcha proposal names a topical: the later commit keeps the header the migration wrote', () => {
+  const dir = project({ migrated: false });
+  const r = harvest(dir, 'f', [{ destination: 'gotcha', path: 'memory/hooks.md', text: '- Beware the overwrite.', source: 's', rationale: 'r' }]);
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const text = show(dir, 'uw/harvest/f', 'memory/hooks.md');
+  assert.match(text, /^---\ndescription: How enforcement works\./, 'the header is still there');
+  assert.match(text, /- Beware the overwrite\./);
+  const out = checks(exportTree(dir, 'uw/harvest/f'));
+  assert.equal(out.status, 0, out.stdout);
+});
+
+test('a memory proposal for a folder with no tracked memory.md is refused: nothing would index the topical', () => {
+  const dir = project();
+  const r = harvest(dir, 'f', [{ ...NEW, path: 'docs/memory/parsing.md' }]);
+  assert.equal(r.ok, false, JSON.stringify(r));
+  assert.match(r.reason, /docs\/memory\/parsing\.md/);
+  assert.match(r.reason, /memory\.md/);
+  assert.ok(!hasBranch(dir, 'uw/harvest/f'), 'no branch');
+});
+
+test('a new topical with an empty keyword and no path is refused', () => {
+  const dir = project();
+  const r = harvest(dir, 'f', [{ ...NEW, paths: [], keywords: [''] }]);
+  assert.equal(r.ok, false, JSON.stringify(r));
+  assert.ok(!hasBranch(dir, 'uw/harvest/f'), 'no branch');
+});
+
+// Memory under a nested root (as this repo keeps it): sub/memory.md and sub/memory/*.md, nothing at the project root.
+function nested({ migrated = true } = {}) {
+  const dir = tmp();
+  git(dir, 'init', '-q', '-b', 'main');
+  git(dir, 'config', 'user.email', 't@localhost');
+  git(dir, 'config', 'user.name', 't');
+  git(dir, 'config', 'core.autocrlf', 'false');
+  put(dir, '.gitignore', '.ultimate-workflow/\n');
+  put(dir, 'CLAUDE.md', '# Rules\n');
+  if (migrated) {
+    put(dir, 'sub/memory/hooks.md', HOOKS);
+    put(dir, 'sub/memory.md', memory.renderIndex(INTRO, { 'memory/hooks.md': HOOKS }));
+  } else {
+    put(dir, 'sub/memory/hooks.md', OLD_HOOKS);
+    put(dir, 'sub/memory.md', INTRO + OLD_ENTRY);
+  }
+  git(dir, 'add', '-A');
+  git(dir, 'commit', '-q', '-m', 'init');
+  return dir;
+}
+
+test('memory under a nested root: a new topical gets its header and the nested memory.md lists it, in one commit', () => {
+  const dir = nested();
+  const head = git(dir, 'rev-parse', 'HEAD');
+  const r = harvest(dir, 'f', [{ ...NEW, path: 'sub/memory/parsing.md' }]);
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(git(dir, 'rev-list', '--count', `${head}..uw/harvest/f`), '1');
+  assert.deepStrictEqual(filesOf(dir, 'uw/harvest/f'), ['sub/memory.md', 'sub/memory/parsing.md']);
+  assert.match(show(dir, 'uw/harvest/f', 'sub/memory.md'), /- \[memory\/parsing\.md\]\(memory\/parsing\.md\) - How parsing works\./, 'the index line is relative to the memory root');
+  const out = checks(path.join(exportTree(dir, 'uw/harvest/f'), 'sub'));
+  assert.equal(out.status, 0, out.stdout);
+});
+
+test('memory under a nested root, not migrated: a proposal there brings the migration commit first', () => {
+  const dir = nested({ migrated: false });
+  const head = git(dir, 'rev-parse', 'HEAD');
+  const r = harvest(dir, 'f', [{ ...NEW, path: 'sub/memory/parsing.md' }]);
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.deepStrictEqual(subjects(dir, `${head}..uw/harvest/f`).reverse().map((s) => s.split(' -> ')[0]), ['harvest: migrate memory to headers', 'harvest: memory']);
+  assert.match(show(dir, 'uw/harvest/f', 'sub/memory/hooks.md'), /^---\ndescription: How enforcement works\./);
+  const out = checks(path.join(exportTree(dir, 'uw/harvest/f'), 'sub'));
+  assert.equal(out.status, 0, out.stdout);
+  assert.doesNotMatch(out.stdout, /not migrated/);
+});

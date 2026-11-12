@@ -827,9 +827,11 @@ function harvestBranch(cwd, { feature, from }) {
     byFile.get(f).push(p);
   }
   const steps = [...made.steps];
+  // A file the migration or the memory commit already wrote is continued from that text, not from the tip.
+  const written = Object.assign({}, ...made.steps.map((s) => s.files));
   for (const [file, list] of byFile) {
     const shown = read(file);
-    let text = shown.status === 0 ? shown.stdout : '';
+    let text = Object.hasOwn(written, file) ? written[file] : shown.status === 0 ? shown.stdout : '';
     for (const p of list) text = memoryLib.withAddition(text, p.text, p.destination);
     steps.push({ subject: `harvest: ${[...new Set(list.map((p) => p.destination || 'note'))].join(', ')} -> ${file}`, files: { [file]: text }, list });
   }

@@ -130,7 +130,7 @@ function summaryOf(file) {
 /**
  * The topical memory files a card reads, chosen here and not by a model: the headers of
  * <memoryRoot>/memory/*.md decide (lib/memory.js), a file without one falls back to its memory.md
- * cue. Returns [{ path, how }] with path from the project root.
+ * cue. Returns [{ path, how }] (and matches for a path match) with path from the project root.
  */
 function matchingTopicals(cwd, card, memoryRoot = '') {
   const base = path.join(cwd, memoryRoot);
@@ -139,7 +139,7 @@ function matchingTopicals(cwd, card, memoryRoot = '') {
   const topicals = {};
   if (fs.existsSync(dir)) for (const f of fs.readdirSync(dir).filter((n) => n.endsWith('.md'))) topicals[`memory/${f}`] = read(`memory/${f}`);
   const memoryMd = fs.existsSync(path.join(base, 'memory.md')) ? read('memory.md') : '';
-  return memoryLib.matchTopicals(memoryMd, topicals, card, memoryRoot).map((m) => ({ path: fwd(path.join(memoryRoot, m.file)), how: m.how }));
+  return memoryLib.matchTopicals(memoryMd, topicals, card, memoryRoot).map(({ file, ...m }) => ({ path: fwd(path.join(memoryRoot, file)), ...m }));
 }
 
 /**
@@ -193,12 +193,9 @@ function pack(cwd, { plan, card: name, feature, resume = false, adhoc = false })
     else if (!byCard) problems.push(`the plan cites ${doc}, which does not exist`);
   }
   for (const f of ['AGENTS.md', 'CLAUDE.md']) if (fs.existsSync(path.join(cwd, f))) add(f, 'project rules and Gotchas', { role: 'conditional' });
-  const memoryRoot = String(require('../hooks/lib/state.js').parseFrontMatter(planText).data.memory_root || '').trim();
   const budget = packLib.budgetOf(require('../hooks/lib/state.js').parseFrontMatter(planText).data.pack_budget);
-  const ownPaths = card.paths.map(cardsLib.cleanPath).filter((p) => p.startsWith(memoryRoot ? `${memoryRoot}/` : '')).map((p) => p.slice(memoryRoot ? memoryRoot.length + 1 : 0));
-  for (const { path: topical, how } of matchingTopicals(cwd, card, memoryRoot)) {
-    const header = memoryLib.parseHeader(fs.readFileSync(path.join(cwd, topical), 'utf8')).header;
-    add(topical, summaryOf(path.join(cwd, topical)) || 'project memory', { role: 'topical', how, matches: header ? packLib.matchCount(header.paths, ownPaths, (g, p) => cardsLib.covers(g, p, expertsLib.globToRegExp)) : 0 });
+  for (const { path: topical, how, matches = 0 } of matchingTopicals(cwd, card, memoryLib.rootOfPlan(planText))) {
+    add(topical, summaryOf(path.join(cwd, topical)) || 'project memory', { role: 'topical', how, matches });
   }
   for (const dep of card.depends || []) {
     if (!all.some((c) => c.name.toLowerCase() === dep.toLowerCase())) problems.push(`card ${card.name} depends on ${dep}, which is not a card of the plan`);

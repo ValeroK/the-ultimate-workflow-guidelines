@@ -26,10 +26,10 @@ const names = (matches) => matches.map((m) => m.file);
 test('a card path under a header glob matches; a card glob covering a header path matches too', () => {
   const topicals = { 'memory/h.md': topical({ paths: ['hooks/**'] }), 'memory/g.md': topical({ paths: ['hooks/lib/gates.js'] }) };
   assert.deepStrictEqual(memory.matchTopicals('', topicals, card(['hooks/lib/gates.js'])), [
-    { file: 'memory/g.md', how: 'path' },
-    { file: 'memory/h.md', how: 'path' },
+    { file: 'memory/g.md', how: 'path', matches: 1 },
+    { file: 'memory/h.md', how: 'path', matches: 1 },
   ]);
-  assert.deepStrictEqual(memory.matchTopicals('', { 'memory/g.md': topicals['memory/g.md'] }, card(['hooks/**'])), [{ file: 'memory/g.md', how: 'path' }]);
+  assert.deepStrictEqual(memory.matchTopicals('', { 'memory/g.md': topicals['memory/g.md'] }, card(['hooks/**'])), [{ file: 'memory/g.md', how: 'path', matches: 1 }]);
   assert.deepStrictEqual(memory.matchTopicals('', topicals, card(['phases/run.js'])), []);
 });
 
@@ -99,8 +99,8 @@ test('order is path matches first, then keyword matches, each by path, and says 
     'memory/m.md': topical({ paths: ['hooks/**'], keywords: ['heartbeat'] }),
   };
   assert.deepStrictEqual(memory.matchTopicals('', topicals, card(['hooks/x.js'], { carried: ['the heartbeat'] })), [
-    { file: 'memory/m.md', how: 'path' },
-    { file: 'memory/z.md', how: 'path' },
+    { file: 'memory/m.md', how: 'path', matches: 1 },
+    { file: 'memory/z.md', how: 'path', matches: 1 },
     { file: 'memory/a.md', how: 'keyword' },
     { file: 'memory/b.md', how: 'keyword' },
   ]);
@@ -145,16 +145,27 @@ function project(files) {
   return root;
 }
 
+test('a path match says how many of the card paths the header covers, also when the memory root ends in a slash', () => {
+  const topicals = { 'memory/two.md': topical({ paths: ['hooks/**'] }), 'memory/one.md': topical({ paths: ['hooks/a.js'] }) };
+  const c = card(['sub/hooks/a.js', 'sub/hooks/b.js', 'other/x.js']);
+  for (const root of ['sub', 'sub/']) {
+    assert.deepStrictEqual(memory.matchTopicals('', topicals, c, root), [
+      { file: 'memory/one.md', how: 'path', matches: 1 },
+      { file: 'memory/two.md', how: 'path', matches: 2 },
+    ], root);
+  }
+});
+
 test('with a memory root, topicals are read from its memory/ and returned as paths from the project root', () => {
   const dir = project({ 'sub/dir/memory.md': '# Memory\n', 'sub/dir/memory/h.md': topical({ paths: ['hooks/**'] }) });
   const c = card(['sub/dir/hooks/x.js']);
-  assert.deepStrictEqual(autopilot.matchingTopicals(dir, c, 'sub/dir'), [{ path: 'sub/dir/memory/h.md', how: 'path' }]);
+  assert.deepStrictEqual(autopilot.matchingTopicals(dir, c, 'sub/dir'), [{ path: 'sub/dir/memory/h.md', how: 'path', matches: 1 }]);
   assert.deepStrictEqual(autopilot.matchingTopicals(dir, c), []);
 });
 
 test('without a memory root, topicals are read from the project root', () => {
   const dir = project({ 'memory.md': '# Memory\n', 'memory/h.md': topical({ paths: ['hooks/**'] }) });
-  assert.deepStrictEqual(autopilot.matchingTopicals(dir, card(['hooks/x.js'])), [{ path: 'memory/h.md', how: 'path' }]);
+  assert.deepStrictEqual(autopilot.matchingTopicals(dir, card(['hooks/x.js'])), [{ path: 'memory/h.md', how: 'path', matches: 1 }]);
 });
 
 test('no memory.md and no memory/ folder gives no topicals', () => {

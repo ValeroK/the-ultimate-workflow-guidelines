@@ -108,6 +108,7 @@ const REJECTED = [
   ['a tab-indented list', ['description: x', 'read_when:', '  keywords:', '\t- one'], /tab/i, 5],
   ['an updated that is no month', ['description: x', 'read_when:', '  paths: [a/**]', 'updated: 2026-13-40'], /updated/i, 1],
   ['an updated that is no day of its month', ['description: x', 'read_when:', '  paths: [a/**]', 'updated: 2026-02-30'], /updated/i, 1],
+  ['an empty list item', ['description: x', 'read_when:', '  keywords:', '    -'], /empty/i, 5],
   ['an updated that is not a date', ['description: x', 'read_when:', '  paths: [a/**]', 'updated: yesterday'], /updated/i, 1],
 ];
 

@@ -27,11 +27,6 @@ function citedRole(doc, { perCard, namedByText, namedByPaths }) {
   return !perCard || namedByText.includes(doc) || namedByPaths ? 'required' : 'pointer';
 }
 
-/** How many of the card's paths (relative to the memory root) a topical's header path covers, either way. */
-function matchCount(headerPaths, cardPaths, covers) {
-  return cardPaths.filter((p) => headerPaths.some((g) => covers([g], p) || covers([p], g))).length;
-}
-
 // One entry per file: the reasons joined, the role that reads most strictly wins.
 function merge(entries) {
   const byPath = new Map();
@@ -88,4 +83,4 @@ function assemble({ title, intro, entries, mayChange, budget, warnings = [] }) {
   return { body, tokens, budget, dropped, overBudget: tokens > budget, warnings };
 }
 
-module.exports = { DEFAULT_BUDGET, budgetOf, citedRole, matchCount, assemble };
+module.exports = { DEFAULT_BUDGET, budgetOf, citedRole, assemble };

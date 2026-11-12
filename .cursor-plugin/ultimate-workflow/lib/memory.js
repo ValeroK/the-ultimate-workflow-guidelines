@@ -57,8 +57,10 @@ function parseHeader(text) {
     const indent = raw.length - raw.trimStart().length;
     const s = raw.trim();
     if (s === '-' || s.startsWith('- ')) {
-      if (list) list.push(unquote(s.slice(1).trim()));
-      else err(n, 'a list item outside a paths or keywords list');
+      const item = unquote(s.slice(1).trim());
+      if (!list) err(n, 'a list item outside a paths or keywords list');
+      else if (!item) err(n, 'an empty list item');
+      else list.push(item);
       continue;
     }
     const m = /^([A-Za-z_]+):\s*(.*)$/.exec(s);
@@ -310,7 +312,7 @@ function mentioned(glob, text) {
 const keywordRe = (k) => new RegExp(`(?<![a-z0-9])${k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![a-z0-9])`, 'i');
 
 /**
- * The topicals a card should read: [{ file, how }] with how 'path', 'keyword' or 'cue', path matches
+ * The topicals a card should read: [{ file, how }] with how 'path' (and matches), 'keyword' or 'cue', path matches
  * first, then keyword, then cue, each by path. A header path matches when it and one of the card's
  * paths (taken relative to memoryRoot; a path outside it never matches) cover one another, by the
  * glob rule the plan's card paths use; a keyword matches as a whole word or phrase in the card's
@@ -328,7 +330,9 @@ function matchTopicals(memoryMd, topicals, card, memoryRoot = '') {
   for (const file of Object.keys(topicals).sort()) {
     const { header, errors } = parseHeader(topicals[file]);
     if (header) {
-      if (header.paths.some((g) => own.some((p) => covers([g], p) || covers([p], g)) || mentioned(g, text))) found.push({ file, how: 'path' });
+      // matches: how many of the card's paths the header covers, either way (the pack's drop order).
+      const matches = own.filter((p) => header.paths.some((g) => covers([g], p) || covers([p], g))).length;
+      if (matches || header.paths.some((g) => mentioned(g, text))) found.push({ file, how: 'path', matches });
       else if (header.keywords.some((k) => keywordRe(k).test(text) || cueWords(k).some((w) => titleWords.has(w)))) found.push({ file, how: 'keyword' });
     } else if (!errors.length && cue.has(file)) found.push({ file, how: 'cue' });
   }

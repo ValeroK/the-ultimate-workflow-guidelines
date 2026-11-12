@@ -1082,3 +1082,35 @@ test('run-report shows the memory warnings run-start found, and no memory sectio
   assert.equal(json(cli(good, 'run-start', '--plan', 'PLAN-calc.md', '--feature', 'calc')).ok, true);
   assert.doesNotMatch(report(good), /memory/i);
 });
+
+// ---- review findings of 2026-11-11: the same with memory under memory_root ----
+
+// repo() with `memory_root: sub` in the plan and the migrated memory under sub/.
+function nestedMemoryRepo({ extraTopicals = {} } = {}) {
+  const dir = repo({ plan: PLAN.replace('experts: []\n', 'experts: []\nmemory_root: sub\n').replace('paths: src/add.js, docs/new-guide.md', 'paths: src/add.js, docs/new-guide.md, sub/**') });
+  const topicals = { 'memory/a.md': topic('Topic A.'), ...extraTopicals };
+  for (const [file, text] of Object.entries(topicals)) write(dir, `sub/${file}`, text);
+  write(dir, 'sub/memory.md', memoryLib.renderIndex('# Memory\n', { 'memory/a.md': topicals['memory/a.md'] }));
+  git(dir, 'add', '-A');
+  git(dir, 'commit', '-q', '-m', 'memory');
+  return dir;
+}
+
+test('card-commit with memory_root regenerates the memory.md under that root and commits it with the card', () => {
+  const dir = nestedMemoryRepo();
+  write(dir, 'sub/memory/a.md', topic('Topic A, reworded.'));
+  checked(dir);
+  const r = commitCard(dir);
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.deepStrictEqual(git(dir, 'show', '--name-only', '--format=', 'HEAD').split('\n').sort(), ['PLAN-calc.md', 'sub/memory.md', 'sub/memory/a.md']);
+  assert.match(git(dir, 'show', 'HEAD:sub/memory.md'), /Topic A, reworded\./);
+  assert.ok(!fs.existsSync(path.join(dir, 'memory.md')), 'nothing is written at the project root');
+  assert.equal(cli(dir, 'memory', 'check', '--root', 'sub').status, 0, 'the committed memory passes its own check');
+});
+
+test('run-start with memory_root checks the memory under that root', () => {
+  const dir = nestedMemoryRepo({ extraTopicals: { 'memory/b.md': topic('Topic B.') } });
+  const r = json(cli(dir, 'run-start', '--plan', 'PLAN-calc.md', '--feature', 'calc'));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.match((r.warnings || []).join('\n'), /memory\/b\.md is missing from the index/);
+});

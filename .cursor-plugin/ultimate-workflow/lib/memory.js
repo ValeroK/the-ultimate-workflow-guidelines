@@ -474,8 +474,7 @@ function problemsOf(files, exists) {
 
 /** The problems of the memory files of the working tree under root (what `memory check` fails on). */
 function workingProblems(root) {
-  const files = Object.fromEntries(links.listFiles(root).filter(inScope).map((f) => [f, fs.readFileSync(path.join(root, f), 'utf8')]));
-  return problemsOf(files, (p) => fs.existsSync(path.join(root, p)));
+  return problemsOf(links.scopeFiles(root), (p) => fs.existsSync(path.join(root, p)));
 }
 
 /** Split the problems now into { added, existing } by the ones at HEAD: same file, kind and target, whatever the line. */
@@ -487,16 +486,21 @@ function newProblems(now, head) {
 
 /**
  * The memory check of a commit, for the gate: { added, existing } of the memory under root against
- * HEAD. `atHead` is { names, show } (the tracked files under root and a reader of their text), or
- * null before the first commit.
+ * HEAD. `atHead` is { names, show } (the tracked files under root and a reader of their text), with
+ * `all` and `at` when the root is not the repository top, or null before the first commit.
  */
 function commitProblems(root, atHead) {
   const now = workingProblems(root);
   if (!atHead) return { added: now, existing: [] };
-  const names = new Set(atHead.names);
-  const dirs = new Set(atHead.names.flatMap((n) => n.split('/').slice(0, -1).map((_, i, parts) => parts.slice(0, i + 1).join('/'))));
+  // Every path tracked at HEAD as seen from the root (`../docs/x.md` for one outside it), and their folders.
+  const names = new Set([...atHead.names, ...(atHead.all || []).map((n) => path.posix.relative(atHead.at || '.', n))]);
+  const dirs = new Set([...names].flatMap((n) => n.split('/').slice(0, -1).map((_, i, parts) => parts.slice(0, i + 1).join('/'))));
   const files = Object.fromEntries(atHead.names.filter(inScope).map((n) => [n, atHead.show(n)]));
-  return newProblems(now, problemsOf(files, (p) => names.has(p) || dirs.has(p)));
+  const existed = (p) => {
+    const q = path.posix.normalize(p).replace(/\/+$/, '');
+    return q === '.' || names.has(q) || dirs.has(q);
+  };
+  return newProblems(now, problemsOf(files, existed));
 }
 
 /**

@@ -1225,7 +1225,9 @@ function memoryEvidence(cwd, planFile, files) {
     const rootDir = path.resolve(cwd, planFile ? memory.rootOfPlan(fs.readFileSync(path.resolve(cwd, planFile), 'utf8')) : '');
     const prefix = path.relative(cwd, rootDir).split(path.sep).filter(Boolean).map((d) => `${d}/`).join('');
     if (!fs.existsSync(rootDir) || !files.some((f) => f.startsWith(prefix) && memory.inScope(f.slice(prefix.length)))) return undefined;
-    const atHead = hasHead(cwd) ? { names: git(rootDir, ['ls-tree', '-r', '--name-only', 'HEAD']).split(/\r?\n/).filter(Boolean), show: (f) => git(rootDir, ['show', `HEAD:./${f}`]) } : null;
+    const lines = (args) => git(rootDir, args).split(/\r?\n/).filter(Boolean);
+    // `all` and `at` (every tracked path from the repository top, and where the root sits in it) let a link that leaves the root be looked up at HEAD.
+    const atHead = hasHead(cwd) ? { names: lines(['ls-tree', '-r', '--name-only', 'HEAD']), all: lines(['ls-tree', '-r', '--name-only', '--full-tree', 'HEAD']), at: lines(['rev-parse', '--show-prefix'])[0] || '', show: (f) => git(rootDir, ['show', `HEAD:./${f}`]) } : null;
     return memory.commitProblems(rootDir, atHead);
   } catch {
     return undefined;

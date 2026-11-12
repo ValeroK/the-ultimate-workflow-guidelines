@@ -21,6 +21,9 @@ Memory reaches the cards that need it, and cannot silently drift. Taken from the
 
 - `mirrors.test.js` runs `memory check --root .cursor-plugin/ultimate-workflow` in place of its two memory tests; this repo's own memory is migrated.
 - Merging two harvest branches can conflict in the generated block of `memory.md`: take either side, run `memory index`, commit.
+- A harvest refuses a new topical under a folder that has no tracked `memory.md` when the project keeps one elsewhere, naming the reason; a project with no `memory.md` at all still gets a plain file, as before.
+- A header with an empty list item (`-` alone) is invalid, so an empty cue cannot stand in for the required path or keyword.
+- With `memory_root:`, a link from a memory file to a file outside that folder is checked against `HEAD` like any other, so a commit that breaks it is refused.
 
 ## [4.7.1] - 2026-11-11
 

@@ -366,3 +366,22 @@ test('status shows how many high findings are open', async () => {
   const s = spawnSync(process.execPath, [path.join(payload, 'hooks', 'status.js')], { cwd: dir, encoding: 'utf8', env: { ...process.env, ULTIMATE_WORKFLOW_GATES: 'on' } });
   assert.match(s.stdout, /open high-confidence findings: 1/);
 });
+
+// The memory check of a commit through the real entry point (hooks/gate.js reads the hook payload,
+// gathers the evidence and dispatches), not through commitEvidence and commitGate called by hand.
+test('the real gate refuses a commit that leaves the memory index stale, and allows it once the index is regenerated', () => {
+  const memoryLib = require(path.join(PAYLOAD, 'lib', 'memory.js'));
+  const topic = (desc) => `---\ndescription: ${desc}\nread_when:\n  paths:\n    - src/**\n---\n\n# ${desc}\n`;
+  const { dir } = project('plan_confirmed: true\ntests_confirmed: true\nexperts: []');
+  write(path.join(dir, 'memory', 'a.md'), topic('Topic A.'));
+  write(path.join(dir, 'memory.md'), memoryLib.renderIndex('# Memory\n', { 'memory/a.md': topic('Topic A.') }));
+  git(dir, 'add', '-A');
+  git(dir, 'commit', '-q', '-m', 'memory');
+  write(path.join(dir, 'memory', 'b.md'), topic('Topic B.'));
+  const refused = gate(PAYLOAD, dir, bash('git commit -am topical'));
+  assert.strictEqual(decision(refused), 'deny', refused.stdout + refused.stderr);
+  assert.match(reasonOf(refused) || refused.stderr, /memory\/b\.md/);
+  assert.match(reasonOf(refused) || refused.stderr, /memory index/);
+  write(path.join(dir, 'memory.md'), memoryLib.renderIndex('# Memory\n', { 'memory/a.md': topic('Topic A.'), 'memory/b.md': topic('Topic B.') }));
+  assert.strictEqual(decision(gate(PAYLOAD, dir, bash('git commit -am topical'))), 'allow');
+});

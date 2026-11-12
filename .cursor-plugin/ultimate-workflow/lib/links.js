@@ -90,4 +90,4 @@ function cli(argv, cwd, write, fail) {
   return errors.length ? 1 : 0;
 }
 
-module.exports = { brokenLinks, listFiles, projectLinkErrors, cli };
+module.exports = { brokenLinks, listFiles, scopeFiles, projectLinkErrors, cli };

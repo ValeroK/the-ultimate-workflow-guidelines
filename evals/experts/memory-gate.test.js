@@ -194,3 +194,41 @@ test('an internal error in the memory check allows the commit', () => {
   const v = verdict(dir);
   assert.strictEqual(v.allow, true, v.reason);
 });
+
+// ---- review findings of 2026-11-11 ----
+
+test('with a memory root, a link that leaves the root and is broken by this commit is new, not "already broken"', () => {
+  const dir = project({ at: 'sub/' });
+  const linked = `${TOPIC_A}\nSee [the guide](../../docs/x.md), [the folder](../../docs/) and [here](.).\n`;
+  put(dir, 'docs/x.md', '# X\n');
+  put(dir, 'sub/memory/a.md', linked);
+  put(dir, 'sub/memory.md', indexed({ 'memory/a.md': linked }));
+  put(dir, 'PLAN-x.md', '---\nplan_confirmed: true\ntests_confirmed: true\nmemory_root: sub\nexperts: []\n---\nbody\n');
+  git(dir, 'add', '-A');
+  git(dir, 'commit', '-q', '-m', 'links');
+  const plan = path.join(dir, 'PLAN-x.md');
+  put(dir, 'sub/memory/a.md', `${linked}More.\n`);
+  assert.deepStrictEqual(evidence(dir, plan).memory, { added: [], existing: [] }, 'targets outside the root, a folder with a slash and "." all exist at HEAD and now');
+  fs.rmSync(path.join(dir, 'docs'), { recursive: true });
+  const m = evidence(dir, plan).memory;
+  assert.deepStrictEqual(m.added.map((p) => p.target).sort(), ['../../docs/', '../../docs/x.md']);
+  assert.deepStrictEqual(m.existing, []);
+  assert.strictEqual(verdict(dir, plan).allow, false);
+});
+
+test('workingProblems reads the memory files only: an unreadable folder elsewhere in the project does not matter', () => {
+  const dir = project({ agents: `${AGENTS}See [gone](gone.md).\n` });
+  // A name that is no folder where listFiles would descend: a walk of the whole tree would throw here.
+  const walked = [];
+  const real = fs.readdirSync;
+  fs.readdirSync = (p, ...rest) => {
+    walked.push(path.relative(dir, String(p)).split(path.sep).join('/'));
+    return real(p, ...rest);
+  };
+  try {
+    assert.deepStrictEqual(memory.workingProblems(dir).map((p) => p.target), ['gone.md']);
+  } finally {
+    fs.readdirSync = real;
+  }
+  assert.deepStrictEqual(walked.filter((p) => p !== 'memory' && !p.startsWith('memory/')), [], 'only memory/ is listed');
+});

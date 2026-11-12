@@ -98,8 +98,8 @@ What is there, and what each card reuses.
 
 - plan-subfolder: state.js follows a plan in a subfolder
   paths: .cursor-plugin/ultimate-workflow/hooks/lib/state.js, .cursor-plugin/ultimate-workflow/hooks/lib/state.test.js
-  status: parked uw/parked/run-fixes/plan-subfolder; the commit was refused: Gate G7: the changes have changed since the last passing full test suite run. Run `verify.js --full` once, then commit again. If you have not changed code since, a file your tests or app rewrite is moving it: list th
-  parked: uw/parked/run-fixes/plan-subfolder; the commit was refused: Gate G7: the changes have changed since the last passing full test suite run. Run `verify.js --full` once, then commit again. If you have not changed code since, a file your tests or app rewrite is moving it: list th
+  status: committed 7979eb86143e
+  committed: 7979eb86143e
 - gate-card: G6 judges the card being committed
   paths: .cursor-plugin/ultimate-workflow/lib/run-rules.js, .cursor-plugin/ultimate-workflow/experts/experts.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, .cursor-plugin/ultimate-workflow/phases/run.js, evals/experts/run-rules.test.js, evals/experts/autopilot-fixes.test.js
   status: committed dd6854b19499
@@ -119,9 +119,9 @@ What is there, and what each card reuses.
 - settle-first: review, fix-up and harvest wait for parked and blocked cards
   paths: .cursor-plugin/ultimate-workflow/phases/run.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, evals/experts/run-phase.test.js, evals/experts/autopilot-fixes.test.js
   depends: expert-retry
-  status: parked uw/parked/run-fixes/settle-first; blocking finding from the experts check, not fixed by the fix round (still blocking): - architect: .cursor-plugin/ultimate-workflow/phases/run.js:1091 One reviewedHead is recorded when either the review or the harvest ran, but the harvest-s
+  status: committed 191a9fdaf516
   carried: quality at evals/experts/autopilot-fixes.test.js:364: Test 26 checks the replay-reuse rule only when the card to reuse has the exact base name `fixup`, the `-N` family match in reusableCard is never exercised.
-  parked: uw/parked/run-fixes/settle-first; blocking finding from the experts check, not fixed by the fix round (still blocking): - architect: .cursor-plugin/ultimate-workflow/phases/run.js:1091 One reviewedHead is recorded when either the review or the harvest ran, but the harvest-s
+  committed: 191a9fdaf516
 - harvest-name: a second harvest gets its own branch
   paths: .cursor-plugin/ultimate-workflow/lib/run-rules.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, evals/experts/autopilot-fixes.test.js
   depends: settle-first
@@ -153,8 +153,8 @@ What is there, and what each card reuses.
 - findings: non-blocking expert findings no card fixed
   paths: .cursor-plugin/ultimate-workflow/experts/experts.js
   carried: quality at .cursor-plugin/ultimate-workflow/experts/experts.js:494: Nothing in the diff writes the `accepted:` run field, the diff only reads it and leaves it out of the confirm hash. The plan assigns the write to `--resume <card> --accept`.
-  status: parked uw/parked/run-fixes/findings; tests did not fail first: The new tests did not fail before implementation, so they cannot demonstrate the change works. Either the behaviour already exists, or those tests have no real oracle. Both are worth knowing before writing code. Pa
-  parked: uw/parked/run-fixes/findings; tests did not fail first: The new tests did not fail before implementation, so they cannot demonstrate the change works. Either the behaviour already exists, or those tests have no real oracle. Both are worth knowing before writing code. Pa
+  status: committed dd6854b19499
+  committed: dd6854b19499
 - fixup: confirmed review findings
   paths: .cursor-plugin/ultimate-workflow/phases/run.js, .cursor-plugin/ultimate-workflow/experts/experts.js, .cursor-plugin/ultimate-workflow/lib/run-rules.js, .cursor-plugin/ultimate-workflow/phases/run.js, evals/experts/run-phase.test.js
   carried: correctness at C:\Users\kobiv\Projects\the-ultimate-workflow-guidelines\.cursor-plugin\ultimate-workflow\phases\run.js:943: The findings card is given an `experts:` line and a lane made only of the experts that raised the queued findings, but G6 for a run-added card also requires the experts of every plan card covering the changed files (narrowedExperts), so the lane can be short of what the gate asks for.; correctness at C:\Users\kobiv\Projects\the-ultimate-workflow-guidelines\.cursor-plugin\ultimate-workflow\experts\experts.js:656: The new card-scoped branch of effectiveExperts sits after the `changed.length === 0` early return, so a card-commit whose diff holds only test files never narrows and is held to the plan's full experts line.; simplicity at C:\Users\kobiv\Projects\the-ultimate-workflow-guidelines\.cursor-plugin\ultimate-workflow\lib\run-rules.js:15: acceptedFiles is a second, hand-rolled card parser (14 lines, its own copy of the card-item regex) for an `accepted:` field that no code writes, so the whole accepted path (acceptedFiles, the `accepted` argument of narrowedExperts, the call at experts.js:664) cannot be reached in a real run.; test-coverage at .cursor-plugin/ultimate-workflow/phases/run.js:922: Plan test 21 ('agent text never reaches a command line', listed under the committed gate-card card) does not exist, and the line it should guard still puts agent-written text inside q() on the card-add command line.; test-coverage at evals/experts/run-phase.test.js:809: Test 44's second case (recheck null on the first call and on the retry) asserts only the retry count, not what the run does next.; test-coverage at evals/experts/run-phase.test.js:691: Test 36 checks only that four card-add calls are made out of five groups, with the findings queued in plan order, so it cannot tell which four are kept.; test-coverage at evals/experts/run-phase.test.js:793: Test 43b cannot tell a used refute retry from a discarded one, and no test covers a retried expert that returns findings.

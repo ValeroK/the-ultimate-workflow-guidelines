@@ -34,6 +34,26 @@ Topicals live at the repo root as a slim **`memory.md`** index plus per-topic fi
 
 The cue is what the model uses to decide whether to fetch the topical. Concrete keywords beat vague phrases.
 
+**The header and the generated index.** Each `memory/<topic>.md` starts with a small header (front matter, a fixed subset: flat keys, lists inline `[a, b]` or as `- item` lines):
+
+```
+---
+description: <one line, required>
+read_when:
+  paths: [hooks/**]
+  keywords: [gate.js, "a gate is not firing"]
+updated: YYYY-MM-DD
+---
+```
+
+`paths` are globs relative to the folder that holds `memory.md`. The header takes no comments. At least one of `paths` or `keywords` is required. Cards pick their topicals from the headers (a path glob that meets one of the card's paths, or a keyword found as a whole word in the card's text), not from the sentence in `memory.md`.
+
+The list in `memory.md` is generated from the headers, between `<!-- uw:memory-index:start ... -->` and `<!-- uw:memory-index:end -->`. **Never edit between the markers**: change the header and run `node experts/experts.js memory index`. Text outside the markers is yours and is never touched. `node experts/experts.js memory check` verifies the index and every relative link in `AGENTS.md`, `CLAUDE.md`, `memory.md` and `memory/*.md`; the agent's commits are refused when they newly leave the index stale or break a link (a commit from your own terminal is not seen by the hooks, so run `memory check` yourself).
+
+**Migration happens at the first harvest.** A project whose topicals have no header and whose `memory.md` has no markers is not failing, only "not migrated" (`memory check` warns and exits 0). Its first harvest after the upgrade to 4.8.0 makes one commit of its own on the harvest branch, "harvest: migrate memory to headers" (what `memory migrate` writes), with the lessons on top. Review it like any lesson; dropping the branch leaves the project as it was.
+
+**A conflict in the generated block.** Two harvest branches both regenerate the same block, so merging the second can conflict in `memory.md`. Take either side, run `node experts/experts.js memory index`, and commit.
+
 **Read protocol** at the start of any non-trivial task:
 
 1. Read `memory.md` if it exists (cheap — it's slim by design).

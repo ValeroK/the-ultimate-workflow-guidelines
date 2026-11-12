@@ -3,7 +3,7 @@ phase: build
 plan_confirmed: true
 tests_confirmed: true
 test_command: node --test ".cursor-plugin/ultimate-workflow/hooks/**/*.test.js" "evals/**/*.test.js" mirrors.test.js
-experts: [quality, genai, security, developer, softarch]
+experts: [quality, genai, security, developer, softarch, devops]
 memory_root: .cursor-plugin/ultimate-workflow
 pack_budget: 25000
 dirty: false
@@ -283,8 +283,7 @@ evals/security-expert/provenance.test.js caps the `experts/` folder at 430,080 b
   paths: .cursor-plugin/ultimate-workflow/memory.md, .cursor-plugin/ultimate-workflow/memory/**, .cursor-plugin/ultimate-workflow/skills/the-ultimate-workflow-guidelines/references/memory-protocol.md, .cursor-plugin/ultimate-workflow/skills/the-ultimate-workflow-guidelines/references/memory-template.md, .cursor-plugin/ultimate-workflow/skills/project-bootstrap-guidelines/references/memory-template.md, .cursor-plugin/ultimate-workflow/skills/project-bootstrap-guidelines/SKILL.md, .cursor-plugin/ultimate-workflow/skills/the-ultimate-workflow-guidelines/SKILL.md, .cursor-plugin/ultimate-workflow/rules/**, .cursor-plugin/ultimate-workflow/phases/run.md, mirrors.test.js, CHANGELOG.md, .cursor-plugin/plugin.json, .claude-plugin/marketplace.json
   depends: index, links, match, budget, fixes, harvest, gate
   experts: [quality, genai, security]
-  status: parked uw/parked/memory-index/docs; the commit was refused: Gate G6: the re-check dropped developer, softarch, which the plan named. Experts can be added, never removed. Run /ultimate-workflow:experts, which re-asks which domain experts apply (it can only add) and runs them,
-  parked: uw/parked/memory-index/docs; the commit was refused: Gate G6: the re-check dropped developer, softarch, which the plan named. Experts can be added, never removed. Run /ultimate-workflow:experts, which re-asks which domain experts apply (it can only add) and runs them,
+  status: committed
 - fixup: confirmed review findings
   paths: .cursor-plugin/ultimate-workflow/lib/memory.js, .cursor-plugin/ultimate-workflow/lib/links.js, .cursor-plugin/ultimate-workflow/lib/memory.js, .cursor-plugin/ultimate-workflow/lib/links.js, evals/experts/links.test.js, evals/experts/memory.test.js
   experts: [quality, genai, security]

@@ -20,6 +20,8 @@ Then split the plan into cards, in code: for each, `node "${CLAUDE_PLUGIN_ROOT}/
 
 Then follow `${CLAUDE_PLUGIN_ROOT}/commands/tests.md` exactly, telling the tests phase to write **one subsection of the Tests section per card, headed with the card's name** (`### <card>: <title>`), so the user confirms every card's tests at once. A card with no such subsection is parked by the run as "missing input". Stop for the user's confirmation.
 
+Tell plan authors to name the documents a card must read in that card's own section (`### Card <name>`): a cited document no card section, test or path names reaches the card only as a one-line pointer.
+
 Raise any open question one at a time, each with the issue, what each answer changes, and the pros and cons, as those commands say.
 
 ## 2. Set up the run: one command

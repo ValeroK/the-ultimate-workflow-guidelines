@@ -20,7 +20,8 @@ const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
-const { execFileSync } = require('node:child_process');
+const os = require('node:os');
+const { execFileSync, spawnSync } = require('node:child_process');
 
 const root = __dirname;
 // Shippable plugin payload. Lives under .cursor-plugin/ so Cursor's
@@ -138,25 +139,114 @@ test('every file the always-on indexes point at actually exists', () => {
   }
 });
 
-test('every memory.md entry points at a file that exists', () => {
+const MARK_START = '<!-- uw:memory-index:start';
+const MARK_END = '<!-- uw:memory-index:end -->';
+
+test('memory check passes on this repo, migrated (headers and markers present)', () => {
+  const r = spawnSync(
+    process.execPath,
+    [pjoin('experts', 'experts.js'), 'memory', 'check', '--root', PLUGIN],
+    { cwd: root, encoding: 'utf8' }
+  );
+  assert.equal(r.status, 0, `memory check failed:\n${r.stdout}\n${r.stderr}`);
+  // An un-migrated memory also exits 0, with warnings; this repo must be past that.
+  assert.doesNotMatch(r.stdout + r.stderr, /not migrated/, 'memory check still warns "not migrated"');
+});
+
+test('every topical in memory/ has a header, and memory.md lists it between the markers', () => {
   const idx = pread('memory.md');
-  const refs = [...idx.matchAll(/\]\(([^)]+\.md)\)/g)].map((m) => m[1]);
-  assert.ok(refs.length >= 4, 'memory.md should index the topicals');
-  for (const r of refs) {
-    const target = r.startsWith('research/') ? path.join(root, r) : pjoin(r);
-    assert.ok(fs.existsSync(target), `memory.md points at ${r}, which does not exist`);
+  const s = idx.indexOf(MARK_START);
+  const e = idx.indexOf(MARK_END);
+  assert.ok(s >= 0 && e > s, 'memory.md has no index markers');
+  const block = idx.slice(s, e);
+  for (const t of topicals()) {
+    const text = pread(path.join('memory', `${t}.md`)).replace(/^﻿/, '');
+    assert.match(text, /^---\r?\n[\s\S]*?\r?\n---/, `memory/${t}.md has no header`);
+    assert.ok(block.includes(`](memory/${t}.md)`), `memory.md does not list memory/${t}.md between the markers`);
   }
 });
 
-test('every memory.md entry carries a Read when cue', () => {
+test('the research entry stays outside the markers', () => {
   const idx = pread('memory.md');
-  const entries = idx.split(/\r?\n/).filter((l) => /^- \[/.test(l));
-  assert.ok(entries.length >= 4);
-  for (const e of entries) {
-    assert.match(e, /\*\*Read when\*\*/, `an index entry has no "Read when" cue, so nothing will retrieve it: ${e.slice(0, 70)}`);
+  const at = idx.indexOf('research/new-sdlc-with-vibe-coding.md');
+  assert.ok(at >= 0, 'the research entry is gone from memory.md');
+  const s = idx.indexOf(MARK_START);
+  const e = idx.indexOf(MARK_END);
+  assert.ok(s >= 0 && e > s, 'memory.md has no index markers');
+  assert.ok(at < s || at > e, 'the research entry is inside the generated block, where the next index run deletes it');
+});
+
+test('both memory-template copies show the header and the markers', () => {
+  for (const p of [
+    'skills/project-bootstrap-guidelines/references/memory-template.md',
+    'skills/the-ultimate-workflow-guidelines/references/memory-template.md',
+  ]) {
+    const t = pread(p);
+    assert.match(t, /read_when/, `${p} does not show the topical header`);
+    assert.ok(t.includes(MARK_START) && t.includes(MARK_END), `${p} does not show the index markers`);
   }
 });
 
+test('the seeded memory.md has empty markers and passes the bootstrap handoff check', () => {
+  const t = pread('skills/project-bootstrap-guidelines/references/memory-template.md');
+  const seed = /```markdown\r?\n([\s\S]*?)```/.exec(t);
+  assert.ok(seed, 'the template has no memory.md block');
+  const s = seed[1].indexOf(MARK_START);
+  const e = seed[1].indexOf(MARK_END);
+  assert.ok(s >= 0 && e > s, 'the seed memory.md has no markers');
+  const between = seed[1].slice(seed[1].indexOf('-->', s) + 3, e);
+  assert.equal(between.trim(), '', 'the seeded markers are not empty');
+
+  const { handoffComplete } = require(path.join(PAYLOAD, 'hooks', 'lib', 'state.js'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'uw-seed-'));
+  try {
+    const w = (f, c) => fs.writeFileSync(path.join(dir, f), c);
+    w('PRD.md', '---\ndesign_confirmed: true\nscaffold_verify: green\n---\n# PRD\n');
+    w('AGENTS.md', '# A\n\n## Key files\n\n## Gotchas\n');
+    w('CLAUDE.md', '@AGENTS.md\n');
+    w('ROADMAP.md', '# R\n\n## M1\n');
+    w('progress.md', '# P\n\n## 2026-01-01\n');
+    w('memory.md', seed[1]);
+    assert.equal(handoffComplete(dir), true, 'the seeded memory.md breaks the handoff predicate');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('the memory guide names the header, the markers rule, the first-harvest migration and the conflict resolution', () => {
+  const g = pread('skills/the-ultimate-workflow-guidelines/references/memory-protocol.md');
+  assert.match(g, /read_when/, 'the guide never shows the header');
+  assert.match(g, /between the markers/i, 'the guide never says not to edit between the markers');
+  assert.match(g, /migrat/i, 'the guide never says how a project is migrated');
+  assert.match(g, /first harvest/i, 'the guide never ties the migration to the first harvest');
+  assert.match(g, /conflict/i, 'the guide never gives the conflict resolution');
+  assert.match(g, /memory index/, 'the guide never names the command that resolves it');
+});
+
+test('the run guide tells plan authors to name a card\'s documents in its own section', () => {
+  const r = pread('phases/run.md');
+  assert.match(r, /documents? (?:a|the) card (?:must|needs to) read[^.]*own section|own section[^.]*documents?/i);
+});
+
+test('the bootstrap skill and its rule mirror both describe the generated index', () => {
+  for (const p of ['skills/project-bootstrap-guidelines/SKILL.md', 'rules/project-bootstrap-guidelines.mdc']) {
+    assert.ok(pread(p).includes('uw:memory-index'), `${p} does not mention the index markers`);
+  }
+  const skill = pread('skills/the-ultimate-workflow-guidelines/SKILL.md');
+  assert.match(skill, /memory index/, 'the workflow skill never says the index is generated');
+});
+
+test('plugin manifests and the CHANGELOG say 4.8.0', () => {
+  const versions = [
+    JSON.parse(pread('.claude-plugin/plugin.json')).version,
+    JSON.parse(pread('.cursor-plugin/plugin.json')).version,
+    JSON.parse(read('.claude-plugin/marketplace.json')).metadata.version,
+    JSON.parse(read('.claude-plugin/marketplace.json')).plugins[0].version,
+    JSON.parse(read('.cursor-plugin/marketplace.json')).plugins[0].version,
+  ];
+  assert.deepEqual(versions, ['4.8.0', '4.8.0', '4.8.0', '4.8.0', '4.8.0']);
+  assert.match(read('CHANGELOG.md'), /^## \[4\.8\.0\] - \d{4}-\d{2}-\d{2}$/m);
+});
 // --- the write-isolation invariant ----------------------------------------
 
 test('exactly one agent can write, and it is the implementer', () => {

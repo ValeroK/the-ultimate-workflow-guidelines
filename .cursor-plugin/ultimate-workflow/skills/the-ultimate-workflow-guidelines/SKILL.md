@@ -201,7 +201,7 @@ Topicals live at the repo root as a slim **`memory.md`** index plus per-topic fi
 
 > `- [memory/auth.md](memory/auth.md) — Auth flow + token lifecycle. **Read when** login, sessions, JWT, OAuth, or /auth/* files.`
 
-The cue is what the model uses to decide whether to fetch the topical. Concrete keywords beat vague phrases.
+The cue is what the model uses to decide whether to fetch the topical. Concrete keywords beat vague phrases. Each topical starts with a small header (`description`, `read_when.paths`, `read_when.keywords`, `updated`), and the list in `memory.md` is generated from those headers between `uw:memory-index` markers: run `node experts/experts.js memory index` (and `memory check`), never edit between the markers. Details: [`references/memory-protocol.md`](references/memory-protocol.md).
 
 **Read protocol** at the start of any non-trivial task:
 

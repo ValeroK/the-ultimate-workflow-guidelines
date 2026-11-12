@@ -1,8 +1,23 @@
+---
+description: How enforcement works, why a fail-open gate goes silently dead, and what was measured per host.
+read_when:
+  paths:
+    - hooks/**
+  keywords:
+    - gate.js
+    - status.js
+    - adapters
+    - heartbeat
+    - the G6 experts/commit gate
+    - adding a host
+    - a gate is not firing
+updated: 2026-11-07
+---
+
 # Hooks and gates
 
 > How enforcement works here, why "installed" is never evidence of "enforcing",
 > and what was measured on each host.
-> Last updated 2026-11-07.
 
 ## Mental model: fail-open means nothing looks like everything
 

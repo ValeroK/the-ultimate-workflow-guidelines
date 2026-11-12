@@ -1,8 +1,19 @@
+---
+description: Which files are hand-copies, which differences are deliberate, and what CI cannot see.
+read_when:
+  paths:
+    - rules/*.mdc
+    - skills/*/references/*
+    - agents/
+  keywords:
+    - SKILL.md
+updated: 2026-08-28
+---
+
 # The mirrors
 
 > Which files are hand-copies of each other, which differences are deliberate,
 > and what the check does and does not cover.
-> Last updated 2026-08-28.
 
 ## Mental model
 

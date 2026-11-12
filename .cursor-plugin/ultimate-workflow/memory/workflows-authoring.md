@@ -1,8 +1,20 @@
+---
+description: How the phase scripts are built, what the runtime forbids, and what each phase costs.
+read_when:
+  paths:
+    - phases/*.js
+    - agents/uw-*.md
+  keywords:
+    - parallel() returned nothing
+    - the expert lane
+    - adding a phase
+updated: 2026-10-20
+---
+
 # Authoring workflow phases
 
 > How the phase scripts (five phases, plus the autopilot `run.js`) are built, what the runtime forbids, and what
 > each one costs.
-> Last updated 2026-10-20.
 
 ## Mental model: the script holds the sequence, the agent holds the judgement
 

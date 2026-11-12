@@ -1,8 +1,21 @@
+---
+description: Why the plugin payload lives under `.cursor-plugin/ultimate-workflow/` and how Cursor marketplace sparse-checkout emptied root-level installs.
+read_when:
+  paths:
+    - .cursor-plugin/**
+  keywords:
+    - /add-plugin
+    - marketplace sources
+    - packaging
+    - release ZIP layout
+    - a Cursor install that looks present but has no agents/rules
+updated: 2026-08-29
+---
+
 # Cursor install layout
 
 > Why the shippable plugin lives under `.cursor-plugin/ultimate-workflow/`, and
 > what breaks if it moves back to the repo root.
-> Last updated 2026-08-29.
 
 ## Mental model
 

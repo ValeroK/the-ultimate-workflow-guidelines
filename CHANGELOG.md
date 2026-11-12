@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.8.0] - 2026-11-11
+
+Memory reaches the cards that need it, and cannot silently drift. Taken from the review of RinDig/icm-architect (MIT): generated index files, links that must resolve, a size budget for a step's context. Nothing is copied; the new code is Node only, in `lib/`.
+
+### Added
+
+- **A header on every topical.** `memory/<topic>.md` starts with front matter: `description`, `read_when.paths` (globs relative to the folder that holds `memory.md`), `read_when.keywords`, `updated`. A fixed subset, no YAML library.
+- **The list in `memory.md` is generated** from those headers, between `<!-- uw:memory-index:start ... -->` and `<!-- uw:memory-index:end -->`: `node experts/experts.js memory index`. Text outside the markers is never touched. `memory check` verifies the index and every relative link in `AGENTS.md`, `CLAUDE.md`, `memory.md` and `memory/**/*.md` (`links` checks the links alone); `memory migrate` writes the headers and markers for an existing project.
+- **Cards pick topicals from the headers** (path globs and whole-word keywords), not from the sentence in `memory.md`; a topical with no header still matches through its old line.
+- **Harvest writes the header of a new topical and regenerates the index in the same commit**, so a new topical cannot be orphaned. A proposal may add or remove cue paths and keywords. A project that is not migrated gets one commit of its own on its first harvest branch, "harvest: migrate memory to headers"; dropping the branch leaves the project as it was.
+- **A commit that newly leaves the index stale or breaks a link is refused**, with the command that fixes it; problems already at `HEAD` are only warnings. The autopilot regenerates a stale index itself. A commit from your own terminal is not seen by the hooks.
+- **A context pack states its size and stays within a budget** (`pack_budget:` in the plan, default 15,000 tokens; only topicals are dropped), lists a plan-cited document as a pointer unless the card's section, tests or paths name it, and ends with a do-not-load list. `phases/run.md` tells plan authors to name a card's documents in its own section.
+
+### Changed
+
+- `mirrors.test.js` runs `memory check --root .cursor-plugin/ultimate-workflow` in place of its two memory tests; this repo's own memory is migrated.
+- Merging two harvest branches can conflict in the generated block of `memory.md`: take either side, run `memory index`, commit.
+
 ## [4.7.1] - 2026-11-11
 
 Four faults the first unattended run on a real plan met (the memory-index plan, kept in `internal/plans/`). Each has a test that fails without its fix.

@@ -125,7 +125,8 @@ What is there, and what each card reuses.
 - harvest-name: a second harvest gets its own branch
   paths: .cursor-plugin/ultimate-workflow/lib/run-rules.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, evals/experts/autopilot-fixes.test.js
   depends: settle-first
-  status: blocked by settle-first
+  status: committed b677b2944ba2
+  committed: b677b2944ba2
 - reasons: whole park reasons, and the real conflict from unpark
   paths: .cursor-plugin/ultimate-workflow/lib/run-rules.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, .cursor-plugin/ultimate-workflow/phases/run.js, evals/experts/run-rules.test.js, evals/experts/autopilot-fixes.test.js
   depends: harvest-name

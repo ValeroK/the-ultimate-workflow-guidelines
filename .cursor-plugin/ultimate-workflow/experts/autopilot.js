@@ -745,7 +745,7 @@ function cardCommit(cwd, { plan, card: name, feature, claimed = [], fixedRound =
   if (stateLib.gatesEnabled(process.env)) {
     const tests = gates.fullSuiteGate(state, verify.fullEvidence(cwd), 'verify.js');
     if (!tests.allow) return { ok: false, card: card.name, gate: 'G7', reason: tests.reason };
-    const ev = expertsLib.commitEvidence(cwd, path.resolve(cwd, plan));
+    const ev = expertsLib.commitEvidence(cwd, path.resolve(cwd, plan), undefined, { card: card.name });
     // A stale index is no reason to refuse: it is regenerated below and committed with the card.
     const stale = Boolean(ev.memory) && ev.memory.added.some((p) => p.kind === 'index');
     if (stale) ev.memory = { ...ev.memory, added: ev.memory.added.filter((p) => p.kind !== 'index') };

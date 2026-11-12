@@ -187,3 +187,160 @@ test('W9: the long-conversation reminder defaults to 80k tokens, and the variabl
   assert.equal(context.threshold({ ULTIMATE_WORKFLOW_CONTEXT_REMINDER: '150000' }), 150000);
   assert.deepStrictEqual(context.decide({ tokens: 90000, threshold: context.threshold({}), lastBand: 0 }), { band: 1, remind: true });
 });
+
+// --- gate-card (PLAN-run-fixes.md, criterion 3): G6 judges the card being committed ----------------
+// Cards A (quality) and B (security) share src/shared/s.js; C (genai) is apart; D has `experts: none`.
+
+const git = (cwd, ...a) => {
+  const r = spawnSync('git', a, { cwd, encoding: 'utf8' });
+  if (r.status !== 0) throw new Error(`git ${a.join(' ')}: ${r.stderr}`);
+  return r.stdout.trim();
+};
+const expertsLib = require(path.join(PLUGIN, 'experts', 'experts.js'));
+const gates = require(path.join(PLUGIN, 'hooks', 'lib', 'gates.js'));
+const GATE_FIVE = ['quality', 'security', 'genai', 'developer', 'architect'];
+const gatePlan = (accepted = '') => `---
+phase: build
+plan_confirmed: true
+tests_confirmed: true
+test_command: node --test "test/**/*.test.js"
+experts: [${GATE_FIVE.join(', ')}]
+---
+
+# PLAN: gate
+
+## Cards
+
+- A: first
+  paths: src/a/**, src/shared/s.js
+  experts: quality
+${accepted}- B: second
+  paths: src/b/**, src/shared/s.js
+  experts: security
+- C: third
+  paths: src/c/**
+  experts: genai
+- D: nobody
+  paths: src/d/**
+  experts: none
+`;
+const gateConfirmed = (text) => expertsLib.setFrontLine(text, 'confirmed_hash', expertsLib.confirmHash(text));
+
+function gateRepo(plan = gatePlan()) {
+  const dir = tmp();
+  git(dir, 'init', '-q', '-b', 'main');
+  git(dir, 'config', 'user.email', 't@localhost');
+  git(dir, 'config', 'user.name', 't');
+  git(dir, 'config', 'core.autocrlf', 'false');
+  fs.writeFileSync(path.join(dir, '.gitignore'), '.ultimate-workflow/\n');
+  const put = (rel, text) => {
+    fs.mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true });
+    fs.writeFileSync(path.join(dir, rel), text);
+  };
+  for (const f of ['src/a/a.js', 'src/b/b.js', 'src/c/c.js', 'src/d/d.js', 'src/shared/s.js']) put(f, 'module.exports = 0;\n');
+  put('test/ok.test.js', "require('node:test')('ok', () => {});\n");
+  put('PLAN-gate.md', gateConfirmed(plan));
+  git(dir, 'add', '-A');
+  git(dir, 'commit', '-q', '-m', 'init');
+  return { dir, put, plan: path.join(dir, 'PLAN-gate.md') };
+}
+
+// The experts check as the run records it: these experts reviewed these exact changes.
+function reviewedBy(g, selected, added = []) {
+  expertsLib.prepare(g.dir, 'working', PLUGIN, {});
+  const lane = { stage: 'review', selected, ran: selected, added, recheck: true, findings: [] };
+  expertsLib.record(g.dir, 'review', { ok: true, expertLane: lane }, { planFile: g.plan, pluginRoot: PLUGIN });
+}
+const evidence = (g, card) => expertsLib.commitEvidence(g.dir, g.plan, PLUGIN, card === undefined ? undefined : { card });
+const required = (g, card) => [...evidence(g, card).planExperts].sort();
+const touch = (g, ...files) => files.forEach((f) => g.put(f, `module.exports = '${f}';\n`));
+const gateEnv = () => {
+  const e = { ...process.env, ULTIMATE_WORKFLOW_GATES: '', ULTIMATE_WORKFLOW_NOTIFY: 'off' };
+  delete e.NODE_TEST_CONTEXT;
+  return e;
+};
+const gateCli = (g, ...a) => spawnSync(process.execPath, [CLI, ...a], { cwd: g.dir, encoding: 'utf8', env: gateEnv() });
+const lastJson = (r) => JSON.parse(r.stdout.trim().split(/\r?\n/).pop());
+const addFixup = (g, paths, experts) => {
+  const r = lastJson(gateCli(g, 'card-add', '--plan', 'PLAN-gate.md', '--name', 'fixup', '--title', 'fix', '--paths', paths, '--experts', experts));
+  assert.equal(r.ok, true, JSON.stringify(r));
+};
+
+test('gate-card 9: card-commit --card A on the shared file needs only A\'s experts, and commits', () => {
+  const g = gateRepo();
+  assert.equal(lastJson(gateCli(g, 'run-branch', '--feature', 'gate')).ok, true);
+  touch(g, 'src/shared/s.js');
+  const v = spawnSync(process.execPath, [path.join(PLUGIN, 'hooks', 'verify.js'), '--full', '--plan', 'PLAN-gate.md'], { cwd: g.dir, encoding: 'utf8', env: gateEnv() });
+  assert.equal(v.status, 0, v.stdout + v.stderr);
+  reviewedBy(g, ['quality']);
+  const r = lastJson(gateCli(g, 'card-commit', '--plan', 'PLAN-gate.md', '--card', 'A', '--feature', 'gate'));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.ok(git(g.dir, 'show', '--name-only', '--format=', 'HEAD').split('\n').includes('src/shared/s.js'));
+});
+
+test('gate-card 10: a hand commit, no card named, still needs both experts of the shared file', () => {
+  const g = gateRepo();
+  touch(g, 'src/shared/s.js');
+  reviewedBy(g, ['quality']);
+  const ev = evidence(g);
+  assert.deepStrictEqual(ev.planExperts.filter((n) => !ev.recheck.final.includes(n)), ['security']);
+  assert.equal(gates.commitGate(ev).allow, false);
+});
+
+test('gate-card 11: a card named but the diff not wholly its own falls back to the union of the covering cards', () => {
+  const table = [
+    { name: 'a: one file under C', card: 'A', files: ['src/a/a.js', 'src/c/c.js'], want: ['genai', 'quality'] },
+    { name: 'a: shared file and a file under C', card: 'A', files: ['src/shared/s.js', 'src/c/c.js'], want: ['genai', 'quality', 'security'] },
+    { name: 'b: a card the plan does not have', card: 'nosuch', files: ['src/a/a.js', 'src/b/b.js'], want: ['quality', 'security'] },
+  ];
+  for (const t of table) {
+    const g = gateRepo();
+    touch(g, ...t.files);
+    assert.deepStrictEqual(required(g, t.card), t.want, t.name);
+  }
+});
+
+test('gate-card 12: a fixup card with experts: [] on a file under a security card still needs security', () => {
+  const g = gateRepo();
+  addFixup(g, 'src/shared/s.js', 'none');
+  touch(g, 'src/shared/s.js');
+  reviewedBy(g, ['quality']);
+  const ev = evidence(g, 'fixup');
+  assert.ok(ev.planExperts.includes('security'), `required: ${ev.planExperts}`);
+  const verdict = gates.commitGate(ev);
+  assert.equal(verdict.allow, false);
+  assert.match(verdict.reason, /security/);
+});
+
+test('gate-card 13 and 14: a run-added card is judged by its lane, never below the confirmed cards it shares a file with, never the plan line', () => {
+  const own = gateRepo();
+  addFixup(own, 'src/a/a.js', 'quality');
+  touch(own, 'src/a/a.js');
+  assert.deepStrictEqual(required(own, 'fixup'), ['quality'], '13');
+
+  const shared = gateRepo();
+  addFixup(shared, 'src/shared/s.js', 'quality');
+  touch(shared, 'src/shared/s.js');
+  assert.deepStrictEqual(required(shared, 'fixup'), ['quality', 'security'], '14');
+});
+
+test('gate-card 15: a plan card with experts: none asks for nobody, not for an expert called none', () => {
+  const g = gateRepo();
+  touch(g, 'src/d/d.js');
+  assert.deepStrictEqual(required(g, 'D'), []);
+});
+
+test('gate-card 16: experts the recheck added for the named card are also required', () => {
+  const g = gateRepo();
+  touch(g, 'src/a/a.js');
+  reviewedBy(g, ['quality', 'genai'], ['genai']);
+  assert.deepStrictEqual(required(g, 'A'), ['genai', 'quality']);
+});
+
+test('gate-card 17: a file accepted for card A is judged by A\'s experts, and the accepted line does not change the confirmed hash', () => {
+  const accepted = '  accepted: src/out/o.js\n';
+  assert.equal(expertsLib.confirmHash(gatePlan(accepted)), expertsLib.confirmHash(gatePlan()), 'accepted: is a run field, left out of the hash');
+  const g = gateRepo(gatePlan(accepted));
+  touch(g, 'src/out/o.js');
+  assert.deepStrictEqual(required(g, 'A'), ['quality']);
+});

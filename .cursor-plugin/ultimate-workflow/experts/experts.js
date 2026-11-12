@@ -50,6 +50,7 @@ const { spawnSync } = require('node:child_process');
 
 const gates = require('../hooks/lib/gates.js');
 const stateLib = require('../hooks/lib/state.js');
+const runRules = require('../lib/run-rules.js');
 
 const PLUGIN_ROOT = path.join(__dirname, '..');
 const STAGES = ['plan', 'tests', 'review'];
@@ -490,7 +491,7 @@ function looksEscaped(text) {
  * run adds itself (findings, fixup) and the `## Run status` block. A change to anything else after
  * the test plan was confirmed is a plan the user has not seen (2026-11-09).
  */
-const RUN_FIELD = /^[ \t]+(status|committed|parked|carried|decision):/i;
+const RUN_FIELD = /^[ \t]+(status|committed|parked|carried|decision|accepted):/i;
 function confirmHash(text) {
   const fm = frontmatter(text);
   const body = (fm ? fm.after : String(text)).replace(/^﻿/, '');
@@ -634,8 +635,10 @@ function selectIntoPlan(planFile, additions, availableNames) {
  * Several cards give the union of their fields. Anything else -- a file no card covers, a card with no
  * field, a field that is not a subset, no Cards section, no changes -- is the plan's line, unchanged,
  * and `reason` says why. `files` can be passed by a caller that already has the working changes.
+ * `options.card` names the card being committed (only `card-commit` does): when every changed file is
+ * that card's own, G6 asks for its field alone (see lib/run-rules.js narrowedExperts); otherwise the above.
  */
-function effectiveExperts(cwd, planFile, pluginRoot = PLUGIN_ROOT, files = null) {
+function effectiveExperts(cwd, planFile, pluginRoot = PLUGIN_ROOT, files = null, options = {}) {
   const cardsLib = require('./cards.js');
   const planText = fs.readFileSync(planFile, 'utf8');
   const parsed = readExperts(planText);
@@ -652,13 +655,24 @@ function effectiveExperts(cwd, planFile, pluginRoot = PLUGIN_ROOT, files = null)
     .filter((f) => f !== planRel && !f.startsWith('.ultimate-workflow/') && !gates.isTestPath(f));
   if (changed.length === 0) return plan('nothing changed beyond the plan, the tests and the tool files');
 
+  const installed = new Set(list(pluginRoot).experts.map((e) => e.name));
+  if (options.card) {
+    const narrowed = runRules.narrowedExperts({
+      cards: cardList,
+      name: options.card,
+      changed,
+      accepted: runRules.acceptedFiles(planText, options.card),
+      covers: (paths, f) => cardsLib.covers(paths, f, globToRegExp),
+      valid: (n) => installed.has(n) && planExperts.includes(n),
+    });
+    if (narrowed) return { experts: planExperts.filter((n) => narrowed.experts.includes(n)), source: 'card', cards: narrowed.cards, planExperts };
+  }
   const used = [];
   for (const f of changed) {
     const covering = cardList.filter((c) => c.paths.length > 0 && cardsLib.covers(c.paths, f, globToRegExp));
     if (covering.length === 0) return plan(`no card covers ${f}`);
     for (const c of covering) if (!used.includes(c)) used.push(c);
   }
-  const installed = new Set(list(pluginRoot).experts.map((e) => e.name));
   const union = new Set();
   for (const c of used) {
     if (c.experts === undefined) return plan(`card ${c.name} has no experts field`);
@@ -1235,7 +1249,7 @@ function memoryEvidence(cwd, planFile, files) {
 }
 
 /** What the commit gate needs to decide, gathered once. Fails open to a skip. */
-function commitEvidence(cwd, planFile, pluginRoot = PLUGIN_ROOT) {
+function commitEvidence(cwd, planFile, pluginRoot = PLUGIN_ROOT, options = {}) {
   try {
     const available = list(pluginRoot).experts.map((e) => e.name);
     const changes = workingChanges(cwd);
@@ -1254,14 +1268,16 @@ function commitEvidence(cwd, planFile, pluginRoot = PLUGIN_ROOT) {
     }
     let planExperts = [];
     let cards = [];
+    const hash = sha(changes.diff);
     if (planFile) {
       try {
-        const eff = effectiveExperts(cwd, planFile, pluginRoot, changes.files);
+        const eff = effectiveExperts(cwd, planFile, pluginRoot, changes.files, options);
         planExperts = eff.experts;
         cards = eff.cards;
+        // The experts the recheck added for these very changes are required of a narrowed card too.
+        if (eff.source === 'card' && recheck && recheck.hash === hash) planExperts = [...new Set([...planExperts, ...(recheck.added || [])])];
       } catch {}
     }
-    const hash = sha(changes.diff);
     const open = allFindings(cwd, hash, available).filter((f) => f.current && blocking(f) && !f.waived);
     return withMemory({ hash, recheck: recheck ? { hash: recheck.hash, final: recheck.final || [] } : null, records, planExperts, cards, available, open });
   } catch {
@@ -1445,6 +1461,7 @@ function runArgs(pluginRoot, cwd, args) {
     cards,
     skillTexts,
     available,
+    planExperts,
     protocol: protocolText(pluginRoot),
     planBriefs: briefs(pluginRoot, { planText }).briefs.map((x) => ({ name: x.name, text: x.text, skills: keep(x.skills || []) })),
     cli: `node "${fwdPath(path.join(pluginRoot, 'experts', 'experts.js'))}"`,

@@ -315,6 +315,7 @@ const COMMAND = String((args && args.command) || '')
 const BASE = String((args && args.base) || '')
 const CARDS = Array.isArray(args && args.cards) ? args.cards.filter((c) => c && typeof c.name === 'string') : []
 const AVAILABLE = Array.isArray(args && args.available) ? args.available.filter((e) => e && typeof e.name === 'string' && typeof e.agent === 'string' && Array.isArray(e.stages)) : []
+const PLAN_EXPERTS = Array.isArray(args && args.planExperts) ? args.planExperts.filter((n) => typeof n === 'string') : []
 const PROTOCOL = String((args && args.protocol) || '').trim()
 const EXPERTS_DIR = String((args && args.expertsDir) || '')
 const PLAN_BRIEFS = Array.isArray(args && args.planBriefs) ? args.planBriefs : []
@@ -902,9 +903,11 @@ if (stoppedBecause) await runSteps('stopped:notify', [cliCmd('notify', '--featur
 const adhocPaths = []
 async function adhocCard(name, title, items, experts) {
   const files = [...new Set(items.map((f) => String(f.file || '').replace(/\\/g, '/')).filter(Boolean))]
+  // Only names the plan's line holds: card-add refuses any other, and a plan with no line takes no --experts.
+  const laneExperts = experts.filter((n) => PLAN_EXPERTS.includes(n))
   const carriedText = items.map((f) => `${f.expert || f.lens} at ${f.file}:${f.line}: ${f.what}`.replace(/;/g, ','))
   const [added, packed] = await runSteps(`${name}:setup`, [
-    cliCmd('card-add', '--plan', q(PLAN), '--name', name, '--title', q(title), '--paths', q(files.join(',') || '.'), '--carried', q(carriedText.join('; '))),
+    cliCmd('card-add', '--plan', q(PLAN), '--name', name, '--title', q(title), '--paths', q(files.join(',') || '.'), '--carried', q(carriedText.join('; ')), ...(PLAN_EXPERTS.length > 0 ? ['--experts', laneExperts.length > 0 ? laneExperts.join(',') : 'none'] : [])),
     cliCmd('pack', '--plan', q(PLAN), '--card', name, '--feature', FEATURE, '--adhoc'),
   ])
   // A card that never reached the plan cannot be parked (park looks it up there), and nothing was

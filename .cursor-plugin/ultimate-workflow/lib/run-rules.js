@@ -119,4 +119,31 @@ function conflictOf(output) {
   return { files, text: all.slice(-CONFLICT_TAIL).join(' / ') || 'git apply printed nothing' };
 }
 
-module.exports = { RUN_ADDED, acceptedFiles, narrowedExperts, freeName, reusableCard, REASON_KEEP, shortReason, CONFLICT_TAIL, conflictOf };
+/**
+ * What each card cost, from the agents the Workflow output lists (`{ label, tokens, usage? }`). A
+ * card's agents are those labelled `<card>:...` and, for its fix round, `<card>-fix:...` (the retry
+ * labels start the same way); the name is matched whole, and a card that is itself named `x-fix`
+ * keeps its own labels. `tokens` is input + cache write + output when the host gives the split, else
+ * the one number it gives; `cacheRead` is null when no split was given. A card with no number at all
+ * is left out, so the caller shows "unknown" and never 0.
+ */
+function cardTokens(cardNames, agents) {
+  const names = new Set(cardNames);
+  const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+  const out = {};
+  for (const a of agents || []) {
+    const prefix = String((a && a.label) || '').split(':')[0];
+    const owner = names.has(prefix) ? prefix : prefix.endsWith('-fix') && names.has(prefix.slice(0, -4)) ? prefix.slice(0, -4) : null;
+    if (!owner) continue;
+    const u = a.usage && typeof a.usage === 'object' ? a.usage : null;
+    const total = u ? num(u.input) + num(u.cacheWrite) + num(u.output) : typeof a.tokens === 'number' ? a.tokens : null;
+    if (total === null) continue;
+    const row = out[owner] || (out[owner] = { tokens: 0, cacheRead: null });
+    row.tokens += total;
+    if (u && typeof u.cacheRead === 'number') row.cacheRead = (row.cacheRead || 0) + u.cacheRead;
+  }
+  for (const k of Object.keys(out)) if (out[k].tokens === 0) delete out[k];
+  return out;
+}
+
+module.exports = { RUN_ADDED, acceptedFiles, narrowedExperts, freeName, reusableCard, REASON_KEEP, shortReason, CONFLICT_TAIL, conflictOf, cardTokens };

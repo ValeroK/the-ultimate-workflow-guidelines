@@ -759,3 +759,81 @@ test('one-notice 62: notifications.md and notifications.jsonl still hold every n
     assert.equal(noticesOf(g).filter((n) => n.kind === kind).length, 1, kind);
   }
 });
+
+// --- report-cost (PLAN-run-fixes.md, card report-cost, tests 73 to 78) ------------------------------
+
+// The Workflow output file as the host writes it: the phase result under `result`, one entry per agent
+// under `workflowProgress`, and the run's total.
+const agentOf = (label, tokens, usage) => ({ type: 'workflow_agent', label, ...(tokens === undefined ? {} : { tokens }), ...(usage ? { usage } : {}) });
+const costReport = (g, cardsOut, agents, totalTokens) => {
+  const result = { ok: true, feature: 'f', branch: 'uw/run/f', base: 'abc', plan: 'PLAN-gate.md', cards: cardsOut, counts: {}, review: { ran: false, reason: 'x' }, harvest: { ran: false, reason: 'x' } };
+  g.put('.ultimate-workflow/run/f/output.json', JSON.stringify({ summary: 's', result, workflowProgress: [{ type: 'workflow_phase', index: 1, title: 'Cards' }, ...agents], ...(totalTokens === undefined ? {} : { totalTokens }) }));
+  const r = lastJson(gateCli(g, 'run-report', '--result', '.ultimate-workflow/run/f/output.json'));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  return fs.readFileSync(path.join(g.dir, '.ultimate-workflow', 'run', 'f', 'report.md'), 'utf8');
+};
+const tableOf = (report) => {
+  const rows = report.split(/\r?\n/).filter((l) => l.startsWith('|')).map((l) => l.split('|').slice(1, -1).map((c) => c.trim()));
+  const head = rows[0];
+  return rows.slice(2).map((cells) => Object.fromEntries(head.map((h, i) => [h, cells[i]])));
+};
+const done = (card, extra = {}) => ({ card, title: `card ${card}`, status: 'committed', commit: 'c0ffee', build: { rounds: 1 }, ...extra });
+
+test('report-cost 73: report.md has a Pack (est.) column with each card\'s pack tokens, and the Note cell no longer holds the pack size', () => {
+  const g = gateRepo();
+  const rows = tableOf(costReport(g, [done('A', { pack: { tokens: 1234, budget: 15000 } }), done('B', { pack: { tokens: 37235, budget: 15000 } }), done('C')], [], 10));
+  assert.deepStrictEqual(rows.map((r) => r['Pack (est.)']), ['1234', '37235', 'unknown']);
+  for (const r of rows) {
+    assert.doesNotMatch(r.Note, /pack|15000/, r.Note);
+    assert.match(r.Note, /1 round/);
+  }
+});
+
+test('report-cost 74 and 75: a card with token data shows the sum over its labels, a card without shows unknown, and no cell is 0', () => {
+  const g = gateRepo();
+  const agents = [
+    agentOf('A:write-tests', 100), agentOf('A:attempt-1', 2000), agentOf('A:quality', 30), agentOf('A:quality:retry', 4),
+    agentOf('A-fix:quality', 500), agentOf('A-fix:quality:retry', 6), agentOf('A-fix:refute', 7),
+    agentOf('review:correctness', 9000), agentOf('harvest', 800), agentOf('B:start'),
+  ];
+  const rows = tableOf(costReport(g, [done('A'), done('B')], agents, 12447));
+  const byCard = Object.fromEntries(rows.map((r) => [r.Card, r]));
+  assert.equal(byCard.A.Tokens, String(100 + 2000 + 30 + 4 + 500 + 6 + 7));
+  assert.equal(byCard.B.Tokens, 'unknown', 'an agent with no token number is not counted as 0');
+  for (const r of rows) assert.notEqual(r.Tokens, '0');
+});
+
+test('report-cost 76: Tokens matches the card name exactly', () => {
+  const g = gateRepo();
+  const agents = [agentOf('x:attempt-1', 10), agentOf('xy:attempt-1', 200), agentOf('x-fix:quality', 3000), agentOf('x-fix-fix:quality', 40000), agentOf('x2:attempt-1', 500000)];
+  // With cards x and xy only, x-fix: is the fix round of x.
+  const two = Object.fromEntries(tableOf(costReport(g, [done('x'), done('xy')], agents)).map((r) => [r.Card, r.Tokens]));
+  assert.deepStrictEqual(two, { x: '3010', xy: '200' });
+  // With a card named x-fix, its labels are its own, and its fix round is x-fix-fix:.
+  const three = Object.fromEntries(tableOf(costReport(g, [done('x'), done('xy'), done('x-fix')], agents)).map((r) => [r.Card, r.Tokens]));
+  assert.deepStrictEqual(three, { x: '10', xy: '200', 'x-fix': '43000' });
+});
+
+test('report-cost 77: cache reads are shown apart from the token total', () => {
+  const g = gateRepo();
+  const agents = [
+    agentOf('A:attempt-1', 99999, { input: 100, cacheWrite: 20, output: 3, cacheRead: 5000 }),
+    agentOf('A:quality', 99999, { input: 1000, cacheWrite: 0, output: 30, cacheRead: 60000 }),
+    agentOf('B:attempt-1', 777),
+  ];
+  const byCard = Object.fromEntries(tableOf(costReport(g, [done('A'), done('B')], agents)).map((r) => [r.Card, r]));
+  assert.equal(byCard.A.Tokens, String(100 + 20 + 3 + 1000 + 30), 'input + cache write + output, without cache reads');
+  assert.equal(byCard.A['Cache read'], '65000');
+  assert.equal(byCard.B.Tokens, '777', 'one number from the host is the total');
+  assert.equal(byCard.B['Cache read'], 'unknown', 'the host gave no split, so the cache reads are not known');
+});
+
+test('report-cost 78: when every card is unknown the report gives the run\'s total from the Workflow result', () => {
+  const g = gateRepo();
+  const report = costReport(g, [done('A'), done('B')], [agentOf('review:correctness', 5)], 8131826);
+  assert.deepStrictEqual(tableOf(report).map((r) => r.Tokens), ['unknown', 'unknown']);
+  assert.match(report, /The run used 8131826 tokens in all \(from the Workflow result\)/);
+  const none = costReport(g, [done('A')], []);
+  assert.match(none, /The run's total tokens are unknown/);
+  assert.doesNotMatch(none, /used 0 tokens/);
+});

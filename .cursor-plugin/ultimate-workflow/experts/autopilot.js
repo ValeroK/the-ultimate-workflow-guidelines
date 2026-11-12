@@ -946,9 +946,21 @@ function claimsCheck(cwd, { plan, feature }) {
  * branch and the findings still pending.
  */
 function runReport(cwd, { result: resultFile, out = '' }) {
-  const r = require('./ledger.js').unwrapResult(fs.readFileSync(path.resolve(cwd, resultFile), 'utf8'));
+  const rawText = fs.readFileSync(path.resolve(cwd, resultFile), 'utf8');
+  const r = require('./ledger.js').unwrapResult(rawText);
   if (r.ok !== true) throw new Error(`the run result is not ok: ${r.error || 'no error given'}`);
-  const row = (c) => `| ${c.card} | ${c.title || ''} | ${c.status} | ${c.commit || c.branch || ''} | ${String(c.reason || (c.build ? `${c.build.rounds} round(s)${c.fixRound ? ` and a fix round (${c.fixRound.outcome})` : ''}${c.superseded ? `; ran again within the plan, the held work on ${c.superseded} is superseded (kept for reference, delete it when done)` : ''}` : '')).replace(/\|/g, '/').replace(/\s*\r?\n\s*/g, ' ')}${c.pack ? ` (pack ${c.pack.tokens} of ${c.pack.budget} tokens)` : ''} |`;
+  // What each card cost: the Workflow output file lists every agent with its label and its tokens.
+  let wrapper = {};
+  try {
+    wrapper = JSON.parse(rawText.replace(/^\uFEFF/, '')) || {};
+  } catch {
+    // the phase result alone, with no wrapper around it: no cost data
+  }
+  const agentRows = Array.isArray(wrapper.workflowProgress) ? wrapper.workflowProgress.filter((x) => x && x.type === 'workflow_agent') : [];
+  const cost = runRules.cardTokens([...(r.cards || []), r.findingsCard, r.fixupCard].filter(Boolean).map((c) => c.card), agentRows);
+  const runTotal = typeof wrapper.totalTokens === 'number' && wrapper.totalTokens > 0 ? wrapper.totalTokens : null;
+  const cell = (v) => (typeof v === 'number' && v > 0 ? String(v) : 'unknown');
+  const row = (c) => `| ${c.card} | ${c.title || ''} | ${c.status} | ${c.commit || c.branch || ''} | ${cell(c.pack && c.pack.tokens)} | ${cell(cost[c.card] && cost[c.card].tokens)} | ${cell(cost[c.card] && cost[c.card].cacheRead)} | ${String(c.reason || (c.build ? `${c.build.rounds} round(s)${c.fixRound ? ` and a fix round (${c.fixRound.outcome})` : ''}${c.superseded ? `; ran again within the plan, the held work on ${c.superseded} is superseded (kept for reference, delete it when done)` : ''}` : '')).replace(/\|/g, '/').replace(/\s*\r?\n\s*/g, ' ')} |`;
   const warningsFile = path.join(runDir(cwd, r.feature), 'memory-warnings.json');
   const memoryWarnings = fs.existsSync(warningsFile) ? JSON.parse(fs.readFileSync(warningsFile, 'utf8')) : [];
   const all = [...(r.cards || []), ...(r.findingsCard ? [r.findingsCard] : []), ...(r.fixupCard ? [r.fixupCard] : [])];
@@ -959,9 +971,12 @@ function runReport(cwd, { result: resultFile, out = '' }) {
     `Branch \`${r.branch}\` from ${String(r.base || '').slice(0, 12)}. ${r.summary || ''}`,
     ...(r.stopped ? ['', `**The run stopped:** ${r.stopped}`] : []),
     '',
-    '| Card | Title | Outcome | Commit or branch | Note |',
-    '|---|---|---|---|---|',
+    '| Card | Title | Outcome | Commit or branch | Pack (est.) | Tokens | Cache read | Note |',
+    '|---|---|---|---|---|---|---|---|',
     ...unique.map(row),
+    '',
+    // Pack is the estimated size of the card's context pack, in tokens. Tokens is what the card's agents used.
+    `Pack (est.) is the estimated size of the card's context pack, in tokens. Tokens is what the card's own agents used (its fix round included), without cache reads where the host reports them apart. ${runTotal ? `The run used ${runTotal} tokens in all (from the Workflow result), the review, the harvest and the run's own steps included.` : "The run's total tokens are unknown: the Workflow result gave none."}`,
     ...((r.earlier || []).length ? ['', `Before this run: ${r.earlier.map((e) => `${e.card} ${e.status}`).join(', ')}.`] : []),
     // What needs the user, with the command for each: a held card is never only a row in the table.
     ...(unique.some((c) => c.action) ? ['', '## Needs you', '', ...unique.filter((c) => c.action).flatMap((c) => [`- ${c.card} (${c.status}): ${String(c.reason || '').replace(/\r?\n/g, ' ')}`, `  Run: \`${c.action}\``])] : []),

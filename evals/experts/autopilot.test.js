@@ -903,7 +903,8 @@ test('a card\'s fix round is in the report (row note and its own section) and in
   const r = json(cli(dir, 'run-finish', '--output', 'out/wf_fix-1.output'));
   assert.equal(r.ok, true, JSON.stringify(r));
   const report = read(dir, r.report);
-  assert.match(report, /\| add \| adder \| committed \| c1 \| 1 round\(s\) and a fix round \(fixed\) \|/);
+  // PLAN-run-fixes.md, card report-cost: three cost columns sit before the note (no cost data in this result).
+  assert.match(report, /\| add \| adder \| committed \| c1 \| unknown \| unknown \| unknown \| 1 round\(s\) and a fix round \(fixed\) \|/);
   assert.match(report, /## Fix rounds\n\n- add: round 2, fixed \(wrote the b test\)\n  - quality: test\/add\.test\.js:10 b guard untested/);
   const rows = read(dir, '.ultimate-workflow/ledger.jsonl').trim().split('\n').map((l) => JSON.parse(l));
   const run = rows.find((x) => x.run);

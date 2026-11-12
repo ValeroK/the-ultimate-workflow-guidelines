@@ -345,6 +345,12 @@ test('gate-card 17: a file accepted for card A is judged by A\'s experts, and th
   assert.deepStrictEqual(required(g, 'A'), ['quality']);
 });
 
+test('gate-card 18: a card-commit whose diff holds only test files is still judged by the card\'s own experts', () => {
+  const g = gateRepo();
+  touch(g, 'test/ok.test.js');
+  assert.deepStrictEqual(required(g, 'A'), ['quality']);
+});
+
 // --- card-add (PLAN-run-fixes.md, card card-add, tests 22 to 26 and 29) ---------------------------
 
 const cardsLib = require(path.join(PLUGIN, 'experts', 'cards.js'));

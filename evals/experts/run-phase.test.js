@@ -696,6 +696,34 @@ test('36: at most four fix-up cards per run; the findings of the rest stay in th
   assert.equal(adds.length, 4);
   assert.equal(result.review.findings.length, 5);
   assert.equal(result.review.leftInReport, 1, 'the fifth group stays in the report');
+  // Which four: the first four groups in plan order; the fifth is the one dropped.
+  const added = adds.map((c) => c.prompt.split('\n').find((l) => / card-add /.test(l)));
+  names.slice(0, 4).forEach((n, i) => assert.ok(added[i].includes(`src/${n}/x.js`), `card ${i + 1} holds ${n}: ${added[i]}`));
+  assert.ok(!added.some((l) => l.includes('src/c5/x.js')), 'no card holds the fifth group');
+});
+
+test('48: the findings card is held to the experts of every plan card covering its files, not only the experts that raised the findings', async () => {
+  // Card b (security) commits first; card a's quality expert then finds a non-blocking defect in b's file.
+  // No later card covers it, so it goes to the findings card; G6 asks for security there too.
+  const cards = [card('b', { experts: ['security'] }), card('a', { experts: ['quality'] })];
+  const low = { file: 'src/b/y.js', line: 3, what: 'old note', howItFails: 'misleads', confidence: 'low' };
+  const r = withFreeNames(responder({ findings: { a: [low] } }));
+  const { result } = await run(baseArgs(cards, { available: TWO_EXPERTS, planExperts: ['quality', 'security'] }), r);
+  assert.equal(result.findingsCard.status, 'committed', JSON.stringify(result.findingsCard));
+  const given = /--experts (\S+)/.exec(cardAddLine(r.calls, 'findings:setup'))[1].split(',').sort();
+  assert.deepStrictEqual(given, ['quality', 'security']);
+  assert.ok(labelsOf(r.calls).includes('findings:security'), 'the security lane ran on the findings card');
+});
+
+test('49: agent text never reaches a card-add command line; it reaches the step through a file', async () => {
+  const hostile = { ...finding('src/1/x.js'), what: '$(touch PWNED)' };
+  const r = withFreeNames(responder({ reviewFindings: [hostile] }));
+  await run(baseArgs([card('1')]), r);
+  const setup = r.calls.find((c) => c.label === 'fixup:setup').prompt;
+  const commandLines = setup.split('\n').filter((l) => / card-add /.test(l));
+  assert.ok(commandLines.length > 0, 'a card-add line exists');
+  assert.ok(!commandLines.some((l) => l.includes('PWNED')), commandLines.join('\n'));
+  assert.ok(setup.includes('PWNED'), 'the text is not lost: it is in the step as a file to write');
 });
 
 // --- expert-retry (PLAN-run-fixes.md, card expert-retry, tests 38 to 41) -----------------------------
@@ -798,6 +826,34 @@ test('43b: a refute agent null once is retried and the card goes on', async () =
   assert.equal(r.count('1:refute:retry'), 1);
 });
 
+test('43c: the verdicts of a refute retry are used, not discarded', async () => {
+  const blocking = { file: 'src/1/x.js', line: 3, what: 'b guard untested', howItFails: 'delete it, all green', confidence: 'high' };
+  for (const verdict of ['refuted', 'confirmed']) {
+    const base = nullThen(responder({ findings: { 1: [blocking], '1-fix': [] } }), { '1:refute': 1 });
+    const r = async (c) => (c.label === '1:refute:retry' ? { verdicts: [{ index: 0, verdict, reason: 'from the retry' }] } : base(c));
+    const { result } = await run(baseArgs([card('1')]), r);
+    assert.equal(result.cards[0].status, 'committed', `${verdict}: ${JSON.stringify(result.cards[0])}`);
+    // A refuted finding pays no fix round; a confirmed one does. A discarded retry would look like neither.
+    assert.equal(base.count('1:fix-round'), verdict === 'confirmed' ? 1 : 0, verdict);
+  }
+});
+
+test('43d: a retried expert that returns findings has them acted on: a blocking one gets the fix round, a non-blocking one reaches the findings card', async () => {
+  const blocking = { file: 'src/1/x.js', line: 3, what: 'b guard untested', howItFails: 'delete it, all green', confidence: 'high' };
+  const fixed = nullThen(responder({ findings: { 1: [blocking], '1-fix': [] } }), { '1:quality': 1 });
+  const a = await run(baseArgs([card('1')]), fixed);
+  assert.equal(fixed.count('1:quality:retry'), 1);
+  assert.equal(fixed.count('1:fix-round'), 1, 'the retry\'s blocking finding drove a fix round');
+  assert.equal(a.result.cards[0].status, 'committed', JSON.stringify(a.result.cards[0]));
+
+  const low = { file: 'docs/x.md', line: 2, what: 'stale doc', howItFails: 'misleads', confidence: 'low' };
+  const queued = nullThen(responder({ findings: { 1: [low] } }), { '1:quality': 1 });
+  const b = await run(baseArgs([card('1')]), queued);
+  assert.equal(queued.count('1:quality:retry'), 1);
+  assert.ok(b.result.findingsCard && b.result.findingsCard.status === 'committed', 'the retry\'s non-blocking finding reached the findings card');
+  assert.ok(queued.calls.find((c) => c.label === 'findings:setup').prompt.includes('docs/x.md'));
+});
+
 test('44: a recheck agent null is retried once', async () => {
   const r = nullThen(responder(), { '1:recheck': 1 });
   const { result } = await run(baseArgs([card('1')]), r);
@@ -805,8 +861,14 @@ test('44: a recheck agent null is retried once', async () => {
   assert.equal(r.count('1:recheck'), 1);
   assert.equal(r.count('1:recheck:retry'), 1);
   const twice = nullThen(responder(), { '1:recheck': 2 });
-  await run(baseArgs([card('1')]), twice);
+  const second = await run(baseArgs([card('1')]), twice);
   assert.equal(twice.count('1:recheck:retry'), 1, 'at most one retry');
+  // What the run does next: the card is not parked, and the lane it commits records that no recheck happened.
+  assert.equal(second.result.cards[0].status, 'committed', JSON.stringify(second.result.cards[0]));
+  const commit = twice.calls.find((c) => c.label === '1:commit');
+  const lane = JSON.parse(/<<<CONTENT\n([\s\S]*?)\nCONTENT>>>/.exec(commit.prompt)[1]).expertLane;
+  assert.equal(lane.recheck, false);
+  assert.deepStrictEqual(lane.added, []);
 });
 
 // Carried from card-add: a refused card-add for the second fix-up card was recorded under 'fixup'.
@@ -820,4 +882,49 @@ test('42: a refused card-add for fixup-2 is recorded under fixup-2, not under fi
   assert.match(notStarted[0].reason, /fixup-2 card could not be added/);
   assert.match(notStarted[0].reason, /REFUSED-FOR-2/);
   assert.equal(result.cards.find((c) => c.card === 'fixup').status, 'committed', 'the first fix-up card is untouched');
+});
+
+// --- fixup card (PLAN-run-fixes.md, confirmed review findings) --------------------------------------
+
+const os = require('node:os');
+const { spawnSync } = require('node:child_process');
+const experts = require(path.join(PLUGIN, 'experts', 'experts.js'));
+
+const tmpPlan = (text) => {
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'uw-fixup-')));
+  process.on('exit', () => fs.rmSync(dir, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(dir, 'PLAN-x.md'), text);
+  return dir;
+};
+
+test('50: card-add --carried-file takes the carried text from the file, as written', () => {
+  const dir = tmpPlan('---\nplan_confirmed: true\n---\n\n# PLAN: x\n\nBody.\n');
+  fs.writeFileSync(path.join(dir, 'carried.txt'), 'quality at a.js:1: $(touch PWNED); second item');
+  const r = spawnSync(process.execPath, [path.join(PLUGIN, 'experts', 'experts.js'), 'card-add', '--plan', 'PLAN-x.md', '--name', 'findings', '--title', 'x', '--paths', 'a.js', '--carried-file', 'carried.txt'], { cwd: dir, encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  const added = JSON.parse(r.stdout.trim().split('\n').pop());
+  assert.deepStrictEqual(added.card.carried, ['quality at a.js:1: $(touch PWNED)', 'second item']);
+});
+
+test('51: a card-commit whose diff holds only test files is still judged by the named card\'s experts', () => {
+  const dir = tmpPlan(`---
+experts: [quality, security]
+---
+
+# PLAN: x
+
+## Cards
+
+- A: first
+  paths: src/a/**
+  experts: quality
+- B: second
+  paths: src/b/**
+  experts: security
+`);
+  const got = experts.effectiveExperts(dir, path.join(dir, 'PLAN-x.md'), PLUGIN, ['test/a.test.js'], { card: 'A' });
+  assert.equal(got.source, 'card', JSON.stringify(got));
+  assert.deepStrictEqual(got.experts, ['quality']);
+  const byHand = experts.effectiveExperts(dir, path.join(dir, 'PLAN-x.md'), PLUGIN, ['test/a.test.js']);
+  assert.deepStrictEqual(byHand.experts, ['quality', 'security'], 'no card named: the plan\'s line, as before');
 });

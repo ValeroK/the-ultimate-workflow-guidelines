@@ -19,7 +19,7 @@
 //   node experts.js list                                    available experts, as JSON
 //   node experts.js brief   [--plan P]                      the standing brief of every expert that declares the build stage,
 //                                                           with the skills each one selects for the plan
-//   node experts.js card-add --plan P --name N --title T --paths G[,G] [--carried X[;X]] [--free-name]   add a card to the plan's Cards section (--free-name: the next free N, N-2, ...)
+//   node experts.js card-add --plan P --name N --title T --paths G[,G] [--carried X[;X] | --carried-file F] [--free-name]   add a card to the plan's Cards section (--free-name: the next free N, N-2, ...)
 //   node experts.js brief   --plan P --card N               the briefs for one card of the plan (its Cards entry, or a "Card N" heading)
 //   node experts.js scope   --plan P --card N [--result R]  the changed files outside the card's paths, from git
 //   node experts.js skills  --stage plan                    the skills each planning expert may be given, for the plan workflow to offer
@@ -653,8 +653,6 @@ function effectiveExperts(cwd, planFile, pluginRoot = PLUGIN_ROOT, files = null,
   const changed = (files || workingChanges(cwd).files)
     .map(fwd)
     .filter((f) => f !== planRel && !f.startsWith('.ultimate-workflow/') && !gates.isTestPath(f));
-  if (changed.length === 0) return plan('nothing changed beyond the plan, the tests and the tool files');
-
   const installed = new Set(list(pluginRoot).experts.map((e) => e.name));
   if (options.card) {
     const narrowed = runRules.narrowedExperts({
@@ -667,6 +665,8 @@ function effectiveExperts(cwd, planFile, pluginRoot = PLUGIN_ROOT, files = null,
     });
     if (narrowed) return { experts: planExperts.filter((n) => narrowed.experts.includes(n)), source: 'card', cards: narrowed.cards, planExperts };
   }
+  if (changed.length === 0) return plan('nothing changed beyond the plan, the tests and the tool files');
+
   const used = [];
   for (const f of changed) {
     const covering = cardList.filter((c) => c.paths.length > 0 && cardsLib.covers(c.paths, f, globToRegExp));
@@ -1487,7 +1487,7 @@ function cardAdd(o) {
     if (outside.length > 0) throw new Error(`${outside.join(', ')} is not in the plan's experts [${inPlan.experts.join(', ')}]. A card can only narrow the plan's list; add them to the plan first with select.`);
     cardExperts = names;
   }
-  const carried = String(o.carried || '').split(';').map((s) => s.trim()).filter(Boolean);
+  const carried = String(o.carriedFile ? fs.readFileSync(path.resolve(o.cwd, o.carriedFile), 'utf8') : o.carried || '').split(';').map((s) => s.trim()).filter(Boolean);
   let name = o.name;
   if (o.freeName) {
     // The same request twice (a replayed step) returns the card it added, not a second one.
@@ -1546,6 +1546,7 @@ function parseArgs(argv) {
     else if (a === '--title') o.title = need();
     else if (a === '--paths') o.paths = need();
     else if (a === '--carried') o.carried = need();
+    else if (a === '--carried-file') o.carriedFile = need();
     else if (a === '--depends') o.depends = need();
     else if (a === '--experts') o.experts = need();
     else if (a === '--free-name') o.freeName = true;

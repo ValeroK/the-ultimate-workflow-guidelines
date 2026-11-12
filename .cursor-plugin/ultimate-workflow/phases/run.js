@@ -914,13 +914,14 @@ if (stoppedBecause) await runSteps('stopped:notify', [cliCmd('notify', '--featur
 const MAX_FIXUP_CARDS = 4
 const adhocPaths = []
 async function adhocCard(name, title, items, experts, label = name) {
+  const carriedFile = `${RUN_DIR}/${label}-carried.txt`
   const files = [...new Set(items.map((f) => String(f.file || '').replace(/\\/g, '/')).filter(Boolean))]
   // Only names the plan's line holds: card-add refuses any other, and a plan with no line takes no --experts.
   const laneExperts = experts.filter((n) => PLAN_EXPERTS.includes(n))
   const carriedText = items.map((f) => `${f.expert || f.lens} at ${f.file}:${f.line}: ${f.what}`.replace(/;/g, ','))
   // The name is free-chosen: every later step keys on the one card-add printed.
-  const addCmd = cliCmd('card-add', '--plan', q(PLAN), '--name', name, '--free-name', '--title', q(title), '--paths', q(files.join(',') || '.'), '--carried', q(carriedText.join('; ')), ...(PLAN_EXPERTS.length > 0 ? ['--experts', laneExperts.length > 0 ? laneExperts.join(',') : 'none'] : []))
-  const [added] = await runSteps(`${label}:setup`, [addCmd])
+  const addCmd = cliCmd('card-add', '--plan', q(PLAN), '--name', name, '--free-name', '--title', q(title), '--paths', q(files.join(',') || '.'), '--carried-file', q(carriedFile), ...(PLAN_EXPERTS.length > 0 ? ['--experts', laneExperts.length > 0 ? laneExperts.join(',') : 'none'] : []))
+  const [added] = await runSteps(`${label}:setup`, [addCmd], [{ path: carriedFile, text: carriedText.join('; ') }])
   // A card that never reached the plan cannot be parked (park looks it up there), and nothing was
   // built for it, so it is recorded as not started and the run goes on to the harvest.
   if (!(added && added.ok)) {
@@ -940,7 +941,11 @@ async function adhocCard(name, title, items, experts, label = name) {
 let findingsCard = null
 if (!stoppedBecause && findingsQueue.length > 0) {
   setPhase('Findings')
-  findingsCard = await adhocCard('findings', 'non-blocking expert findings no card fixed', findingsQueue, [...new Set(findingsQueue.map((f) => f.expert).filter(Boolean))])
+  // G6 asks a run-added card for the experts of every plan card covering its files as well: the raisers
+  // alone can fall short.
+  const covering = CARDS.filter((c) => findingsQueue.some((f) => inCard(c, f.file)))
+  const coverers = covering.flatMap((c) => c.experts || [])
+  findingsCard = await adhocCard('findings', 'non-blocking expert findings no card fixed', findingsQueue, [...new Set([...findingsQueue.map((f) => f.expert), ...coverers].filter(Boolean))])
 }
 
 setPhase('Review')

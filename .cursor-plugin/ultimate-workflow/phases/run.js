@@ -1117,7 +1117,12 @@ if (reviewDone || harvestDone) {
 const counts = report.reduce((n, r) => ({ ...n, [r.status]: (n[r.status] || 0) + 1 }), {})
 // One notice when the run ends, with the counts, whatever the outcome.
 const held = report.filter((e) => e.status === 'parked' || e.status === 'needs-decision').map((e) => e.card)
-await runSteps('finished:notify', [cliCmd('notify', '--feature', FEATURE, '--kind', 'finished', '--reason', q(`${Object.entries(counts).map(([k, n]) => `${n} ${k}`).join(', ') || 'no cards'}${stoppedBecause ? '; stopped' : ''}`), '--action', q(held.length ? `settle ${held.join(', ')}: the report lists the command for each` : `review and merge uw/run/${FEATURE}`))])
+// It is the one notice that reaches the desktop, so it names every blocker: each card held and each card blocked.
+const namesOf = (...kinds) => report.filter((e) => kinds.includes(e.status)).map((e) => e.card)
+const blockers = [['parked', namesOf('parked')], ['needs a decision', namesOf('needs-decision')], ['blocked', namesOf('blocked')]].filter(([, list]) => list.length > 0).map(([what, list]) => `${what}: ${list.join(', ')}`)
+const finishedText = [Object.entries(counts).map(([k, n]) => `${n} ${k}`).join(', ') || 'no cards', ...blockers, ...(stoppedBecause ? ['stopped'] : [])].join('; ')
+const finishedFile = `${RUN_DIR}/finished-reason.txt`
+await runSteps('finished:notify', [cliCmd('notify', '--feature', FEATURE, '--kind', 'finished', '--reason-file', q(finishedFile), '--action', q(held.length ? `settle ${held.join(', ')}: the report lists the command for each` : `review and merge uw/run/${FEATURE}`))], [{ path: finishedFile, text: finishedText }])
 return {
   ok: true,
   feature: FEATURE,

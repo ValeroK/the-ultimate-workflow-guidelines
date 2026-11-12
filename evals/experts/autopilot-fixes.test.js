@@ -710,3 +710,52 @@ test('reasons 59: unpark on a real 3-way conflict names the file in conflict', (
   assert.ok(!out.reason.includes('src/a/a.js'), `the file that applied cleanly is not named: ${out.reason}`);
   assert.equal(git(g.dir, 'status', '--porcelain'), '', 'the tree is left as it was');
 });
+
+// --- one-notice (PLAN-run-fixes.md, card one-notice, tests 61 and 62) -------------------------------
+
+const autopilotLib = require(path.join(PLUGIN, 'experts', 'autopilot.js'));
+const noticesOf = (g) => fs.readFileSync(path.join(g.dir, '.ultimate-workflow', 'run', 'f', 'notifications.jsonl'), 'utf8').trim().split(/\r?\n/).map((l) => JSON.parse(l));
+
+test('one-notice 61a: with notifications off, every kind except finished is file-only and finished is off', () => {
+  const g = gateRepo();
+  assert.ok(Array.isArray(autopilotLib.NOTIFY_KINDS) && autopilotLib.NOTIFY_KINDS.includes('finished'), 'NOTIFY_KINDS is exported');
+  for (const kind of autopilotLib.NOTIFY_KINDS) {
+    const r = lastJson(gateCli(g, 'notify', '--feature', 'f', '--kind', kind, '--reason', `a ${kind} notice`));
+    assert.equal(r.ok, true, JSON.stringify(r));
+    assert.equal(r.desktop, kind === 'finished' ? 'off' : 'file-only', kind);
+  }
+  const byKind = Object.fromEntries(noticesOf(g).map((n) => [n.kind, n.desktop]));
+  for (const kind of autopilotLib.NOTIFY_KINDS) assert.equal(byKind[kind], kind === 'finished' ? 'off' : 'file-only', kind);
+});
+
+test('one-notice 61b: with notifications on, the desktop notifier is called once across every kind, for finished', () => {
+  const g = gateRepo();
+  const saved = process.env.ULTIMATE_WORKFLOW_NOTIFY;
+  delete process.env.ULTIMATE_WORKFLOW_NOTIFY;
+  const seen = [];
+  // A counting stand-in passed as an option: it never shells out, so no real toast is fired.
+  const counter = (title, body) => { seen.push({ title, body }); return 'sent'; };
+  try {
+    for (const kind of autopilotLib.NOTIFY_KINDS) {
+      const r = autopilotLib.notify(g.dir, { feature: 'f', kind, reason: `a ${kind} notice`, desktop: counter });
+      assert.equal(r.desktop, kind === 'finished' ? 'sent' : 'file-only', kind);
+    }
+  } finally {
+    if (saved === undefined) delete process.env.ULTIMATE_WORKFLOW_NOTIFY;
+    else process.env.ULTIMATE_WORKFLOW_NOTIFY = saved;
+  }
+  assert.equal(seen.length, 1, JSON.stringify(seen));
+  assert.match(seen[0].title, /run finished/);
+});
+
+test('one-notice 62: notifications.md and notifications.jsonl still hold every notice', () => {
+  const g = gateRepo();
+  for (const kind of autopilotLib.NOTIFY_KINDS) gateCli(g, 'notify', '--feature', 'f', '--kind', kind, '--reason', `a ${kind} notice`);
+  const md = fs.readFileSync(path.join(g.dir, '.ultimate-workflow', 'run', 'f', 'notifications.md'), 'utf8').trim().split(/\r?\n/);
+  assert.equal(md.length, autopilotLib.NOTIFY_KINDS.length);
+  assert.equal(noticesOf(g).length, autopilotLib.NOTIFY_KINDS.length);
+  for (const kind of autopilotLib.NOTIFY_KINDS) {
+    assert.equal(md.filter((l) => l.includes(`**${kind}**`) && l.includes(`a ${kind} notice`)).length, 1, kind);
+    assert.equal(noticesOf(g).filter((n) => n.kind === kind).length, 1, kind);
+  }
+});

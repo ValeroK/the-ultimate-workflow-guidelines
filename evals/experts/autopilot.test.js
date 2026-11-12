@@ -383,13 +383,14 @@ test('notify appends the notice to the run folder and reports the desktop result
   const r = spawnSync(process.execPath, [CLI, 'notify', '--feature', 'calc', '--kind', 'needs-decision', '--card', '1', '--reason', 'added left-pad', '--action', '/ultimate-workflow:feature --resume 1 --accept'], { cwd: dir, encoding: 'utf8', env: { ...env, ULTIMATE_WORKFLOW_NOTIFY: 'off' } });
   const out = JSON.parse(r.stdout.trim().split('\n').pop());
   assert.equal(out.ok, true);
-  assert.equal(out.desktop, 'off');
+  // PLAN-run-fixes.md, card one-notice: only the finished notice reaches the desktop; this kind is file-only.
+  assert.equal(out.desktop, 'file-only');
   assert.match(read(dir, '.ultimate-workflow/run/calc/notifications.md'), /\*\*needs-decision\*\* card 1: added left-pad Next: `\/ultimate-workflow:feature --resume 1 --accept`/);
   const bad = spawnSync(process.execPath, [CLI, 'notify', '--feature', 'calc', '--kind', 'oops'], { cwd: dir, encoding: 'utf8', env });
   assert.match(bad.stdout, /notify --kind is one of/);
   // The desktop result is kept with the notice (a live run's step outputs are not in its result).
   const rec = JSON.parse(read(dir, '.ultimate-workflow/run/calc/notifications.jsonl').trim().split('\n').pop());
-  assert.equal(rec.desktop, 'off');
+  assert.equal(rec.desktop, 'file-only');
   assert.equal(rec.card, '1');
 });
 

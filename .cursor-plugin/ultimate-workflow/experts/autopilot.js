@@ -350,9 +350,13 @@ function commitPlan(cwd, plan, message) {
  * Linux. That reaches a user at the desktop app or a terminal on that machine; it does not reach a
  * phone over Remote Control, which only the main session's PushNotification at the end does.
  * `ULTIMATE_WORKFLOW_NOTIFY=off` keeps the file and skips the desktop notification.
+ *
+ * One desktop notification per run (4.8.0, the owner's choice): only kind `finished` reaches the
+ * desktop, and its text names every blocker. Every other kind is written to the files with
+ * `desktop: "file-only"`. `desktop` is the function that fires it, an option so a test can count calls.
  */
 const NOTIFY_KINDS = ['over-budget', 'parked', 'needs-decision', 'blocked', 'stopped', 'resumed', 'finished', 'warning'];
-function notify(cwd, { feature, kind, card = '', reason = '', reasonFile = '', action = '' }) {
+function notify(cwd, { feature, kind, card = '', reason = '', reasonFile = '', action = '', desktop: send = desktopNotify }) {
   checkFeature(feature);
   if (!NOTIFY_KINDS.includes(kind)) throw new Error(`notify --kind is one of ${NOTIFY_KINDS.join(', ')}`);
   let why = String(reason || '');
@@ -365,7 +369,7 @@ function notify(cwd, { feature, kind, card = '', reason = '', reasonFile = '', a
   fs.mkdirSync(dir, { recursive: true });
   fs.appendFileSync(path.join(dir, 'notifications.md'), `- ${at.slice(0, 19).replace('T', ' ')} **${kind}**${card ? ` card ${card}` : ''}: ${why}${action ? ` Next: \`${action}\`` : ''}\n`);
   const off = /^(off|0|false|no)$/i.test(String(process.env.ULTIMATE_WORKFLOW_NOTIFY || ''));
-  const desktop = off ? 'off' : desktopNotify(title, body);
+  const desktop = kind !== 'finished' ? 'file-only' : off ? 'off' : send(title, body);
   // The desktop result is kept with the notice, so what reached the user can be checked afterwards.
   fs.appendFileSync(path.join(dir, 'notifications.jsonl'), `${JSON.stringify({ at, kind, card, reason: why, action, desktop })}\n`);
   return { ok: true, kind, card: card || null, file: rel(cwd, path.join(dir, 'notifications.md')), desktop };
@@ -1189,4 +1193,4 @@ function cli(argv, cwd, out, fail) {
 
 const COMMANDS = ['pack', 'handoff', 'park', 'unpark', 'journal', 'card-commit', 'card-status', 'notify', 'decisions', 'card-field', 'run-branch', 'ensure-ignored', 'run-state', 'harvest-branch', 'run-report', 'run-start', 'run-finish'];
 
-module.exports = { COMMANDS, cardStatus, notify, detectDecisions, acceptDecision, writeRunStatus, commitPlan, pack, handoff, park, unpark, journalAdd, journalCompact, cardCommit, runBranch, ensureIgnored, harvestBranch, withAddition: memoryLib.withAddition, matchingTopicals, testSection, sections, cli, JOURNAL_CARD_LINES, JOURNAL_MAX_LINES };
+module.exports = { COMMANDS, NOTIFY_KINDS, cardStatus, notify, detectDecisions, acceptDecision, writeRunStatus, commitPlan, pack, handoff, park, unpark, journalAdd, journalCompact, cardCommit, runBranch, ensureIgnored, harvestBranch, withAddition: memoryLib.withAddition, matchingTopicals, testSection, sections, cli, JOURNAL_CARD_LINES, JOURNAL_MAX_LINES };

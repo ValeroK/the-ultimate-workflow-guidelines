@@ -1244,3 +1244,22 @@ test('reasons 58 and the expert case: the stop text goes to the stopped notice t
   assert.ok(stop.prompt.includes('THE-END'), 'the whole stop text is in the file the step writes');
   for (const line of commandLinesOf(calls)) assert.ok(!/PWNED|\$\(|`|\$HOME/.test(line), line.slice(0, 300));
 });
+
+// --- one-notice (PLAN-run-fixes.md, card one-notice, test 63) ---------------------------------------
+
+test('one-notice 63: a run with two parked cards, blocked cards and a stop sends one finished notice that names every blocker', async () => {
+  const calls = [];
+  const base = responder({ commitFails: { p1: 'the same failure', p2: 'the same failure' } });
+  const cards = [card('p1'), card('p2'), card('b1', { depends: ['p1'] }), card('b2', { depends: ['p2'] }), card('later')];
+  const { result } = await run(baseArgs(cards), async (c) => { calls.push(c); return base(c); });
+  assert.ok(result.stopped, 'the run stopped');
+  const finished = calls.filter((c) => /notify [^\n]*--kind finished/.test(c.prompt));
+  assert.equal(finished.length, 1, 'exactly one step sends the finished notice');
+  assert.equal(commandLinesOf(calls).filter((l) => /--kind finished/.test(l)).length, 1, 'exactly one command line');
+  const line = commandLinesOf(finished).find((l) => /--kind finished/.test(l));
+  assert.match(line, /--reason-file/);
+  const text = /<<<CONTENT\n([\s\S]*?)\nCONTENT>>>/.exec(finished[0].prompt)[1];
+  for (const name of ['p1', 'p2']) assert.match(text, new RegExp(`parked: [^;]*\\b${name}\\b`), `${name} is named as parked: ${text}`);
+  for (const name of ['b1', 'b2']) assert.match(text, new RegExp(`blocked: [^;]*\\b${name}\\b`), `${name} is named as blocked: ${text}`);
+  assert.match(text, /stopped/);
+});

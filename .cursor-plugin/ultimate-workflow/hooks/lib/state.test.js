@@ -220,6 +220,114 @@ test('readState picks the most recently modified PLAN file when several exist', 
   assert.equal(path.basename(state.readState(dir).file), 'PLAN-new.md');
 });
 
+// --- the plan pointer may name a plan in a subfolder -------------------------
+
+const POINTER = path.join('.ultimate-workflow', 'active-plan');
+const SUB_PLAN = 'internal/plans/PLAN-x.md';
+
+function writePointer(dir, value) {
+  write(dir, POINTER, `${value}\n`);
+}
+
+function withoutPointer(dir) {
+  fs.rmSync(path.join(dir, POINTER), { force: true });
+  return state.readState(dir);
+}
+
+test('pointer to internal/plans/PLAN-x.md: readState returns that file and its volatile_paths when the root has no PLAN file', () => {
+  const dir = tmpdir();
+  const file = write(dir, SUB_PLAN, fm({ plan_confirmed: true, volatile_paths: 'src/a.js, src/b.js' }));
+  writePointer(dir, SUB_PLAN);
+
+  const s = state.readState(dir);
+  assert.equal(s.stage, 'feature');
+  assert.equal(path.resolve(s.file), path.resolve(file));
+  assert.deepEqual(s.data.volatile_paths, 'src/a.js, src/b.js');
+});
+
+test('setActivePlan accepts a relative subfolder path and pointedPlanFile returns it', () => {
+  const dir = tmpdir();
+  const file = write(dir, SUB_PLAN, fm({ plan_confirmed: false }));
+
+  assert.strictEqual(state.setActivePlan(dir, SUB_PLAN), true);
+  assert.equal(fs.readFileSync(path.join(dir, POINTER), 'utf8').trim(), SUB_PLAN);
+  assert.equal(path.resolve(state.pointedPlanFile(dir)), path.resolve(file));
+});
+
+test('setActivePlan normalises backslashes in a subfolder path', () => {
+  const dir = tmpdir();
+  const file = write(dir, SUB_PLAN, fm({ plan_confirmed: false }));
+
+  assert.strictEqual(state.setActivePlan(dir, 'internal\\plans\\PLAN-x.md'), true);
+  assert.equal(fs.readFileSync(path.join(dir, POINTER), 'utf8').trim(), SUB_PLAN);
+  assert.equal(path.resolve(state.pointedPlanFile(dir)), path.resolve(file));
+});
+
+test('pointer refused: each unsafe form is ignored', () => {
+  const outer = tmpdir();
+  const dir = path.join(outer, 'root');
+  fs.mkdirSync(dir);
+  write(outer, 'PLAN-x.md', fm({ plan_confirmed: true }));
+  const real = write(dir, SUB_PLAN, fm({ plan_confirmed: true }));
+  write(dir, 'internal/plans/notes.md', fm({ plan_confirmed: true }));
+
+  const rows = [
+    '../PLAN-x.md',
+    'internal/../../PLAN-x.md',
+    real, // absolute path to a plan that really exists
+    '/abs/PLAN-x.md',
+    'C:PLAN-x.md',
+    'C:\\x\\PLAN-x.md',
+    '//server/share/PLAN-x.md',
+    'internal\\..\\..\\PLAN-x.md',
+    'internal/plans/notes.md',
+    'internal/plans/PLAN-missing.md',
+  ];
+  const baseline = withoutPointer(dir);
+  assert.equal(baseline.file, null);
+
+  for (const row of rows) {
+    assert.strictEqual(state.setActivePlan(dir, row), false, `setActivePlan ${row}`);
+    writePointer(dir, row);
+    assert.deepEqual(state.readState(dir), baseline, `readState with pointer ${row}`);
+    assert.equal(state.pointedPlanFile(dir), null, `pointedPlanFile ${row}`);
+    fs.rmSync(path.join(dir, POINTER), { force: true });
+  }
+});
+
+test('pointer through a directory junction out of the root is refused', () => {
+  const outer = tmpdir();
+  const dir = path.join(outer, 'root');
+  fs.mkdirSync(dir);
+  write(outer, 'elsewhere/PLAN-x.md', fm({ plan_confirmed: true }));
+  fs.symlinkSync(path.join(outer, 'elsewhere'), path.join(dir, 'linked'), 'junction');
+
+  assert.strictEqual(state.setActivePlan(dir, 'linked/PLAN-x.md'), false);
+  writePointer(dir, 'linked/PLAN-x.md');
+  assert.deepEqual(state.readState(dir), withoutPointer(dir));
+  assert.equal(withoutPointer(dir).file, null);
+});
+
+test('pointer to a phase: done plan is ignored', () => {
+  const dir = tmpdir();
+  const old = write(dir, 'PLAN-old.md', fm({ phase: 'implement' }));
+  write(dir, SUB_PLAN, fm({ phase: 'done' }));
+  writePointer(dir, SUB_PLAN);
+
+  const s = state.readState(dir);
+  assert.deepEqual(s, withoutPointer(dir));
+  assert.equal(path.resolve(s.file), path.resolve(old));
+});
+
+test('without a pointer the root-only guess is unchanged', () => {
+  const dir = tmpdir();
+  write(dir, SUB_PLAN, fm({ plan_confirmed: true }));
+
+  const s = state.readState(dir);
+  assert.equal(s.stage, 'none');
+  assert.equal(s.file, null);
+});
+
 // --- escape hatch ----------------------------------------------------------
 
 test('gates are ON unless explicitly switched off (4.1.0)', () => {

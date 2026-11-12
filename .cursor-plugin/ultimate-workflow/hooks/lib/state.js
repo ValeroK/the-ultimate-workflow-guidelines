@@ -107,25 +107,44 @@ function activePlanFiles(dir) {
 }
 
 const ACTIVE_PLAN = path.join('.ultimate-workflow', 'active-plan');
-const isPlanName = (name) => /^PLAN-[^/\\]+\.md$/i.test(name);
+const isPlanName = (name) => /^PLAN-.+\.md$/i.test(path.posix.basename(name));
 
 /**
- * The plan the commands last worked on (4.1.2): `experts.js` writes its name whenever it is given
+ * The one containment check for a pointer (4.8.0): a relative path with forward slashes whose base
+ * name is PLAN-*.md. Refused: a drive prefix, a leading `/` (which covers `//`), any `..` segment, and
+ * a real path (links followed) outside the root or missing. Returns the normalised name or null.
+ */
+function pointerName(dir, raw) {
+  const name = String(raw || '').trim().replace(/\\/g, '/').replace(/^\.\//, '');
+  if (!isPlanName(name) || /^[a-z]:/i.test(name) || name.startsWith('/') || name.split('/').includes('..')) return null;
+  try {
+    const rel = path.relative(fs.realpathSync(dir), fs.realpathSync(path.join(dir, name)));
+    return rel.startsWith('..') || path.isAbsolute(rel) ? null : name;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The plan the commands last worked on (4.1.2): `experts.js` writes its path whenever it is given
  * `--plan`, and a phase script writes it for its plan. A hook gets no arguments, so this is how
  * the gates follow the same plan as the commands instead of guessing by modification time. A
- * pointer to a missing, finished or non-plan file is ignored.
+ * pointer to a missing, finished or non-plan file is ignored. The plan may sit in a subfolder
+ * (4.8.0); there is no folder search, only the pointer.
  */
 function pointedPlanFile(dir) {
-  const name = (readIfPresent(path.join(dir, ACTIVE_PLAN)) || '').trim();
-  if (!isPlanName(name)) return null;
+  const name = pointerName(dir, readIfPresent(path.join(dir, ACTIVE_PLAN)));
+  if (!name) return null;
   const file = path.join(dir, name);
-  return activePlanFiles(dir).find((f) => path.basename(f) === name) ? file : null;
+  const text = readIfPresent(file);
+  if (text === null || String(parseFrontMatter(text).data.phase || '').trim().toLowerCase() === 'done') return null;
+  return file;
 }
 
 /** Record the plan a command works on, for the gates. A path outside the root or not a plan is ignored. */
 function setActivePlan(dir, plan) {
-  const name = String(plan || '').replace(/\\/g, '/').replace(/^\.\//, '');
-  if (!isPlanName(name) || !fs.existsSync(path.join(dir, name))) return false;
+  const name = pointerName(dir, plan);
+  if (!name) return false;
   fs.mkdirSync(path.join(dir, '.ultimate-workflow'), { recursive: true });
   fs.writeFileSync(path.join(dir, ACTIVE_PLAN), `${name}\n`);
   return true;
@@ -195,7 +214,7 @@ function handoffComplete(dir) {
  *                planning a feature, you are doing feature work.
  */
 function resolveStage(dir) {
-  if (activePlanFiles(dir).length > 0) return 'feature';
+  if (pointedPlanFile(dir) || activePlanFiles(dir).length > 0) return 'feature';
   if (fs.existsSync(path.join(dir, 'PRD.md'))) {
     return handoffComplete(dir) ? 'none' : 'bootstrap';
   }

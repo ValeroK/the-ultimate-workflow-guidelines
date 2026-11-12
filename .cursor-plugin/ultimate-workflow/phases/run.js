@@ -1087,10 +1087,12 @@ const PROPOSALS = {
   },
 }
 const harvested = covered(state.harvestedHead) && !fixupCommitted
+// Branch names from run.json, shown to an agent: only names of the right shape are passed on.
+const openHarvests = (state.openHarvests || []).filter((b) => /^uw\/harvest\/[A-Za-z0-9._-]+$/.test(b))
 let harvest = { ran: false, reason: waiting.length > 0 ? waitingReason(waiting) : !anyCommitted ? 'nothing was committed' : harvested ? 'no card was committed since the last harvest' : '' }
 if (anyCommitted && waiting.length === 0 && !harvested) {
   const routed = await agent(
-    `Harvest the durable lessons of this run. Read the run journal ${RUN_DIR}/journal.md (what each card learned), the plan ${PLAN}, \`git diff ${BASE}..HEAD --stat\` and \`git log ${BASE}..HEAD\`, and what the project already records: the "## Gotchas" of AGENTS.md (or CLAUDE.md), memory.md and memory/*.md. First run \`${CLI} memory check\` (add \`--root <folder>\` when memory.md is not in the project root) and use its warnings: a topical not migrated, or a header path that matches no file, which you correct with add_paths, add_keywords and remove_paths on that topical.
+    `Harvest the durable lessons of this run.${openHarvests.length > 0 ? ` Earlier harvests of this feature are still open on ${openHarvests.join(', ')}: read what each holds (\`git log ${BASE}..<branch>\` and \`git show\`) and drop what they already hold.` : ''} Read the run journal ${RUN_DIR}/journal.md (what each card learned), the plan ${PLAN}, \`git diff ${BASE}..HEAD --stat\` and \`git log ${BASE}..HEAD\`, and what the project already records: the "## Gotchas" of AGENTS.md (or CLAUDE.md), memory.md and memory/*.md. First run \`${CLI} memory check\` (add \`--root <folder>\` when memory.md is not in the project root) and use its warnings: a topical not migrated, or a header path that matches no file, which you correct with add_paths, add_keywords and remove_paths on that topical.
 
 Route each lesson worth keeping: "Beware / Don't / Note that" is a Gotcha (path AGENTS.md, or CLAUDE.md when there is no AGENTS.md); "how X works / why we picked Y" extends or starts a memory/<topic>.md (a new topical needs description, paths and keywords, its header; never propose an edit to memory.md, its index is generated); one dated summary of the whole run is a progress.md entry. Discard what is already recorded, obvious from the code, a one-off slip, or not durable, and say why. For each kept one write the exact text to add, in the voice of the target file. ${NO_QUOTA}`,
     { agentType: agentName('uw-harvester'), label: 'harvest', phase: 'Harvest', schema: PROPOSALS }

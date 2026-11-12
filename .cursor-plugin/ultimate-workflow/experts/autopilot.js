@@ -33,6 +33,7 @@ const { spawnSync } = require('node:child_process');
 const cardsLib = require('./cards.js');
 const memoryLib = require('../lib/memory.js');
 const packLib = require('../lib/pack.js');
+const runRules = require('../lib/run-rules.js');
 
 const FEATURE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const JOURNAL_CARD_LINES = 15;
@@ -813,13 +814,16 @@ function runState(cwd, { feature, record, review, harvest, harvestBranch: branch
     return { ok: true, head, pendingFindings };
   }
   const pendingFindings = saved.pendingFindings || [];
+  // The harvest branches of this feature still open (not merged away or deleted): a later harvest is told them.
+  const mine = new RegExp(`^uw/harvest/${String(feature).replace(/[.]/g, '[.]')}(-[0-9]+)?$`);
+  const openHarvests = git(cwd, ['for-each-ref', '--format=%(refname:short)', 'refs/heads/uw/harvest/'], { allowFail: true }).stdout.split(/\r?\n/).filter((b) => mine.test(b)).sort();
   if (record) {
     const both = !review && !harvest;
     const next = { ...(review || both ? { reviewedHead: head } : {}), ...(harvest || both ? { harvestedHead: head } : {}), harvestBranch: branch || saved.harvestBranch || '' };
     write(next);
-    return { ok: true, head, reviewedHead: next.reviewedHead || saved.reviewedHead || '', harvestedHead: next.harvestedHead || saved.harvestedHead || '', harvestBranch: next.harvestBranch, pendingFindings };
+    return { ok: true, head, reviewedHead: next.reviewedHead || saved.reviewedHead || '', harvestedHead: next.harvestedHead || saved.harvestedHead || '', harvestBranch: next.harvestBranch, pendingFindings, openHarvests };
   }
-  return { ok: true, head, reviewedHead: saved.reviewedHead || '', harvestedHead: saved.harvestedHead || '', harvestBranch: saved.harvestBranch || '', pendingFindings };
+  return { ok: true, head, reviewedHead: saved.reviewedHead || '', harvestedHead: saved.harvestedHead || '', harvestBranch: saved.harvestBranch || '', pendingFindings, openHarvests };
 }
 
 /**
@@ -828,7 +832,7 @@ function runState(cwd, { feature, record, review, harvest, harvestBranch: branch
  * The user merges the branch or drops it; nothing reaches project memory unseen.
  */
 function harvestBranch(cwd, { feature, from }) {
-  const branch = `uw/harvest/${checkFeature(feature)}`;
+  let branch = `uw/harvest/${checkFeature(feature)}`;
   const raw = JSON.parse(fs.readFileSync(path.resolve(cwd, from), 'utf8').replace(/^﻿/, ''));
   const proposals = (Array.isArray(raw) ? raw : raw.proposals || []).filter((p) => p && typeof p.path === 'string' && typeof p.text === 'string' && p.text.trim());
   // A harvester may name a file by its absolute path; one inside the project is taken as relative to it.
@@ -867,9 +871,10 @@ function harvestBranch(cwd, { feature, from }) {
     steps.push({ subject: `harvest: ${[...new Set(list.map((p) => p.destination || 'note'))].join(', ')} -> ${file}`, files: { [file]: text }, list });
   }
   if (steps.length === 0) return { ok: true, branch: null, commits: [], note: 'no proposals, so no branch' };
-  if (git(cwd, ['rev-parse', '--verify', '-q', `refs/heads/${branch}`], { allowFail: true }).status === 0) {
-    return { ok: false, branch, reason: `${branch} already exists: merge or delete it before harvesting this feature again` };
-  }
+  // An earlier harvest of this feature keeps its branch: this one takes the next free name (-2, -3, ...).
+  const free = runRules.freeName(branch, (name) => git(cwd, ['rev-parse', '--verify', '-q', `refs/heads/${name}`], { allowFail: true }).status === 0);
+  if (!free.ok) return { ok: false, branch, reason: free.reason };
+  branch = free.name;
   // Merging a second harvest branch can conflict in the generated block of memory.md.
   if (steps.some((s) => Object.keys(s.files).some((f) => /(^|\/)memory\.md$/.test(f)))) {
     steps[steps.length - 1].note = 'If merging this branch conflicts in memory.md, take either side, run `node experts/experts.js memory index`, and commit.';

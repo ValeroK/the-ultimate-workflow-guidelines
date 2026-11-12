@@ -758,8 +758,9 @@ test('harvest-branch commits each destination file once on uw/harvest/<feature>,
   const agents = git(dir, 'show', 'uw/harvest/calc:AGENTS.md');
   assert.match(agents, /- Old one\.\n- Beware the quoted glob\.\n- Note that CRLF matters\.\n\n## Other/, 'gotchas go under the Gotchas heading');
   const again = json(cli(dir, 'harvest-branch', '--feature', 'calc', '--from', '.ultimate-workflow/run/calc/harvest.json'));
-  assert.equal(again.ok, false);
-  assert.match(again.reason, /already exists/);
+  // PLAN-run-fixes.md, card harvest-name: a second harvest is no longer refused, it gets the next free name.
+  assert.equal(again.ok, true, JSON.stringify(again));
+  assert.equal(again.branch, 'uw/harvest/calc-2');
   write(dir, 'bad.json', JSON.stringify([{ destination: 'gotcha', path: '../out.md', text: 'x' }]));
   assert.equal(json(cli(dir, 'harvest-branch', '--feature', 'other', '--from', 'bad.json')).ok, false);
 });

@@ -1156,6 +1156,21 @@ test('57b: a harvest whose branch step failed is not recorded as done', async ()
   assert.ok(!/--harvest(?!-branch)/.test(rec[0].prompt), rec[0].prompt);
 });
 
+test('harvest-name 53: a second harvest is told the open uw/harvest/<f>* branches and to drop what they hold', async () => {
+  const open = ['uw/harvest/f', 'uw/harvest/f-2'];
+  const second = responder({ state: { head: 'h3', reviewedHead: 'r1', harvestedHead: 'r1', openHarvests: open } });
+  const calls = [];
+  await run(baseArgs([card('1', { committed: true }), card('2')]), async (c) => { calls.push(c); return second(c); });
+  const prompt = calls.find((c) => c.label === 'harvest').prompt;
+  for (const b of open) assert.ok(prompt.includes(b), `${b} is named: ${prompt.slice(0, 400)}`);
+  assert.match(prompt, /drop what they already hold/);
+  // A first harvest has no open branch to read.
+  const first = responder();
+  const firstCalls = [];
+  await run(baseArgs([card('1')]), async (c) => { firstCalls.push(c); return first(c); });
+  assert.doesNotMatch(firstCalls.find((c) => c.label === 'harvest').prompt, /drop what they already hold/);
+});
+
 test('58: a fix-up card committed by this run\'s review is harvested, though the harvest covered the head read before it', async () => {
   const two = [card('a', { experts: ['quality'], committed: true }), card('b', { experts: ['security'], committed: true })];
   const state = { head: 'h2', reviewedHead: 'r1', harvestedHead: 'h2' };

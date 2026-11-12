@@ -581,3 +581,57 @@ test('settle-first 56: --record --review and --record --harvest move one head ea
   const read = runState(g);
   assert.equal(read.harvestedHead, read.head);
 });
+
+// --- harvest-name (PLAN-run-fixes.md, card harvest-name, tests 51, 52 and 54) -----------------------
+
+const harvest = (g, proposals = [{ destination: 'gotcha', path: 'AGENTS.md', text: '- Beware x.', source: 'card 1', rationale: 'r' }]) => {
+  g.put('.ultimate-workflow/run/f/harvest.json', JSON.stringify(proposals));
+  const r = gateCli(g, 'harvest-branch', '--feature', 'f', '--from', '.ultimate-workflow/run/f/harvest.json');
+  assert.ok(r.stdout.trim(), `harvest-branch printed no JSON line; stderr: ${r.stderr}`);
+  return lastJson(r);
+};
+const branchesOf = (g) => git(g.dir, 'branch', '--list', 'uw/harvest/*', '--format=%(refname:short)').split(/\r?\n/).filter(Boolean).sort();
+
+test('harvest-name 51: with uw/harvest/<f> taken, harvest makes <f>-2 and returns ok: true', () => {
+  const g = gateRepo();
+  const first = harvest(g);
+  assert.equal(first.ok, true, JSON.stringify(first));
+  assert.equal(first.branch, 'uw/harvest/f');
+  const second = harvest(g);
+  assert.equal(second.ok, true, JSON.stringify(second));
+  assert.equal(second.branch, 'uw/harvest/f-2');
+  assert.deepStrictEqual(branchesOf(g), ['uw/harvest/f', 'uw/harvest/f-2']);
+  assert.match(git(g.dir, 'show', 'uw/harvest/f-2:AGENTS.md'), /Beware x/, 'the second branch holds the proposals');
+});
+
+test('harvest-name 52: with <f> and <f>-2 taken, harvest makes <f>-3', () => {
+  const g = gateRepo();
+  git(g.dir, 'branch', 'uw/harvest/f');
+  git(g.dir, 'branch', 'uw/harvest/f-2');
+  const third = harvest(g);
+  assert.equal(third.ok, true, JSON.stringify(third));
+  assert.equal(third.branch, 'uw/harvest/f-3');
+  assert.deepStrictEqual(branchesOf(g), ['uw/harvest/f', 'uw/harvest/f-2', 'uw/harvest/f-3']);
+});
+
+test('harvest-name 53b: run-state lists the open harvest branches of this feature only', () => {
+  const g = gateRepo();
+  writeRunFile(g);
+  assert.deepStrictEqual(runState(g).openHarvests, []);
+  for (const b of ['uw/harvest/f', 'uw/harvest/f-2', 'uw/harvest/fother', 'uw/harvest/g']) git(g.dir, 'branch', b);
+  assert.deepStrictEqual(runState(g).openHarvests, ['uw/harvest/f', 'uw/harvest/f-2']);
+});
+
+test('harvest-name 54: the memory.md merge-conflict note is still given, on a second harvest branch too', () => {
+  const g = gateRepo();
+  g.put('memory.md', '# Memory\n');
+  git(g.dir, 'add', '-A');
+  git(g.dir, 'commit', '-q', '-m', 'memory');
+  const topical = (name) => [{ destination: 'memory', path: `memory/${name}.md`, text: `# ${name}\n\nHow it works.`, description: `How ${name} works.`, paths: [`lib/${name}.js`], keywords: [name], source: 'card 1', rationale: 'r' }];
+  for (const [name, branch] of [['parsing', 'uw/harvest/f'], ['hooks', 'uw/harvest/f-2']]) {
+    const r = harvest(g, topical(name));
+    assert.equal(r.ok, true, JSON.stringify(r));
+    assert.equal(r.branch, branch);
+    assert.match(git(g.dir, 'log', '-1', '--format=%B', branch), /conflicts in memory\.md, take either side/, branch);
+  }
+});

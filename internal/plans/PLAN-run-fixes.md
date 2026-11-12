@@ -5,7 +5,7 @@ tests_confirmed: true
 test_command: node --test ".cursor-plugin/ultimate-workflow/hooks/**/*.test.js" "evals/**/*.test.js" mirrors.test.js
 test_related_command: node --test {tests}
 full_suite_paths: .cursor-plugin/ultimate-workflow/hooks/**, .cursor-plugin/ultimate-workflow/experts/*.js, .cursor-plugin/ultimate-workflow/phases/*.js, .cursor-plugin/ultimate-workflow/lib/*.js
-volatile_paths:
+volatile_paths: 
 verify_rounds: 0
 last_verify: unrun
 dirty: false
@@ -97,38 +97,51 @@ What is there, and what each card reuses.
 
 - plan-subfolder: state.js follows a plan in a subfolder
   paths: .cursor-plugin/ultimate-workflow/hooks/lib/state.js, .cursor-plugin/ultimate-workflow/hooks/lib/state.test.js
+  status: parked uw/parked/run-fixes/plan-subfolder; the commit was refused: Gate G7: the changes have changed since the last passing full test suite run. Run `verify.js --full` once, then commit again. If you have not changed code since, a file your tests or app rewrite is moving it: list th
+  parked: uw/parked/run-fixes/plan-subfolder; the commit was refused: Gate G7: the changes have changed since the last passing full test suite run. Run `verify.js --full` once, then commit again. If you have not changed code since, a file your tests or app rewrite is moving it: list th
 - gate-card: G6 judges the card being committed
   paths: .cursor-plugin/ultimate-workflow/lib/run-rules.js, .cursor-plugin/ultimate-workflow/experts/experts.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, .cursor-plugin/ultimate-workflow/phases/run.js, evals/experts/run-rules.test.js, evals/experts/autopilot-fixes.test.js
+  status: pending
 - card-add: a run-added card goes inside the list, gets a free name, and there can be more than one
   paths: .cursor-plugin/ultimate-workflow/lib/run-rules.js, .cursor-plugin/ultimate-workflow/experts/cards.js, .cursor-plugin/ultimate-workflow/experts/experts.js, .cursor-plugin/ultimate-workflow/phases/run.js, evals/experts/run-rules.test.js, evals/experts/autopilot-fixes.test.js
   depends: gate-card
+  status: pending
 - expert-retry: retry a failed expert once, never commit past one
   paths: .cursor-plugin/ultimate-workflow/phases/run.js, evals/experts/run-phase.test.js
   depends: card-add
+  status: pending
 - settle-first: review, fix-up and harvest wait for parked and blocked cards
   paths: .cursor-plugin/ultimate-workflow/phases/run.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, evals/experts/run-phase.test.js, evals/experts/autopilot-fixes.test.js
   depends: expert-retry
+  status: pending
 - harvest-name: a second harvest gets its own branch
   paths: .cursor-plugin/ultimate-workflow/lib/run-rules.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, evals/experts/autopilot-fixes.test.js
   depends: settle-first
+  status: pending
 - reasons: whole park reasons, and the real conflict from unpark
   paths: .cursor-plugin/ultimate-workflow/lib/run-rules.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, .cursor-plugin/ultimate-workflow/phases/run.js, evals/experts/run-rules.test.js, evals/experts/autopilot-fixes.test.js
   depends: harvest-name
+  status: pending
 - one-notice: one desktop notification per run
   paths: .cursor-plugin/ultimate-workflow/experts/autopilot.js, evals/experts/autopilot-fixes.test.js
   depends: reasons
+  status: pending
 - dry-run: measure the plan's claims before the tests are confirmed
   paths: .cursor-plugin/ultimate-workflow/lib/claims.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, .cursor-plugin/ultimate-workflow/commands/tests.md, .cursor-plugin/ultimate-workflow/phases/tests.js, evals/experts/claims.test.js
   depends: one-notice
+  status: pending
 - report-cost: pack size and token cost per card in the report
   paths: .cursor-plugin/ultimate-workflow/experts/autopilot.js, .cursor-plugin/ultimate-workflow/phases/run.js, evals/experts/autopilot-fixes.test.js
   depends: dry-run
+  status: pending
 - run-md: run.md says what the code does
   paths: .cursor-plugin/ultimate-workflow/phases/run.md, evals/experts/docs.test.js
   depends: report-cost
+  status: pending
 - release: changelog for these fixes in 4.8.0
   paths: CHANGELOG.md, internal/plans/PLAN-run-fixes.md
   depends: plan-subfolder, run-md
+  status: pending
 
 ## Card details
 

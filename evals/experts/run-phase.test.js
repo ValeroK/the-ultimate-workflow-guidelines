@@ -582,7 +582,8 @@ function withFreeNames(base) {
   const fn = async (c) => {
     calls.push(c);
     if (/^fixup(-\d+)?:setup$/.test(c.label)) {
-      const paths = /--paths "([^"]*)"/.exec(c.prompt);
+      // The paths reach card-add through a file the step writes (plan test 21), not the command line.
+      const paths = /-paths\.txt [^\n]*\n<<<CONTENT\n([^\n]*)\nCONTENT>>>/.exec(c.prompt) || /--paths "([^"]*)"/.exec(c.prompt);
       const name = given.length === 0 ? 'fixup' : `fixup-${given.length + 1}`;
       given.push(name);
       return steps({ ok: true, card: { name, paths: paths ? paths[1].split(',') : [] } }, { ok: true, contextFile: `.ultimate-workflow/run/f/cards/${name}/context.md` });
@@ -596,6 +597,9 @@ function withFreeNames(base) {
 }
 const labelsOf = (calls) => calls.map((c) => c.label);
 const TWO_EXPERTS = [...AVAILABLE, { name: 'security', agent: 'uw-expert-security', description: 's', stages: ['plan', 'tests', 'review'] }];
+// The card-add line of a setup step, followed by the paths it reads from the file the step writes
+// (plan test 21: a finding's file is agent text, so it is not on the command line).
+const addOf = (c) => `${c.prompt.split('\n').find((l) => / card-add /.test(l))} paths: ${(/-paths\.txt [^\n]*\n<<<CONTENT\n([^\n]*)\nCONTENT>>>/.exec(c.prompt) || ['', ''])[1]}`;
 const finding = (file, confidence = 'high') => ({ file, line: 3, what: `defect in ${file}`, howItFails: 'n=0', confidence });
 
 test('30: a refused card-add\'s reason reaches the report, not "printed nothing"', async () => {
@@ -632,7 +636,7 @@ test('32: findings in files of two plan cards make two fix-up cards, each with i
   const cards = [card('a', { experts: ['quality'] }), card('b', { experts: ['security'] })];
   const r = withFreeNames(responder({ reviewFindings: [finding('src/a/x.js'), finding('src/b/y.js', 'medium')] }));
   await run(baseArgs(cards, { available: TWO_EXPERTS, planExperts: ['quality', 'security'] }), r);
-  const adds = r.calls.filter((c) => /^fixup(-\d+)?:setup$/.test(c.label)).map((c) => c.prompt.split('\n').find((l) => / card-add /.test(l)));
+  const adds = r.calls.filter((c) => /^fixup(-\d+)?:setup$/.test(c.label)).map(addOf);
   assert.equal(adds.length, 2, 'two card-add calls');
   const forA = adds.find((l) => l.includes('src/a/x.js'));
   const forB = adds.find((l) => l.includes('src/b/y.js'));
@@ -649,7 +653,7 @@ test('33: findings in a file no plan card covers, or with no file, make one more
   const loose = [finding('test/a.test.js'), { ...finding(''), file: '' }, (({ file, ...rest }) => rest)(finding('x'))];
   const r = withFreeNames(responder({ reviewFindings: loose }));
   const { result } = await run(baseArgs(cards, { available: TWO_EXPERTS, planExperts: ['quality', 'security'] }), r);
-  const adds = r.calls.filter((c) => /^fixup(-\d+)?:setup$/.test(c.label)).map((c) => c.prompt.split('\n').find((l) => / card-add /.test(l)));
+  const adds = r.calls.filter((c) => /^fixup(-\d+)?:setup$/.test(c.label)).map(addOf);
   assert.equal(adds.length, 1, adds.join('\n'));
   assert.match(adds[0], /--experts quality,security(?![,\w])/);
   assert.match(adds[0], /test\/a\.test\.js/);
@@ -700,7 +704,7 @@ test('36: at most four fix-up cards per run; the findings of the rest stay in th
   assert.equal(result.review.findings.length, 5);
   assert.equal(result.review.leftInReport, 1, 'the fifth group stays in the report');
   // Which four: the first four groups in plan order; the fifth is the one dropped.
-  const added = adds.map((c) => c.prompt.split('\n').find((l) => / card-add /.test(l)));
+  const added = adds.map(addOf);
   names.slice(0, 4).forEach((n, i) => assert.ok(added[i].includes(`src/${n}/x.js`), `card ${i + 1} holds ${n}: ${added[i]}`));
   assert.ok(!added.some((l) => l.includes('src/c5/x.js')), 'no card holds the fifth group');
 });
@@ -727,6 +731,26 @@ test('49: agent text never reaches a card-add command line; it reaches the step 
   assert.ok(commandLines.length > 0, 'a card-add line exists');
   assert.ok(!commandLines.some((l) => l.includes('PWNED')), commandLines.join('\n'));
   assert.ok(setup.includes('PWNED'), 'the text is not lost: it is in the step as a file to write');
+});
+
+test('21: a finding\'s file, line and text never reach a card-add command line, and running that line in a shell leaves no PWNED file', async (t) => {
+  const hostile = { ...finding('src/1/$(touch PWNED).js'), line: '1`touch PWNED`', what: '$(touch PWNED) and `touch PWNED` and $HOME' };
+  const r = withFreeNames(responder({ reviewFindings: [hostile] }));
+  await run(baseArgs([card('1')]), r);
+  const setup = r.calls.find((c) => c.label === 'fixup:setup').prompt;
+  const commandLines = setup.split('\n').filter((l) => / card-add /.test(l)).map((l) => l.replace(/^\d+\. /, ''));
+  assert.equal(commandLines.length, 1, 'one card-add line');
+  const line = commandLines[0];
+  assert.ok(!/PWNED|\$\(|`|\$HOME/.test(line), line);
+  for (const flag of ['--title-file', '--paths-file', '--carried-file']) assert.ok(line.includes(flag), `${flag} is on the line: ${line}`);
+  assert.ok(!/--(title|paths|carried) /.test(line), `no text flag is left on the line: ${line}`);
+  assert.ok(setup.includes('src/1/$(touch PWNED).js'), 'the path is not lost: it is in a file the step writes');
+  // The real thing: a shell that runs the line must not run the planted command.
+  const bash = spawnSync('bash', ['-c', 'echo ok'], { encoding: 'utf8' });
+  if (bash.status !== 0) return t.skip('no bash on this machine: the command line was checked as text only');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'uw-pwned-'));
+  spawnSync('bash', ['-c', line], { cwd: dir, encoding: 'utf8' });
+  assert.deepStrictEqual(fs.readdirSync(dir), [], 'running the card-add line wrote nothing');
 });
 
 // --- expert-retry (PLAN-run-fixes.md, card expert-retry, tests 38 to 41) -----------------------------
@@ -907,6 +931,17 @@ test('50: card-add --carried-file takes the carried text from the file, as writt
   assert.equal(r.status, 0, r.stdout + r.stderr);
   const added = JSON.parse(r.stdout.trim().split('\n').pop());
   assert.deepStrictEqual(added.card.carried, ['quality at a.js:1: $(touch PWNED)', 'second item']);
+});
+
+test('50b: card-add --title-file and --paths-file take the title and the paths from the files', () => {
+  const dir = tmpPlan('---\nplan_confirmed: true\n---\n\n# PLAN: x\n\nBody.\n');
+  fs.writeFileSync(path.join(dir, 'title.txt'), 'confirmed review findings\n');
+  fs.writeFileSync(path.join(dir, 'paths.txt'), 'src/a/x.js,src/b/y.js\n');
+  const r = spawnSync(process.execPath, [path.join(PLUGIN, 'experts', 'experts.js'), 'card-add', '--plan', 'PLAN-x.md', '--name', 'fixup', '--title-file', 'title.txt', '--paths-file', 'paths.txt'], { cwd: dir, encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  const added = JSON.parse(r.stdout.trim().split('\n').pop());
+  assert.equal(added.card.title, 'confirmed review findings');
+  assert.deepStrictEqual(added.card.paths, ['src/a/x.js', 'src/b/y.js']);
 });
 
 test('51: a card-commit whose diff holds only test files is still judged by the named card\'s experts', () => {

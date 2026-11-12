@@ -914,14 +914,17 @@ if (stoppedBecause) await runSteps('stopped:notify', [cliCmd('notify', '--featur
 const MAX_FIXUP_CARDS = 4
 const adhocPaths = []
 async function adhocCard(name, title, items, experts, label = name) {
+  // Agent text (a finding's file and words) goes in files the step writes, never on the command line.
   const carriedFile = `${RUN_DIR}/${label}-carried.txt`
+  const titleFile = `${RUN_DIR}/${label}-title.txt`
+  const pathsFile = `${RUN_DIR}/${label}-paths.txt`
   const files = [...new Set(items.map((f) => String(f.file || '').replace(/\\/g, '/')).filter(Boolean))]
   // Only names the plan's line holds: card-add refuses any other, and a plan with no line takes no --experts.
   const laneExperts = experts.filter((n) => PLAN_EXPERTS.includes(n))
   const carriedText = items.map((f) => `${f.expert || f.lens} at ${f.file}:${f.line}: ${f.what}`.replace(/;/g, ','))
   // The name is free-chosen: every later step keys on the one card-add printed.
-  const addCmd = cliCmd('card-add', '--plan', q(PLAN), '--name', name, '--free-name', '--title', q(title), '--paths', q(files.join(',') || '.'), '--carried-file', q(carriedFile), ...(PLAN_EXPERTS.length > 0 ? ['--experts', laneExperts.length > 0 ? laneExperts.join(',') : 'none'] : []))
-  const [added] = await runSteps(`${label}:setup`, [addCmd], [{ path: carriedFile, text: carriedText.join('; ') }])
+  const addCmd = cliCmd('card-add', '--plan', q(PLAN), '--name', name, '--free-name', '--title-file', q(titleFile), '--paths-file', q(pathsFile), '--carried-file', q(carriedFile), ...(PLAN_EXPERTS.length > 0 ? ['--experts', laneExperts.length > 0 ? laneExperts.join(',') : 'none'] : []))
+  const [added] = await runSteps(`${label}:setup`, [addCmd], [{ path: titleFile, text: title }, { path: pathsFile, text: files.join(',') || '.' }, { path: carriedFile, text: carriedText.join('; ') }])
   // A card that never reached the plan cannot be parked (park looks it up there), and nothing was
   // built for it, so it is recorded as not started and the run goes on to the harvest.
   if (!(added && added.ok)) {

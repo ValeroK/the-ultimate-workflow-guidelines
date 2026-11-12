@@ -792,6 +792,37 @@ function runBranch(cwd, { feature }) {
 }
 
 /**
+ * The HEAD now, and what run.json (next to the run's base) recorded of the last review and harvest:
+ * the HEAD the review covered, the HEAD the harvest covered and the harvest branch made. They are
+ * recorded apart, so the half that failed is run again: `record` with `review` or `harvest` moves
+ * that head only, and with neither it moves both. A harvest branch recorded earlier is kept when
+ * none is given.
+ */
+function runState(cwd, { feature, record, review, harvest, harvestBranch: branch, findingsFrom }) {
+  const file = path.join(runDir(cwd, feature), 'run.json');
+  const saved = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : {};
+  const head = git(cwd, ['rev-parse', 'HEAD']).stdout.trim().slice(0, 12);
+  const write = (next) => {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, `${JSON.stringify({ ...saved, feature, ...next }, null, 2)}\n`);
+  };
+  if (findingsFrom) {
+    const pendingFindings = JSON.parse(fs.readFileSync(path.resolve(cwd, findingsFrom), 'utf8').replace(/^﻿/, ''));
+    if (!Array.isArray(pendingFindings)) throw new Error(`${findingsFrom} must hold a JSON array of findings`);
+    write({ pendingFindings });
+    return { ok: true, head, pendingFindings };
+  }
+  const pendingFindings = saved.pendingFindings || [];
+  if (record) {
+    const both = !review && !harvest;
+    const next = { ...(review || both ? { reviewedHead: head } : {}), ...(harvest || both ? { harvestedHead: head } : {}), harvestBranch: branch || saved.harvestBranch || '' };
+    write(next);
+    return { ok: true, head, reviewedHead: next.reviewedHead || saved.reviewedHead || '', harvestedHead: next.harvestedHead || saved.harvestedHead || '', harvestBranch: next.harvestBranch, pendingFindings };
+  }
+  return { ok: true, head, reviewedHead: saved.reviewedHead || '', harvestedHead: saved.harvestedHead || '', harvestBranch: saved.harvestBranch || '', pendingFindings };
+}
+
+/**
  * Harvest proposals as commits on uw/harvest/<feature>, one per destination file, from the current
  * tip, built from a temporary index so nothing is checked out and the working branch is untouched.
  * The user merges the branch or drops it; nothing reaches project memory unseen.
@@ -1091,7 +1122,7 @@ function cli(argv, cwd, out, fail) {
   if (sub === 'journal') action = rest.shift();
   for (let i = 0; i < rest.length; i++) {
     const a = rest[i];
-    if (a === '--resume' || a === '--adhoc' || a === '--fixed-round' || a === '--accept' || a === '--needs-decision') {
+    if (a === '--resume' || a === '--adhoc' || a === '--fixed-round' || a === '--accept' || a === '--needs-decision' || a === '--record' || a === '--review' || a === '--harvest') {
       o[a.slice(2)] = true;
       continue;
     }
@@ -1123,6 +1154,7 @@ function cli(argv, cwd, out, fail) {
   if (sub === 'card-status') return run(() => cardStatus(cwd, { plan: o.plan, card: o.card, status: o.status }));
   if (sub === 'run-branch') return run(() => runBranch(cwd, { feature: o.feature }));
   if (sub === 'ensure-ignored') return run(() => ensureIgnored(cwd));
+  if (sub === 'run-state') return run(() => runState(cwd, { feature: o.feature, record: Boolean(o.record), review: Boolean(o.review), harvest: Boolean(o.harvest), harvestBranch: o['harvest-branch'] || '', findingsFrom: o.findings }));
   if (sub === 'harvest-branch') return run(() => harvestBranch(cwd, { feature: o.feature, from: o.from }));
   if (sub === 'run-report') return run(() => runReport(cwd, { result: o.result, out: o.out || '' }));
   if (sub === 'run-start') {
@@ -1149,6 +1181,6 @@ function cli(argv, cwd, out, fail) {
   return fail(`unknown autopilot command ${sub}`);
 }
 
-const COMMANDS = ['pack', 'handoff', 'park', 'unpark', 'journal', 'card-commit', 'card-status', 'notify', 'decisions', 'card-field', 'run-branch', 'ensure-ignored', 'harvest-branch', 'run-report', 'run-start', 'run-finish'];
+const COMMANDS = ['pack', 'handoff', 'park', 'unpark', 'journal', 'card-commit', 'card-status', 'notify', 'decisions', 'card-field', 'run-branch', 'ensure-ignored', 'run-state', 'harvest-branch', 'run-report', 'run-start', 'run-finish'];
 
 module.exports = { COMMANDS, cardStatus, notify, detectDecisions, acceptDecision, writeRunStatus, commitPlan, pack, handoff, park, unpark, journalAdd, journalCompact, cardCommit, runBranch, ensureIgnored, harvestBranch, withAddition: memoryLib.withAddition, matchingTopicals, testSection, sections, cli, JOURNAL_CARD_LINES, JOURNAL_MAX_LINES };

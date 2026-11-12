@@ -439,6 +439,8 @@ test('card-add 26: --free-name reuses a card only when it is uncommitted with th
     { name: 'a: the same call twice', extra: '', calls: 2, names: ['fixup', 'fixup'], added: 1 },
     { name: 'b: uncommitted fixup with other carried text', extra: oldFixup('fixup', 'something else'), calls: 1, names: ['fixup-2'], added: 1 },
     { name: 'c: committed fixup with the same carried text', extra: oldFixup('fixup', same, true), calls: 1, names: ['fixup-2'], added: 1 },
+    // The name family: a card called fixup-2 is reused, so no fixup-3 is added beside it.
+    { name: 'd: uncommitted fixup-2 with the same carried text', extra: oldFixup('fixup', 'x', true) + oldFixup('fixup-2', same), calls: 1, names: ['fixup-2'], added: 0 },
   ];
   for (const t of table) {
     const g = gateRepo(subPlan({ extra: t.extra }));
@@ -467,4 +469,115 @@ test('card-add 29: a refused card-add prints one JSON line with its own reason',
     assert.equal(r.ok, false, t.name);
     assert.match(r.reason, t.reason, t.name);
   }
+});
+
+// --- settle-first (PLAN-run-fixes.md, card settle-first): run-state reads and records run.json ------
+
+const runFileOf = (g) => path.join(g.dir, '.ultimate-workflow', 'run', 'f', 'run.json');
+const writeRunFile = (g) => {
+  fs.mkdirSync(path.dirname(runFileOf(g)), { recursive: true });
+  fs.writeFileSync(runFileOf(g), `${JSON.stringify({ base: 'abc123456789', plan: 'PLAN-gate.md', feature: 'f', at: 'then' }, null, 2)}\n`);
+};
+const readRunFile = (g) => JSON.parse(fs.readFileSync(runFileOf(g), 'utf8'));
+const runState = (g, ...a) => {
+  const r = gateCli(g, 'run-state', '--feature', 'f', ...a);
+  assert.ok(r.stdout.trim(), `run-state printed no JSON line; stderr: ${r.stderr}`);
+  return lastJson(r);
+};
+const headOf = (g) => git(g.dir, 'rev-parse', 'HEAD');
+const commitLater = (g) => {
+  touch(g, 'src/a/a.js');
+  git(g.dir, 'commit', '-q', '-am', 'later');
+};
+
+test('settle-first 51: run-state reads the HEAD and what run.json recorded; a run with nothing recorded has empty fields', () => {
+  const g = gateRepo();
+  writeRunFile(g);
+  const r = runState(g);
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.ok(r.head.length >= 12 && headOf(g).startsWith(r.head), r.head);
+  assert.equal(r.reviewedHead, '');
+  assert.equal(r.harvestBranch, '');
+  assert.equal(readRunFile(g).base, 'abc123456789', 'reading changes nothing');
+  assert.equal(readRunFile(g).reviewedHead, undefined);
+});
+
+test('settle-first 52: --record stores the HEAD the review covered next to base, and a new commit makes head differ from it', () => {
+  const g = gateRepo();
+  writeRunFile(g);
+  const rec = runState(g, '--record');
+  assert.equal(rec.ok, true, JSON.stringify(rec));
+  const file = readRunFile(g);
+  assert.equal(file.base, 'abc123456789', 'base is kept');
+  assert.equal(file.feature, 'f');
+  assert.ok(file.reviewedHead.length >= 12 && headOf(g).startsWith(file.reviewedHead), JSON.stringify(file));
+  const same = runState(g);
+  assert.equal(same.head, same.reviewedHead);
+  commitLater(g);
+  const after = runState(g);
+  assert.notEqual(after.head, after.reviewedHead);
+  assert.equal(after.reviewedHead, file.reviewedHead);
+});
+
+test('settle-first 53: --harvest-branch is recorded, and a later --record without it keeps it', () => {
+  const g = gateRepo();
+  writeRunFile(g);
+  runState(g, '--record', '--harvest-branch', 'uw/harvest/f');
+  assert.equal(runState(g).harvestBranch, 'uw/harvest/f');
+  commitLater(g);
+  runState(g, '--record');
+  const r = runState(g);
+  assert.equal(r.harvestBranch, 'uw/harvest/f');
+  assert.equal(r.head, r.reviewedHead, 'the recorded head moved to the new HEAD');
+  assert.equal(readRunFile(g).base, 'abc123456789');
+});
+
+test('settle-first 55: --findings stores the findings no card fixed in run.json, run-state reads them back, and an empty list clears them', () => {
+  const g = gateRepo();
+  writeRunFile(g);
+  assert.deepStrictEqual(runState(g).pendingFindings, []);
+  const file = path.join(g.dir, 'findings.json');
+  const kept = [{ file: 'docs/x.md', line: 2, what: 'stale doc', howItFails: 'misleads', confidence: 'low' }];
+  fs.writeFileSync(file, JSON.stringify(kept));
+  const set = runState(g, '--findings', file);
+  assert.equal(set.ok, true, JSON.stringify(set));
+  assert.deepStrictEqual(runState(g).pendingFindings, kept);
+  assert.equal(readRunFile(g).base, 'abc123456789', 'base is kept');
+  assert.equal(readRunFile(g).reviewedHead, undefined, 'storing findings records no review');
+  runState(g, '--record');
+  assert.deepStrictEqual(runState(g).pendingFindings, kept, 'a record keeps them');
+  fs.writeFileSync(file, '[]');
+  runState(g, '--findings', file);
+  assert.deepStrictEqual(runState(g).pendingFindings, []);
+});
+
+test('settle-first 54:run-state without a feature is refused with one JSON line', () => {
+  const g = gateRepo();
+  const r = gateCli(g, 'run-state');
+  const lines = r.stdout.trim().split(/\r?\n/).filter(Boolean);
+  assert.equal(lines.length, 1, `stdout: ${r.stdout} stderr: ${r.stderr}`);
+  assert.equal(JSON.parse(lines[0]).ok, false);
+});
+
+test('settle-first 56: --record --review and --record --harvest move one head each; --record alone moves both', () => {
+  const g = gateRepo();
+  writeRunFile(g);
+  const first = headOf(g);
+  const rev = runState(g, '--record', '--review');
+  assert.ok(first.startsWith(rev.reviewedHead) && rev.reviewedHead.length >= 12, JSON.stringify(rev));
+  assert.equal(rev.harvestedHead, '', 'the harvest is not on record');
+  assert.equal(readRunFile(g).harvestedHead, undefined);
+  commitLater(g);
+  const har = runState(g, '--record', '--harvest', '--harvest-branch', 'uw/harvest/f');
+  assert.ok(headOf(g).startsWith(har.harvestedHead) && har.harvestedHead.length >= 12, JSON.stringify(har));
+  assert.ok(first.startsWith(har.reviewedHead), 'the review head stays where the review left it');
+  assert.notEqual(har.reviewedHead, har.harvestedHead);
+  assert.equal(har.harvestBranch, 'uw/harvest/f');
+  g.put('src/a/a.js', 'module.exports = 2;\n');
+  git(g.dir, 'commit', '-q', '-am', 'later still');
+  const both = runState(g, '--record');
+  assert.equal(both.reviewedHead, both.head);
+  assert.equal(both.harvestedHead, both.head);
+  const read = runState(g);
+  assert.equal(read.harvestedHead, read.head);
 });

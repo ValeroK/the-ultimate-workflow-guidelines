@@ -343,6 +343,7 @@ function agent(calls) {
     if (role === 'decisions') return steps({ ok: true, card: who, major: [], minor: [] });
     if (role === 'start') return steps(...String(call.prompt).split('\n').filter((l) => /card-status/.test(l)).map(() => ({ ok: true })));
     if (role === 'journal' || role === 'carry') return steps({ ok: true });
+    if (who === 'settle') return steps({ ok: true, head: 'head1', reviewedHead: '', harvestBranch: '' });
     if (who === 'review') return { lensVerdict: 'ok', findings: [] };
     if (call.label === 'harvest') return { proposals: [], discarded: [] };
     if (role === 'branch') return steps({ ok: true, branch: 'uw/harvest/f', commits: [] });

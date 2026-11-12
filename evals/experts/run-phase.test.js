@@ -54,6 +54,9 @@ function responder(o = {}) {
     if (role === 'start' || (who === 'blocked' && role === 'status')) return steps(...String(call.prompt).split('\n').filter((l) => /card-status/.test(l)).map(() => ({ ok: true })));
     if (role === 'setup') return steps({ ok: true }, { ok: true, contextFile: `.ultimate-workflow/run/f/cards/${who}/context.md` });
     if (role === 'pack') return steps({ ok: true, contextFile: `.ultimate-workflow/run/f/cards/${who}/context.md` });
+    if (who === 'settle' && role === 'state') return steps({ ok: true, head: 'head1', reviewedHead: '', harvestBranch: '', ...(o.state || {}) });
+    if (who === 'settle' && role === 'record') return steps({ ok: true });
+    if (who === 'settle' && role === 'findings') return steps({ ok: true });
     if (who === 'review' && role === 'refute') return { verdicts: (o.reviewFindings || []).map((_, index) => ({ index, verdict: 'confirmed', reason: 'yes' })) };
     if (who === 'review') return { lensVerdict: 'ok', findings: role === 'correctness' ? o.reviewFindings || [] : [] };
     if (call.label === 'harvest') return { proposals: [{ destination: 'gotcha', path: 'AGENTS.md', text: '- Beware x.', source: 'card 1', rationale: 'r' }], discarded: [] };
@@ -927,4 +930,220 @@ experts: [quality, security]
   assert.deepStrictEqual(got.experts, ['quality']);
   const byHand = experts.effectiveExperts(dir, path.join(dir, 'PLAN-x.md'), PLUGIN, ['test/a.test.js']);
   assert.deepStrictEqual(byHand.experts, ['quality', 'security'], 'no card named: the plan\'s line, as before');
+});
+
+// --- settle-first (PLAN-run-fixes.md, card settle-first, tests 46 to 50) -----------------------------
+// The review, the fix-up cards, the findings card and the harvest wait until no card is parked,
+// needs-decision, blocked or not started. The recorded state of the run (the HEAD the review covered
+// and the harvest branch) is read by the step settle:state and written by settle:record.
+
+const WAITING = /waiting for [^;]*; they run once, on the resume that settles them/;
+const waitingLabels = (labels) => labels.filter((l) => /^(review:|harvest|fixup|findings)/.test(l));
+const recordCalls = (calls) => calls.filter((c) => c.label === 'settle:record');
+const LENS_LABEL = /^review:(correctness|simplicity|surgical-scope|test-coverage)$/;
+
+test('46: with one card parked there is no review, no fix-up card, no findings card and no harvest', async () => {
+  const calls = [];
+  const base = responder({
+    red: ['1'],
+    findings: { 2: [{ file: 'docs/x.md', line: 2, what: 'stale doc', howItFails: 'misleads', confidence: 'low' }] },
+    reviewFindings: [{ file: 'src/2/x.js', line: 3, what: 'off by one', howItFails: 'n=0', confidence: 'high' }],
+  });
+  const r = async (c) => { calls.push(c); return base(c); };
+  const { result } = await run(baseArgs([card('1'), card('2')]), r);
+  assert.equal(result.cards.find((c) => c.card === '1').status, 'parked');
+  assert.equal(result.cards.find((c) => c.card === '2').status, 'committed');
+  assert.deepStrictEqual(waitingLabels(labelsOf(calls)), [], labelsOf(calls).join(' '));
+  assert.equal(result.review.ran, false);
+  assert.match(result.review.reason, WAITING);
+  assert.match(result.review.reason, /waiting for 1(?![\w-])/);
+  assert.match(result.harvest.reason, /waiting for 1(?![\w-])/);
+  const text = JSON.stringify(result);
+  assert.ok(text.includes('/ultimate-workflow:review') && text.includes('/ultimate-workflow:harvest'), 'the commands to run them by hand');
+  assert.equal(recordCalls(calls).length, 0, 'nothing ran, so run.json records no review and no harvest branch');
+  assert.equal(result.pendingFindings.length, 1, 'the finding stays in the report');
+});
+
+test('47: a card that is blocked, needs a decision, was not started, or is a parked fix-up card holds the review or the harvest back', async () => {
+  const major = { ok: true, card: '1', major: [{ kind: 'dependency', what: 'added dependency left-pad@1.3.0 in package.json' }], minor: [] };
+  const two = [card('a', { experts: ['quality'] }), card('b', { experts: ['security'] })];
+  const table = [
+    { name: 'blocked on a card the plan does not have', cards: [card('1'), card('2', { depends: ['ghost'] })], o: {}, waits: ['2'], harvestOnly: false },
+    { name: 'needs-decision', cards: [card('1'), card('2')], o: { decisions: { 1: major } }, waits: ['1'], harvestOnly: false },
+    { name: 'not started because the run stopped', cards: [card('0'), card('1'), card('2'), card('3')], o: { red: ['1', '2'] }, waits: ['3'], harvestOnly: false },
+    { name: 'every plan card committed, fix-up card 1 of 2 parks', cards: two, args: { available: TWO_EXPERTS, planExperts: ['quality', 'security'] }, o: { reviewFindings: [finding('src/a/x.js'), finding('src/b/y.js')], red: ['fixup'] }, waits: ['fixup'], harvestOnly: true },
+  ];
+  for (const t of table) {
+    const r = withFreeNames(responder(t.o));
+    const { result } = await run(baseArgs(t.cards, t.args || {}), r);
+    const labels = labelsOf(r.calls);
+    assert.ok(!labels.some((l) => /^harvest/.test(l)), `${t.name}: no harvest: ${labels.join(' ')}`);
+    assert.equal(result.harvest.ran, false, t.name);
+    for (const w of t.waits) assert.match(result.harvest.reason, new RegExp(`waiting for [^;]*(?<![\\w-])${w}(?![\\w-])`), `${t.name}: ${result.harvest.reason}`);
+    assert.ok(recordCalls(r.calls).every((c) => !/--harvest-branch/.test(c.prompt)), `${t.name}: run.json records no harvest branch`);
+    if (!t.harvestOnly) assert.deepStrictEqual(waitingLabels(labels), [], t.name);
+    else assert.ok(labels.includes('fixup-2:commit'), `${t.name}: the second fix-up card still ran`);
+  }
+});
+
+test('48: with every card committed each review lens and the harvest run exactly once, and run.json records both', async () => {
+  const r = responder();
+  const calls = [];
+  const { result } = await run(baseArgs([card('1'), card('2')]), async (c) => { calls.push(c); return r(c); });
+  const labels = labelsOf(calls);
+  for (const lens of ['correctness', 'simplicity', 'surgical-scope', 'test-coverage']) assert.equal(labels.filter((l) => l === `review:${lens}`).length, 1, lens);
+  assert.equal(labels.filter((l) => l === 'harvest').length, 1);
+  assert.equal(labels.filter((l) => l === 'settle:state').length, 1);
+  const rec = recordCalls(calls);
+  assert.equal(rec.length, 1, 'one record step');
+  assert.match(rec[0].prompt, /run-state [^\n]*--record/);
+  assert.match(rec[0].prompt, /--harvest-branch uw\/harvest\/f/);
+  assert.ok(labels.indexOf('harvest:branch') < labels.indexOf('settle:record'), 'recorded after the harvest branch was made');
+  assert.equal(result.harvest.ran, true);
+});
+
+test('49: the review range starts at the base the run was given, never at the resume HEAD', async () => {
+  const calls = [];
+  const r = responder();
+  const { result } = await run(baseArgs([card('1')], { base: 'feedbee0123', resume: { all: true } }), async (c) => { calls.push(c); return r(c); });
+  const lenses = calls.filter((c) => LENS_LABEL.test(c.label));
+  assert.equal(lenses.length, 4);
+  for (const c of lenses) assert.ok(c.prompt.includes('feedbee0123..HEAD'), c.label);
+  assert.ok(!calls.some((c) => /run-branch/.test(c.prompt)), 'the script never asks runBranch for a base');
+  assert.equal(result.review.range, 'feedbee0123..HEAD');
+});
+
+test('50: a later settling resume reviews only what is new since the recorded head', async () => {
+  // (a) nothing was committed since the review and the harvest
+  const a = responder({ state: { head: 'h2', reviewedHead: 'h2', harvestedHead: 'h2', harvestBranch: 'uw/harvest/f' } });
+  const callsA = [];
+  const outA = await run(baseArgs([card('1', { committed: true })]), async (c) => { callsA.push(c); return a(c); });
+  assert.deepStrictEqual(waitingLabels(labelsOf(callsA)), [], 'no review, no harvest: ' + labelsOf(callsA).join(' '));
+  assert.equal(recordCalls(callsA).length, 0);
+  assert.equal(outA.result.review.ran, false);
+  assert.equal(outA.result.harvest.ran, false);
+  // (b) a card was committed on this resume
+  const b = responder({ state: { head: 'h3', reviewedHead: 'r1', harvestedHead: 'r1', harvestBranch: 'uw/harvest/f' } });
+  const callsB = [];
+  const outB = await run(baseArgs([card('1', { committed: true }), card('2')]), async (c) => { callsB.push(c); return b(c); });
+  const lenses = callsB.filter((c) => LENS_LABEL.test(c.label));
+  assert.equal(lenses.length, 4, 'one review per lens');
+  for (const c of lenses) {
+    assert.ok(c.prompt.includes('r1..HEAD'), c.label);
+    assert.ok(!c.prompt.includes('abc1234..HEAD'), `${c.label} does not start again at the base`);
+  }
+  assert.equal(labelsOf(callsB).filter((l) => l === 'harvest').length, 1);
+  const rec = recordCalls(callsB);
+  assert.equal(rec.length, 1);
+  assert.match(rec[0].prompt, /run-state [^\n]*--record/);
+  assert.equal(outB.result.review.range, 'r1..HEAD');
+});
+
+test('55: a review that ran is recorded even when its fix-up card parks and the harvest waits', async () => {
+  const two = [card('a', { experts: ['quality'] }), card('b', { experts: ['security'] })];
+  const r = withFreeNames(responder({ reviewFindings: [finding('src/a/x.js'), finding('src/b/y.js')], red: ['fixup'] }));
+  const { result } = await run(baseArgs(two, { available: TWO_EXPERTS, planExperts: ['quality', 'security'] }), r);
+  assert.equal(result.review.ran, true);
+  assert.equal(result.harvest.ran, false);
+  const rec = recordCalls(r.calls);
+  assert.equal(rec.length, 1, 'the review is on record');
+  assert.match(rec[0].prompt, /run-state [^\n]*--record/);
+  assert.ok(!/--harvest-branch/.test(rec[0].prompt), 'no harvest branch was made');
+});
+
+test('56: findings no card fixed outlive a run that waits, and the settling resume fixes them', async () => {
+  const stuck = { file: 'docs/x.md', line: 2, what: 'stale doc', howItFails: 'misleads', confidence: 'low', expert: 'quality' };
+  // (a) card 1 parks: the findings are written to run.json by the run-state step
+  const a = responder({ red: ['1'], findings: { 2: [stuck] } });
+  const callsA = [];
+  await run(baseArgs([card('1'), card('2')]), async (c) => { callsA.push(c); return a(c); });
+  const saved = callsA.filter((c) => c.label === 'settle:findings');
+  assert.equal(saved.length, 1);
+  assert.match(saved[0].prompt, /run-state [^\n]*--findings/);
+  assert.ok(saved[0].prompt.includes('stale doc'), 'the finding is in the file');
+  // (b) the settling resume: nothing new in memory, the recorded finding is fixed by the findings card
+  // The review and the harvest both covered this HEAD: only the findings card's commit makes them run.
+  const b = responder({ state: { head: 'h2', reviewedHead: 'h2', harvestedHead: 'h2', pendingFindings: [stuck] } });
+  const callsB = [];
+  const outB = await run(baseArgs([card('1', { committed: true }), card('2', { committed: true })]), async (c) => { callsB.push(c); return b(c); });
+  assert.equal(outB.result.findingsCard.status, 'committed', JSON.stringify(outB.result.findingsCard));
+  assert.ok(labelsOf(callsB).includes('findings:write-tests'));
+  assert.equal(callsB.filter((c) => c.label === 'settle:findings').length, 1, 'the file is cleared');
+  assert.ok(callsB.find((c) => c.label === 'settle:findings').prompt.includes('[]'), 'cleared to an empty list');
+  assert.equal(outB.result.review.ran, true, 'the findings card commit is reviewed');
+  assert.equal(outB.result.harvest.ran, true, 'and harvested');
+});
+
+test('57: the review and the harvest are recorded apart, so the half that failed is run again and the other is not', async () => {
+  // (a) the review ran, the harvest agent returned nothing: only the review is recorded
+  const a = responder();
+  const callsA = [];
+  const outA = await run(baseArgs([card('1')]), async (c) => { callsA.push(c); return c.label === 'harvest' ? null : a(c); });
+  assert.equal(outA.result.review.ran, true);
+  assert.equal(outA.result.harvest.ran, false);
+  const recA = recordCalls(callsA);
+  assert.equal(recA.length, 1);
+  assert.match(recA[0].prompt, /run-state [^\n]*--record[^\n]*--review/);
+  assert.ok(!/--harvest(?!-branch)/.test(recA[0].prompt), 'a harvest that did not run is not recorded: ' + recA[0].prompt);
+  // (b) the resume after it: the review covered this HEAD, the harvest did not
+  const b = responder({ state: { head: 'h2', reviewedHead: 'h2', harvestedHead: '' } });
+  const callsB = [];
+  const outB = await run(baseArgs([card('1', { committed: true })]), async (c) => { callsB.push(c); return b(c); });
+  assert.equal(callsB.filter((c) => LENS_LABEL.test(c.label)).length, 0, 'no second review');
+  assert.equal(labelsOf(callsB).filter((l) => l === 'harvest').length, 1, 'the harvest is run again');
+  assert.equal(outB.result.review.ran, false);
+  assert.equal(outB.result.harvest.ran, true);
+  const recB = recordCalls(callsB);
+  assert.equal(recB.length, 1);
+  assert.match(recB[0].prompt, /run-state [^\n]*--record[^\n]*--harvest(?!-branch)/);
+  assert.ok(!/--review/.test(recB[0].prompt), 'the review did not run, so its head is not moved: ' + recB[0].prompt);
+  // (c) the other way round: the harvest covered this HEAD, the review did not
+  const c3 = responder({ state: { head: 'h2', reviewedHead: 'r1', harvestedHead: 'h2' } });
+  const callsC = [];
+  const outC = await run(baseArgs([card('1', { committed: true })]), async (c) => { callsC.push(c); return c3(c); });
+  assert.equal(callsC.filter((c) => LENS_LABEL.test(c.label)).length, 4, 'the review is run again');
+  assert.equal(labelsOf(callsC).filter((l) => l === 'harvest').length, 0, 'no second harvest');
+  assert.equal(outC.result.review.range, 'r1..HEAD');
+  const recC = recordCalls(callsC);
+  assert.equal(recC.length, 1);
+  assert.match(recC[0].prompt, /--review/);
+  assert.ok(!/--harvest(?!-branch)/.test(recC[0].prompt), recC[0].prompt);
+});
+
+test('57b: a harvest whose branch step failed is not recorded as done', async () => {
+  const base = responder();
+  const calls = [];
+  const { result } = await run(baseArgs([card('1')]), async (c) => { calls.push(c); return c.label === 'harvest:branch' ? steps({ ok: false, reason: 'boom' }) : base(c); });
+  assert.equal(result.harvest.error, 'boom');
+  const rec = recordCalls(calls);
+  assert.equal(rec.length, 1, 'the review is still recorded');
+  assert.match(rec[0].prompt, /--review/);
+  assert.ok(!/--harvest(?!-branch)/.test(rec[0].prompt), rec[0].prompt);
+});
+
+test('58: a fix-up card committed by this run\'s review is harvested, though the harvest covered the head read before it', async () => {
+  const two = [card('a', { experts: ['quality'], committed: true }), card('b', { experts: ['security'], committed: true })];
+  const state = { head: 'h2', reviewedHead: 'r1', harvestedHead: 'h2' };
+  const r = withFreeNames(responder({ state, reviewFindings: [finding('src/a/x.js'), finding('src/b/y.js')] }));
+  const { result } = await run(baseArgs(two, { available: TWO_EXPERTS, planExperts: ['quality', 'security'] }), r);
+  const fixups = result.cards.filter((c) => /^fixup/.test(c.card));
+  assert.deepStrictEqual(fixups.map((c) => `${c.card} ${c.status}`), ['fixup committed', 'fixup-2 committed']);
+  assert.equal(labelsOf(r.calls).filter((l) => l === 'harvest').length, 1, 'the fix-up commits are harvested');
+  assert.equal(result.harvest.ran, true);
+  const rec = recordCalls(r.calls);
+  assert.equal(rec.length, 1);
+  assert.match(rec[0].prompt, /--review/);
+  assert.match(rec[0].prompt, /--harvest(?!-branch)/);
+});
+
+test('59: a review with a lens that returned nothing is not recorded as covering the head, so the next resume reviews the range again', async () => {
+  const base = responder();
+  const calls = [];
+  const { result } = await run(baseArgs([card('1')]), async (c) => { calls.push(c); return c.label === 'review:simplicity' ? null : base(c); });
+  assert.deepStrictEqual(result.review.failedLenses, ['simplicity']);
+  assert.equal(result.harvest.ran, true);
+  const rec = recordCalls(calls);
+  assert.equal(rec.length, 1, 'the harvest is still recorded');
+  assert.match(rec[0].prompt, /--harvest(?!-branch)/);
+  assert.ok(!/--review/.test(rec[0].prompt), 'an incomplete review does not move the reviewed head: ' + rec[0].prompt);
 });

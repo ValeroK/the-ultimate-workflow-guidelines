@@ -938,8 +938,23 @@ async function adhocCard(name, title, items, experts, label = name) {
   return runCard(card, { adhoc: true })
 }
 
+// The review, the fix-up cards, the findings card and the harvest wait for every card to be settled.
+const waitingFor = () => Object.keys(status).filter((n) => status[n] !== 'committed' && (names.has(n) || status[n] !== 'not started'))
+const waitingReason = (w) => `waiting for ${w.join(', ')}; they run once, on the resume that settles them. To run them by hand: /ultimate-workflow:review, then /ultimate-workflow:harvest`
+let waiting = waitingFor()
+
+const anyCommitted = Object.values(status).includes('committed')
+// What run.json recorded of the last review and harvest: a later settling resume reviews only what is new.
+// It also holds the findings no card fixed, which a run that waited could not hand to the findings card.
+let state = { head: '', reviewedHead: '', harvestedHead: '', harvestBranch: '', pendingFindings: [] }
+if (anyCommitted) {
+  const [read] = await runSteps('settle:state', [cliCmd('run-state', '--feature', FEATURE)])
+  if (read && read.ok) state = read
+}
+findingsQueue.push(...(state.pendingFindings || []))
+
 let findingsCard = null
-if (!stoppedBecause && findingsQueue.length > 0) {
+if (!stoppedBecause && waiting.length === 0 && findingsQueue.length > 0) {
   setPhase('Findings')
   // G6 asks a run-added card for the experts of every plan card covering its files as well: the raisers
   // alone can fall short.
@@ -947,17 +962,30 @@ if (!stoppedBecause && findingsQueue.length > 0) {
   const coverers = covering.flatMap((c) => c.experts || [])
   findingsCard = await adhocCard('findings', 'non-blocking expert findings no card fixed', findingsQueue, [...new Set([...findingsQueue.map((f) => f.expert), ...coverers].filter(Boolean))])
 }
+// The findings still unfixed are written to run.json, so the resume that settles the waiting cards fixes them.
+const unfixed = findingsCard && findingsCard.status !== 'not started' ? [] : findingsQueue
+if (unfixed.length > 0 || (state.pendingFindings || []).length > 0) {
+  const file = `${RUN_DIR}/findings.json`
+  await runSteps('settle:findings', [cliCmd('run-state', '--feature', FEATURE, '--findings', q(file))], [{ path: file, text: JSON.stringify(unfixed) }])
+}
 
+waiting = waitingFor()
 setPhase('Review')
 const REVIEW_LENSES = ['correctness', 'simplicity', 'surgical-scope', 'test-coverage']
-const anyCommitted = Object.values(status).includes('committed')
-let review = { ran: false, reason: anyCommitted ? '' : 'no card was committed, so there is nothing to review' }
+// A findings card that ran added a commit the recorded head does not cover.
+const nothingNew = !findingsCard && Boolean(state.reviewedHead) && state.reviewedHead === state.head
+// The harvest has its own recorded head: a harvest that failed is run again though the review is on record.
+const covered = (head) => !findingsCard && Boolean(head) && head === state.head
+const FROM = state.reviewedHead || BASE
+let review = { ran: false, reason: waiting.length > 0 ? waitingReason(waiting) : !anyCommitted ? 'no card was committed, so there is nothing to review' : nothingNew ? 'no card was committed since the last review' : '' }
 let fixupCard = null
-if (anyCommitted && !stoppedBecause) {
+// A fix-up card committed by this run's review is newer than the head read before it.
+let fixupCommitted = false
+if (anyCommitted && !stoppedBecause && waiting.length === 0 && !nothingNew) {
   const lensResults = await parallel(
     REVIEW_LENSES.map((lens) => () =>
       agent(
-        `Review the diff \`git diff ${BASE}..HEAD\` (every card this run committed) through the ${lens} lens ONLY. Another reviewer has each of the other lenses. Read the plan ${PLAN} first, then the diff, then the surrounding code.${lens === 'surgical-scope' ? ' For each hunk ask whether it traces to the plan; flag what does not.' : ''}${lens === 'test-coverage' ? ' Ask whether the tests would FAIL if the code were wrong.' : ''}
+        `Review the diff \`git diff ${FROM}..HEAD\` (every card committed since the last review) through the ${lens} lens ONLY. Another reviewer has each of the other lenses. Read the plan ${PLAN} first, then the diff, then the surrounding code.${lens === 'surgical-scope' ? ' For each hunk ask whether it traces to the plan; flag what does not.' : ''}${lens === 'test-coverage' ? ' Ask whether the tests would FAIL if the code were wrong.' : ''}
 
 Every finding needs a file, a line, one sentence on the defect and a concrete failure scenario. Set lensVerdict whether or not you find anything. ${NO_QUOTA}`,
         { agentType: agentName('uw-reviewer'), label: `review:${lens}`, phase: 'Review', schema: FINDINGS }
@@ -989,7 +1017,7 @@ For each: read the code, check the failure path is reachable, look for the guard
       else refuted.push({ ...f, refutedBecause: x.reason })
     })
   }
-  review = { ran: failedLenses.length < REVIEW_LENSES.length, range: `${BASE}..HEAD`, failedLenses, findings: confirmed, refuted, unverified }
+  review = { ran: failedLenses.length < REVIEW_LENSES.length, range: `${FROM}..HEAD`, failedLenses, findings: confirmed, refuted, unverified }
   // Decision 2 applied to the review (2026-11-09): a confirmed finding is fixed, not only reported.
   // High and medium ones in a file some card of this run could change go to fix-up cards; low ones,
   // and any outside the run's files, stay in the report. One card per plan card whose paths cover the
@@ -1009,12 +1037,14 @@ For each: read the code, check the failure path is reachable, look for the guard
     const lane = covering.length > 0 ? [...new Set(covering.flatMap((c) => c.experts || []))] : PLAN_EXPERTS
     const entry = await adhocCard('fixup', 'confirmed review findings', group, lane, i === 0 ? 'fixup' : `fixup-${i + 1}`)
     if (i === 0) fixupCard = entry
+    if (entry && entry.status === 'committed') fixupCommitted = true
     if (stoppedBecause) break
   }
 }
 
 // ---- harvest to a branch ----
 
+waiting = waitingFor()
 setPhase('Harvest')
 const PROPOSALS = {
   type: 'object',
@@ -1053,8 +1083,9 @@ const PROPOSALS = {
     },
   },
 }
-let harvest = { ran: false, reason: anyCommitted ? '' : 'nothing was committed' }
-if (anyCommitted) {
+const harvested = covered(state.harvestedHead) && !fixupCommitted
+let harvest = { ran: false, reason: waiting.length > 0 ? waitingReason(waiting) : !anyCommitted ? 'nothing was committed' : harvested ? 'no card was committed since the last harvest' : '' }
+if (anyCommitted && waiting.length === 0 && !harvested) {
   const routed = await agent(
     `Harvest the durable lessons of this run. Read the run journal ${RUN_DIR}/journal.md (what each card learned), the plan ${PLAN}, \`git diff ${BASE}..HEAD --stat\` and \`git log ${BASE}..HEAD\`, and what the project already records: the "## Gotchas" of AGENTS.md (or CLAUDE.md), memory.md and memory/*.md. First run \`${CLI} memory check\` (add \`--root <folder>\` when memory.md is not in the project root) and use its warnings: a topical not migrated, or a header path that matches no file, which you correct with add_paths, add_keywords and remove_paths on that topical.
 
@@ -1067,6 +1098,14 @@ Route each lesson worth keeping: "Beware / Don't / Note that" is a Gotcha (path 
     const [branch] = await runSteps('harvest:branch', [cliCmd('harvest-branch', '--feature', FEATURE, '--from', q(file))], [{ path: file, text: JSON.stringify(routed.proposals) }])
     harvest = { ran: true, proposals: routed.proposals.length, discarded: routed.discarded.length, branch: branch && branch.ok ? branch.branch : null, commits: branch && branch.ok ? branch.commits : [], ...(branch && branch.ok ? {} : { error: (branch && branch.reason) || 'harvest-branch printed nothing' }), list: routed.proposals.map((p) => ({ destination: p.destination, path: p.path, source: p.source })) }
   }
+}
+// What ran is on record, each half apart: the next settling resume runs again only the half that is missing.
+const harvestDone = harvest.ran && !harvest.error
+// A review with a lens that returned nothing did not cover the range: it is run again.
+const reviewDone = review.ran && (review.failedLenses || []).length === 0
+if (reviewDone || harvestDone) {
+  const branch = /^uw\/harvest\/[A-Za-z0-9._-]+$/.test(harvest.branch || '') ? harvest.branch : ''
+  await runSteps('settle:record', [cliCmd('run-state', '--feature', FEATURE, '--record', ...(reviewDone ? ['--review'] : []), ...(harvestDone ? ['--harvest'] : []), ...(branch ? ['--harvest-branch', branch] : []))])
 }
 
 const counts = report.reduce((n, r) => ({ ...n, [r.status]: (n[r.status] || 0) + 1 }), {})
@@ -1087,7 +1126,7 @@ return {
   fixupCard,
   harvest,
   expertLanes: lanes,
-  pendingFindings: findingsCard && findingsCard.status !== 'not started' ? [] : findingsQueue,
+  pendingFindings: unfixed,
   ...(stoppedBecause ? { stopped: stoppedBecause } : {}),
   summary: `${counts.committed || 0} committed, ${counts.parked || 0} parked, ${counts.blocked || 0} blocked${counts['not started'] ? `, ${counts['not started']} not started` : ''}${stoppedBecause ? `; stopped: ${stoppedBecause}` : ''}. Review: ${review.ran ? `${(review.findings || []).length} confirmed` : review.reason || 'not run'}. Harvest: ${harvest.ran ? `${harvest.proposals || 0} proposals${harvest.branch ? ` on ${harvest.branch}` : ''}` : harvest.reason || 'not run'}.`,
 }

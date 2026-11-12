@@ -130,7 +130,8 @@ What is there, and what each card reuses.
 - reasons: whole park reasons, and the real conflict from unpark
   paths: .cursor-plugin/ultimate-workflow/lib/run-rules.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, .cursor-plugin/ultimate-workflow/phases/run.js, evals/experts/run-rules.test.js, evals/experts/autopilot-fixes.test.js
   depends: harvest-name
-  status: blocked by harvest-name
+  status: committed 4e7d7378f57d
+  committed: 4e7d7378f57d
 - one-notice: one desktop notification per run
   paths: .cursor-plugin/ultimate-workflow/experts/autopilot.js, evals/experts/autopilot-fixes.test.js
   depends: reasons

@@ -145,7 +145,8 @@ What is there, and what each card reuses.
 - report-cost: pack size and token cost per card in the report
   paths: .cursor-plugin/ultimate-workflow/experts/autopilot.js, .cursor-plugin/ultimate-workflow/phases/run.js, evals/experts/autopilot-fixes.test.js
   depends: dry-run
-  status: blocked by dry-run
+  status: committed fae58a8db289
+  committed: fae58a8db289
 - run-md: run.md says what the code does
   paths: .cursor-plugin/ultimate-workflow/phases/run.md, evals/experts/docs.test.js
   depends: report-cost

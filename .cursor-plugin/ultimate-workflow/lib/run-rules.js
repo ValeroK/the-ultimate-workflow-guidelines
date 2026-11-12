@@ -86,4 +86,37 @@ function reusableCard(cards, base, title, carried) {
   return cards.find((c) => family.test(c.name) && !c.committed && !/^committed\b/.test(c.status || '') && c.title === squash(title) && c.carried.join(';') === want) || null;
 }
 
-module.exports = { RUN_ADDED, acceptedFiles, narrowedExperts, freeName, reusableCard };
+/**
+ * A park reason for one plan line: on one line, no semicolon (it would end the field), at most
+ * REASON_KEEP characters of the reason, cut at the last word end (a hard cut when there is no space,
+ * never inside a surrogate pair), followed by `tail`, which says where the whole text is.
+ */
+const REASON_KEEP = 240;
+function shortReason(reason, tail) {
+  const flat = squash(reason).replace(/;/g, ',');
+  if (flat.length <= REASON_KEEP) return `${flat} (${tail})`;
+  const space = flat.lastIndexOf(' ', REASON_KEEP);
+  let end = space > 0 ? space : REASON_KEEP;
+  const last = flat.charCodeAt(end - 1);
+  if (last >= 0xd800 && last <= 0xdbff) end -= 1;
+  return `${flat.slice(0, end).trim()} ... (${tail})`;
+}
+
+/**
+ * What a failed `git apply --3way` printed, read for the user: the files in conflict, or, when it
+ * names none, its last lines (the first ones say which files applied cleanly). Git's wording is
+ * read with LC_ALL=C.
+ */
+const CONFLICT_TAIL = 5;
+function conflictOf(output) {
+  const all = String(output || '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const files = [];
+  for (const l of all) {
+    const m = /^Applied patch to '(.+)' with conflicts\.$/.exec(l) || /^error: patch failed: (.+):\d+$/.exec(l) || /^error: (.+): patch does not apply$/.exec(l) || /^U (.+)$/.exec(l);
+    if (m && !files.includes(m[1])) files.push(m[1]);
+  }
+  if (files.length > 0) return { files, text: `conflict in ${files.join(', ')}` };
+  return { files, text: all.slice(-CONFLICT_TAIL).join(' / ') || 'git apply printed nothing' };
+}
+
+module.exports = { RUN_ADDED, acceptedFiles, narrowedExperts, freeName, reusableCard, REASON_KEEP, shortReason, CONFLICT_TAIL, conflictOf };

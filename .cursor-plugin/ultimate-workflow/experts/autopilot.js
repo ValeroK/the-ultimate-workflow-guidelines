@@ -633,7 +633,8 @@ function park(cwd, { plan, card: name, feature, reasonFile = '', reason = '', ne
   fs.writeFileSync(path.join(dir, 'parked.md'), `# Parked: card ${card.name} (${card.title})\n\nBranch: ${branch} (commit ${commit.slice(0, 12)}, on ${head.slice(0, 12)})\n\n${why}\n`);
   // The whole reason on one line, not its first line: a reason that is a heading and a list kept
   // only "...so no fix round:" in the plan, as the report once did (2026-11-09, a real run).
-  const short = why.replace(/\s*\r?\n\s*/g, ' ').replace(/;/g, ',').slice(0, 240);
+  // The plan lines stay short: cut at a word end, and they name parked.md, which holds the whole text.
+  const short = runRules.shortReason(why, `whole text: ${rel(cwd, path.join(dir, 'parked.md'))}`);
   writePlanField(cwd, plan, card.name, 'parked', `${branch}; ${short}`);
   // A card held for a major decision the plan does not state says so, and the plan holds the decision.
   setStatus(cwd, plan, card.name, `${needsDecision ? 'needs-decision' : 'parked'} ${branch}; ${short}`);
@@ -667,10 +668,10 @@ function unpark(cwd, { plan, card: name, feature }) {
   const patch = git(cwd, ['diff', '--binary', `${branch}^`, branch, '--', '.', ...EXCLUDES]).stdout;
   const tests = git(cwd, ['diff', '--name-only', `${branch}^`, branch, '--', '.', ...EXCLUDES]).stdout.split(/\r?\n/).filter(Boolean).filter((f) => require('../hooks/lib/gates.js').isTestPath(f));
   if (patch.trim()) {
-    const r = spawnSync('git', ['apply', '--3way', '--whitespace=nowarn', '-'], { cwd, input: patch, encoding: 'utf8' });
+    const r = spawnSync('git', ['apply', '--3way', '--whitespace=nowarn', '-'], { cwd, input: patch, encoding: 'utf8', env: { ...process.env, LC_ALL: 'C', LANG: 'C' } });
     if (r.status !== 0) {
       git(cwd, ['reset', '-q', '--hard', 'HEAD'], { allowFail: true });
-      throw new Error(`card ${card.name}'s parked work does not apply on the current tip: ${(r.stderr || '').trim().split(/\r?\n/)[0]}`);
+      throw new Error(`card ${card.name}'s parked work does not apply on the current tip: ${runRules.conflictOf(`${r.stderr || ''}\n${r.stdout || ''}`).text}`);
     }
     git(cwd, ['reset', '-q'], { allowFail: true });
   }
@@ -913,7 +914,7 @@ function harvestBranch(cwd, { feature, from }) {
 function runReport(cwd, { result: resultFile, out = '' }) {
   const r = require('./ledger.js').unwrapResult(fs.readFileSync(path.resolve(cwd, resultFile), 'utf8'));
   if (r.ok !== true) throw new Error(`the run result is not ok: ${r.error || 'no error given'}`);
-  const row = (c) => `| ${c.card} | ${c.title || ''} | ${c.status} | ${c.commit || c.branch || ''} | ${String(c.reason || (c.build ? `${c.build.rounds} round(s)${c.fixRound ? ` and a fix round (${c.fixRound.outcome})` : ''}${c.superseded ? `; ran again within the plan, the held work on ${c.superseded} is superseded (kept for reference, delete it when done)` : ''}` : '')).replace(/\|/g, '/').replace(/\r?\n/g, ' ')}${c.pack ? ` (pack ${c.pack.tokens} of ${c.pack.budget} tokens)` : ''} |`;
+  const row = (c) => `| ${c.card} | ${c.title || ''} | ${c.status} | ${c.commit || c.branch || ''} | ${String(c.reason || (c.build ? `${c.build.rounds} round(s)${c.fixRound ? ` and a fix round (${c.fixRound.outcome})` : ''}${c.superseded ? `; ran again within the plan, the held work on ${c.superseded} is superseded (kept for reference, delete it when done)` : ''}` : '')).replace(/\|/g, '/').replace(/\s*\r?\n\s*/g, ' ')}${c.pack ? ` (pack ${c.pack.tokens} of ${c.pack.budget} tokens)` : ''} |`;
   const warningsFile = path.join(runDir(cwd, r.feature), 'memory-warnings.json');
   const memoryWarnings = fs.existsSync(warningsFile) ? JSON.parse(fs.readFileSync(warningsFile, 'utf8')) : [];
   const all = [...(r.cards || []), ...(r.findingsCard ? [r.findingsCard] : []), ...(r.fixupCard ? [r.fixupCard] : [])];

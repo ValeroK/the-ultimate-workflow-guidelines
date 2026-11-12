@@ -158,7 +158,7 @@ test('park writes parked into the plan and commits the plan alone on the run bra
   assert.equal(p.planCommit.committed, true, JSON.stringify(p.planCommit));
   assert.equal(git(dir, 'rev-parse', 'HEAD~1'), tip, 'one commit on the run branch: the plan');
   assert.deepStrictEqual(git(dir, 'show', '--name-only', '--format=', 'HEAD').split('\n'), ['PLAN-calc.md']);
-  assert.equal(cards.findCard(git(dir, 'show', 'HEAD:PLAN-calc.md'), '1').status, 'parked uw/parked/calc/1; not green: red three times');
+  assert.equal(cards.findCard(git(dir, 'show', 'HEAD:PLAN-calc.md'), '1').status, 'parked uw/parked/calc/1; not green: red three times (whole text: .ultimate-workflow/run/calc/cards/1/parked.md)');
   assert.equal(git(dir, 'status', '--porcelain'), '', 'the plan on the run branch matches git');
   const u = json(cli(dir, 'unpark', '--plan', 'PLAN-calc.md', '--card', '1', '--feature', 'calc'));
   assert.equal(u.ok, true, JSON.stringify(u));
@@ -173,7 +173,8 @@ test('park keeps the whole reason in the plan, on one line, when it is a heading
   write(dir, 'why.txt', 'blocking finding from the experts check, outside this card\'s paths so no fix round:\n- quality: src/prices.js:4 an unknown item is priced at 0\n');
   assert.equal(json(cli(dir, 'park', '--plan', 'PLAN-calc.md', '--card', '1', '--feature', 'calc', '--reason-file', 'why.txt')).ok, true);
   const c = cards.findCard(read(dir, 'PLAN-calc.md'), '1');
-  assert.match(c.status, /so no fix round: - quality: src\/prices\.js:4 an unknown item is priced at 0$/);
+  // PLAN-run-fixes.md, card reasons: the line also names parked.md, which holds the whole text.
+  assert.match(c.status, /so no fix round: - quality: src\/prices\.js:4 an unknown item is priced at 0 \(whole text: [^)]*parked\.md\)$/);
   assert.match(c.parked.reason, /src\/prices\.js:4 an unknown item is priced at 0/);
 });
 
@@ -594,7 +595,7 @@ test('park commits the card\'s work, failing tests and new files included, to it
   assert.equal(git(dir, 'rev-parse', 'uw/parked/calc/1^'), head);
   const plan = read(dir, 'PLAN-calc.md');
   assert.match(plan, /verify_rounds: 3/, 'the plan is kept as it was, not reset to its committed version');
-  assert.deepStrictEqual(cards.findCard(plan, '1').parked, { branch: 'uw/parked/calc/1', reason: 'Verification failed 3 times, the subtraction test cannot pass. Signature: sub-red' });
+  assert.deepStrictEqual(cards.findCard(plan, '1').parked, { branch: 'uw/parked/calc/1', reason: 'Verification failed 3 times, the subtraction test cannot pass. Signature: sub-red (whole text: .ultimate-workflow/run/calc/cards/1/parked.md)' });
   assert.match(read(dir, r.parked), /Signature: sub-red/);
   assert.equal(git(dir, 'status', '--porcelain', '--', 'src', 'test'), '');
 });

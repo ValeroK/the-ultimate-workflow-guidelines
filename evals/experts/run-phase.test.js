@@ -1197,3 +1197,50 @@ test('59: a review with a lens that returned nothing is not recorded as covering
   assert.match(rec[0].prompt, /--harvest(?!-branch)/);
   assert.ok(!/--review/.test(rec[0].prompt), 'an incomplete review does not move the reviewed head: ' + rec[0].prompt);
 });
+
+// --- reasons (PLAN-run-fixes.md, card reasons, test 58 and the expert case) -------------------------
+
+const commandLinesOf = (calls) => calls.flatMap((c) => String(c.prompt).split('\n').filter((l) => /^\d+\. node "\/p\/experts\/experts\.js" /.test(l)));
+const LONG = `${Array.from({ length: 200 }, (_, i) => `part${i}`).join(' ')} THE-END`;
+
+test('reasons 58: a long park reason reaches the report whole', async () => {
+  assert.ok(LONG.length > 700);
+  const { result } = await run(baseArgs([card('1')]), responder({ commitFails: { 1: LONG } }));
+  const entry = result.cards.find((c) => c.card === '1');
+  assert.equal(entry.status, 'parked');
+  assert.ok(entry.reason.includes('THE-END'), `the reason is not cut: ...${entry.reason.slice(-60)}`);
+  assert.ok(!entry.reason.includes('\n'), 'one line');
+});
+
+test('reasons 58: a held card run again within the plan keeps the whole detail of why it failed', async () => {
+  const calls = [];
+  const base = responder({ commitFails: { 1: LONG } });
+  const args = baseArgs([card('1', { parked: { branch: 'uw/parked/f/1' } })], { resume: { card: '1', rerun: true, avoid: 'needs a decision the plan does not state: a new dependency' } });
+  const { result } = await run(args, async (c) => { calls.push(c); return base(c); });
+  const entry = result.cards.find((c) => c.card === '1');
+  assert.equal(entry.status, 'needs-decision', JSON.stringify(entry).slice(0, 300));
+  assert.ok(entry.reason.includes('THE-END'), `...${entry.reason.slice(-80)}`);
+  assert.ok(calls.find((c) => c.label === '1:park').prompt.includes('THE-END'), 'the park reason file holds it whole');
+});
+
+test('reasons 58: a refused commit that printed text and no JSON keeps all of that text', async () => {
+  const base = responder();
+  const { result } = await run(baseArgs([card('1')]), async (c) => (c.label === '1:commit' ? steps({ stage: 'review', recorded: ['quality'], findings: 0, open: [] }, `refused ${LONG}`) : base(c)));
+  const entry = result.cards.find((c) => c.card === '1');
+  assert.equal(entry.status, 'parked');
+  assert.ok(entry.reason.includes('THE-END'), `...${entry.reason.slice(-80)}`);
+});
+
+test('reasons 58 and the expert case: the stop text goes to the stopped notice through a file, whole, and never on a command line', async () => {
+  const hostile = `the same failure $(touch PWNED) and \`touch PWNED\` and $HOME ${LONG}`;
+  const calls = [];
+  const base = responder({ commitFails: { 1: hostile, 2: hostile } });
+  const { result } = await run(baseArgs([card('1'), card('2'), card('3')]), async (c) => { calls.push(c); return base(c); });
+  assert.match(result.stopped, /two cards in a row were parked for the same reason/);
+  assert.ok(result.stopped.includes('THE-END'), 'the stop text is whole');
+  const stop = calls.find((c) => c.label === 'stopped:notify');
+  assert.ok(stop, 'the stopped notice is sent');
+  assert.match(stop.prompt, /notify [^\n]*--kind stopped[^\n]*--reason-file/);
+  assert.ok(stop.prompt.includes('THE-END'), 'the whole stop text is in the file the step writes');
+  for (const line of commandLinesOf(calls)) assert.ok(!/PWNED|\$\(|`|\$HOME/.test(line), line.slice(0, 300));
+});

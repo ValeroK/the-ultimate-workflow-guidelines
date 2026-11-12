@@ -635,3 +635,78 @@ test('harvest-name 54: the memory.md merge-conflict note is still given, on a se
     assert.match(git(g.dir, 'log', '-1', '--format=%B', branch), /conflicts in memory\.md, take either side/, branch);
   }
 });
+
+// --- reasons (PLAN-run-fixes.md, card reasons, tests 55 to 57 and 59) ------------------------------
+
+const runRulesLib = require(path.join(PLUGIN, 'lib', 'run-rules.js'));
+const longReason = () => Array.from({ length: 900 }, (_, i) => `word${i}`).join(' ');
+const parkWith = (g, card, reason) => {
+  g.put('why.txt', reason);
+  const r = lastJson(gateCli(g, 'park', '--plan', 'PLAN-gate.md', '--card', card, '--feature', 'f', '--reason-file', 'why.txt'));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  return r;
+};
+const planLines = (g, key) => fs.readFileSync(g.plan, 'utf8').split(/\r?\n/).filter((l) => new RegExp(`^\\s+${key}: `).test(l));
+const reportFor = (g, cardsOut) => {
+  g.put('.ultimate-workflow/run/f/result.json', JSON.stringify({ ok: true, feature: 'f', branch: 'uw/run/f', base: 'abc', plan: 'PLAN-gate.md', cards: cardsOut, counts: {}, review: { ran: false, reason: 'x' }, harvest: { ran: false, reason: 'x' } }));
+  const r = lastJson(gateCli(g, 'run-report', '--result', '.ultimate-workflow/run/f/result.json'));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  return fs.readFileSync(path.join(g.dir, '.ultimate-workflow', 'run', 'f', 'report.md'), 'utf8');
+};
+
+test('reasons 55 and 56: a 5000-character park reason is whole and on one line in report.md, and newlines are joined', () => {
+  const g = gateRepo();
+  const whole = longReason();
+  assert.ok(whole.length > 5000 && !whole.includes('\n'));
+  const withNewlines = 'first line\nsecond line\n\nfourth line';
+  const report = reportFor(g, [
+    { card: 'A', title: 'first', status: 'parked', branch: 'uw/parked/f/A', reason: whole },
+    { card: 'B', title: 'second', status: 'parked', branch: 'uw/parked/f/B', reason: withNewlines },
+  ]);
+  const rowA = report.split(/\r?\n/).find((l) => l.startsWith('| A |'));
+  assert.ok(rowA.includes(whole), 'the whole reason is in the card row, on one line');
+  const rowB = report.split(/\r?\n/).find((l) => l.startsWith('| B |'));
+  assert.ok(rowB.includes('first line second line fourth line'), rowB);
+});
+
+test('reasons 57: park writes status: and parked: lines cut at a word end that name parked.md, and parked.md holds the whole reason', () => {
+  const table = [
+    { name: 'the cap inside a word', reason: longReason() },
+    { name: 'no whitespace', reason: 'x'.repeat(600) },
+    { name: 'short', reason: 'not green: the sum is wrong, twice over, in src/a/a.js' },
+    { name: 'a non-BMP character at the cap', reason: `${'a'.repeat(239)}${String.fromCodePoint(0x1f600)} and more text ${'b'.repeat(300)}` },
+  ];
+  for (const row of table) {
+    const g = gateRepo();
+    touch(g, 'src/a/a.js');
+    const parked = parkWith(g, 'A', row.reason);
+    const file = path.join(g.dir, parked.parked);
+    assert.ok(fs.readFileSync(file, 'utf8').includes(row.reason), `${row.name}: parked.md holds the whole reason`);
+    const want = runRulesLib.shortReason(row.reason, `whole text: ${parked.parked}`);
+    for (const key of ['status', 'parked']) {
+      const lines = planLines(g, key).filter((l) => l.includes('uw/parked/f/A'));
+      assert.equal(lines.length, 1, `${row.name}: one ${key} line`);
+      assert.ok(lines[0].endsWith(`uw/parked/f/A; ${want}`), `${row.name}: ${key} line is "${lines[0].slice(0, 120)}..."`);
+      assert.ok(lines[0].includes(parked.parked), `${row.name}: ${key} names parked.md`);
+      assert.ok(!/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test(lines[0]), `${row.name}: no lone surrogate`);
+    }
+    if (row.name === 'short') assert.ok(planLines(g, 'status').some((l) => l.includes(`; ${row.reason} (whole text:`)), 'nothing cut from a short reason');
+  }
+});
+
+test('reasons 59: unpark on a real 3-way conflict names the file in conflict', () => {
+  const g = gateRepo();
+  // Two files: the first applies cleanly, so git's first line is about it; the second is the conflict.
+  g.put('src/a/a.js', 'module.exports = 1; // from the card\n');
+  g.put('src/b/b.js', 'module.exports = 1; // from the card\n');
+  parkWith(g, 'A', 'not green: red three times');
+  g.put('src/b/b.js', 'module.exports = 2; // on the tip\n');
+  git(g.dir, 'commit', '-q', '-am', 'the tip moved on the same line');
+  const r = spawnSync(process.execPath, [CLI, 'unpark', '--plan', 'PLAN-gate.md', '--card', 'A', '--feature', 'f'], { cwd: g.dir, encoding: 'utf8', env: { ...gateEnv(), LC_ALL: 'C', LANG: 'C' } });
+  const out = lastJson(r);
+  assert.equal(out.ok, false, JSON.stringify(out));
+  assert.match(out.reason, /does not apply on the current tip/);
+  assert.ok(out.reason.includes('conflict in src/b/b.js'), out.reason);
+  assert.ok(!out.reason.includes('src/a/a.js'), `the file that applied cleanly is not named: ${out.reason}`);
+  assert.equal(git(g.dir, 'status', '--porcelain'), '', 'the tree is left as it was');
+});

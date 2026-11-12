@@ -604,7 +604,7 @@ async function parkCard(card, reasonIn, extra = {}) {
   const rerunFailed = RESUME && RESUME.rerun && RESUME.card === card.name && extra.needsDecision !== true
   const needsDecision = extra.needsDecision === true || rerunFailed
   const avoided = String(RESUME && RESUME.avoid || '').replace(/^needs a decision the plan does not state:\s*/i, '').replace(/\s*\r?\n\s*/g, ' ').trim()
-  const reason = rerunFailed ? `cannot be done within the plan: needs decision ${avoided}; run --resume ${card.name} --accept to allow it, or change the plan.\n- detail, from the run within the plan: ${String(reasonIn).replace(/\s*\r?\n\s*/g, ' ').slice(0, 600)}` : reasonIn
+  const reason = rerunFailed ? `cannot be done within the plan: needs decision ${avoided}; run --resume ${card.name} --accept to allow it, or change the plan.\n- detail, from the run within the plan: ${String(reasonIn).replace(/\s*\r?\n\s*/g, ' ')}` : reasonIn
   const reasonFile = `${cardDir(card.name)}/park-reason.txt`
   // The user hears about it now, from the same step: the notice names the card, why and what to run.
   const [parked] = await runSteps(
@@ -616,7 +616,7 @@ async function parkCard(card, reasonIn, extra = {}) {
     [{ path: reasonFile, text: reason }]
   )
   status[card.name] = needsDecision ? 'needs-decision' : 'parked'
-  const entry = { card: card.name, title: card.title, status: status[card.name], action: resumeCmd(card.name, needsDecision), reason: String(reason).trim().replace(/\s*\r?\n\s*/g, ' ').slice(0, 300), branch: parked && parked.ok ? parked.branch : null, parkOk: Boolean(parked && parked.ok), ...(parked && !parked.ok ? { parkError: parked.reason || 'the park command printed nothing' } : {}), ...extra }
+  const entry = { card: card.name, title: card.title, status: status[card.name], action: resumeCmd(card.name, needsDecision), reason: String(reason).trim().replace(/\s*\r?\n\s*/g, ' '), branch: parked && parked.ok ? parked.branch : null, parkOk: Boolean(parked && parked.ok), ...(parked && !parked.ok ? { parkError: parked.reason || 'the park command printed nothing' } : {}), ...extra }
   report.push(entry)
   const key = parkKey(entry.reason)
   if (key && key === lastParkKey) stoppedBecause = `two cards in a row were parked for the same reason: ${entry.reason}`
@@ -834,7 +834,7 @@ async function runCard(card, { adhoc = false } = {}) {
   // `record --plan` has now written this lane's selection into the plan's experts line.
   if (recorded && recorded.plan) for (const n of check.lane.selected) grownExperts.add(n)
   if (!committed || committed.ok !== true) {
-    const why = !recordOk ? `the experts' evidence was not recorded as built (record printed ${JSON.stringify(recorded)})` : `the commit was refused: ${(committed && (committed.reason || committed.gate)) || (rawOutputs.get(commitCmd) ? `card-commit printed no JSON line; it printed: ${rawOutputs.get(commitCmd).replace(/\s*\r?\n\s*/g, ' ').slice(0, 300)}` : 'card-commit printed nothing')}`
+    const why = !recordOk ? `the experts' evidence was not recorded as built (record printed ${JSON.stringify(recorded)})` : `the commit was refused: ${(committed && (committed.reason || committed.gate)) || (rawOutputs.get(commitCmd) ? `card-commit printed no JSON line; it printed: ${rawOutputs.get(commitCmd).replace(/\s*\r?\n\s*/g, ' ')}` : 'card-commit printed nothing')}`
     return parkCard(card, why, { build: buildSummary })
   }
   status[card.name] = 'committed'
@@ -907,7 +907,8 @@ if (blockedCards.length) {
 }
 if (blockedSteps.length) await runSteps('blocked:status', blockedSteps)
 // A stop is a blocker too, and the user hears about it when it happens.
-if (stoppedBecause) await runSteps('stopped:notify', [cliCmd('notify', '--feature', FEATURE, '--kind', 'stopped', '--reason', q(stoppedBecause.replace(/\s*\r?\n\s*/g, ' ').slice(0, 300)), '--action', q('read the report, then /ultimate-workflow:feature --resume'))])
+// The stop text holds a park reason an agent wrote: it goes in a file, whole, never on the command line.
+if (stoppedBecause) await runSteps('stopped:notify', [cliCmd('notify', '--feature', FEATURE, '--kind', 'stopped', '--reason-file', q(`${RUN_DIR}/stop-reason.txt`), '--action', q('read the report, then /ultimate-workflow:feature --resume'))], [{ path: `${RUN_DIR}/stop-reason.txt`, text: stoppedBecause }])
 
 // ---- the findings card, the review and its fix-up card ----
 

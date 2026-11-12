@@ -188,3 +188,64 @@ ${notes}`;
   for (const n of ['fixups', 'fixup-x', 'myfixup']) assert.notEqual(expertsLib.confirmHash(plan({ cards: bullet(n) })), base, `${n} is kept`);
   assert.notEqual(expertsLib.confirmHash(plan({ notes: bullet('fixup') })), base, 'a fixup bullet outside ## Cards is kept');
 });
+
+// --- reasons (PLAN-run-fixes.md, card reasons, tests 57 and 60): the pure side --------------------
+
+const reasonRules = require(path.join(PLUGIN, 'lib', 'run-rules.js'));
+const TAIL = 'whole text: .ultimate-workflow/run/f/cards/A/parked.md';
+const loneSurrogate = (s) => /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(s);
+
+test('reasons 57: a plan line keeps the reason up to the last word end under the cap and names parked.md', () => {
+  const keep = reasonRules.REASON_KEEP;
+  assert.equal(keep, 240);
+  // (a) the cap falls inside a word: cut at the last space before it
+  const words = Array.from({ length: 900 }, (_, i) => `word${i}`).join(' ');
+  assert.notEqual(words[keep], ' ');
+  assert.notEqual(words[keep - 1], ' ');
+  const a = reasonRules.shortReason(words, TAIL);
+  const kept = words.slice(0, words.lastIndexOf(' ', keep)).trim();
+  assert.ok(a.startsWith(`${kept} `), a);
+  assert.ok(!a.startsWith(`${kept} word`), 'nothing of the next word is kept');
+  assert.ok(a.endsWith(`(${TAIL})`), a);
+  assert.ok(a.length <= keep + TAIL.length + 10, `at most the cap: ${a.length}`);
+  // (b) no whitespace at all: a hard cut at the cap, never an empty line and never an endless search
+  const solid = 'x'.repeat(600);
+  const b = reasonRules.shortReason(solid, TAIL);
+  assert.ok(b.startsWith('x'.repeat(keep)), b.slice(0, 20));
+  assert.ok(!b.startsWith('x'.repeat(keep + 1)), 'cut at the cap, not one short of the end');
+  assert.ok(b.endsWith(`(${TAIL})`), b);
+  // (c) a short reason is kept whole, followed by the path
+  const short = 'not green: the sum is wrong in src/a/a.js, twice over';
+  assert.equal(reasonRules.shortReason(short, TAIL), `${short} (${TAIL})`);
+});
+
+test('reasons 57 (expert case): a cut never splits a surrogate pair and never returns an empty prefix', () => {
+  const keep = reasonRules.REASON_KEEP;
+  const face = String.fromCodePoint(0x1f600);
+  const atCap = `${'a'.repeat(keep - 1)}${face} and then more text that goes on and on ${'b'.repeat(400)}`;
+  const out = reasonRules.shortReason(atCap, TAIL);
+  assert.ok(!loneSurrogate(out), 'no lone surrogate');
+  assert.ok(out.startsWith('a'.repeat(keep - 1)), 'the prefix is kept');
+  assert.ok(out.endsWith(`(${TAIL})`));
+  const five = reasonRules.shortReason('x'.repeat(5000), TAIL);
+  assert.ok(five.length > TAIL.length + 10 && five.length <= keep + TAIL.length + 10, String(five.length));
+  // A reason is one line in the plan, and a semicolon would end the field.
+  assert.equal(reasonRules.shortReason('first line\n  second; third', TAIL), `first line second, third (${TAIL})`);
+});
+
+test('reasons 60: the conflict reader names the files in conflict, and gives the last lines when it finds none', () => {
+  const conflict = [
+    "Applied patch to 'src/a/a.js' cleanly.",
+    "Applied patch to 'src/b/b.js' with conflicts.",
+    'U src/b/b.js',
+    "error: patch failed: src/c/c.js:3",
+    "error: src/c/c.js: patch does not apply",
+  ].join('\n');
+  assert.deepStrictEqual(reasonRules.conflictOf(conflict), { files: ['src/b/b.js', 'src/c/c.js'], text: 'conflict in src/b/b.js, src/c/c.js' });
+  const other = Array.from({ length: 12 }, (_, i) => `line ${i + 1}`).join('\n');
+  const got = reasonRules.conflictOf(other);
+  assert.deepStrictEqual(got.files, []);
+  assert.deepStrictEqual(got.text.split(' / '), other.split('\n').slice(-reasonRules.CONFLICT_TAIL));
+  assert.ok(!got.text.includes('line 1 '), 'not the first lines');
+  assert.equal(reasonRules.conflictOf('').text, 'git apply printed nothing');
+});

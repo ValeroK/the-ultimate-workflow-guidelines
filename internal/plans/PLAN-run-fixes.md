@@ -113,13 +113,15 @@ What is there, and what each card reuses.
 - expert-retry: retry a failed expert once, never commit past one
   paths: .cursor-plugin/ultimate-workflow/phases/run.js, evals/experts/run-phase.test.js
   depends: card-add
-  status: fixed-in-round
+  status: fixed-in-round e140fa3c6525
   carried: developer at .cursor-plugin/ultimate-workflow/phases/run.js:916: A refused card-add for fixup-2, fixup-3 or fixup-4 writes status and the report entry under the literal base name 'fixup', not the label.
+  committed: e140fa3c6525
 - settle-first: review, fix-up and harvest wait for parked and blocked cards
   paths: .cursor-plugin/ultimate-workflow/phases/run.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, evals/experts/run-phase.test.js, evals/experts/autopilot-fixes.test.js
   depends: expert-retry
-  status: pending
+  status: parked uw/parked/run-fixes/settle-first; blocking finding from the experts check, not fixed by the fix round (still blocking): - architect: .cursor-plugin/ultimate-workflow/phases/run.js:1091 One reviewedHead is recorded when either the review or the harvest ran, but the harvest-s
   carried: quality at evals/experts/autopilot-fixes.test.js:364: Test 26 checks the replay-reuse rule only when the card to reuse has the exact base name `fixup`, the `-N` family match in reusableCard is never exercised.
+  parked: uw/parked/run-fixes/settle-first; blocking finding from the experts check, not fixed by the fix round (still blocking): - architect: .cursor-plugin/ultimate-workflow/phases/run.js:1091 One reviewedHead is recorded when either the review or the harvest ran, but the harvest-s
 - harvest-name: a second harvest gets its own branch
   paths: .cursor-plugin/ultimate-workflow/lib/run-rules.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, evals/experts/autopilot-fixes.test.js
   depends: settle-first

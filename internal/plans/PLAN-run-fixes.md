@@ -125,31 +125,36 @@ What is there, and what each card reuses.
 - harvest-name: a second harvest gets its own branch
   paths: .cursor-plugin/ultimate-workflow/lib/run-rules.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, evals/experts/autopilot-fixes.test.js
   depends: settle-first
-  status: pending
+  status: blocked by settle-first
 - reasons: whole park reasons, and the real conflict from unpark
   paths: .cursor-plugin/ultimate-workflow/lib/run-rules.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, .cursor-plugin/ultimate-workflow/phases/run.js, evals/experts/run-rules.test.js, evals/experts/autopilot-fixes.test.js
   depends: harvest-name
-  status: pending
+  status: blocked by harvest-name
 - one-notice: one desktop notification per run
   paths: .cursor-plugin/ultimate-workflow/experts/autopilot.js, evals/experts/autopilot-fixes.test.js
   depends: reasons
-  status: pending
+  status: blocked by reasons
 - dry-run: measure the plan's claims before the tests are confirmed
   paths: .cursor-plugin/ultimate-workflow/lib/claims.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, .cursor-plugin/ultimate-workflow/commands/tests.md, .cursor-plugin/ultimate-workflow/phases/tests.js, evals/experts/claims.test.js
   depends: one-notice
-  status: pending
+  status: blocked by one-notice
 - report-cost: pack size and token cost per card in the report
   paths: .cursor-plugin/ultimate-workflow/experts/autopilot.js, .cursor-plugin/ultimate-workflow/phases/run.js, evals/experts/autopilot-fixes.test.js
   depends: dry-run
-  status: pending
+  status: blocked by dry-run
 - run-md: run.md says what the code does
   paths: .cursor-plugin/ultimate-workflow/phases/run.md, evals/experts/docs.test.js
   depends: report-cost
-  status: pending
+  status: blocked by report-cost
 - release: changelog for these fixes in 4.8.0
   paths: CHANGELOG.md, internal/plans/PLAN-run-fixes.md
   depends: plan-subfolder, run-md
-  status: pending
+  status: blocked by plan-subfolder
+- findings: non-blocking expert findings no card fixed
+  paths: .cursor-plugin/ultimate-workflow/experts/experts.js
+  carried: quality at .cursor-plugin/ultimate-workflow/experts/experts.js:494: Nothing in the diff writes the `accepted:` run field, the diff only reads it and leaves it out of the confirm hash. The plan assigns the write to `--resume <card> --accept`.
+  status: parked uw/parked/run-fixes/findings; tests did not fail first: The new tests did not fail before implementation, so they cannot demonstrate the change works. Either the behaviour already exists, or those tests have no real oracle. Both are worth knowing before writing code. Pa
+  parked: uw/parked/run-fixes/findings; tests did not fail first: The new tests did not fail before implementation, so they cannot demonstrate the change works. Either the behaviour already exists, or those tests have no real oracle. Both are worth knowing before writing code. Pa
 
 ## Card details
 

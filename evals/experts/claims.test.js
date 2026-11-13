@@ -180,7 +180,8 @@ test('security: a measure: glob does not follow a junction out of the root', () 
   const r = cli(dir, 'claims', '--plan', 'PLAN-x.md', '--feature', 'x');
   const out = lastJson(r);
   assert.equal(out.measures[0].size, 1000, 'the real folder is measured');
-  assert.equal(out.measures[1].size, 0, 'nothing behind the junction is counted');
+  assert.equal(out.measures[1].understood, false, 'nothing behind the junction is counted, so the glob matches no file');
+  assert.equal(out.measures[1].size, undefined);
   assert.ok(!r.stdout.includes('7777') && !r.stdout.includes(path.basename(outside)), r.stdout);
 });
 
@@ -238,4 +239,19 @@ test('72: commands/tests.md runs claims after the section is written and before 
   assert.match(step, /`stop` is true/);
   assert.match(step, /ask the user/i);
   assert.match(step, /never (shown|reported|counted) as passing/i);
+});
+
+// Review of the whole branch (2026-11-13): a glob that matches nothing measured 0 bytes and passed, so a
+// claim about a path with a typo looked checked.
+test('a measure: glob that matches no file is not understood, never passing with size 0', () => {
+  const dir = project(['bytes src/typo/** <= 500', 'bytes nothing-here.js <= 10', 'bytes src/a/** <= 500']);
+  const out = runClaims(dir);
+  for (const m of out.measures.slice(0, 2)) {
+    assert.equal(m.understood, false, m.line);
+    assert.equal(m.passing, false, m.line);
+    assert.match(m.why, /matches no file/, m.line);
+  }
+  assert.equal(out.measures[2].passing, true);
+  assert.equal(out.notUnderstood, 2);
+  assert.equal(out.stop, true);
 });

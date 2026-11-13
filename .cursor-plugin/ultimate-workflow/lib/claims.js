@@ -112,6 +112,8 @@ function measureAll(planText, root, cards = [], covers = () => false) {
   return measures.map((m) => {
     if (!m.understood) return { line: m.line, understood: false, passing: false, why: m.why };
     const { matched, ...judged } = judge(m, files);
+    // A glob that matches nothing measures nothing: a typo in the path must not read as a claim that holds.
+    if (matched.length === 0) return { line: m.line, understood: false, passing: false, glob: m.glob, why: 'the glob matches no file under the project root' };
     const matches = globMatcher(m.glob);
     const under = cards.filter((c) => (c.paths || []).some((p) => matches(String(p).replace(/^\.\//, ''))) || matched.some((f) => covers(c.paths || [], f.path))).map((c) => c.name);
     return { line: m.line, understood: true, glob: m.glob, limit: m.limit, ...judged, cards: under };

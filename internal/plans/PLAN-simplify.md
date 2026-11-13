@@ -277,6 +277,7 @@ Each card is built by hand, test first, and ends with the full verify command gr
   paths: .cursor-plugin/ultimate-workflow/experts/autopilot.js, .cursor-plugin/ultimate-workflow/lib/pack.js, .cursor-plugin/ultimate-workflow/phases/run.js
   depends: one-resume
   Faults 17, 19, 22 and the size-limit lesson.
+  status: committed 8db6fe1 (partial)
 - measure-experts: Catches and cost per expert are in the value report
   paths: .cursor-plugin/ultimate-workflow/experts/ledger.js, .cursor-plugin/ultimate-workflow/commands/value.md
   depends: run-inputs

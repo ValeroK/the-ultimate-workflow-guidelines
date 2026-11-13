@@ -161,6 +161,7 @@ function pack(cwd, { plan, card: name, feature, resume = false, adhoc = false })
   const dir = cardDir(cwd, feature, card.name);
   const planRel = rel(cwd, planFile);
   const problems = [];
+  const packWarnings = [];
 
   const heads = sections(planText);
   const entries = [];
@@ -193,7 +194,8 @@ function pack(cwd, { plan, card: name, feature, resume = false, adhoc = false })
   for (const doc of [...new Set(cited)]) {
     const byCard = all.some((c) => c.paths.length > 0 && cardsLib.covers(c.paths, doc, globRe));
     if (fs.existsSync(path.join(cwd, doc))) add(doc, summaryOf(path.join(cwd, doc)) || 'cited by the plan', { role: packLib.citedRole(doc, { perCard, namedByText, namedByPaths: cardsLib.covers(card.paths, doc, globRe) }) });
-    else if (!byCard) problems.push(`the plan cites ${doc}, which does not exist`);
+    // A name with no folder is often a word in backticks, not a path (fault 17): it is a warning, and a path with a folder still has to exist.
+    else if (!byCard) (doc.includes('/') ? problems : packWarnings).push(`the plan cites ${doc}, which does not exist`);
   }
   for (const f of ['AGENTS.md', 'CLAUDE.md']) if (fs.existsSync(path.join(cwd, f))) add(f, 'project rules and Gotchas', { role: 'conditional' });
   const budget = packLib.budgetOf(require('../hooks/lib/state.js').parseFrontMatter(planText).data.pack_budget);
@@ -223,7 +225,7 @@ function pack(cwd, { plan, card: name, feature, resume = false, adhoc = false })
   }
 
   const intro = 'Read these before you write anything. Paths are relative to the project root; "lines a-b" is the part of the file that matters. An entry marked "if present" may not exist yet: skip it then.';
-  const built = packLib.assemble({ title: `# Context pack: card ${card.name} (${card.title})`, intro, entries, mayChange: card.paths.join(', ') || '(none listed)', budget: budget.budget, warnings: budget.warning ? [budget.warning] : [] });
+  const built = packLib.assemble({ title: `# Context pack: card ${card.name} (${card.title})`, intro, entries, mayChange: card.paths.join(', ') || '(none listed)', budget: budget.budget, warnings: [...packWarnings, ...(budget.warning ? [budget.warning] : [])] });
   fs.mkdirSync(dir, { recursive: true });
   const file = path.join(dir, 'context.md');
   fs.writeFileSync(file, built.body);
@@ -1031,6 +1033,23 @@ function runReport(cwd, { result: resultFile, out = '' }) {
  * code (housekeeping of the plugin's own, so no gate applies), the baseline, and the script. A red
  * baseline stops here with the failing tests, for the user's decision.
  */
+/**
+ * Fault 19: whether the plugin that is running is another checkout (a worktree) of the repository the run would build
+ * in. The run's agents work in this project; with the plugin in a sibling checkout of the same repository one of them
+ * edited the plugin's root. Running the plugin on its own code is not supported, so the run refuses to start.
+ */
+function pluginIsAnotherCheckout(cwd, pluginRoot) {
+  const info = (dir) => {
+    const top = git(dir, ['rev-parse', '--show-toplevel'], { allowFail: true });
+    const common = git(dir, ['rev-parse', '--path-format=absolute', '--git-common-dir'], { allowFail: true });
+    if (top.status !== 0 || common.status !== 0) return null;
+    return { top: fs.realpathSync(top.stdout.trim()), common: fs.realpathSync(common.stdout.trim()) };
+  };
+  const mine = info(cwd);
+  const theirs = info(pluginRoot);
+  return Boolean(mine && theirs && mine.common === theirs.common && mine.top !== theirs.top);
+}
+
 function runStart(cwd, { plan, feature, resume = null, implementerModel = '', diagnoserModel = '' }) {
   if (!plan) throw new Error('run-start needs --plan');
   checkFeature(feature);
@@ -1038,6 +1057,7 @@ function runStart(cwd, { plan, feature, resume = null, implementerModel = '', di
   // until both are recorded and the plan is the one the user confirmed (2026-11-09).
   const confirmation = require('./experts.js').checkConfirmed(fs.readFileSync(path.resolve(cwd, plan), 'utf8'));
   if (!confirmation.ok) return { ok: false, needs: 'confirmation', missing: confirmation.missing, reason: confirmation.reason };
+  if (pluginIsAnotherCheckout(cwd, path.resolve(__dirname, '..'))) return { ok: false, reason: 'the plugin that is running is another checkout of this repository, and the run builds in this one: an agent could edit the plugin\'s own files. Run it from the checkout the plugin was installed from.' };
   let branch;
   const name = `uw/run/${feature}`;
   if (resume && git(cwd, ['rev-parse', '--abbrev-ref', 'HEAD']).stdout.trim() !== name) {
@@ -1265,4 +1285,4 @@ function cli(argv, cwd, out, fail) {
 
 const COMMANDS = ['pack', 'handoff', 'park', 'unpark', 'journal', 'card-commit', 'card-status', 'notify', 'decisions', 'card-field', 'run-branch', 'ensure-ignored', 'run-state', 'claims', 'harvest-branch', 'run-report', 'run-start', 'run-finish'];
 
-module.exports = { COMMANDS, NOTIFY_KINDS, cardStatus, notify, detectDecisions, acceptDecision, writeRunStatus, commitPlan, pack, handoff, park, unpark, journalAdd, journalCompact, cardCommit, runBranch, ensureIgnored, harvestBranch, withAddition: memoryLib.withAddition, matchingTopicals, testSection, sections, cli, JOURNAL_CARD_LINES, JOURNAL_MAX_LINES };
+module.exports = { pluginIsAnotherCheckout, COMMANDS, NOTIFY_KINDS, cardStatus, notify, detectDecisions, acceptDecision, writeRunStatus, commitPlan, pack, handoff, park, unpark, journalAdd, journalCompact, cardCommit, runBranch, ensureIgnored, harvestBranch, withAddition: memoryLib.withAddition, matchingTopicals, testSection, sections, cli, JOURNAL_CARD_LINES, JOURNAL_MAX_LINES };

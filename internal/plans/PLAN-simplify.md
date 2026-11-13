@@ -272,6 +272,7 @@ Each card is built by hand, test first, and ends with the full verify command gr
 - one-resume: One resume form
   paths: .cursor-plugin/ultimate-workflow/lib/run-rules.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, .cursor-plugin/ultimate-workflow/phases/run.js
   depends: one-harvest
+  status: committed 2616a7b (partial)
 - run-inputs: Preflight, pack budget and size limits stop parking working code
   paths: .cursor-plugin/ultimate-workflow/experts/autopilot.js, .cursor-plugin/ultimate-workflow/lib/pack.js, .cursor-plugin/ultimate-workflow/phases/run.js
   depends: one-resume

@@ -1,7 +1,7 @@
 ---
 phase: plan
 plan_confirmed: true
-tests_confirmed: false
+tests_confirmed: true
 test_command: node --test ".cursor-plugin/ultimate-workflow/hooks/**/*.test.js" "evals/**/*.test.js" mirrors.test.js
 test_related_command: node --test {tests} mirrors.test.js
 full_suite_paths: .cursor-plugin/ultimate-workflow/hooks/lib/**, .cursor-plugin/ultimate-workflow/hooks/hooks.json, .cursor-plugin/ultimate-workflow/experts/*.js, .cursor-plugin/ultimate-workflow/lib/**, .cursor-plugin/ultimate-workflow/phases/**, .cursor-plugin/ultimate-workflow/commands/**
@@ -11,6 +11,7 @@ last_verify: unrun
 dirty: false
 escalated: false
 experts: [developer, softarch, quality, security, genai, devops]
+confirmed_hash: 8b4eafc5026b2ff6
 ---
 
 # PLAN-simplify: one commit check, reminders everywhere else, one copy of each thing
@@ -516,3 +517,396 @@ Assumed criticality: a developer tool shipped by git (the marketplace source is 
 - 4.8.0 is complete but was never pushed or tagged. Should 4.8.0 be tagged and released first, so there is a 4.8.0 ZIP and commit to go back to, or do 4.8.0 and the simplification ship as one release? If one release, the rollback target is the last tag before 4.8.0.
 - Which version number does the simplification get? It removes the edit and turn-end blocks, changes `hooks.json` and the `status.js --json` keys, and stops guessing the active plan, which reads as a major version (5.0.0), not 4.9.0.
 - May the branch be pushed as a draft pull request (not merged, not tagged) so validate.yml runs on Linux after each card, or does 'do not push yet' hold until card `release`?
+
+## Tests
+
+### Verify command
+
+```
+node --test ".cursor-plugin/ultimate-workflow/hooks/**/*.test.js" "evals/**/*.test.js" mirrors.test.js
+```
+
+Source: `.github/workflows/validate.yml` line 24 (the only test step in CI, `ubuntu-latest`, Node 22), the "Hard constraints" section of `AGENTS.md`, and `test_command` in this plan's front matter. All three agree. There is no `package.json`, lint or type check, so this command is the whole of "done".
+
+Rules that follow from it:
+
+- Globs stay quoted. `mirrors.test.js` is named on its own because neither glob reaches it.
+- Every new test file sits under `.cursor-plugin/ultimate-workflow/hooks/**` or `evals/**`. A test next to `lib/`, `experts/`, `phases/` or `internal/tools/` never runs.
+- Tests use `node:test` and `node:assert` only. Anything that asserts on stderr uses `spawnSync`, never `execFileSync`.
+- Every child process that reaches a gate gets `ULTIMATE_WORKFLOW_GATES=on` in its own env, and is spawned with `cwd` set to the temp project. This repository has gates off; without the override every refusal case passes for the wrong reason.
+- Each test builds its project in a fresh temp directory with its own `git init` and `core.autocrlf false`. No test reads this repository's `.ultimate-workflow/`, and none depends on another test having run.
+- No test may be skipped to get green, on any platform. This is a test, not a count someone reads: see `skips: ...` below.
+- Fixture files are read from a hard-coded table of paths, never from a directory listing. A loop over `readdirSync` passes on zero files.
+
+### What "done" means
+
+1. The verify command is green after every card, on the card's last commit (criterion 10).
+2. Every test named below exists under its exact title and passes.
+3. Every test title that existed at card `baseline` still exists, unless it is listed in Part 4. This is checked by `titles: ...` below, not by a count.
+4. A test that is neither in Part 2 nor in Part 4 is frozen by default with "refusal text only": its asserted allow/deny outcome, exit code and named item may not change. A card that needs to change one adds it to Part 4 first, with the reason.
+5. Card `release`: `validate.yml` is green on Linux on the exact commit before any tag.
+
+### Part 1. Running-system harness (card `baseline`, written first, runs in every later card)
+
+File: `evals/experts/commit-contract.test.js`. Every case spawns the real `hooks/gate.js` with a `git commit` payload (hand path) or runs the real `card-commit` command (run path), against a temp git project. Nothing is called in-process. Each refuse/allow pair differs in exactly one fact, and that fact is stated in the test body as a comment.
+
+A refuse case asserts three things: the deny payload (hook) or `ok:false` with the `gate` field (run); that the named guarantee is the one in the reason; and that `git rev-parse HEAD` did not move on the run path.
+
+An allow case asserts the allow payload or `ok:true`, and, on the run path, that HEAD moved by one commit holding only the card's files and plan status. On the hook path an allow is empty stdout and exit 0, which is byte-identical to gates off, no plan, a thrown evidence read and the top-level fail-open. So every hook-path allow case also asserts a positive sign that the commit was judged:
+
+- In card `baseline` (4.8.0 prints nothing on the hook path): `experts.js check` on the same tree exits 0 with `ok` and carries no skip reason.
+- From card `commit-check` on: `commit-check.json` holds outcome `checked` with zero missing items. This one assertion is added to the allow helper in that card's second commit; it is the only edit allowed to Part 1 cases.
+
+Guarantee cases, written against 4.8.0 behaviour:
+
+| Title | Path | One fact that differs |
+|---|---|---|
+| `contract G7 hand: a commit with no full run on these changes is refused, and the reason names the verify command` | hook | no `verify.json` |
+| `contract G7 hand: the same commit after a passing full run is allowed` | hook | `verify.json` matches the fingerprint |
+| `contract G7 hand: one edit after the passing full run and the commit is refused again` | hook | one byte changed in a source file |
+| `contract G7 hand: a failed full run does not allow the commit` | hook | record says failed |
+| `contract G7 run: card-commit without a passing full run is refused with gate G7 and commits nothing` | run | no `verify.json` |
+| `contract G7 run: card-commit after a passing full run commits the card` | run | record present |
+| `contract G6 hand: a commit the experts did not review is refused, and the reason names the experts command` | hook | no expert record |
+| `contract G6 hand: the same commit with every selected expert recorded on this fingerprint is allowed` | hook | records present |
+| `contract G6 hand: an open high-confidence finding refuses the commit and the reason holds its id, file and line` | hook | one open high finding |
+| `contract G6 hand: the same finding at medium confidence does not refuse` | hook | confidence field |
+| `contract G6 hand: expert records made before a later edit do not allow the commit` | hook | fingerprint moved |
+| `contract G6 run: card-commit with one of the card's experts missing is refused with gate G6 and names the card` | run | one record missing |
+| `contract G6 run: card-commit with exactly the card's experts recorded commits the card` | run | record present |
+| `contract memory hand: a commit that adds a broken memory link is refused, with the link in the reason` | hook | the link |
+| `contract memory hand: a link already broken at HEAD does not refuse the commit` | hook | broken before, not by this commit |
+| `contract memory run: card-commit that makes a memory header invalid is refused with gate memory and commits nothing` | run | the header |
+| `contract memory run: card-commit with the header valid commits the card` | run | the header |
+
+Migration cases (criterion 9). These are the only cases whose evidence is NOT written by the code under test; every other allow case round-trips through new code, so writer and reader could change together unseen.
+
+- `contract migration: 4.8.0 verify.json, expert records and waivers.json on their matching tree allow the commit` -- three sub-cases, each copying one fixture into a temp project built to the fixture's recorded tree. The waiver sub-case has an open high finding that only the 4.8.0 `waivers.json` dismisses.
+- `contract migration: a verify.json without a field the reader wants is refused with the tests item and the full-run fix` -- asserts refused, not could-not-check.
+
+Exemption cases. Each asserts the commit goes through. In card `baseline` the case asserts what 4.8.0 does: the allow, plus the reason text wherever 4.8.0 prints one (`experts.js check`, `card-commit` JSON). No `todo` and no skip. The stricter wording twin is `contract outcome: exempt reasons ...` under card `commit-check`.
+
+| Title | Path |
+|---|---|
+| `contract exempt: gates off lets the commit through on the hook path` | hook, env `ULTIMATE_WORKFLOW_GATES=off` in the child |
+| `contract exempt: gates off lets card-commit through` | run |
+| `contract exempt: a project with no plan lets the commit through` | hook |
+| `contract exempt: a source commit in bootstrap (PRD.md, no plan) is let through on the hook path` | hook |
+| `contract exempt: a documentation-only commit needs no full run and no expert` | hook and run, one case each |
+| `contract exempt: an empty commit is allowed` | hook |
+| `contract exempt: a hook payload that cannot be parsed fails open` | hook |
+| `contract exempt: the run's stale memory index exception regenerates and commits the index, and the hook path refuses the same tree` | both; pins that this exception exists on one path only |
+
+Guard against a harness that proves nothing:
+
+- `contract harness: gate.js and card-commit are spawned only through the helper, and the helper refuses to build an env without gates on` -- replaces the earlier "every child ran with gates on" case, which inspected a list filled by other tests and passed on an empty list. Two assertions that need no other test to have run: a source scan of the file finds `spawnSync` only inside the helper; calling the helper for a guarantee case with `ULTIMATE_WORKFLOW_GATES` absent or `off` throws.
+- `contract harness: an ordinary source commit is judged on evidence, not on a skip` -- for the plain source commit used in the allow cases: in card `baseline`, `experts.js check` exits 0 with no skip reason; from card `commit-check`, the stamp says `checked`. Asserted positively, not as the absence of a skip string.
+- `contract harness: each guarantee has a refuse case and an allow case on both paths` -- reads its own file's titles and fails if a guarantee id (confirmation after card `commit-check`, G7, G6, memory) lacks one of the four.
+
+Hook-event harness, file `evals/experts/hook-events.test.js`. One payload builder used by this card and by card `reminders`. It takes a recorded payload from `fixtures/claude-code/` where one exists and rewrites `cwd`, `tool_input.file_path` and `transcript_path` into the temp project. The recordings carry the recorder's own `cwd`; unrewritten, the gate resolves stage `none` and every event allows and writes nothing, whatever the code does. There is no `PostToolUseFailure` recording and no `fixtures/cursor/` folder: those payloads are synthesized and the test says so in a comment. The event list is an explicit array, and the test asserts the number of sub-cases run (7 per vendor, 14 in all):
+
+PreToolUse edit; PreToolUse Bash with a non-commit command (`git status`, `git log --grep=commit`, `git commit-tree`); PostToolUse edit; PostToolUse shell whose command equals `test_command`; PostToolUseFailure; UserPromptSubmit; Stop.
+
+The temp project has a plan with `test_command` set, `plan_confirmed: false`, `dirty: true`, `gate_violation` set, and one changed source file.
+
+- `hook events 4.8.0: every event payload reaches the temp project, and the old gate blocks or writes on it` -- for each of the 14, asserts the 4.8.0 deny, stop block, plan rewrite or heartbeat write. This is the recorded "before". Without it, "no deny, no write" after card `reminders` is not evidence. Rewritten on purpose in card `reminders` (Part 4); the builder's diff in that card is empty and the reviewer checks it.
+
+Migration fixtures, made in card `baseline` by the 4.8.0 code before any writer changes, committed under `evals/experts/fixtures/4.8.0/`:
+
+- a plan with the old keys and a `confirmed_hash`; a plan with both flags true and no hash; a plan with a `## Known failures` section; `verify.json`; expert records; `waivers.json`; `heartbeat.json`; a parked run's `run.json` (one with `harvestBranch` `uw/harvest/<feature>-2`);
+- frozen copies of the inputs the "recorded 4.8.0 value" tests read: every plan under `internal/plans`, every shipped memory file, the 9 agent files, plus the recorded outputs (`confirmHash` table, `experts list` JSON, `parseHeader` JSON) and a copy of the 4.8.0 `parseFrontMatter`.
+
+Storage rules, because `.gitignore` ignores `PLAN-*.md` and `.ultimate-workflow/` at any depth and a plain `git add` drops them silently: fixture plans are stored as `plan-<name>.md.fixture` and state files under `state/`, and are copied to `PLAN-*.md` and `.ultimate-workflow/` inside the temp project. Card `baseline` adds `evals/experts/fixtures/** -text` to `.gitattributes`; today only `vendor/**` and `evals/experts/corpus/**` have it, so a checkout on Windows would rewrite line endings and break the checksums.
+
+- `fixtures 4.8.0: each fixture file is tracked, byte-identical to the recorded checksum, and the table has N rows` -- drives from a hard-coded table of relative paths; asserts the table length; asserts each path is in `git ls-files evals/experts/fixtures/4.8.0`; asserts `.gitattributes` holds the `-text` line. The checksum table is frozen: change allowed "none".
+
+Guards for the rules in "What done means":
+
+- `titles: every test title recorded in card baseline still exists, except those in the deleted list` (`mirrors.test.js`) -- card `baseline` commits the list of (file, title) pairs for every test the verify command reaches; Part 4 is a second committed list. A title gone from the source and absent from the deleted list fails by name. Replaces the hand-run count.
+- `skips: the set of skip and todo sites in the test files equals the committed allowlist` (`mirrors.test.js`) -- scans every `*.test.js` the verify command reaches for `skip:`, `t.skip(`, `.skip(` and `todo`, and compares (file, title) pairs with an allowlist holding today's conditional skips (symlinks, bash missing, the Cursor recordings). A new skip fails on every platform, including one that would fire only on Linux.
+
+Measure script (not shipped, tested from `evals/`):
+
+- `measure: the script lists blocking checks and state files from the code and skips .claude/worktrees` -- on a small fixture tree with a known answer, assert the exact lists and that a file under `.claude/worktrees/` is not counted.
+- `measure: on the 4.8.0 payload the script names every known blocking check and state file` -- run in card `baseline` on the real payload against a hand-written list: G1, G2, B-G1, B-G2, G3, G4, G6 edit, G6, G7, memory, the detect-only stop; and the state files including `heartbeat.json`. The fixture-tree test only proves the script finds shapes its author thought of; this one has an independent answer.
+
+### Part 2. Frozen tests
+
+These exist today. They stay, with assertions unchanged unless noted.
+
+| File | Title | Change allowed |
+|---|---|---|
+| `evals/experts/experts.test.js` | `the commit is blocked until the experts were re-checked, and the message names the command to run` | refusal text only |
+| same | `re-checked and reviewed by every selected expert: the commit is allowed` | none |
+| same | `a commit with nothing to review is allowed: no changes, documentation only, no experts installed` | none |
+| same | `cli check exits 0 with ok when a commit would be allowed and 1 with the reason when it would not` | adds `missing`; exit codes fixed |
+| same | `an open high-confidence finding blocks the commit, and the reason lists it with its id, file and line` | refusal text only |
+| same | `dismissing a finding needs the user's reason, and then the commit is allowed` | none |
+| `evals/experts/harness.test.js` | `the flow end to end: a source edit waits for the experts decision, a commit waits for the experts, and any later change waits again` | card `reminders` only: the "source edit waits" half becomes "is reminded"; the commit halves are untouched |
+| same | `a commit that touches only documentation needs no expert`; `a failed expert review leaves the commit blocked`; `an open high finding blocks the commit through the real gate, a fix resolves it, and the gate says why until then`; `a medium finding is reported but does not block the commit`; `the real gate refuses a commit that leaves the memory index stale, and allows it once the index is regenerated`; `the recheck can add an expert at commit time, and the commit then waits for that expert too` | refusal text only |
+| `evals/experts/merge.test.js` | `T1 a clean merge adds nothing for the experts to review; the same files edited plainly still do`; `T4 committing a clean merge needs a passing full test run on the merged tree, and no experts`; `T4b a full run on one merge does not cover a different merge whose combined diff is also empty`; `T5 a merge that changes nothing in the tree, or only documents, is not held by G7`; `T7 volatile_paths still excludes a file from a merge` | refusal text only. A merge is the one state where today's two checks disagree by design (experts skip, G7 still asks); folding them into one evidence pass must not turn T4 or T4b into an allow |
+| `evals/experts/autopilot.test.js` | `card-commit refuses off the run branch and without a passing full run, then commits the card and its plan status, nothing else` | none |
+| same | `card-commit refuses a card that adds a broken link, with the link in the reason, and commits nothing`; `card-commit refuses a card that makes a header invalid, naming the problem`; `card-commit does not refuse for a link already broken at HEAD` | none |
+| `evals/experts/autopilot-fixes.test.js` | `gate-card 9` through `gate-card 18`, `gate-card 17b`, `plan-subfolder 8: card-commit judges G7 by its own --plan when the pointer names another plan` | refusal text only |
+| `evals/experts/card-experts.test.js` | `commitEvidence holds the commit to the card's experts, and says which card`; `G6 names the card when a re-check dropped one of its experts`; `G6 allows a commit that has exactly the card's experts reviewed` | none |
+| `hooks/verify.test.js` | `end to end: related runs do not allow a commit; a full run does; an edit after it does not`; `a commit that changes only requirements.txt is not docs-only: it needs the full run` | none |
+| same | `end to end: the configured command typed directly is recorded as a full run; a narrowed one is not` | none. Kept by the owner's decision of 2026-11-13, see "What these tests do not prove" |
+| `hooks/lib/dispatch.test.js` | the Cursor commit cases ("Cursor gets a note, not a deny"; titles not read here) | refusal text only |
+| `hooks/baseline.test.js` | all 29 cases | none |
+| `hooks/registration.test.js` | the case asserting PreToolUse with the Bash matcher points at `gate.js` | none |
+| `mirrors.test.js` | every phase/command pair, wording, one-writing-agent, ZIP contents and site case | version regex only, in card `release` |
+
+"Refusal text only" means: the asserted allow/deny outcome, exit code and named item stay; a string match on the old single-reason wording may be rewritten to match the new list. Any other edit to a frozen test fails review of that card.
+
+### Part 3. Source-level tests, per card
+
+**Card `frontmatter`** (criterion 5, 9). File: `hooks/lib/state.test.js` unless said otherwise.
+
+- `frontmatter: a plan written by setConfirmed is read as confirmed by checkConfirmed, for every fence shape` -- one table, real writer then real reader, over: LF; CRLF; BOM; BOM and CRLF together (what Windows Notepad saves); opening and closing fence with trailing spaces or tabs (4.8.0's writer accepted these); closing fence at end of file with no newline. Today the BOM row reads as unconfirmed; it must fail before the change.
+- `frontmatter: setFrontLine keeps the BOM, the line endings and every other byte, on replace and on insert` -- byte compare outside the changed line for the same table, once with the key present (replace) and once with it absent (insert), where the inserted line must use the file's own line ending.
+- `frontmatter: setFrontLine on a file with no front matter throws, and writeKnownFailures handles it without corrupting the plan` (`hooks/verify.test.js`).
+- `frontmatter: confirmHash of every frozen 4.8.0 plan copy equals the recorded hash` (`evals/experts/`) -- reads the frozen copies in the fixture folder, not the live `internal/plans` files, which are edited throughout this work. A live-file table gets regenerated by new code at the first legitimate edit, which is comparing new code to itself.
+- `frontmatter: experts list over the frozen 4.8.0 agent files returns the recorded output for all 9 experts` -- deep-equal against the recorded JSON, including value types (`true`, digits, quoted strings).
+- `frontmatter: memory parseHeader returns the recorded 4.8.0 value for every frozen memory file copy, line-numbered errors included`.
+- `frontmatter: unknown and old keys survive a write untouched` -- a plan with `dirty`, `verify_rounds`, `last_verify`, `escalated`, `gate_violation`; after `setConfirmed` those lines are byte-identical.
+- `one copy: setFrontLine and the front-matter finder are declared in exactly one shipped file` (`mirrors.test.js`) -- `function setFrontLine` appears once (in `hooks/lib/state.js`); `experts/experts.js` and `hooks/verify.js` declare none; `hooks/status.test.js` declares no `frontMatter` helper. The behavioural tests above pass just as well when each of the old copies is patched separately; criterion 5 asks that the copies be gone.
+
+**Card `cards-reader`** (criterion 5; concerns 9, 10). File: `evals/experts/cards.test.js`.
+
+- `cards: the first heading named Cards is the section, for confirmHash, parseCards and acceptedFiles alike` -- a plan with two Cards headings. Asserts the range equals the first section's hand-computed line numbers for all three readers; `parseCards` returns only the first section's card names; a card added under the second heading moves `confirmHash` (it is ordinary plan text) and does not appear in `parseCards`. Agreement between the three alone would pass a reader that picks the last heading.
+- `cards: accepted is a known field and does not land in carried`.
+- `cards: run-rules does not require experts.js` -- source assertion on its `require` calls.
+- `one copy: no Cards-heading regex outside cardsRange` (`mirrors.test.js`) -- `experts.js`, `verify.js` and `run-rules.js` hold no heading match for a Cards section; the test states its pattern.
+- Frozen: `gate-card 17` and `gate-card 17b` (the accepted line does not move the hash).
+
+**Card `commit-check`** (criteria 1, 2, 9). New cases in `evals/experts/commit-contract.test.js` (both paths) and predicate cases in `hooks/lib/gates.test.js`.
+
+First commit of the card: the Part 1 file passes with zero edits. `git diff` on that file for that commit is empty; the reviewer checks this. Second commit adds the stamp assertion to the allow helper and the cases below.
+
+Confirmation:
+
+- `contract confirmation: each unconfirmed state is refused with the fix for that state` -- table on both paths: `tests_confirmed false`; `plan_confirmed false` with `tests_confirmed true`; no `confirmed_hash` with either flag false. Each row's allow twin differs only in that flag. The fix names the confirm command for the flag that is false. A check that reads only `tests_confirmed` fails the second row.
+- `contract confirmation: a plan whose text changed after confirmation is refused and the reason says which confirmation to redo` (both paths).
+- `contract confirmation: a card added to the plan after confirmation refuses the commit` (concern 1).
+- `contract confirmation: a run-added card (findings, fixup) does not move the hash`.
+- `contract confirmation: both flags true and no confirmed_hash counts as confirmed` -- uses the 4.8.0 fixture.
+- `contract confirmation: a Known failures section does not move the hash, and text after it does` -- the 4.8.0 fixture (section last) allows; a plan with the section in the middle: editing a list item inside it does not move the hash, editing a line in the next `## ` section refuses the commit, and a `### ` subheading directly under it is still inside the excluded section. A hash that stops at the heading and drops the rest of the file passes the fixture alone.
+- `contract confirmation: a changed setting does not refuse and is named, an unchanged one is not` -- for each of `test_command`, `volatile_paths`, `known_failures`, `full_suite_paths`: unchanged, the output names none of the four; after changing only that key, the output names that key and none of the other three. Plus the 4.8.0 confirmed-with-hash fixture, which has no record of the settings at confirmation: judged normally, no notice, outcome `checked`.
+
+The list:
+
+- `contract list: with all four missing the hook's refusal text and the missing array hold four items in the order confirmation, tests, experts, memory` -- asserts `missing.length === 4` and the `kind` sequence from `status.js --json` and `card-commit`, AND that the hook's `permissionDecisionReason` holds all four fix commands in that order. A `commitGate` that returns the full array while the hook still prints the first reason fails here.
+- `contract list: each fix is the command for its kind` -- confirmation holds the present `--confirm` command; tests holds the verify script with `--full` (not the bare `test_command`); experts holds `/ultimate-workflow:experts`; memory holds `memory index` for an index problem.
+- `contract list: with one item missing the refusal holds exactly that item` -- four sub-cases, one per kind.
+
+The three outcomes. Fault mechanisms are fixed here so they behave the same on Windows and Linux; no `chmod`, no deleting `.git` (it is a root marker, so the case would land in the no-plan exemption), no platform skip.
+
+- `contract outcome: evidence that cannot be read as a record is a missing item with a fix, and the commit is refused` -- table, both paths: the pointed plan path is a directory; the plan has invalid front matter; `test_command` is empty; `verify.json` is not valid JSON (a run killed mid-write); an expert record is not valid JSON. Each asserts REFUSED, the right `kind`, and stamp outcome `refused`. This is what a fail-open or a bare `JSON.parse` under a catch-all gets wrong.
+- `contract outcome: a git error by hand lets the commit through and prints could not check with the reason` -- mechanism: garbage written over `.git/index`, `.git` intact. Asserts stamp outcome `could-not-check`, not `exempt` and not `checked`.
+- `contract outcome: a git error in the run parks the card and commits nothing` -- same mechanism.
+- `contract outcome: a failure reading any one guarantee leaves the other three listed` -- four sub-cases, one injected failure each: confirmation (plan path is a directory), tests (`verify.json` is a directory), experts (`_recheck.json` is a directory), memory (the memory root is a file). Each asserts the other three kinds are still in `missing`, and that the failed one is reported in words. Today the experts and tree reads share one catch-all and the memory read swallows its error into an allow.
+- `contract outcome: exempt reasons are printed by the hook, by status.js and in card-commit's JSON line, and each says what it is` -- for documentation only, empty commit, gates off, no plan, bootstrap: the same reason in all three outputs; each reason contains its own words (documentation, nothing to commit, gates off, no plan, bootstrap); the reasons are pairwise different; the unparseable-payload and could-not-check texts differ from all of them. Equality across outputs alone passes the one string "exempt".
+- `contract exempt: a documentation-only or empty commit is exempt from confirmation, tests and experts together, and still refused for a memory link it breaks` -- hook and run. The plan has `tests_confirmed false`, changed text and an empty `test_command`. The commit that saves an unconfirmed `PLAN-x.md` must go through.
+
+The stamp:
+
+- `contract stamp: commit-check.json is written when the check runs on a commit, holds the outcome, and is not written by any other event` -- send every non-commit event from the hook-event builder, including the Bash PreToolUse with `git status`, `git log --grep=commit` and `git commit-tree`; assert the file is absent. Send a commit; assert outcome and time; `status.js` shows it.
+- `contract stamp: when the stamp cannot be written a refusal is still a refusal` -- `.ultimate-workflow/commit-check.json` is a directory; a commit with no `verify.json` still gets the deny payload with the tests item; the allow twin still allows with no stack trace on stderr. `gate.js` ends in a catch that exits 0, so a bare write before the response turns a refusal into an allow.
+
+One decision:
+
+- `contract volatile: the evidence uses the volatile_paths of the plan it was given` -- two plans with different `volatile_paths`, pointer on the other one; fingerprint follows the given plan.
+- `gates: commitGate keeps allow, reason and warnings and adds missing` and `gates.js requires only ./state.js` (source assertion).
+- `status and hook agree: for each contract state, status.js --json lists the same missing kinds the hook refuses with` -- loops over the contract states, including bootstrap; the hook's kinds are recovered from its printed text, not from an in-process call.
+- `one decision: commitGate is called from exactly dispatch.js, autopilot.js, status.js and experts.js, and fullSuiteGate and expertsGate are called from nowhere outside gates.js` (`mirrors.test.js`). Also asserts `autopilot.js` holds no assignment to `ev.memory`.
+
+**Card `active-plan`** (5.5; criterion 9).
+
+- `active plan: exactly one plan not done is active without a pointer`.
+- `active plan: several plans and no pointer picks none, whatever their mtimes` -- sets mtimes both ways with `fs.utimesSync` and asserts the same answer. No sleep, no reliance on write order.
+- `active plan: experts.js use --plan sets the pointer and the next read returns that plan`.
+- `contract exempt: several plans and no active plan chosen lets the commit through, prints that reason, and the stamp records it` (both paths).
+- `active plan: the reminder names the use command`.
+- `active plan: resolveStage and activePlanFiles agree for zero, one and several plans`.
+
+**Card `reminders`** (criteria 3, 4; fault 18). Files: `evals/experts/hook-events.test.js`, `hooks/lib/gates.test.js`, `hooks/lib/dispatch.test.js`, `hooks/registration.test.js`, `mirrors.test.js`.
+
+- `no hook refuses: every event sent to the real gate.js with an unconfirmed plan and a changed source file exits 0 with no deny and no stop block` -- the 14 sub-cases of the Part 1 builder, unchanged, with the same plan state (`test_command` set, `dirty: true`, `gate_violation` set). Asserts on parsed stdout, not on exit code alone, and asserts 14 sub-cases ran. Each of these was shown to block or write under 4.8.0 in card `baseline`.
+- `no hook writes: across those same events the plan file bytes and the recursive listing of .ultimate-workflow, with sizes and hashes, are identical before and after` -- same 14. One stated exception: on the PostToolUse shell sub-case whose command equals `test_command`, `verify.json` may change and nothing else may (see the frozen `verify.test.js` case). The listing is taken with hashes; names alone would miss a rewrite in place.
+- `no hook writes: PRD.md is untouched at bootstrap` (B-G1, B-G2 state).
+- `reminders: plan not confirmed gives one line naming the confirm command`; `reminders: tests not confirmed gives one line naming the confirm command`; `reminders: code changed since the last full run gives one line, computed from the fingerprint with no dirty key present`; `reminders: a clean confirmed tree gives no lines`. Each asserts the exact number of lines.
+- `reminders: a documentation or diagram change after a passing full run gives no code-changed line, and a requirements.txt change gives one` -- the replacement for the three deleted "does not mark the tree dirty" cases. The fingerprint covers working changes, not the doc filter the old flag used, so a bare fingerprint comparison nags on every README edit.
+- `reminders: with no test_command the code-changed line is not sent` -- the old stop gate stepped aside here; a reminder to run a command that does not exist must not replace it.
+- `reminders: a write into the plugin's run folder does not raise the code-changed line, and a source write does` (rewritten from `workflow-defer.test.js`).
+- `reminders: sent on UserPromptSubmit and Stop, and not on an edit` -- through real `gate.js`.
+- `reminders: status.js prints the same lines the hook sends` -- string equality between the two outputs for three states.
+- `reminders: bootstrap with PRD or design unconfirmed reminds and does not deny`.
+- `fault 18: another session's edits in the same checkout do not block this session's turn end`.
+- `removed names: dirty, verify_rounds, last_verify, escalated, gate_violation, heartbeat, markClean, roundCap, stopGate deny and patchState appear in no shipped source file` (`mirrors.test.js`) -- scans `.cursor-plugin/ultimate-workflow/**` except `*.test.js` and CHANGELOG text, and includes `phases/plan.js`, `commands/build.md`, both templates under `skills/`, `docs/gates.md` and `fixtures/`. The scan matches the key as a front-matter key or identifier, not the bare English word "dirty" in prose; the test states its pattern.
+- `registration: PreToolUse keeps the Bash matcher on gate.js` (frozen) and `registration: no event is registered that gate.js no longer acts on`.
+- `status: gates off still reports disabled`; `status: a leftover heartbeat.json is reported as deletable and not read`.
+- `build loop: ROUND_CAP 3, the same-signature stop and escalationText still stop the loop in phases/build.js` -- stubbed agent; pins that removing `roundCap` from the hook did not remove the loop's own stop.
+
+**Card `shared-blocks`** (criterion 6, part). Files under `evals/experts/`.
+
+- `staged script: each phase staged by stageScript holds the shared block exactly once and its bytes equal lib/phase-shared.js in the plugin`.
+- `staged script: every staged phase compiles and runs to its first agent call with a stubbed agent, with no module in scope` -- executes the output of `stageScript`, for all phases.
+- `staged script: the test loader and stageScript produce the same script text`.
+- `staged script: a phase-shared.js placed in the project is ignored` and `staged script: restaging overwrites an edited staged copy`.
+- `shared block: lib/phase-shared.js loads under require from experts.js`.
+- `shared block: addOnly, buildLoop, covers, inCard, claimsOf, expertsCheck are declared in no phases/*.js file` (`mirrors.test.js`).
+- `text to file: a reason holding $(...) and backticks reaches the command as a file path, and q() is applied to no agent or plan text in phases/run.js`.
+- The existing equal-copies tests are deleted in this card and listed in Part 4 before deletion.
+
+**Card `selection`** (5.6).
+
+- `selection: the selection question is asked once per feature, in plan` -- stubbed agent across plan, tests, review; count the calls carrying the selection prompt; must be 1.
+- `selection: tests, review auto-add, the Recheck and the run's recheck can only add` -- each of the four add points is given an answer that drops an expert; the set after still holds it.
+- `selection: the Recheck reports touched areas and code adds the experts`.
+
+**Card `one-review`** (criterion 6; fault 20; concerns 5, 11, 12). Move commit first with tests unchanged, then one test per fix.
+
+- `review bounds: an empty answer is retried once and not twice`.
+- `review bounds: one fix round per card`.
+- `review bounds: at most 4 fix-up cards`.
+- `review bounds: a finding with no verdict after the retry is open, starts no fix round, and parks the card in the run`.
+- `review cost: agent calls per card in the run are recheck + the card's experts + one refuter, and the four lenses run once per feature` -- asserts the exact call count for a 3-card stubbed run.
+- `review cost: agent calls for the by-hand review equal the count recorded in card baseline`.
+- `review model: the run passes its model setting (default sonnet) and the by-hand review passes none`.
+- `review labels: a stubbed multi-card run executed twice gives the same label sequence with no duplicate`.
+- `fault 20: prepare --range lists files from the saved diff, not the working tree` -- a file in the tree but not in the diff is absent; one in the diff but deleted from the tree is present.
+- `concern 5: a recheck that fails twice is listed in failed`; `concern 11: an unverified high finding is named unverified`; `concern 12: findings of fix-up groups that never ran are in run.json before the review is marked done`.
+- `one review, one harvest: phases/run.js holds no expertsCheck, no lens list and no harvest prompt of its own` (`mirrors.test.js`) -- the harvest half is checked in card `one-harvest`, which names the function or prompt marker that moved into `lib/phase-shared.js`. Until then the harvest assertion is absent, not skipped.
+- `saved diff: one location is written and read`.
+
+**Card `one-harvest`** (criterion 7; concerns 3, 8, 13).
+
+- `harvest once: a second harvest-branch call returns the recorded branch and makes no new ref` -- compares `git for-each-ref` before and after.
+- `harvest once: when making the branch fails the name is already in run.json, and the next call ends with exactly one uw/harvest/<feature> and no -2` -- the failure is real: a branch named `uw/harvest` exists, which blocks `uw/harvest/<feature>` as a ref. Assert the call fails and `run.json` holds the name; delete the blocking branch, call again, assert one harvest ref. This replaces both the earlier ordering case (order cannot be seen from the state after a successful call) and the crash case built from a hand-typed `run.json` (which tests the author's idea of the half-written state, not the code's).
+- `harvest safety: a recorded branch that is not the computed name is an error and no ref moves` -- table over recorded values `main`, `master`, `-x`, `uw/run/<feature>`, `uw/harvest/<other>`, `''`: for each, `git for-each-ref` is identical before and after and the result is the stated error. A deny-list of `main` and a leading dash passes two of six rows.
+- `harvest: a recorded uw/harvest/<feature>-2 from a 4.8.0 run is recognised as open, used, and no new -N is made` -- uses the 4.8.0 `run.json` fixture. This is the one recorded value other than the computed name that is accepted, and only when that ref exists.
+- `harvest: a git error in the free-name test counts as taken`.
+- `harvest: the last output line keeps ok, branch, commits, reason`.
+- `harvest cost: the run's harvest uses one agent`.
+- `run.json has one writer: a harvest write keeps reviewedHead and pendingFindings`.
+- The harvest half of `one review, one harvest: ...` is switched on here, and `staged script: the run and the harvest phase hold the same harvest block bytes` is added.
+- Frozen: `harvest-branch commits each destination file once on uw/harvest/<feature>, without touching the working tree`.
+
+**Card `one-resume`** (criterion 8, 9).
+
+- `resume: the resume object is built by one pure function from run.json and the card fields` -- table test asserting the exact resume object for: committed, parked and pending cards; plan says `committed: <sha>` and `run.json` lacks the card (a crash between `card-commit` and the `run.json` write); `run.json` says done and the plan field is missing; `run.json` absent; `run.json` not valid JSON. In every row a card whose sha is reachable from HEAD is never rebuilt, and a card marked committed whose sha is not reachable is not skipped.
+- `resume: a resumed stubbed run makes exactly the calls for the parked card's remaining steps and the later cards` -- run to a park, resume; assert the exact list of agent calls against a hand-written expectation, that the count equals the first-run total minus the calls recorded done, and that no prompt names a committed card. A comparison of label sets passes a resume that repeats every step under a new label suffix.
+- `resume: a run stopped after the review was recorded and before harvest makes no lens or expert call on resume` -- starts from a `run.json` whose `reviewedHead` equals HEAD; zero review calls; harvest still runs. A park happens before the end-of-feature steps, so the test above never sees the review as done.
+- `resume: --resume-card and --resume-reason only write the card fields`.
+- `resume: a parked 4.8.0 run resumes from its fixture run.json with the old flags accepted`.
+- `resume: deleting parked.md changes nothing the resume decides`.
+
+**Card `run-inputs`** (faults 17, 19, 22).
+
+- `fault 17: a backticked name with no slash that does not exist is a pack warning, not a park`.
+- `fault 19: run-start refuses when the plugin root is another checkout of the same repository`.
+- `fault 22: the pack holds its budget by dropping optional entries only, lists each dropped path, and never drops a file the card names`.
+- `fault 22: when the card's own files exceed the budget the run goes on with a warning, and plan shows the same warning`.
+- `size limits: an over-long journal or expert answer warns and does not stop the run`.
+
+**Card `measure-experts`** (goal: each expert measured, nothing cut).
+
+- `value: the report shows catches and cost for each of the 9 experts from a fixture ledger` -- exact figures from a hand-written ledger.
+- `nothing cut: 9 expert agents and 50 skills ship` -- counts files; fails on 8 or 49.
+
+**Card `release`** (criteria 10, 11).
+
+- `mirrors.test.js` version case at 5.0.0 in the five places.
+- `commands: feature, plan, tests, build, review, harvest, experts, value, expert-attribution and handoff each have a command file` (`mirrors.test.js`) -- an explicit list of ten.
+- `measure: the after list for the by-hand flow is the commit check alone, and names 8 or fewer state file kinds` -- runs the measure script on the real payload and asserts the names, not only the two counts.
+- `measure: payload bytes are under the 2 MB ZIP ceiling`.
+- `rollback: the recorded 4.8.0 parser reads a plan made without the old keys` -- uses the copy of the 4.8.0 `parseFrontMatter` recorded in card `baseline`. The harvest-branch half of the rollback row cannot be tested without 4.8.0's `freeName`; if no fixture of it was recorded in `baseline`, the CHANGELOG entry is the outcome and the plan must say so.
+
+### Part 4. Tests deleted or rewritten on purpose (each title goes in the commit message and in the committed deleted list read by `titles: ...`)
+
+Card `reminders` unless noted. Titles read from the files today.
+
+- `hooks/lib/gates.test.js`: `G3 blocks turn completion while the tree is dirty`; `G3 allows turn completion once verification is green`; `G3 does not block when nothing has been edited`; `G3 stays out of the way once the run has escalated`; `G4 counts failing rounds and escalates on the third`; `G4 does not re-escalate on a fourth failing round`; `G4 resets the counter and clears dirty on a green run`; `G4 records red without clearing dirty`; `G5 surfaces an escalation instead of the ordinary next action`. The other three G5 cases (`names the stage and the next required action`, `reports workflow availability`, `says nothing at stage none`) are about `phasePointer`, which the plan does not remove: they stay unless card `reminders` finds otherwise and adds them here.
+- `hooks/lib/dispatch.test.js`: `a landed source edit marks the tree dirty`; `a documentation edit does not mark the tree dirty`; `a diagram edit does not mark the tree dirty, an application html edit does`; `an edit outside the project does not mark the tree dirty`; `Cursor afterFileEdit marks dirty just like postTool`; `a passing verify clears dirty and resets the counter`; `the third failure escalates and hands the user the blocker protocol`; `stop blocks while the tree is dirty`; `a green verify clears gate_violation`; `a red verify leaves gate_violation alone`; `gate.js records a heartbeat even at stage none, where no gate acts`; `gate.js still decides correctly when the heartbeat cannot be written`; `gate.js echoes the real event name on a G4 escalation, end to end`; `T16 a passing related verify.js run clears dirty; a failing one counts a G4 round`; `G3 names the verify script when the hook knows it`.
+- `hooks/lib/workflow-defer.test.js`: all 17 cases; the file goes. `a write into the plugin's run folder does not mark the tree dirty; a source write still does` is rewritten as the run-folder reminder case in Part 3.
+- `hooks/lib/heartbeat.test.js`: all 13 cases; the file goes.
+- `hooks/lib/review-findings.test.js`: `the G4 escalation would be accepted by the host, not rejected as a mismatch`. The two round-trip cases stay only if `serializeFrontMatter` stays.
+- `hooks/status.test.js`: `with no heartbeat it says the gates have never run, and names the restart`; `with a recent heartbeat it reports live, with a count`; `with an old heartbeat it reports stale rather than live`; `a corrupt heartbeat file exits 0 and still reports`; the three `--json reports ... liveness` cases; `--json reports whether G3 is active, for test_command and build_command alike`. `--json still parses, and still reports the truth, for a malformed plan and a corrupt heartbeat` is rewritten for a corrupt `commit-check.json`. The local `frontMatter(lines)` helper goes (criterion 5; checked by `one copy: ...`).
+- `hooks/lib/root.test.js`: `gate.js fired from a subfolder writes its heartbeat at the root and nothing in the subfolder` is rewritten: fired from a subfolder on a commit, the stamp lands at the root.
+- `hooks/registration.test.js`: `the verify-command events match Bash, or G4 never sees a test run`.
+- `evals/experts/hook-events.test.js`: `hook events 4.8.0: every event payload reaches the temp project, and the old gate blocks or writes on it` becomes the two `no hook ...` cases; the payload builder is unchanged.
+- `evals/experts/commit-contract.test.js`, card `one-harvest`: none. Card `shared-blocks`: the equal-copies tests (titles not read here; that card lists them here before deleting).
+
+Replacements for the deleted block cases, same state in, a reminder line out, no deny, no write: the dirty/stop cases map to `reminders: code changed since the last full run ...`; the three "does not mark the tree dirty" cases map to `reminders: a documentation or diagram change ...`; `gate.js still decides correctly when the heartbeat cannot be written` maps to `contract stamp: when the stamp cannot be written a refusal is still a refusal`.
+
+### Part 5. Criterion to test
+
+| Criterion | Proved by |
+|---|---|
+| 1 one deciding function | `one decision: ...`; `status and hook agree: ...` |
+| 2 four conditions, full list with fixes | Part 1 guarantee pairs; `contract confirmation ...`; `contract list ...` (three cases, hook text included) |
+| 3 no hook refuses | `hook events 4.8.0: ...` as the before; `no hook refuses: ...` |
+| 4 no hook writes, keys gone | `no hook writes: ...`; `removed names: ...`; `contract stamp: ...` (both) |
+| 5 one parser, writer, merge, Cards reader | `frontmatter: ...`; `cards: ...`; `one copy: ...` (both); `shared block: ... declared in no phases file` |
+| 6 run has no review, harvest, build loop of its own | `one review, one harvest: ...`; `staged script: the run and the harvest phase hold the same harvest block bytes`; `shared block: ...`; `staged script: ... compiles and runs` |
+| 7 harvest once | `harvest once: ...` (two cases); `harvest safety: ...` |
+| 8 resume repeats nothing | `resume: a resumed stubbed run makes exactly the calls ...`; `resume: a run stopped after the review ...`; the crash rows of the resume table |
+| 9 old projects work | `fixtures 4.8.0: ...`; `contract migration: ...` (two cases); `contract confirmation: both flags true ...`; `... Known failures ...`; the 4.8.0 row of `... a changed setting ...`; `frontmatter: unknown and old keys survive ...`; `resume: a parked 4.8.0 run ...`; `harvest: a recorded ...-2 ...` |
+| 10 verify green, commands exist | the verify command per card; `commands: ...`; `titles: ...`; `skips: ...` |
+| 11 measured table, after is smaller | `measure: on the 4.8.0 payload ...`; `measure: the after list ...`; `measure: the script lists ...` |
+
+### What these tests do not prove
+
+- **Decided by the owner, 2026-11-13: the hook still records a full run when the configured test command is typed directly.** The `verify.test.js` case is frozen and `no hook writes` carries one named exception for `verify.json`. This is the only write a hook makes outside the commit-time stamp.
+- **Decided by the owner, 2026-11-13: a recheck that fails twice does not refuse the commit;** it is named as failed, by hand and in the run. By hand this is a change from 4.8.0 (which refused). If an existing test pins the old by-hand refusal, card `selection` lists its title in Part 4 before changing it.
+- **Decided by the owner, 2026-11-13: an `experts:` line made shorter after confirmation does not refuse the commit;** the check names `experts` as changed since confirmation.
+- **Assumed, not stated by the plan:** a documentation-only or empty commit is exempt from the confirmation item as well as from tests and experts. `contract exempt: a documentation-only or empty commit is exempt from confirmation ...` pins that. If the plan means otherwise, that case changes and the plan must say how an unconfirmed plan file gets committed.
+- **The run tests that execute the staged script** are `staged script: every staged phase compiles and runs ...`, the `review ...`, `harvest ...` and `resume ...` stubbed-agent cases, and `evals/experts/run-phase.test.js`. `evals/autopilot/e2e.test.js` reads recordings; its body was not opened here. If it never executes `phases/run.js`, it must not be counted as proof for cards `shared-blocks` to `one-resume`.
+- **A commit hidden in `bash -c "..."`** is not seen by `isCommitCommand`. No test claims otherwise; the docs say so.
+- **Who ran an accept step** (confirm, baseline accept, resolve) cannot be tested. They are honour rules.
+- **That a frozen test's assertions are unchanged.** `titles: ...` proves the title is still there; the body is checked by the reviewer of each card against the "change allowed" column.
+- **Cost and question-count targets** are advisory for this release. They are measured and shown; no test blocks on them.
+- **Linux** first runs at the release pull request. Fault mechanisms, fixture storage and line endings above are chosen to behave the same on both systems, but only `validate.yml` proves it.
+- **Not opened while writing this section:** the bodies of the frozen tests, the Cursor commit titles in `dispatch.test.js`, whether `mirrors.test.js` already shells out to `git ls-files`, and the equal-copies test titles. Each card that touches one reads it first and corrects this section before the build if something here is wrong.
+
+
+### Expert test cases
+
+#### quality
+
+The draft covers my four plan constraints in outline; what it still lets through is (a) evidence records and recorded oracles that a later card or a hand-built fixture can make agree with wrong code, (b) source-scan and loop tests that pass on an empty match, and (c) "frozen", "no fifth skip" and "test must be under the verify globs" rules that are stated as rules for a reviewer and not as tests that fail. Examined: experts/quality/references/tests.md, plan sections 8, 9 and my Expert input (internal/plans/PLAN-simplify.md 277-322, 445-462), and the list of test files and skip-word sites; I did not open test bodies and ran nothing.
+
+- **contract round trip: the evidence the gate reads is the evidence the real writers produce (evals/experts/commit-contract.test.js, card baseline)**: In a temp git project with test_command set to a command that exits 0, run the real hooks/verify.js full run and the real experts.js record command(s) as child processes (gates on), with no test code writing verify.json or any expert record by hand; then send the git commit payload to the spawned hooks/gate.js and assert the allow payload with no skip/exempt reason, and run card-commit and assert ok:true with HEAD moved by one. Twin: same steps with test_command exiting 1 -> deny naming the verify command. The Part 1 allow cases must state in a comment whether their records come from these writers; any case that hand-builds a record JSON must also have this round-trip twin. (catches: If the Part 1 allow cases hand-write verify.json and expert records in the shape the reader expects, a card that renames or drops a field on the writer side (verify.js, experts.js) stays green in every contract case while real users are refused forever, or, with the could-not-check path, allowed unchecked. Both sides of the record must be checked against one artifact.)
+- **contract outcome: a corrupt or truncated verify.json, expert record or waivers.json refuses the commit as a missing item, on both paths (card commit-check)**: Four sub-cases per path, starting from the allow state and changing one file: verify.json holding '{' (truncated JSON); verify.json that is valid JSON but lacks the fingerprint field; one expert record truncated; waivers.json holding 'not json' with one open high finding otherwise waived. Hook path: deny payload whose missing list holds exactly kind 'tests' (first two) or 'experts' (last two) with a non-empty fix command; run path: ok:false with that gate, and git rev-parse HEAD unchanged. In no sub-case does the output contain the could-not-check wording. (catches: The draft pins 'unreadable plan' and 'empty test_command' as refusals but not unreadable evidence. An implementation that wraps evidence reading in one try/catch and maps any throw to could-not-check (today's gate.js:119-129 behaviour) passes every draft case and lets a commit through whenever a state file is half-written. Plan section 9 promises 'a record without a field the new reader wants is read as stale'; nothing tests it.)
+- **migration 4.8.0: the recorded verify.json, expert records and waivers.json are accepted by the new reader against their fixture tree (card baseline records, card commit-check asserts)**: Card baseline commits, next to the fixtures, the small source tree they were recorded on and the fingerprint string 4.8.0 computed for it. Test copies tree plus fixtures into a temp git project and asserts: (1) the new code's fingerprint for that tree equals the recorded 4.8.0 string literally; (2) the spawned gate.js allows the commit with the 4.8.0 verify.json and expert records in place, with no skip reason; (3) with one open high finding added to a record and the 4.8.0 waivers.json entry for it (expert, file, first 120 characters), the commit is still allowed; with the waiver entry removed it is denied naming the finding id. Each fixture listed in Part 1 is read by at least one test; a fixture no test reads fails a listing test. (catches: The draft creates verify.json, expert-record and waivers.json fixtures and checksums them, but no named test reads them: only the plan and run.json fixtures are used. A changed fingerprint recipe, a renamed lane field or a changed waiver key would invalidate every existing project's evidence on upgrade and all tests stay green, because every other case writes its evidence with the new code.)
+- **recorded oracles are frozen: the 4.8.0 answer tables are in the checksum table and are computed over frozen inputs (evals/experts, card baseline)**: The checksum test covers, besides the fixture files, every recorded answer used as an oracle: the confirmHash table, the experts-list JSON for the 9 experts, the memory parseHeader record, the recorded 4.8.0 parseFrontMatter copy and the by-hand review agent-call count. The confirmHash characterisation runs over plan copies frozen under evals/experts/fixtures/4.8.0/plans/ (including one with a BOM, one with CRLF, one with two Cards headings, one with a Known failures section), not over the live internal/plans directory, and asserts the number of plans hashed equals the number of rows in the table and is at least 4. (catches: A recorded table outside the checksum can be regenerated by the new code in the card that breaks the parser, turning the test into new-code-equals-new-code. And hashing live internal/plans has two failures: this plan's own file changes during the build (card status, accepted lines), so the test either goes red for a legitimate edit and gets its table regenerated, or loops over nothing if the directory read is wrong and passes vacuously.)
+- **source scans cannot pass on nothing: each scan test proves its pattern and its file set (mirrors.test.js, with each scan's card)**: For 'removed names', 'one decision', 'shared block ... declared in no phases file', 'one review: phases/run.js holds no expertsCheck' and 'gates.js requires only ./state.js': (1) the scan function is first applied to an in-test string that holds a positive (for example a front-matter line 'dirty: true', a call 'markClean(', a 'function addOnly(' declaration, a 'commitGate(' call in a fifth file) and must report it, and to a negative (the prose sentence 'the tree is dirty') and must not; (2) the test asserts the scanned file list is non-empty and contains named sentinel paths (hooks/lib/dispatch.js, experts/autopilot.js, phases/run.js, commands/build.md); (3) 'one decision' asserts the set of files calling commitGate deep-equals the four names, not only that no other file calls it. (catches: A scan whose glob resolves to zero files (wrong root, a path separator on Windows vs Linux) or whose regex never matches reports 'nothing found' and passes. That is the same result as a clean tree, so criteria 1, 3, 4, 5 and 6 would be proved by a test that cannot fail. A subset check on commitGate callers also passes when autopilot.js stops calling it and keeps its own decision.)
+- **one parser and one writer: front-matter parsing and setFrontLine are declared in exactly one shipped file (mirrors.test.js, card frontmatter)**: Scan of .cursor-plugin/ultimate-workflow/**/*.js except *.test.js: the declaration of parseFrontMatter appears in exactly 1 file and setFrontLine in exactly 1 file (hooks/lib/state.js or the file the card names); experts/experts.js declares no function named frontmatter or parseAgentFile; hooks/status.test.js declares no local frontMatter helper. Counts are asserted as literals (1, 1, 0, 0). (catches: My plan constraint named these identifiers; the draft's 'removed names' list holds only the state keys and hook names, and Part 5 maps criterion 5 to behaviour tests. A card that makes the shared parser correct but leaves the second copy in experts.js (still used by one caller) passes every 'frontmatter:' behaviour case, and the two copies drift again on the next BOM or CRLF fix.)
+- **gate integrity: every test file is reached by the verify command, no new skip, no only (mirrors.test.js, card baseline)**: (1) List every *.test.js in the repository excluding .claude/worktrees, .git and node_modules; each path is either mirrors.test.js at the root or lies under .cursor-plugin/ultimate-workflow/hooks/ or evals/; a file elsewhere (experts/, phases/, lib/, internal/tools/) fails by name. (2) Count skip sites ({ skip: ...}, test.skip, it.skip, t.skip(), describe.skip, todo) over those files with a stated pattern and assert the count equals the literal recorded in card baseline (the draft says 4; the card confirms the figure by reading the sites and writes them as a named list of file and title); assert zero occurrences of test.only / { only: true }. (3) The scan self-checks against an in-test string holding 't.skip(' so the pattern is shown to match. (catches: The draft states 'a test next to lib/ never runs' and 'a fifth skip fails the card' as rules, with nothing that fails. A new test placed beside internal/tools/measure.js or experts/ is green locally by never running, and a contract case that cannot be made to pass can be skipped with the suite still exiting 0. The per-card test count from measure.js catches a drop but not a skip (a skipped test is still counted) and not a file outside the globs (never counted before or after).)
+- **frozen titles exist: every title in Part 2 and every Part 1 contract title is present in its named file (evals/experts/commit-contract.test.js or mirrors.test.js, card baseline; list edited only by the cards Part 4 names)**: A literal table of file -> titles copied from Part 2 and Part 1; for each row the file's source contains the title as a test name string; the table has the exact row count written as a literal. For commit-contract.test.js the test also asserts that the number of test titles starting with 'contract G7', 'contract G6' and 'contract memory' equals 6, 7 and 4 respectively, as in Part 1. Requirement on the first commit of card commit-check (the one that must leave the Part 1 file untouched): the card records the blob hash of commit-contract.test.js from card baseline in its commit message, and I need the reviewer's git diff output for that commit to be shown, since no test can compare against a previous commit. (catches: 'Frozen' is otherwise enforced only by a reviewer and by the test count. Deleting one frozen refusal case and adding any new test in the same card keeps the count equal and the suite green; so does renaming 'G6 hand: an open high-confidence finding refuses' to an allow case. This is the oracle my plan risk asked for: the contract file and the code change in the same card, so the cases that must not change have to be pinned by something that goes red.)
+
+#### security
+
+The commit check is now the only refusal, so the tests must prove it cannot be switched to "could not check" or "exempt" by files an agent in the working tree can write (state files, the pointer, plan front matter), and that plan/agent text and run.json values never reach a shell or git as code. The draft already covers the unreadable plan, the confirmation throw, the q() source scan, harvestBranch "main"/dash, and project-side phase-shared.js; the cases below are the gaps. The several-plans-no-pointer exemption is the owner's decision (plan 5.5) and is not contested here.
+
+- **contract outcome: a corrupt verify.json, expert record or waivers.json is a missing item and refuses, never could-not-check**: File evals/experts/commit-contract.test.js, card commit-check, hook path and card-commit path, gates on, confirmed plan, one source change. Three sub-cases, each starting from the state of the matching Part 1 allow case and then overwriting one file with the bytes `{not json`: (a) .ultimate-workflow/verify.json -> refused, missing holds exactly one item of kind tests; (b) .ultimate-workflow/experts/review/security.json -> refused, missing holds exactly one item of kind experts; (c) starting from the 'open high finding' refuse case plus a valid waiver that allows it, corrupt waivers.json -> refused again with the finding id in the reason. In all three the outcome is 'checked', the string 'could not check' is absent from the output, and on the run path HEAD did not move. (catches: By hand, 'could not check' lets the commit through (plan 5.1). readJson at experts/experts.js:988 returns null on a parse error and commitEvidence has a catch-all skip at 1283; if a corrupt state file is routed to the internal-error outcome, an agent that hits a refusal can write one garbage byte into a file in the working tree and commit unchecked.)
+- **active plan: a pointer the containment check rejects does not switch the commit check off when one plan is open**: File evals/experts/commit-contract.test.js, card active-plan, hook and run paths. Project with exactly one PLAN file not done, confirmed, a source change, no verify.json. Sub-cases for the content of .ultimate-workflow/active-plan: `../outside/PLAN-x.md`, an absolute path to a PLAN file outside the project, `PLAN-missing.md`, the name of a second plan whose phase is done, and an empty file. In every sub-case the commit is refused with a missing item of kind tests whose fix names the one open plan's verify command; the outcome is 'checked', not 'exempt'. (catches: pointerName (hooks/lib/state.js:117) returns null for these values. After card active-plan removes the mtime guess, a null pointer must fall back to the single open plan; an implementation that treats 'pointer present but invalid' as 'no active plan chosen' gives the exempt outcome, so one write to the pointer file disables the only blocking check in a single-plan project.)
+- **active plan: experts.js use --plan refuses a path outside the project or not a plan, and leaves the pointer as it was**: File evals/experts/ (card active-plan). Spawn the real `experts.js use --plan <value>` with spawnSync in a temp project whose pointer already names PLAN-a.md. Values: `../PLAN-b.md`, `sub/../../PLAN-b.md`, an absolute path outside the project, `C:/x/PLAN-b.md`, `notes.md`, `PLAN-nope.md` (missing), and, where the platform allows making one, a link inside the project named PLAN-l.md whose target is outside it. Each exits non-zero with the value named in stderr, and the bytes of .ultimate-workflow/active-plan equal the bytes before. A valid `plans/PLAN-b.md` exits 0 and the pointer holds exactly that name. (catches: `use` is a new entry point that writes the file every hook reads to choose its plan. setActivePlan returns false silently today (state.js:145); a subcommand that prints success on a rejected value, or writes before validating, lets the pointer name a file outside the root whose front matter (empty test_command, broad volatile_paths) then governs the commit check.)
+- **contract exempt: the only plan flipped to phase done after confirmation is a printed and stamped exemption, not a silent allow**: File evals/experts/commit-contract.test.js, card commit-check stricter twins, hook path and status.js. Start from the G7 refuse state (confirmed plan, source change, no verify.json), then change only the front-matter line `phase:` to `done`. Assert the commit is allowed AND stdout carries an exempt reason that says no plan is open (the same string status.js --json reports), AND commit-check.json records outcome exempt with that reason. A second sub-case leaves phase alone and asserts the refusal, so the pair differs in that one line. (catches: activePlanFiles (state.js:102) drops a done plan and front matter is outside confirmed_hash (experts.js:495), so one line an agent can write turns a refusal into 'no plan'. The plan accepts settings changing without a block only because the change is shown; the draft's exempt-wording case builds its 'no plan' state from an empty project and would not catch this route printing nothing.)
+- **contract experts: an experts line emptied by hand, or a Cards section that cannot be read for experts, does not reduce the required experts to none**: File evals/experts/commit-contract.test.js, card commit-check, hook path. Confirmed plan with `experts: [developer, security]`, a passing full run on the fingerprint, no expert records, one source change. Sub-case (a): rewrite the front-matter line to `experts: []`; sub-case (b): make effectiveExperts throw for the plan (the fixture is the one the card finds that triggers the inner catch at experts.js:1279). Assert in both that the commit is not allowed with outcome 'checked' and an empty missing list: either it is refused with an item of kind experts, or the output names `experts` as changed since confirmation. Decided by the owner, 2026-11-13: for (a) the commit is allowed and the output names `experts` as changed since confirmation (the same rule as the other plan settings; `experts` joins the visible-settings list of plan 5.1), and the test asserts exactly that. For (b) the experts guarantee is reported as failed to read, as in `contract outcome: a failure reading any one guarantee leaves the other three listed`; it is never a silent allow. (catches: commitEvidence swallows a throw from effectiveExperts and continues with planExperts = [] (experts.js:1273-1279), which is a fail-open for the experts guarantee inside the code path the plan calls 'each guarantee is read on its own'. `experts:` is add-only through mergeAdd but a direct edit of the plan file bypasses that, and the plan's visible-settings list (5.1) omits this key. Needs an owner line in the plan if (a) is to be 'shown' rather than refused.)
+- **text to file: a backticked name in the plan holding a command substitution reaches the journal as text and runs nothing**: File evals/experts/ (card run-inputs, after fault 17), stubbed-agent run of the staged run script with the real autopilot commands executed through a real shell. The plan's card cites a missing name written as `` `$(node -e "require('fs').writeFileSync('PWNED','1')")` `` and a second card cites `` `x`; node -e "require('fs').writeFileSync('PWNED2','1')" #` ``. After the run step that records pack warnings: neither PWNED nor PWNED2 exists anywhere under the temp project or its parent; the recorded warning text contains the payload byte for byte; and every command line the script issued (captured by the stub) contains neither `$(` nor a backtick. Repeat with the payload arriving as an agent's park reason and as an `--action` value. (catches: q() at phases/run.js:395 only swaps double quotes. Card run-inputs turns a missing cited name into a pack warning, so plan text reaches the `--reason` at run.js:708; the draft's case covers one reason and a source scan of run.js, which passes if the helper is applied at 708 but the action values at 614, 912, 917 and 1135, or a new call added by a later card, still go through a shell string. Only executing the commands with a sentinel proves no substitution happened.)
+- **harvest safety: a recorded branch that is well-formed but not this feature's is an error and no ref moves**: File evals/experts/ (card one-harvest). For feature `alpha`, with branches uw/harvest/beta and main existing, write run.json harvestBranch in turn to: `uw/harvest/beta`, `uw/harvest/alpha/../../main`, `refs/heads/main`, `uw/harvest/alpha-2x`, `uw/harvest/alpha -f`, `uw/harvest/alphabet`, and a non-string (`["main"]`). Each call of harvest-branch ends with ok:false and a reason naming the recorded value; `git for-each-ref --format='%(refname) %(objectname)'` is byte-identical before and after; the working tree is untouched. Then `uw/harvest/alpha-2` with that branch existing is accepted as open and still no new ref is made. Also: a feature name of `a.b` does not accept recorded `uw/harvest/aXb`. (catches: run.json sits in the working tree where any agent in the run can write it (plan Expert input, security). The draft tests only `main` and a leading dash; a check written as 'starts with uw/harvest/' or built from an unescaped feature name (openHarvestBranches escapes only the dot, autopilot.js:813) would pass both and still let the run commit memory files onto another feature's harvest branch or a path-traversing ref.)
+- **staged script: argument values holding script-breaking text arrive as equal data and add no code**: File evals/experts/ (card shared-blocks). Call the one assemble function through stageScript for every phase with an args file whose values include: `"; require('fs').writeFileSync('PWNED','1'); //`, a string with a backtick and `${process.exit(7)}`, `*/ throw 1 /*`, `</script>`, a line holding only `})(`, U+2028 and U+2029, and a key named `__proto__`. Assert: the staged file parses; run to the first stubbed agent call, the args the body sees deep-equal the input values; no PWNED file exists; the process did not exit 7; and the shared block still appears exactly once (the payload repeating a marker line of the block as a string does not count as, or displace, the block). (catches: stageScript writes an executable file into the project with args spliced in as `const EMBEDDED_ARGS = ${JSON.stringify(args)}` (experts.js:1379). Card shared-blocks rewrites this assembly; if the block or the args are inserted by string replacement on a marker, or the args move into a template literal, plan and skill text (30-300 KB of it, some agent-written) becomes source. The draft checks block bytes and compile for normal args only.)
+
+#### genai
+
+The draft already pins most of the genai constraints (retry, fix-round and fix-up bounds, call counts, model, labels, pack budget). Missing are cases for what happens after a bound is hit or an agent answer is empty or malformed: the commit check must not treat it as reviewed, and the merged blocks must not bring the uncapped by-hand settings into the run. I read the plan (sections 5.6, 6, 7, 8 and my Expert input) and the draft; I did not open phases/*.js or the existing run-phase tests, so a case below may already exist under another title and the card should check before adding it.
+
+- **review bounds: an expert that answers nothing twice is recorded as failed, not as reviewed, and the commit check lists experts as missing (by hand and in the run)**: Stubbed agent returns null for one selected expert on the first call and on the retry. Assert: exactly 2 calls carry that expert's label; `failed` names the expert; no expert record for it exists on the fingerprint; `experts.js check` exits 1 with a `missing` item of kind experts naming that expert; in the run the card is parked and HEAD did not move. Same case once with the recheck agent returning null twice: the commit is allowed with the experts the plan already chose, and the output names the recheck as failed, by hand and in the run alike (decided by the owner, 2026-11-13); this is asserted exactly. (catches: The retry bound is tested, but not what follows it. A shared block that records the lane after the last retry lets a commit pass with a review that never produced an answer (my plan risk on recheck: false).)
+- **review bounds: a malformed recheck answer is a failed recheck, and only installed expert ids are added**: Card `selection`. Stubbed Recheck returns in turn: text that is not the expected structure; an answer cut off mid-list; a list holding one installed id plus `not-an-expert`. Assert for the first two: no expert is added, the recheck is listed in `failed` after one retry, and it is not reported as 'no areas touched'. For the third: the installed id is added through mergeAdd, the unknown id is not written to the plan's experts line and is named in the output. (catches: The Recheck changes from a selection question to 'report touched areas, code adds'. That is a new parse of model output; a parser that reads garbage as an empty list silently drops the add-at-commit-time guarantee.)
+- **review bounds: by hand, a high finding with no verdict after the retry refuses the commit until the user resolves it, and no fix agent is called**: Stubbed by-hand review: one expert returns one high-confidence finding; the refuter returns null twice. Assert: the finding is stored as unverified; zero agent calls with a fix or implementer label were made; the real gate.js denies a `git commit` with the finding's id, file and line in the reason; after `dismiss` with a reason the same commit is allowed. (catches: The draft pins the run half (parks the card) and the name 'unverified'. The by-hand half of plan 5.6 ('counts as open, the user resolves it') has no test, so an implementation that only reports it would pass.)
+- **review bounds: the run's review never uses rigor high, and by hand the verifier calls are one per finding**: Stubbed run with a card whose experts return 6 findings and run settings that carry rigor 'high' if such a setting can reach the run: assert zero calls with a `verify:` label and exactly one refuter call for the card. By hand with rigor 'high' and 6 findings: exactly 6 verifier calls, no more on a second pass over the same findings. (catches: The shared block brings the by-hand 'one verifier per finding, uncapped' path into the script the unattended run executes. The draft's call-count case uses a 3-card run with no rigor setting and would not see it.)
+- **review cost: a card whose check finds an open high finding pays one fix round and one re-check, then parks if it is still open**: Stubbed run, one card, the expert returns the same confirmed high finding before and after the fix. Assert the exact call sequence by label: recheck, the card's experts, one refuter, one fix (implementer), then recheck + experts + refuter once more, then no further agent call; the card is parked with the finding id in the reason; the four lens labels appear zero times for this card. (catches: 'One fix round per card' is pinned as a bound, but not what the round costs. A merged block that runs the full review (lenses included) again after the fix doubles the per-card cost only on the failing path, which the 3-card happy-path count misses.)
+- **build loop in the run: a card whose verify never passes stops at the cap of the shared buildLoop and parks**: Card `shared-blocks`. Stubbed run with a card whose verify step fails every round with a different failure signature each time. Assert the implementer label for that card is called exactly the capped number of times (the number the 4.8.0 run uses, recorded in card `baseline`), the card is parked with the last failure in the reason, nothing is committed, and the next card's calls still follow. (catches: The draft pins ROUND_CAP only in phases/build.js. The run's own build loop moves into the same shared buildLoop; if the run copy had a different cap or stop rule, the move changes how many paid rounds an unattended card can take.)
+- **harvest: an empty or malformed answer from the harvest agent makes no branch and is reported as failed, not as nothing to keep**: Stubbed run reaches harvest; the single harvest agent returns null, then (second sub-case) text that does not parse as proposals. Assert: at most one retry; `git for-each-ref` is unchanged; the last output line has ok false with a reason naming the empty answer; run.json does not mark harvest as done, so a resume calls the harvest label again exactly once. (catches: Harvest-once records the branch name before the branch exists. Combined with an empty agent answer, an implementation can record harvest as finished with zero proposals, and the resume then skips it for good.)
+- **stubbed-agent tests: the stub throws on a label it was not given and on more calls of a label than expected**: In the shared stub used by the `review ...`, `harvest ...`, `resume ...` and run-phase cases: calling it with an unlisted label throws (as run-phase.test.js line 64 does today), and each case ends by asserting that every expected label was consumed exactly the stated number of times. One meta case runs the stub with an extra call and expects the throw. (catches: Labels change in cards shared-blocks, one-review and one-harvest, so these stubs are rewritten with the code. A stub that answers any label, or a prefix match, keeps every bound and cost test green after a bound is lost.)

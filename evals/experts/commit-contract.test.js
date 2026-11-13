@@ -478,7 +478,7 @@ test('fixtures 4.8.0: the Known failures plan was made by the real baseline acce
   assert.strictEqual(stamped, expertsLib.confirmHash(fixture('plan-nohash.md.fixture')));
   const caps = JSON.parse(fixture('recorded', 'caps.json'));
   for (const [name, files] of Object.entries(caps)) {
-    for (const [file, value] of Object.entries(files)) assert.match(fs.readFileSync(path.join(PLUGIN, file), 'utf8'), new RegExp(`const ${name} = ${value}\\b`), `${name} in ${file}`);
+    for (const [file, value] of Object.entries(files)) assert.match(expertsLib.assemblePhase(PLUGIN, path.basename(file, '.js')), new RegExp(`const ${name} = ${value}\\b`), `${name} in ${file}`);
   }
   const calls = JSON.parse(fixture('recorded', 'review-call-counts.json'));
   assert.deepStrictEqual([calls.noExperts.count, calls.oneExpert.count, calls.twoExperts.count], [5, 6, 7]);

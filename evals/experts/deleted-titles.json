@@ -482,5 +482,21 @@
  [
   "evals/experts/hook-events.test.js",
   "hook events 4.8.0: every event payload reaches the temp project, and the old gate blocks or writes on it"
+ ],
+ [
+  "evals/experts/tokens.test.js",
+  "T2e the reader-model block is the same in the plan and harvest phases"
+ ],
+ [
+  "evals/experts/agent-names.test.js",
+  "every workflow carries the same agent names block"
+ ],
+ [
+  "evals/experts/lanes.test.js",
+  "the lane helpers are the same text in plan, tests and review"
+ ],
+ [
+  "evals/experts/run-phase.test.js",
+  "run.js carries the build loop and the build model exactly as build.js has them"
  ]
 ]

@@ -1405,6 +1405,44 @@ function commitEvidence(cwd, planFile, pluginRoot = PLUGIN_ROOT, options = {}) {
 
 // ---- phase scripts with their arguments built in ----
 
+/**
+ * The shared sections of the phase scripts: lib/phase-shared.js holds them between `// @@section <name>` and
+ * `// @@end <name>` lines. Read from the plugin only, never from the project.
+ */
+function sharedSections(pluginRoot) {
+  const text = fs.readFileSync(path.join(pluginRoot, 'lib', 'phase-shared.js'), 'utf8');
+  const out = {};
+  let key = null;
+  let body = [];
+  for (const line of text.split(/\r?\n/)) {
+    const open = /^\/\/ @@section ([a-z-]+)\s*$/.exec(line);
+    const close = /^\/\/ @@end ([a-z-]+)\s*$/.exec(line);
+    if (open) {
+      key = open[1];
+      body = [];
+    } else if (close && close[1] === key) {
+      out[key] = body.join('\n');
+      key = null;
+    } else if (key) body.push(line);
+  }
+  return out;
+}
+
+/**
+ * The runnable text of a phase script: phases/<name>.js with each `// @shared <name>` line replaced by that
+ * section of lib/phase-shared.js. The one function that builds it, called by stageScript (what users run) and
+ * by the test loader (so tests run what users run). A phase script cannot import, so this is how code is shared.
+ */
+function assemblePhase(pluginRoot, phaseName) {
+  const src = path.join(pluginRoot, 'phases', `${phaseName}.js`);
+  const text = fs.readFileSync(src, 'utf8');
+  const sections = sharedSections(pluginRoot);
+  return text.replace(/^[ \t]*\/\/ @shared ([a-z-]+)[ \t]*(\r?)$/gm, (m, key, cr) => {
+    if (!(key in sections)) throw new Error(`phases/${phaseName}.js asks for the shared section "${key}", which lib/phase-shared.js does not have`);
+    return sections[key] + cr;
+  });
+}
+
 // The Workflow tool loads a scriptPath only from a folder the session can read, never from
 // the plugin's install folder, and a model that passes args has to type them out: 30-300 KB
 // of skill text per phase. So the command writes a copy of the phase script into the
@@ -1485,7 +1523,7 @@ function stageScript(pluginRoot, cwd, phaseName, { argsFile = '', files = [], me
       args.verify = `node "${fwd(path.join(pluginRoot, 'hooks', 'verify.js'))}" --plan "${fwd(planRel)}"`;
     }
   }
-  const text = fs.readFileSync(src, 'utf8');
+  const text = assemblePhase(pluginRoot, phaseName);
   const meta = /^export const meta = \{[\s\S]*?^\}\r?\n/m.exec(text);
   if (!meta || meta.index !== 0) throw new Error(`phases/${phaseName}.js does not start with its meta block`);
   const head = meta[0];
@@ -1930,6 +1968,8 @@ module.exports = {
   record,
   commitEvidence,
   testsEvidence,
+  assemblePhase,
+  sharedSections,
   verifyScript,
   findingId,
   resolve,

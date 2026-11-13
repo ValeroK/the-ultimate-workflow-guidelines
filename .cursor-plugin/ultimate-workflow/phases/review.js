@@ -10,13 +10,7 @@ export const meta = {
   ],
 }
 
-// --- agent names (identical in every workflow; a test holds them equal) ---
-// An installed plugin registers its agents as "<plugin>:<agent>", so a bare "uw-explorer"
-// is "agent type not found". Every agentType goes through agentName(). A local run against
-// agents copied to .claude/agents/ passes args.agentNamespace: "".
-const AGENT_NAMESPACE = args && typeof args.agentNamespace === 'string' ? args.agentNamespace : 'ultimate-workflow:'
-const agentName = (name) => (String(name).includes(':') ? name : AGENT_NAMESPACE + name)
-// --- end agent names ---
+// @shared agent-names
 
 // Four orthogonal lenses, then a skeptic. The lenses are parallel because the
 // concerns genuinely do not overlap; a correctness reviewer and a scope
@@ -41,38 +35,7 @@ const extraLenses = ((args && args.lenses) || '')
 
 const CORE = ['correctness', 'simplicity', 'surgical-scope', 'test-coverage']
 
-// --- expert lane helpers (identical in plan.js, tests.js and review.js; a test holds them equal) ---
-// The expert list is discovered by experts/experts.js from the agents folder and passed in
-// as args.available, because a workflow script cannot read the folder itself.
-const asList = (v) => (Array.isArray(v) ? v : String(v || '').split(',')).map((e) => String(e).trim()).filter(Boolean)
-const wellFormedAvailable = (a) =>
-  Array.isArray(a) && a.every((e) => e && typeof e.name === 'string' && typeof e.agent === 'string' && Array.isArray(e.stages))
-const describeExperts = (a) => a.map((e) => `- ${e.name}: ${e.description}`).join('\n')
-const SELECTION = {
-  type: 'object',
-  required: ['experts'],
-  properties: {
-    experts: {
-      type: 'array',
-      items: {
-        type: 'object',
-        required: ['name', 'why'],
-        properties: { name: { type: 'string' }, why: { type: 'string', description: 'One sentence tying this expert to something in the material' } },
-      },
-    },
-  },
-}
-// A model answer is merged into the current set by code: it can add a name from the list and
-// nothing else. A name that is not on the list is returned, never applied, and nothing is removed.
-const addOnly = (current, answered, available) => {
-  const known = available.map((e) => e.name)
-  const names = [...new Set((answered || []).map((x) => String((x && x.name) || '').trim()).filter(Boolean))]
-  const merged = [...new Set([...current, ...names.filter((n) => known.includes(n))])]
-  return { experts: merged, added: merged.filter((n) => !current.includes(n)), rejected: names.filter((n) => !known.includes(n)) }
-}
-const takingPart = (available, selected, stage) =>
-  selected.map((n) => available.find((e) => e.name === n)).filter((e) => e && e.stages.includes(stage))
-// --- end expert lane helpers ---
+// @shared lane-helpers
 
 // Domain experts run as extra lenses under their own agent type. Which experts exist is
 // whatever experts/experts.js found in the agents folder (args.available); which of them
@@ -250,10 +213,7 @@ phase('Lenses')
 // the skills, under `_protocol`, and they are pasted into each expert's prompt. Telling an expert
 // to open a file did not get it opened, which is why skills are pasted too.
 const protocolText = args && args.skills && typeof args.skills === 'object' && typeof args.skills._protocol === 'string' ? args.skills._protocol.trim() : ''
-const readFirst = (dir, name, stage) =>
-  protocolText
-    ? `Read ${dir}/${name}/references/${stage}.md.\n\nTHE PROTOCOL every expert follows:\n${protocolText}`
-    : `Read ${dir}/protocol.md first (the rules every expert follows), then ${dir}/${name}/references/${stage}.md.`
+// @shared read-first
 
 // Skills were chosen in code from the diff by `experts.js prepare` and arrive as
 // { <expert>: { skills: [{ name, text }], dropped: [names] } }. The text goes into the expert's

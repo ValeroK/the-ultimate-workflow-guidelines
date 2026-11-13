@@ -248,6 +248,7 @@ Each card is built by hand, test first, and ends with the full verify command gr
   depends: active-plan
   Also touches the other places that name the removed keys: `phases/plan.js`, `commands/build.md`, the plan and PRD templates under `skills/`, `docs/gates.md`, `fixtures/`. `gate.js` keeps answering every event the 4.8.0 `hooks.json` registers with exit 0 and no block, because a host that was not restarted still sends them.
   Removes G1, G2, G6 at edit, G3, G4/G5, the detect-only path, `dirty`, `gate_violation`, `verify_rounds`, `last_verify`, `escalated`, `markClean`, the heartbeat. The tests named in section 8 are deleted or rewritten as reminder tests in this same card. `hooks.json` keeps the Bash matcher on PreToolUse (the commit check needs it); events no longer used are dropped. The plan template stops shipping the four old keys. The topical doc and its rule file are rewritten here, with the rule file kept shorter than the topical.
+  status: committed 45defd0
 - shared-blocks: Phase scripts get their shared code from one place
   paths: .cursor-plugin/ultimate-workflow/experts/experts.js, .cursor-plugin/ultimate-workflow/lib/phase-shared.js, .cursor-plugin/ultimate-workflow/phases/plan.js, .cursor-plugin/ultimate-workflow/phases/tests.js, .cursor-plugin/ultimate-workflow/phases/review.js, .cursor-plugin/ultimate-workflow/phases/harvest.js, .cursor-plugin/ultimate-workflow/phases/build.js, .cursor-plugin/ultimate-workflow/phases/run.js, mirrors.test.js
   depends: reminders

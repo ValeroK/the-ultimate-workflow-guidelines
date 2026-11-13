@@ -969,3 +969,16 @@ test('removed names: dirty, verify_rounds, last_verify, escalated, gate_violatio
   const beats = files.filter((f) => f.rel.startsWith('hooks/') && f.rel !== 'hooks/status.js' && HEARTBEAT.test(f.text)).map((f) => f.rel);
   assert.deepStrictEqual(beats, [], 'no hook code mentions the heartbeat');
 });
+
+// ---- PLAN-simplify, card shared-blocks: the moved code is declared in no phase script ----
+
+test('shared block: the code that moved to lib/phase-shared.js is declared in no phases/*.js file', () => {
+  const files = shippedSources().filter((f) => f.rel.startsWith('phases/'));
+  for (const sentinel of ['phases/plan.js', 'phases/tests.js', 'phases/review.js', 'phases/harvest.js', 'phases/build.js', 'phases/run.js']) assert.ok(files.some((f) => f.rel === sentinel), `${sentinel} was scanned`);
+  const DECL = (name) => new RegExp(String.raw`^\s*(?:async\s+)?(?:function\s+${name}\b|const\s+${name}\s*=)`, 'm');
+  assert.ok(DECL('addOnly').test('const addOnly = (a) => a') && DECL('buildLoop').test('async function buildLoop(o) {}') && !DECL('addOnly').test('x = addOnly(a)'), 'the pattern sees a declaration and not a call');
+  for (const name of ['asList', 'wellFormedAvailable', 'addOnly', 'takingPart', 'asReader', 'readFirst', 'buildLoop', 'agentName', 'ROUND_CAP']) {
+    const where = files.filter((f) => DECL(name).test(f.text)).map((f) => f.rel);
+    assert.deepStrictEqual(where, [], `${name} is declared in ${where.join(', ')}`);
+  }
+});

@@ -10,33 +10,9 @@ export const meta = {
   ],
 }
 
-// --- agent names (identical in every workflow; a test holds them equal) ---
-// An installed plugin registers its agents as "<plugin>:<agent>", so a bare "uw-explorer"
-// is "agent type not found". Every agentType goes through agentName(). A local run against
-// agents copied to .claude/agents/ passes args.agentNamespace: "".
-const AGENT_NAMESPACE = args && typeof args.agentNamespace === 'string' ? args.agentNamespace : 'ultimate-workflow:'
-const agentName = (name) => (String(name).includes(':') ? name : AGENT_NAMESPACE + name)
-// --- end agent names ---
+// @shared agent-names
 
-// --- reader model (identical in plan and harvest; a test holds them to it) ---
-// 4.2.0: the agents that only search and read run on a smaller model, chosen in code. `experts.js
-// script` passes ULTIMATE_WORKFLOW_READER_MODEL as args.readerModel ("inherit" turns it off). A
-// reader that returns nothing with the override is asked once more on the session model, so an
-// install without that model loses nothing.
-const READER_MODEL = args && typeof args.readerModel === 'string' && args.readerModel.trim() ? (args.readerModel.trim() === 'inherit' ? '' : args.readerModel.trim()) : 'haiku'
-const asReader = async (prompt, opts) => {
-  if (!READER_MODEL) return agent(prompt, opts)
-  let first = null
-  try {
-    first = await agent(prompt, { ...opts, model: READER_MODEL, effort: 'low' })
-  } catch {
-    first = null
-  }
-  if (first) return first
-  log(`${opts.label}: no answer on ${READER_MODEL}; retried on the session model`)
-  return agent(prompt, opts)
-}
-// --- end reader model ---
+// @shared reader-model
 
 // Exploration is the breadth-shaped part of planning: several independent
 // readers over different slices, each with a clean context, rather than one
@@ -66,47 +42,13 @@ if (!feature) {
   }
 }
 
-// --- expert lane helpers (identical in plan.js, tests.js and review.js; a test holds them equal) ---
-// The expert list is discovered by experts/experts.js from the agents folder and passed in
-// as args.available, because a workflow script cannot read the folder itself.
-const asList = (v) => (Array.isArray(v) ? v : String(v || '').split(',')).map((e) => String(e).trim()).filter(Boolean)
-const wellFormedAvailable = (a) =>
-  Array.isArray(a) && a.every((e) => e && typeof e.name === 'string' && typeof e.agent === 'string' && Array.isArray(e.stages))
-const describeExperts = (a) => a.map((e) => `- ${e.name}: ${e.description}`).join('\n')
-const SELECTION = {
-  type: 'object',
-  required: ['experts'],
-  properties: {
-    experts: {
-      type: 'array',
-      items: {
-        type: 'object',
-        required: ['name', 'why'],
-        properties: { name: { type: 'string' }, why: { type: 'string', description: 'One sentence tying this expert to something in the material' } },
-      },
-    },
-  },
-}
-// A model answer is merged into the current set by code: it can add a name from the list and
-// nothing else. A name that is not on the list is returned, never applied, and nothing is removed.
-const addOnly = (current, answered, available) => {
-  const known = available.map((e) => e.name)
-  const names = [...new Set((answered || []).map((x) => String((x && x.name) || '').trim()).filter(Boolean))]
-  const merged = [...new Set([...current, ...names.filter((n) => known.includes(n))])]
-  return { experts: merged, added: merged.filter((n) => !current.includes(n)), rejected: names.filter((n) => !known.includes(n)) }
-}
-const takingPart = (available, selected, stage) =>
-  selected.map((n) => available.find((e) => e.name === n)).filter((e) => e && e.stages.includes(stage))
-// --- end expert lane helpers ---
+// @shared lane-helpers
 
 // The workflow cannot read files, so experts.js sends the shared rules (experts/protocol.md) with
 // the skills, under `_protocol`, and they are pasted into each expert's prompt. Telling an expert
 // to open a file did not get it opened, which is why skills are pasted too.
 const protocolText = args && args.skills && typeof args.skills === 'object' && typeof args.skills._protocol === 'string' ? args.skills._protocol.trim() : ''
-const readFirst = (dir, name, stage) =>
-  protocolText
-    ? `Read ${dir}/${name}/references/${stage}.md.\n\nTHE PROTOCOL every expert follows:\n${protocolText}`
-    : `Read ${dir}/protocol.md first (the rules every expert follows), then ${dir}/${name}/references/${stage}.md.`
+// @shared read-first
 
 // Skills at the plan stage. No code can see the draft (it exists only in this script), so the
 // selection call is also asked which skills the draft needs, from a list experts.js built:

@@ -178,7 +178,8 @@ test('the site\'s flow diagram has the same lines as the README\'s', () => {
 // --- run.md says what the code does (PLAN-run-fixes.md, card run-md, tests 79 to 82, and test 64) ---
 
 const RUN_MD = read('.cursor-plugin/ultimate-workflow/phases/run.md');
-const RUN_JS = read('.cursor-plugin/ultimate-workflow/phases/run.js');
+// run.js names the shared build loop with a `// @shared` line; the rules are read from the assembled script, the one users run.
+const RUN_JS = require('../security-expert/lib/run-workflow.js').readScript(path.join(__dirname, '..', '..', '.cursor-plugin', 'ultimate-workflow', 'phases', 'run.js'));
 const NUMBER_WORDS = { 1: 'one', 2: 'two', 3: 'three', 4: 'four', 5: 'five' };
 
 test('run-md 79: run.md round rules match run.js', () => {
@@ -267,8 +268,8 @@ test('one-notice 64b: run.md tells the session to look in notifications.jsonl fo
   assert.match(rule, /If there is one, send nothing/);
 });
 
-test('build loop: ROUND_CAP 3, the same-signature stop, testMayBeWrong and escalationText are in phases/build.js, not in a hook', () => {
-  const BUILD_JS = fs.readFileSync(path.join(__dirname, '..', '..', '.cursor-plugin', 'ultimate-workflow', 'phases', 'build.js'), 'utf8');
+test('build loop: ROUND_CAP 3, the same-signature stop, testMayBeWrong and escalationText are in the build loop (lib/phase-shared.js, assembled into phases/build.js), not in a hook', () => {
+  const BUILD_JS = require('../security-expert/lib/run-workflow.js').readScript(path.join(__dirname, '..', '..', '.cursor-plugin', 'ultimate-workflow', 'phases', 'build.js'));
   assert.match(BUILD_JS, /^const ROUND_CAP = 3\s*$/m);
   for (const needle of ['testMayBeWrong', 'escalationText', 'if (round >= ROUND_CAP) break']) assert.ok(BUILD_JS.includes(needle), needle);
   const caps = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', '4.8.0', 'recorded', 'caps.json'), 'utf8'));

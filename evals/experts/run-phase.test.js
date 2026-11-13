@@ -440,14 +440,6 @@ const block = (file, start, end) => {
   return a === -1 || b === -1 ? null : s.slice(a, b);
 };
 
-test('run.js carries the build loop and the build model exactly as build.js has them', () => {
-  for (const [a, b] of [['// --- build loop', '// --- end build loop ---'], ['// --- build model', '// --- end build model ---']]) {
-    const inBuild = block(BUILD, a, b);
-    assert.ok(inBuild, `build.js lacks ${a}`);
-    assert.strictEqual(block(RUN, a, b), inBuild, `${a} differs between build.js and run.js`);
-  }
-});
-
 test('a fix-up card for a missing test goes on when its tests pass against code that is already right, and says so', async () => {
   const finding = { file: 'test/1.test.js', line: 4, what: 'the b argument check has no test', howItFails: 'a regression goes unseen', confidence: 'high' };
   const base = responder({ reviewFindings: [finding] });

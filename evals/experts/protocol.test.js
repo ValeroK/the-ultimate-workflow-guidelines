@@ -24,7 +24,8 @@ const ex = require(path.join(PLUGIN, 'experts', 'experts.js'));
 
 test('every workflow pastes the protocol it is sent, and falls back to naming the file', () => {
   for (const wf of ['plan.js', 'tests.js', 'review.js']) {
-    const src = read('phases', wf);
+    // The assembled script: the shared read-first section is part of what runs.
+    const src = require('../security-expert/lib/run-workflow.js').readScript(path.join(PLUGIN, 'phases', wf));
     assert.match(src, /args\.skills\._protocol/, `${wf} reads the protocol from the skills object`);
     assert.match(src, /THE PROTOCOL every expert follows/, wf);
     assert.match(src, /Read \$\{dir\}\/protocol\.md first/, `${wf} still names the file when nothing was sent`);

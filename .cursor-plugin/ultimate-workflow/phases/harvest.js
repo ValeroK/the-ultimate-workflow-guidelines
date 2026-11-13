@@ -9,33 +9,9 @@ export const meta = {
   ],
 }
 
-// --- agent names (identical in every workflow; a test holds them equal) ---
-// An installed plugin registers its agents as "<plugin>:<agent>", so a bare "uw-explorer"
-// is "agent type not found". Every agentType goes through agentName(). A local run against
-// agents copied to .claude/agents/ passes args.agentNamespace: "".
-const AGENT_NAMESPACE = args && typeof args.agentNamespace === 'string' ? args.agentNamespace : 'ultimate-workflow:'
-const agentName = (name) => (String(name).includes(':') ? name : AGENT_NAMESPACE + name)
-// --- end agent names ---
+// @shared agent-names
 
-// --- reader model (identical in plan and harvest; a test holds them to it) ---
-// 4.2.0: the agents that only search and read run on a smaller model, chosen in code. `experts.js
-// script` passes ULTIMATE_WORKFLOW_READER_MODEL as args.readerModel ("inherit" turns it off). A
-// reader that returns nothing with the override is asked once more on the session model, so an
-// install without that model loses nothing.
-const READER_MODEL = args && typeof args.readerModel === 'string' && args.readerModel.trim() ? (args.readerModel.trim() === 'inherit' ? '' : args.readerModel.trim()) : 'haiku'
-const asReader = async (prompt, opts) => {
-  if (!READER_MODEL) return agent(prompt, opts)
-  let first = null
-  try {
-    first = await agent(prompt, { ...opts, model: READER_MODEL, effort: 'low' })
-  } catch {
-    first = null
-  }
-  if (first) return first
-  log(`${opts.label}: no answer on ${READER_MODEL}; retried on the session model`)
-  return agent(prompt, opts)
-}
-// --- end reader model ---
+// @shared reader-model
 
 // Step 6 of the workflow -- writing down what was learned -- is its weakest
 // step in practice, because it happens at the end of a long session when

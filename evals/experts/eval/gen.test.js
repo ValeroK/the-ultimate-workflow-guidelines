@@ -322,7 +322,7 @@ test('an answered batch whose repository was left unchanged is a failed run, not
 });
 
 test('the implementer instruction mirrors the real build prompt, and gives neither arm the brief\'s main rule', () => {
-  const build = read(path.join(PLUGIN, 'phases', 'build.js'));
+  const build = require('../../security-expert/lib/run-workflow.js').readScript(path.join(PLUGIN, 'phases', 'build.js'));
   const { plan: p } = plan();
   for (const b of p.batches) {
     const text = read(b.taskFile);

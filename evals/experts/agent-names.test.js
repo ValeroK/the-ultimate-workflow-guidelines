@@ -12,18 +12,13 @@ const path = require('node:path');
 
 const PLUGIN = path.join(__dirname, '..', '..', '.cursor-plugin', 'ultimate-workflow');
 const WORKFLOWS = ['plan.js', 'tests.js', 'review.js', 'build.js', 'harvest.js', 'run.js'];
-const read = (f) => fs.readFileSync(path.join(PLUGIN, 'phases', f), 'utf8');
+// The assembled script (shared sections in), the one a user runs.
+const read = (f) => require('../security-expert/lib/run-workflow.js').readScript(path.join(PLUGIN, 'phases', f));
 const block = (src) => {
   const a = src.indexOf('// --- agent names');
   const b = src.indexOf('// --- end agent names ---');
   return a === -1 || b === -1 ? null : src.slice(a, b).replace(/\r\n/g, '\n');
 };
-
-test('every workflow carries the same agent names block', () => {
-  const blocks = WORKFLOWS.map((f) => [f, block(read(f))]);
-  for (const [f, b] of blocks) assert.ok(b, `phases/${f} lacks the agent names block`);
-  for (const [f, b] of blocks) assert.strictEqual(b, blocks[0][1], `phases/${f} differs from phases/${blocks[0][0]}`);
-});
 
 test('the namespace is the plugin name from plugin.json', () => {
   const { name } = JSON.parse(fs.readFileSync(path.join(PLUGIN, '.claude-plugin', 'plugin.json'), 'utf8'));

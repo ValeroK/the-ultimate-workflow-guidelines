@@ -808,6 +808,12 @@ function runBranch(cwd, { feature }) {
  * that head only, and with neither it moves both. A harvest branch recorded earlier is kept when
  * none is given.
  */
+/** The harvest branches of one feature that still exist: `uw/harvest/<feature>` and its `-2`, `-3`, ... */
+function openHarvestBranches(cwd, feature) {
+  const mine = new RegExp(`^uw/harvest/${String(feature).replace(/[.]/g, '[.]')}(-[0-9]+)?$`);
+  return git(cwd, ['for-each-ref', '--format=%(refname:short)', 'refs/heads/uw/harvest/'], { allowFail: true }).stdout.split(/\r?\n/).filter((b) => mine.test(b)).sort();
+}
+
 function runState(cwd, { feature, record, review, harvest, harvestBranch: branch, findingsFrom }) {
   const file = path.join(runDir(cwd, feature), 'run.json');
   const saved = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : {};
@@ -824,8 +830,7 @@ function runState(cwd, { feature, record, review, harvest, harvestBranch: branch
   }
   const pendingFindings = saved.pendingFindings || [];
   // The harvest branches of this feature still open (not merged away or deleted): a later harvest is told them.
-  const mine = new RegExp(`^uw/harvest/${String(feature).replace(/[.]/g, '[.]')}(-[0-9]+)?$`);
-  const openHarvests = git(cwd, ['for-each-ref', '--format=%(refname:short)', 'refs/heads/uw/harvest/'], { allowFail: true }).stdout.split(/\r?\n/).filter((b) => mine.test(b)).sort();
+  const openHarvests = openHarvestBranches(cwd, feature);
   if (record) {
     const both = !review && !harvest;
     const next = { ...(review || both ? { reviewedHead: head } : {}), ...(harvest || both ? { harvestedHead: head } : {}), harvestBranch: branch || saved.harvestBranch || '' };
@@ -997,6 +1002,8 @@ function runReport(cwd, { result: resultFile, out = '' }) {
     '## Harvest',
     '',
     r.harvest && r.harvest.ran ? (r.harvest.branch ? `${r.harvest.proposals} proposal(s) on \`${r.harvest.branch}\`, one commit per file: ${(r.harvest.commits || []).map((c) => `${c.file} (${c.commit})`).join(', ')}. Merge it to keep them, or delete it.` : `${r.harvest.proposals || 0} proposals${r.harvest.error ? `; not committed: ${r.harvest.error}` : ''}.`) : `Not run: ${(r.harvest && r.harvest.reason) || 'unknown'}.`,
+    // Every harvest branch of the feature still open: two can hold the same lesson, so the user sees them all.
+    ...(openHarvestBranches(cwd, r.feature).length ? ['', `Open harvest branches of this feature: ${openHarvestBranches(cwd, r.feature).map((b) => `\`${b}\``).join(', ')}. Merge or delete each.`] : []),
     ...((r.pendingFindings || []).length ? ['', '## Findings not fixed', '', ...r.pendingFindings.map((f) => `- ${f.expert}: ${f.file}:${f.line} ${f.what}`)] : []),
     ...(memoryWarnings.length ? ['', '## Memory', '', ...memoryWarnings.map((w) => `- ${w}`)] : []),
     '',

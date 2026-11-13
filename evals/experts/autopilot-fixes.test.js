@@ -887,3 +887,15 @@ test('gate-card 17b: an accepted: line written by the plan\'s own writer is read
   assert.deepStrictEqual(required(g, 'A'), ['quality']);
   assert.deepStrictEqual(required(g, 'B'), [...GATE_FIVE].sort(), 'accepted for A only: card B is not narrowed by it');
 });
+
+test('the report lists every open harvest branch of the feature, and none of another feature', () => {
+  const g = gateRepo();
+  assert.doesNotMatch(reportFor(g, [done('A')]), /Open harvest branches/, 'no branch, no line');
+  for (const b of ['uw/harvest/f', 'uw/harvest/f-2', 'uw/harvest/fother', 'uw/harvest/g']) git(g.dir, 'branch', b);
+  const report = reportFor(g, [done('A')]);
+  const line = report.split(/\r?\n/).find((l) => l.startsWith('Open harvest branches'));
+  assert.ok(line, report);
+  assert.ok(line.includes('`uw/harvest/f`') && line.includes('`uw/harvest/f-2`'), line);
+  assert.ok(!line.includes('fother') && !line.includes('uw/harvest/g'), line);
+  assert.match(line, /merge or delete each/i);
+});

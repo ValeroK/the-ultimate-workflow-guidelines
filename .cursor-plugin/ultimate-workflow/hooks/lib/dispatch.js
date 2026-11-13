@@ -72,8 +72,15 @@ function dispatch(ev, state, opts = {}) {
   if (state.stage === 'none') {
     // No plan and no PRD: nothing to check. A commit says so, and the stamp records it.
     if (!isCommit) return allow;
-    const why = 'no plan in the project';
+    const why = 'no plan is open in the project';
     return { kind: 'allow', say: `Commit check: this commit was not checked (exempt: ${why}).`, check: { outcome: 'exempt', why, missing: [] } };
+  }
+
+  // Several open plans and none chosen: no plan is guessed, so there is nothing to judge the commit by. It goes
+  // through, says so, and names the command that picks one (owner decision, 2026-11-13).
+  if (isCommit && state.stage === 'feature' && !state.file) {
+    const why = 'several plans and no active plan chosen';
+    return { kind: 'allow', say: `Commit check: this commit was not checked (exempt: ${why}). Pick the plan with: node experts/experts.js use --plan <file>`, check: { outcome: 'exempt', why, missing: [] } };
   }
 
   // --- the one commit check: confirmation, a full run, the experts, memory -----------------------

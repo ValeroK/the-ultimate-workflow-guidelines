@@ -869,3 +869,64 @@ test('status and hook agree: status.js --json lists the same missing kinds the h
   assert.strictEqual(r.decision, 'deny');
   assert.deepStrictEqual(stampOf(dir).missing, status.experts.commit.missing);
 });
+
+// ---- card active-plan ------------------------------------------------------------------------------
+
+test('contract exempt: several plans and no active plan chosen lets the commit through, prints that reason, and the stamp records it', () => {
+  const dir = project();
+  write(dir, 'PLAN-second.md', PLAN);
+  git(dir, 'add', '-A');
+  git(dir, 'commit', '-q', '-m', 'second plan');
+  fs.rmSync(path.join(dir, '.ultimate-workflow', 'active-plan'), { force: true });
+  editSource(dir);
+  // The commands set the pointer when given --plan; make sure none is set here.
+  fs.rmSync(path.join(dir, '.ultimate-workflow', 'active-plan'), { force: true });
+  const r = hook(dir, COMMIT);
+  assert.strictEqual(r.decision, 'allow', r.stdout);
+  assert.match(contextOf(r), /several plans and no active plan chosen/);
+  const s = stampOf(dir);
+  assert.strictEqual(s.outcome, 'exempt');
+  assert.match(s.why, /several plans/);
+  // The same tree with the pointer set is checked and refused: one fact differs.
+  write(dir, '.ultimate-workflow/active-plan', 'PLAN-calc.md\n');
+  assert.strictEqual(hook(dir, COMMIT).decision, 'deny');
+  // The run names its plan, so it is checked whatever the pointer says.
+  fs.rmSync(path.join(dir, '.ultimate-workflow', 'active-plan'), { force: true });
+  json(cli(dir, 'run-branch', '--feature', 'calc'));
+  fs.rmSync(path.join(dir, '.ultimate-workflow', 'active-plan'), { force: true });
+  const c = commitCard(dir);
+  assert.strictEqual(c.ok, false, 'card-commit judges its own --plan');
+});
+
+test('active plan: a pointer the containment check rejects does not switch the commit check off when one plan is open', () => {
+  for (const value of ['../outside/PLAN-x.md', 'PLAN-missing.md', '', 'C:/x/PLAN-x.md']) {
+    const dir = project();
+    editSource(dir);
+    write(dir, '.ultimate-workflow/active-plan', `${value}\n`); // fact: a pointer the check rejects
+    const r = hook(dir, COMMIT);
+    assert.strictEqual(r.decision, 'deny', `${JSON.stringify(value)}: ${r.stdout}`);
+    assert.match(r.reason, /Gate G7/);
+    assert.strictEqual(stampOf(dir).outcome, 'refused');
+  }
+  // A pointer naming a second plan that is done does not hide the open one either.
+  const dir = project();
+  write(dir, 'PLAN-old.md', PLAN.replace('phase: build', 'phase: done'));
+  git(dir, 'add', '-A');
+  git(dir, 'commit', '-q', '-m', 'old plan');
+  editSource(dir);
+  write(dir, '.ultimate-workflow/active-plan', 'PLAN-old.md\n');
+  assert.strictEqual(hook(dir, COMMIT).decision, 'deny');
+});
+
+test('contract exempt: the only plan flipped to phase done after confirmation is a printed and stamped exemption, not a silent allow', () => {
+  const dir = project();
+  editSource(dir);
+  assert.strictEqual(hook(dir, COMMIT).decision, 'deny', 'the plan is open: refused'); // fact: phase
+  rewritePlan(dir, (t) => t.replace('phase: build', 'phase: done'));
+  const r = hook(dir, COMMIT);
+  assert.strictEqual(r.decision, 'allow', r.stdout);
+  assert.match(contextOf(r), /no plan is open/);
+  const s = stampOf(dir);
+  assert.strictEqual(s.outcome, 'exempt');
+  assert.match(s.why, /no plan is open/);
+});

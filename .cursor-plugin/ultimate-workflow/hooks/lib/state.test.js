@@ -211,13 +211,14 @@ test('readState on an unmanaged repo yields stage none and no file', () => {
   assert.deepEqual(s.data, {});
 });
 
-test('readState picks the most recently modified PLAN file when several exist', () => {
+test('readState picks no plan when several exist and none is chosen, however recently each was modified', () => {
   const dir = tmpdir();
   const older = write(dir, 'PLAN-old.md', fm({ plan_confirmed: true }));
   const newer = write(dir, 'PLAN-new.md', fm({ plan_confirmed: false }));
   fs.utimesSync(older, new Date(1000), new Date(1000));
   fs.utimesSync(newer, new Date(9_000_000), new Date(9_000_000));
-  assert.equal(path.basename(state.readState(dir).file), 'PLAN-new.md');
+  assert.equal(state.readState(dir).file, null);
+  assert.equal(state.readState(dir).stage, 'feature');
 });
 
 // --- the plan pointer may name a plan in a subfolder -------------------------

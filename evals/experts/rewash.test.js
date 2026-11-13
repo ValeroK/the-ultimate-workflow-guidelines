@@ -183,7 +183,7 @@ function twoPlans() {
 
 test('V11 the gates read the plan a command last worked on, not the newest one', () => {
   const dir = twoPlans();
-  assert.equal(path.basename(stateLib.readState(dir).file), 'PLAN-other.md', 'without a pointer: the newest');
+  assert.equal(stateLib.readState(dir).file, null, 'without a pointer: no plan is guessed by time (PLAN-simplify, card active-plan)');
   fs.mkdirSync(path.dirname(pointer(dir)), { recursive: true });
   fs.writeFileSync(pointer(dir), 'PLAN-mine.md\n');
   const s = stateLib.readState(dir);
@@ -197,7 +197,7 @@ test('V12 a pointer to a finished, missing or non-plan file is ignored', () => {
   fs.mkdirSync(path.dirname(pointer(dir)), { recursive: true });
   for (const bad of ['PLAN-gone.md', '../PLAN-mine.md', 'README.md', '']) {
     fs.writeFileSync(pointer(dir), bad);
-    assert.equal(path.basename(stateLib.readState(dir).file), 'PLAN-other.md', JSON.stringify(bad));
+    assert.equal(stateLib.readState(dir).file, null, `${JSON.stringify(bad)}: an ignored pointer leaves two open plans and none chosen`);
   }
   fs.writeFileSync(path.join(dir, 'PLAN-mine.md'), '---\nphase: done\n---\n');
   fs.writeFileSync(pointer(dir), 'PLAN-mine.md');

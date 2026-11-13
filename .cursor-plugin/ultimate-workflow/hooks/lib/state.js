@@ -179,14 +179,18 @@ function setActivePlan(dir, plan) {
   return true;
 }
 
-function newestPlanFile(dir) {
+/**
+ * The one plan the hooks and commands work on (PLAN-simplify, card active-plan). The pointer wins; with
+ * no usable pointer, exactly one open plan is the plan. With several open plans and no pointer none is
+ * chosen: a guess by modification time once blocked work on an unrelated plan. `experts.js use --plan`
+ * is the command that picks one. Returns { file } or { file: null, several: [files] }.
+ */
+function chosenPlan(dir) {
   const pointed = pointedPlanFile(dir);
-  if (pointed) return pointed;
+  if (pointed) return { file: pointed };
   const files = activePlanFiles(dir);
-  if (files.length === 0) return null;
-  return files
-    .map((f) => ({ f, m: fs.statSync(f).mtimeMs }))
-    .sort((a, b) => b.m - a.m)[0].f;
+  if (files.length === 1) return { file: files[0] };
+  return { file: null, ...(files.length > 1 ? { several: files } : {}) };
 }
 
 function readIfPresent(file) {
@@ -275,10 +279,11 @@ function readState(dir) {
   const stage = resolveStage(dir);
 
   let file = null;
-  if (stage === 'feature') file = newestPlanFile(dir);
+  let several;
+  if (stage === 'feature') ({ file, several } = chosenPlan(dir));
   else if (stage === 'bootstrap') file = path.join(dir, 'PRD.md');
 
-  if (!file) return { stage, file: null, data: {} };
+  if (!file) return { stage, file: null, data: {}, ...(several ? { several } : {}) };
 
   const text = readIfPresent(file);
   if (text === null) return { stage, file: null, data: {} };
@@ -349,6 +354,7 @@ module.exports = {
   activePlanFiles,
   pointedPlanFile,
   setActivePlan,
+  chosenPlan,
   handoffComplete,
   resolveStage,
   projectRoot,

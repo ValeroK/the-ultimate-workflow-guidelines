@@ -238,6 +238,7 @@ Each card is built by hand, test first, and ends with the full verify command gr
   paths: .cursor-plugin/ultimate-workflow/hooks/lib/gates.js, .cursor-plugin/ultimate-workflow/hooks/lib/dispatch.js, .cursor-plugin/ultimate-workflow/hooks/gate.js, .cursor-plugin/ultimate-workflow/hooks/verify.js, .cursor-plugin/ultimate-workflow/hooks/status.js, .cursor-plugin/ultimate-workflow/experts/experts.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js
   depends: cards-reader
   Two commits. First: move the hook, `card-commit`, `status.js` and `experts.js check` onto the one function, with the contract test from card `baseline` unchanged. Second: add confirmation, the full list with fix commands, the three outcomes and the commit-time stamp. The edit and turn-end gates still exist after this card, so no guarantee is ever absent between cards.
+  status: committed 0478fd2
 - active-plan: No guessing of the plan by modification time
   paths: .cursor-plugin/ultimate-workflow/hooks/lib/state.js, .cursor-plugin/ultimate-workflow/experts/experts.js
   depends: commit-check

@@ -1861,6 +1861,11 @@ function main(argv) {
       const outside = cardsLib.outOfScope(changed, card.paths, globToRegExp);
       return out({ card: card.name, title: card.title, paths: card.paths, changed: changed.length, outOfScope: outside, testsExcluded: testFiles.length });
     }
+    if (o.cmd === 'use') {
+      if (!o.plan) return fail('use needs --plan <plan file>');
+      if (!stateLib.setActivePlan(o.cwd, o.plan)) return fail(`${o.plan} is not a plan of this project: it must be a PLAN-*.md inside the project folder`);
+      return out({ ok: true, plan: o.plan });
+    }
     if (o.cmd === 'check') {
       const evidence = commitEvidence(o.cwd, o.plan, o.pluginRoot, o.plan ? { stage: 'feature', script: verifyScript(o.pluginRoot) } : {});
       const verdict = gates.commitGate(evidence);

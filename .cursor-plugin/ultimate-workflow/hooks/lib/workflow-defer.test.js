@@ -209,7 +209,7 @@ test('a workflow agent\'s git commit, as recorded, is held by G7 like any other'
   assert.equal(ev.event, 'preTool');
   assert.equal(ev.tool, 'shell');
   const state = { stage: 'feature', file: 'PLAN-x.md', data: { plan_confirmed: true, tests_confirmed: true, test_command: 'node --test', experts: [] } };
-  const r = dispatch(ev, state, { verifyEvidence: { hash: 'h', record: null }, commitEvidence: { skip: 'n/a' } });
+  const r = dispatch(ev, state, { commitEvidence: { skip: 'n/a', tests: { command: 'node --test', script: '', hash: 'h', record: null } } });
   assert.equal(r.kind, 'deny');
   assert.match(r.reason, /^Gate G7/);
 });

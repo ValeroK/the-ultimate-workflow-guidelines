@@ -72,11 +72,6 @@ function dispatch(ev, state, opts = {}) {
 
   // --- G7, G6: no commit before a full test run, and before the experts, cover these changes --
   if (ev.event === 'preTool' && ev.tool === 'shell' && gates.isCommitCommand(ev.command)) {
-    const tests = gates.fullSuiteGate(state, opts.verifyEvidence, opts.verifyScript);
-    if (!tests.allow) {
-      if (!canBlockWrite(ev.vendor)) return { kind: 'allow', note: 'detect-only on this vendor', reason: tests.reason };
-      return { kind: 'deny', reason: tests.reason };
-    }
     // The evidence is gathered by the entry point, only for a commit, because it
     // reads the working tree. Without it there is nothing to judge, so allow.
     if (!opts.commitEvidence) return allow;

@@ -233,6 +233,7 @@ Each card is built by hand, test first, and ends with the full verify command gr
 - cards-reader: One Cards-section reader; `accepted` is a known field
   paths: .cursor-plugin/ultimate-workflow/experts/cards.js, .cursor-plugin/ultimate-workflow/experts/experts.js, .cursor-plugin/ultimate-workflow/lib/run-rules.js
   depends: frontmatter
+  status: committed 070a6ed
 - commit-check: One commit check used by the hook, the run, the status report and the check command
   paths: .cursor-plugin/ultimate-workflow/hooks/lib/gates.js, .cursor-plugin/ultimate-workflow/hooks/lib/dispatch.js, .cursor-plugin/ultimate-workflow/hooks/gate.js, .cursor-plugin/ultimate-workflow/hooks/verify.js, .cursor-plugin/ultimate-workflow/hooks/status.js, .cursor-plugin/ultimate-workflow/experts/experts.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js
   depends: cards-reader

@@ -753,14 +753,14 @@ function cardCommit(cwd, { plan, card: name, feature, claimed = [], fixedRound =
   // plan the pointer names: the two gates must not judge two different plans.
   const state = { stage: 'feature', file: path.resolve(cwd, plan), data: stateLib.parseFrontMatter(planText).data };
   if (stateLib.gatesEnabled(process.env)) {
-    const tests = gates.fullSuiteGate(state, verify.fullEvidence(cwd), 'verify.js');
-    if (!tests.allow) return { ok: false, card: card.name, gate: 'G7', reason: tests.reason };
-    const ev = expertsLib.commitEvidence(cwd, path.resolve(cwd, plan), undefined, { card: card.name });
-    // A stale index is no reason to refuse: it is regenerated below and committed with the card.
-    const stale = Boolean(ev.memory) && ev.memory.added.some((p) => p.kind === 'index');
-    if (stale) ev.memory = { ...ev.memory, added: ev.memory.added.filter((p) => p.kind !== 'index') };
+    // A stale memory index is no reason to refuse: it is regenerated below and committed with the card.
+    const ev = expertsLib.commitEvidence(cwd, path.resolve(cwd, plan), undefined, { card: card.name, stage: 'feature', script: 'verify.js', staleIndexOk: true });
     const g = gates.commitGate(ev);
-    if (!g.allow) return { ok: false, card: card.name, gate: ev.memory && ev.memory.added.length ? 'memory' : 'G6', reason: g.reason };
+    if (!g.allow) {
+      const kinds = (g.missing || []).map((m) => m.kind);
+      return { ok: false, card: card.name, gate: kinds.includes('tests') ? 'G7' : kinds.includes('memory') ? 'memory' : 'G6', reason: g.reason };
+    }
+    const stale = Boolean(ev.staleIndex);
     if (stale) memoryLib.cli(['index', '--root', memoryLib.rootOfPlan(planText) || '.'], cwd, () => {}, (m) => { throw new Error(m); });
   }
   const before = git(cwd, ['rev-parse', 'HEAD']).stdout.trim();

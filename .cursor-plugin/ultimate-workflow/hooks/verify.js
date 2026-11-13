@@ -406,19 +406,7 @@ function recordFull(cwd, { passed, command, verdict = null, acceptedAt = '' }) {
 /** What the commit check needs: the current fingerprint and the last full run, or why it does not apply. */
 function fullEvidence(cwd) {
   try {
-    const changes = experts.workingChanges(cwd);
-    if (changes.merge) {
-      // A merge is judged on the tree it will commit, not on its combined diff (which is empty
-      // for a clean merge whose tree has still never been tested).
-      const m = changes.merge;
-      if (m.tree === m.headTree || m.vsHead.length === 0) return { skip: 'a merge that changes nothing in the tree' };
-      if (m.vsHead.every((f) => isDocPath(f) && !ALWAYS_FULL.some((re) => re.test(f)))) return { skip: 'only documentation changed' };
-      return { hash: experts.testFingerprint(cwd), record: readRecord(cwd) };
-    }
-    if (changes.files.length === 0) return { skip: 'nothing to commit' };
-    // `requirements.txt` ends in a documentation extension and still changes what the tests run against.
-    if (changes.files.every((f) => isDocPath(f) && !ALWAYS_FULL.some((re) => re.test(f)))) return { skip: 'only documentation changed' };
-    return { hash: experts.testFingerprint(cwd), record: readRecord(cwd) };
+    return experts.testsEvidence(cwd);
   } catch {
     return { skip: 'the working tree could not be inspected' };
   }

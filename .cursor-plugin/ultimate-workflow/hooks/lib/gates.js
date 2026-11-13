@@ -298,19 +298,48 @@ function expertsGate(ev) {
 }
 
 /**
- * The commit gate: the memory check (PLAN-memory-index), then G6. `ev.memory` is { added, existing },
- * gathered by experts.js: the memory problems this commit introduces and the ones already at HEAD.
- * A new one denies, with the fixing command for a stale index; an old one comes back as a warning.
- * The check comes first because a memory-only commit is skipped by G6 as documentation.
+ * The one commit decision (PLAN-simplify, card commit-check). The hook, the run's `card-commit`, the
+ * status report and `experts.js check` all ask this and nothing else. `ev` is gathered by experts.js
+ * commitEvidence. It lists everything missing, not just the first thing, each with one fix command,
+ * in the order tests, experts, memory (confirmation joins in front of them in the second commit).
+ *
+ * Returns { allow, reason, warnings?, missing: [{ kind, text, fix }] }; an allow carries no `reason` and no
+ * `missing` (the 4.8.0 shape, pinned by gates.test.js). `reason` is the texts joined, so with one item
+ * it is exactly that item's wording.
+ *
+ *   tests:   a passing full run on exactly these changes (ev.tests, feature work only; G7).
+ *   experts: the domain experts reviewed exactly these changes, no open high finding (G6).
+ *   memory:  this commit does not leave memory newly broken. It is judged even for a
+ *            documentation-only commit.
  */
 function commitGate(ev) {
   const { added = [], existing = [] } = (ev && ev.memory) || {};
-  if (added.length > 0) {
-    const fix = added.some((p) => p.kind === 'index') ? '\nFix the index with: node experts/experts.js memory index' : '';
-    return deny(`Memory check: this commit leaves memory broken:\n${added.map((p) => `  - ${p.text}`).join('\n')}${fix}`);
-  }
+  const warnings = existing.length > 0 ? { warnings: existing.map((p) => p.text) } : {};
+  const missing = [];
+  const tests = testsItem(ev);
+  if (tests) missing.push(tests);
   const verdict = expertsGate(ev);
-  return verdict.allow && existing.length > 0 ? { ...verdict, warnings: existing.map((p) => p.text) } : verdict;
+  if (!verdict.allow) missing.push({ kind: 'experts', text: verdict.reason, fix: '/ultimate-workflow:experts' });
+  if (added.length > 0) {
+    const stale = added.some((p) => p.kind === 'index');
+    const hint = stale ? '\nFix the index with: node experts/experts.js memory index' : '';
+    missing.push({ kind: 'memory', text: `Memory check: this commit leaves memory broken:\n${added.map((p) => `  - ${p.text}`).join('\n')}${hint}`, fix: stale ? 'node experts/experts.js memory index' : 'fix the files named above' });
+  }
+  if (missing.length > 0) return { allow: false, reason: missing.map((m) => m.text).join('\n'), missing, ...warnings };
+  return { allow: true, ...warnings };
+}
+
+/** The full-suite part of commitGate (G7): feature work with a test_command, unless the evidence says to skip. */
+function testsItem(ev) {
+  const t = ev && ev.tests;
+  if (!t || t.skip || !t.command) return null;
+  const run = t.script ? `\`${t.script} --full\`` : `\`${t.command}\``;
+  const fix = t.script ? `${t.script} --full` : t.command;
+  const r = t.record;
+  const full = r && r.mode === 'full' && r.passed === true;
+  if (full && r.fingerprint === t.hash) return null;
+  if (full) return { kind: 'tests', text: `Gate G7: the changes have changed since the last passing full test suite run. Run ${run} once, then commit again. ${VOLATILE_HINT}`, fix };
+  return { kind: 'tests', text: `Gate G7: no passing full test suite run covers these changes (only related tests ran, or none, or the last full run failed). Run ${run} once, then commit again.`, fix };
 }
 
 /**

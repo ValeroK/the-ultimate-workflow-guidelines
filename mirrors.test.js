@@ -910,3 +910,25 @@ test('one copy: no Cards-heading match outside cardsRange in experts.js, verify.
   const offenders = files.filter((f) => ['experts/experts.js', 'hooks/verify.js', 'lib/run-rules.js'].includes(f.rel) && PATTERN.test(f.text)).map((f) => f.rel);
   assert.deepStrictEqual(offenders, [], 'only experts/cards.js finds the Cards section');
 });
+
+// ---- PLAN-simplify, card commit-check: one function decides whether a commit is allowed ----
+
+test('one decision: commitGate is called from exactly dispatch.js, autopilot.js, status.js and experts.js, and fullSuiteGate and expertsGate from nowhere outside gates.js', () => {
+  const CALL = /\bcommitGate\s*\(/;
+  assert.ok(CALL.test('const v = gates.commitGate(ev);'), 'the pattern sees a call');
+  assert.ok(!CALL.test('// commitGate is the one decision'), 'and ignores a comment without a call');
+  const files = shippedSources();
+  for (const rel of ['hooks/lib/gates.js', 'hooks/lib/dispatch.js', 'experts/autopilot.js', 'hooks/status.js', 'experts/experts.js']) assert.ok(files.some((f) => f.rel === rel), `${rel} was scanned`);
+  const callers = files.filter((f) => f.rel !== 'hooks/lib/gates.js' && CALL.test(f.text.replace(/^\s*(\/\/|\*).*$/gm, ''))).map((f) => f.rel).sort();
+  assert.deepStrictEqual(callers, ['experts/autopilot.js', 'experts/experts.js', 'hooks/lib/dispatch.js', 'hooks/status.js']);
+  const second = files.filter((f) => f.rel !== 'hooks/lib/gates.js' && /\b(?:fullSuiteGate|expertsGate)\s*\(/.test(f.text.replace(/^\s*(\/\/|\*).*$/gm, ''))).map((f) => f.rel);
+  assert.deepStrictEqual(second, [], 'no second caller-side decision');
+  const auto = files.find((f) => f.rel === 'experts/autopilot.js').text;
+  assert.ok(!/ev\.memory\s*=/.test(auto), 'autopilot.js does not edit the memory evidence');
+});
+
+test('gates: gates.js requires only ./state.js', () => {
+  const src = fs.readFileSync(path.join(root, '.cursor-plugin', 'ultimate-workflow', 'hooks', 'lib', 'gates.js'), 'utf8');
+  const requires = [...src.matchAll(/require\(\s*['"]([^'"]+)['"]\s*\)/g)].map((m) => m[1]);
+  assert.deepStrictEqual(requires, ['./state.js']);
+});

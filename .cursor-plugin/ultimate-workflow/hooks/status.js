@@ -40,7 +40,7 @@ function expertsReport(cwd, state) {
   if (state.stage !== 'feature' || !state.file) return null;
   try {
     const parsed = expertsLib.readExperts(fs.readFileSync(state.file, 'utf8'));
-    const evidence = expertsLib.commitEvidence(cwd, state.file);
+    const evidence = expertsLib.commitEvidence(cwd, state.file, undefined, { stage: state.stage, script: expertsLib.verifyScript() });
     const verdict = gates.commitGate(evidence);
     return {
       decided: parsed.present,

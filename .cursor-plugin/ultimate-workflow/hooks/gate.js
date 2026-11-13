@@ -114,19 +114,11 @@ async function main() {
   // Reading the working tree is not free, so the commit evidence is gathered only
   // for the one event that needs it. Any failure leaves it undefined, which allows.
   let commitEvidence;
-  let verifyEvidence;
   if (ev.event === 'preTool' && ev.tool === 'shell' && gatesLib.isCommitCommand(ev.command)) {
     try {
-      commitEvidence = experts.commitEvidence(cwd, state.file && state.stage === 'feature' ? state.file : '');
+      commitEvidence = experts.commitEvidence(cwd, state.file && state.stage === 'feature' ? state.file : '', undefined, { stage: state.stage, script: VERIFY_SCRIPT });
     } catch {
       commitEvidence = undefined;
-    }
-    if (state.data.test_command) {
-      try {
-        verifyEvidence = verify.fullEvidence(cwd);
-      } catch {
-        verifyEvidence = undefined;
-      }
     }
   }
 
@@ -134,7 +126,6 @@ async function main() {
   let result = dispatch(ev, state, {
     workflowsAvailable: workflowsAvailable(cwd, process.env),
     commitEvidence,
-    verifyEvidence,
     verifyScript: VERIFY_SCRIPT,
   });
 

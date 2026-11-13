@@ -562,3 +562,30 @@ test('commitGate: evidence with no memory part, or an empty one, behaves as befo
   assert.deepStrictEqual(gates.commitGate(evidence()), { allow: true });
   assert.equal(gates.commitGate({ skip: 'nothing to commit', memory: { added: [], existing: [] } }).allow, true);
 });
+
+// ---- PLAN-simplify, card commit-check: commitGate is the one decision ----
+
+test('gates: commitGate keeps allow, reason and warnings and adds missing', () => {
+  const ok = gates.commitGate({ skip: 'only documentation changed', memory: { added: [], existing: [{ text: 'old.md: broken link' }] } });
+  assert.deepStrictEqual(Object.keys(ok).sort(), ['allow', 'warnings']);
+  assert.strictEqual(ok.allow, true);
+  const no = gates.commitGate({ memory: { added: [{ kind: 'index', text: 'memory.md is stale' }], existing: [] }, skip: 'only documentation changed' });
+  assert.strictEqual(no.allow, false);
+  assert.strictEqual(typeof no.reason, 'string');
+  assert.deepStrictEqual(no.missing.map((m) => m.kind), ['memory']);
+  assert.ok(no.missing[0].fix.includes('memory index'));
+});
+
+test('gates: commitGate holds the full-suite check, so no caller needs fullSuiteGate', () => {
+  const tests = (record, hash = 'h1') => ({ skip: 'no experts are installed', tests: { command: 'npm test', script: 'node "v.js"', hash, record } });
+  const never = gates.commitGate(tests(null));
+  assert.strictEqual(never.allow, false);
+  assert.match(never.reason, /^Gate G7: no passing full test suite run covers these changes/);
+  assert.deepStrictEqual(never.missing.map((m) => m.kind), ['tests']);
+  assert.strictEqual(never.missing[0].fix, 'node "v.js" --full');
+  assert.strictEqual(gates.commitGate(tests({ mode: 'full', passed: true, fingerprint: 'h1' })).allow, true);
+  const stale = gates.commitGate(tests({ mode: 'full', passed: true, fingerprint: 'old' }));
+  assert.match(stale.reason, /^Gate G7: the changes have changed since the last passing full test suite run/);
+  assert.strictEqual(gates.commitGate(tests({ mode: 'full', passed: false, fingerprint: 'h1' })).allow, false);
+  assert.strictEqual(gates.commitGate({ skip: 'x', tests: { skip: 'only documentation changed', command: 'npm test' } }).allow, true);
+});

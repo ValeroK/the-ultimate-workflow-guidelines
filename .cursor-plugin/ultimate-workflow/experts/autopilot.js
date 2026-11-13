@@ -1061,7 +1061,7 @@ function runStart(cwd, { plan, feature, resume = null, implementerModel = '', di
       // through to the accept path and brings the unaccepted work back (2026-11-09, a live run).
       writePlanField(cwd, plan, held.name, 'parked', null);
       setStatus(cwd, plan, held.name, 'pending');
-      resume = { card: held.name, rerun: true, reason: resume.reason, avoid: held.decision, heldBranch: (held.parked && held.parked.branch) || `uw/parked/${feature}/${held.name}` };
+      resume = runRules.resumeObject({ flag: resume, held, feature });
     } else {
       // Accepted: the decision goes into the plan's Decisions, so it is planned from now on, and the
       // plan is confirmed again with it, by the user's own --accept.
@@ -1074,7 +1074,7 @@ function runStart(cwd, { plan, feature, resume = null, implementerModel = '', di
         const outside = workFiles(cwd).all.map(fwd).filter((f) => !planCards.some((c) => c.paths.length > 0 && cardsLib.covers(c.paths, f, globRe)));
         if (outside.length > 0) writePlanField(cwd, plan, (held && held.name) || resume.card, 'accepted', outside.sort().join(', '));
       }
-      resume = { card: resume.card, reason: resume.reason, testFiles: back.testFiles, ...(held && held.decision ? { accepted: held.decision } : {}) };
+      resume = runRules.resumeObject({ flag: resume, held, back, feature });
     }
     // The resume is a notice too: which card, and how it goes on.
     const how = resume.rerun ? `run again from its tests within the plan; the held work on ${resume.heldBranch} is superseded` : resume.accepted ? 'continues with the accepted decision in the plan' : 'continues from its parked work';

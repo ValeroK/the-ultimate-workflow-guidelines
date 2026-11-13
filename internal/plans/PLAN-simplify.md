@@ -268,6 +268,7 @@ Each card is built by hand, test first, and ends with the full verify command gr
   paths: .cursor-plugin/ultimate-workflow/phases/harvest.js, .cursor-plugin/ultimate-workflow/phases/run.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, .cursor-plugin/ultimate-workflow/lib/memory.js
   depends: one-review
   Keeps the order around `settle:record` that fault 13 depends on. If the output of `harvest-branch` changes, the prompt text in `phases/harvest.js` changes in the same card.
+  status: committed f2dab2b (partial)
 - one-resume: One resume form
   paths: .cursor-plugin/ultimate-workflow/lib/run-rules.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, .cursor-plugin/ultimate-workflow/phases/run.js
   depends: one-harvest

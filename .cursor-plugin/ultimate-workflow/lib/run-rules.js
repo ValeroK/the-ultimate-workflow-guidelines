@@ -131,4 +131,19 @@ function cardTokens(cardNames, agents) {
   return out;
 }
 
-module.exports = { RUN_ADDED, narrowedExperts, freeName, reusableCard, REASON_KEEP, shortReason, CONFLICT_TAIL, conflictOf, cardTokens };
+/**
+ * The one resume form: the object the run is given as `args.resume`. A pure function of what the user asked for
+ * (`flag`: { all } or { card, reason, accept }), the card as the plan holds it (`held`: its decision and parked
+ * fields), and what bringing its parked work back returned (`back.testFiles`). The flags carry no state; the card
+ * fields in the plan and run.json are the only source of what is done, and parked.md is only the long text of a reason.
+ */
+function resumeObject({ flag, held = null, back = null, feature = '' }) {
+  if (!flag) return null;
+  if (flag.all) return { all: true };
+  if (held && held.decision && !flag.accept) {
+    return { card: held.name, rerun: true, reason: flag.reason, avoid: held.decision, heldBranch: (held.parked && held.parked.branch) || `uw/parked/${feature}/${held.name}` };
+  }
+  return { card: flag.card, reason: flag.reason, testFiles: (back && back.testFiles) || [], ...(held && held.decision ? { accepted: held.decision } : {}) };
+}
+
+module.exports = { resumeObject, RUN_ADDED, narrowedExperts, freeName, reusableCard, REASON_KEEP, shortReason, CONFLICT_TAIL, conflictOf, cardTokens };

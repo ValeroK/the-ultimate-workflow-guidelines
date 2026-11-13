@@ -125,3 +125,20 @@ test('run.json has one writer: a harvest write keeps reviewedHead and pendingFin
   assert.deepStrictEqual(state.pendingFindings, [{ what: 'x' }]);
   assert.strictEqual(state.harvestBranch, 'uw/harvest/calc');
 });
+
+test('one review, one harvest: phases/run.js and phases/harvest.js declare no harvest schema of their own and share one', () => {
+  const experts = require(path.join(PLUGIN, 'experts', 'experts.js'));
+  for (const f of ['run', 'harvest']) {
+    const own = fs.readFileSync(path.join(PLUGIN, 'phases', `${f}.js`), 'utf8');
+    assert.ok(!/^const PROPOSALS = /m.test(own), `${f}.js declares PROPOSALS`);
+    assert.ok(/^\/\/ @shared harvest-proposals/m.test(own), `${f}.js names the shared section`);
+    assert.strictEqual(experts.assemblePhase(PLUGIN, f).split('const PROPOSALS = {').length - 1, 1);
+  }
+});
+
+test('harvest: an empty answer and a failed branch step are not recorded as done (run-phase 57, 57b), and the run still uses one harvest agent', () => {
+  const run = fs.readFileSync(path.join(__dirname, 'run-phase.test.js'), 'utf8');
+  assert.ok(/57: the review and the harvest are recorded apart/.test(run) && /57b: a harvest whose branch step failed is not recorded as done/.test(run));
+  const experts = require(path.join(PLUGIN, 'experts', 'experts.js'));
+  assert.strictEqual((experts.assemblePhase(PLUGIN, 'run').match(/agentType: agentName\('uw-harvester'\)/g) || []).length, 1);
+});

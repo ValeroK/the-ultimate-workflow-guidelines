@@ -304,7 +304,7 @@ test('the working tree and the current branch are unchanged after harvest-branch
 
 // The object literal bound to `const PROPOSALS` in a workflow script, evaluated.
 function schemaOf(file) {
-  const src = fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
+  const src = require('../security-expert/lib/run-workflow.js').readScript(file).split(String.fromCharCode(13)).join(''); // assembled: PROPOSALS is the shared harvest-proposals section
   const start = src.indexOf('const PROPOSALS = ');
   assert.ok(start >= 0, `${file} has PROPOSALS`);
   const end = src.indexOf('\n}\n', start);

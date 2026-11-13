@@ -58,43 +58,7 @@ const EXISTING = {
   },
 }
 
-const PROPOSALS = {
-  type: 'object',
-  required: ['proposals', 'discarded'],
-  properties: {
-    proposals: {
-      type: 'array',
-      items: {
-        type: 'object',
-        required: ['destination', 'path', 'text', 'source', 'rationale'],
-        properties: {
-          destination: { type: 'string', enum: ['gotcha', 'memory', 'progress'] },
-          path: { type: 'string', description: 'Target file, e.g. CLAUDE.md or memory/gates.md' },
-          text: { type: 'string', description: 'The exact text to add, ready to paste' },
-          source: { type: 'string' },
-          rationale: { type: 'string', description: 'Which threshold it met, and why this store not the other' },
-          description: { type: 'string', description: 'A new memory topical: one line on what it covers (required for a new file)' },
-          paths: { type: 'array', items: { type: 'string' }, description: 'A new memory topical: globs of the paths it is about, relative to the folder that holds memory.md' },
-          keywords: { type: 'array', items: { type: 'string' }, description: 'A new memory topical: words or short phrases that cue it (paths or keywords is required for a new file)' },
-          add_paths: { type: 'array', items: { type: 'string' }, description: 'An existing memory topical: globs to add to its header' },
-          add_keywords: { type: 'array', items: { type: 'string' }, description: 'An existing memory topical: keywords to add to its header' },
-          remove_paths: { type: 'array', items: { type: 'string' }, description: 'An existing memory topical: globs to remove from its header (a cue that matches no file)' },
-        },
-      },
-    },
-    discarded: {
-      type: 'array',
-      items: {
-        type: 'object',
-        required: ['lesson', 'why'],
-        properties: {
-          lesson: { type: 'string' },
-          why: { type: 'string', description: 'Already recorded, not durable, obvious from code, or one-off' },
-        },
-      },
-    },
-  },
-}
+// @shared harvest-proposals
 
 // Stated in every reader prompt. The failure mode of a harvester is not missing
 // a lesson, it is inventing one -- a store that fills with filler teaches the

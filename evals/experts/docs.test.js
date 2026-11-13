@@ -220,7 +220,7 @@ test('run-md 82: run.md says one desktop notification, at the end', () => {
 test('one-notice 64: run.md tells the session to send notify --kind finished with stopped when the run ended without one', () => {
   const at = RUN_MD.indexOf('When the run ended without its own finished notice');
   assert.ok(at > RUN_MD.indexOf('## 4. When it returns'), 'the rule is in the section about the return');
-  const rule = RUN_MD.slice(at, at + 600);
+  const rule = RUN_MD.slice(at, at + 1200);
   assert.match(rule, /notify --feature <feature> --kind finished --reason "stopped: /);
   assert.match(rule, /exactly one/);
 });
@@ -254,4 +254,15 @@ test('release 86: CHANGELOG 4.8.0 names the unattended-run fixes', () => {
   };
   for (const [n, phrase] of Object.entries(items)) assert.ok(section.includes(phrase), `item ${n} is not named: "${phrase}"`);
   assert.doesNotMatch(log, /^## \[4\.9\.0\]/m, 'these fixes ship inside 4.8.0');
+});
+
+// Review of the whole branch (2026-11-13): the session-side fallback must also cover a run whose script
+// finished while the step that sends the finished notice returned nothing, and say how to tell.
+test('one-notice 64b: run.md tells the session to look in notifications.jsonl for a finished entry of this run before sending one', () => {
+  const at = RUN_MD.indexOf('When the run ended without its own finished notice');
+  const rule = RUN_MD.slice(at, at + 1200);
+  assert.match(rule, /the script finished but the step that sends the finished notice returned nothing/);
+  assert.match(rule, /`\.ultimate-workflow\/run\/<feature>\/notifications\.jsonl`/);
+  assert.match(rule, /`"kind":"finished"`[^.]*newer than the run's start/);
+  assert.match(rule, /If there is one, send nothing/);
 });

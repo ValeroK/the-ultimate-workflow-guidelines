@@ -1307,3 +1307,37 @@ test('card-field --carried-file takes the carried text from the file, as written
   assert.deepStrictEqual(out.carried, ['quality at src/a/x.js:1: $(touch PWNED) and `x`']);
   assert.ok(!fs.existsSync(path.join(dir, 'PWNED')));
 });
+
+// ---- PLAN-simplify, card one-resume: a resume repeats no step that is already recorded as done ----
+
+test('resume: a run stopped after the review was recorded and before the harvest makes no lens or expert call on resume, and the harvest runs once', async () => {
+  const r = responder({ state: { head: 'h2', reviewedHead: 'h2', harvestedHead: '', harvestBranch: '' } });
+  const calls = [];
+  await run(baseArgs([card('1', { committed: true })]), async (c) => { calls.push(c); return r(c); });
+  assert.equal(calls.filter((c) => LENS_LABEL.test(c.label)).length, 0, 'no lens: ' + labelsOf(calls).join(' '));
+  assert.equal(calls.filter((c) => /^[0-9a-z-]+:(recheck|refute)/.test(c.label)).length, 0, 'no experts check');
+  assert.equal(labelsOf(calls).filter((l) => l === 'harvest').length, 1);
+});
+
+test('resume: a committed card is never rebuilt, and the remaining card makes exactly the calls a fresh run of it makes', async () => {
+  const fresh = [];
+  const f = responder();
+  await run(baseArgs([card('2')]), async (c) => { fresh.push(c); return f(c); });
+  const resumed = [];
+  const g = responder({ state: { head: 'h3', reviewedHead: '', harvestedHead: '', harvestBranch: '' } });
+  await run(baseArgs([card('1', { committed: true }), card('2')]), async (c) => { resumed.push(c); return g(c); });
+  const mine = (calls) => labelsOf(calls).filter((l) => l.startsWith('2:'));
+  assert.deepStrictEqual(mine(resumed), mine(fresh), 'card 2 makes the calls of a fresh run, no more and no fewer');
+  assert.deepStrictEqual(labelsOf(resumed).filter((l) => l.startsWith('1:')), [], 'card 1 is not touched: ' + labelsOf(resumed).filter((l) => l.startsWith('1:')).join(' '));
+});
+
+test('resume: a parked 4.8.0 run resumes from its fixture run.json, and the old flags build the same object', async () => {
+  const fixture = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', '4.8.0', 'run', 'run-harvest-2.json'), 'utf8'));
+  const r = responder({ state: { head: fixture.reviewedHead, reviewedHead: fixture.reviewedHead, harvestedHead: fixture.harvestedHead, harvestBranch: fixture.harvestBranch } });
+  const calls = [];
+  const out = await run(baseArgs([card('1', { committed: true })]), async (c) => { calls.push(c); return r(c); });
+  assert.deepStrictEqual(waitingLabels(labelsOf(calls)), [], 'nothing recorded is repeated: ' + labelsOf(calls).join(' '));
+  assert.equal(out.result.harvest.ran, false);
+  const rules = require(path.join(PLUGIN, 'lib', 'run-rules.js'));
+  assert.deepStrictEqual(rules.resumeObject({ flag: { card: '1', reason: 'resumed by the user', accept: false }, held: { name: '1', parked: { branch: 'uw/parked/calc/1' } }, back: { testFiles: [] }, feature: 'calc' }), { card: '1', reason: 'resumed by the user', testFiles: [] });
+});

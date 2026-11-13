@@ -30,3 +30,15 @@ Security first, then in the order the review gave.
 13. **architect** (.cursor-plugin/ultimate-workflow/experts/autopilot.js:881): A harvest whose `harvest-branch` step created uw/harvest/<f> before the run died ahead of `settle:record` is run again on the next resume and makes uw/harvest/<f>-2. The only guard against duplicate proposals is the harvester prompt's instruction to drop what the open branches already hold, which a model can ignore. Why it is not a finding: The window is a few steps long, and the plan accepted the prompt-based mitigation for the duplicate-proposal risk I raised at planning. Confidence 5.
 14. **devops** (.cursor-plugin/ultimate-workflow/hooks/lib/state.js:undefined): The plan-subfolder change makes the hooks read internal/plans/ plans once a pointer is set. A run of this plan in this repository can then be judged by the new state.js partway through, and the plan never says from which card on that applies. Why it is not a finding: This is a sequencing risk in how the run uses the repository, not a defect in the diff. Whether it bit depends on how the run was driven, which I cannot see. Confidence about 4.
 15. **devops** (CHANGELOG.md:undefined): After the budget raise, the only size guard on what ships is release-skills.yml's 2 MB ZIP ceiling, and that check runs only at tag time. Growth from the two new lib/ files is first seen at release. Why it is not a finding: This was already the case: the budget raise is part of 4.8.0, not this diff, and the plan accepted the trade-off (deviation 3). I have no failure path from this diff. Confidence about 3.
+
+## Lessons from the five harvest branches (read 2026-11-13, branches then deleted)
+
+The five branches (uw/harvest/memory-index-1 to -4, uw/harvest/run-fixes) proposed mostly the same lessons, because harvest ran on every resume. What is worth keeping for the simplification plan:
+
+- Commit gate G6 worked out the experts from the changed files, not the card, so cards sharing a file had to share an experts line. Fixed in 4.8.0 for run commits; hand commits still take the union. One rule for both would be simpler.
+- With several plans and no pointer, the gates guessed the plan by modification time. A guess is a source of surprise; one explicit active plan is simpler.
+- The experts/ byte budget parked a whole run on working code. Size limits that stop a run should be checked at plan time, or be warnings.
+- The preflight treats every backticked document name as a path (fault 17).
+- Agent text inside q() on a command line is a shell injection risk; fixed by files in 4.8.0. A single "pass text as a file" helper would remove the class.
+- The memory check sits inside the commit gate, ahead of G6, and blocks only what the commit adds. Another check in the same gate; a candidate to fold or drop.
+- An expert that returns nothing is retried once (4.8.0).

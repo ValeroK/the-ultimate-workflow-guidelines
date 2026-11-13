@@ -122,3 +122,23 @@ Plugin ZIP contents: 1686027 bytes raw, about 687564 bytes deflated (ceiling 200
 | Release ZIP contents, raw | 1746173 | 1686027 (under the 2 MB ceiling) |
 
 Plan targets not met: state-file kinds 8 or fewer; run.js without a review, harvest or experts-check of its own; one measure-line parser. See the build report.
+
+## After, second pass (all partial cards finished)
+
+| Measure | Before (4.8.0) | After (5.0.0, second pass) |
+|---|---|---|
+| Blocking checks | 11 (13 on the owner's map) | 1 check, 4 parts: confirmation, G7, G6, memory |
+| `phases/run.js` lines / bytes | 1154 / n.a. | 656 (phases total 3209 lines down to 2153; 194909 bytes down to 136893) |
+| `experts/experts.js` lines | 1812 | 1997 |
+| `experts/autopilot.js` lines | 1260 | 1293 |
+| `lib` bytes | 48833 | 87569 (phase-shared.js, 18 sections, is the shared code that left the phase files) |
+| hooks lines / bytes | 6588 / 284428 | 5077 / 232126 |
+| Test titles reached | 1395 | 1396 |
+| Runner count (tests / pass / fail / skipped) | 1434 / 1430 / 0 / 4 | 1468 / 1464 / 0 / 4 |
+| Release ZIP contents, raw | 1746173 | 1685892 (under the 2 MB ceiling) |
+
+Plan targets, plainly:
+
+- **8 or fewer state-file kinds: NOT met.** The script lists 16 names. About 12 are real for the by-hand flow: plan front matter, active-plan, verify.json, baseline.json, expert records (with waivers, prepared.json and _recheck.json), ledger.jsonl, review.diff and snapshots, verify.lock and verify.log, and commit-check.json. The plan's own section 5.3 keeps all of them except the heartbeat, so the "8 or fewer" target in its section 10 contradicts its table; folding baseline into verify.json, and snapshots into one saved diff, would be the next step, and was not asked for. What is gone: heartbeat.json is no longer written or read, and no hook writes the plan file or any of dirty, verify_rounds, last_verify, escalated, gate_violation.
+- **run.js with no review, harvest or experts-check code of its own: met for the declarations** (expertsCheck, the findings and verdict schemas, the selection shape, the lens list, the cover rule and the harvest schema all come from lib/phase-shared.js, and a scan holds that). **Not met in the sense of one function used by both flows:** the by-hand review keeps its own lens pool and the run keeps its own card loop and its one harvest agent; they share rules, schemas and the per-card check, not an orchestrator.
+- One front-matter parser, writer, Cards reader, measure-line parser, cover rule: met. One add-only merge: `mergeAdd` in experts.js and `addOnly` in the shared lane section remain two functions of the same rule (code and script cannot import each other).

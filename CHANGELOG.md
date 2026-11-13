@@ -31,9 +31,18 @@ A smaller plugin: one blocking check, at commit, with reminders everywhere else,
 
 - The value report shows, per expert, runs, catches, confirmed catches and an estimated cost. No expert or skill was removed.
 
-### Not done in this release (see the report of the build)
+### Differences the owner accepted (2026-11-13)
 
-- The run's per-card experts check (`expertsCheck` in `phases/run.js`) is still the run's own; the run still has its own harvest step and resume audit; the measure-line parser, the cover rule and the text-to-file helper are not yet shared.
+These differ from what a reader of the plan would expect; each is on purpose.
+
+- **An empty `test_command` still skips the full-run check** (the existing harness plans have none).
+- **A memory that cannot be read at all lets the commit through, with a warning** that the memory check did not run.
+- **Bootstrap commits are still judged by the experts check** (no full-run check, as before); the PRD and design confirmations are reminders.
+- **A plan with no `confirmed_hash` counts as confirmed at commit**; the unattended run still requires the hash to start.
+- **Harvest branches have no `-2` or `-3`:** a feature is harvested once; an open 4.8.0 `-N` branch is still recognised.
+- **A recheck that answers nothing does not refuse the commit;** it is named as failed and stored in the recheck record.
+- **The run's experts check is shared code, not one function used by both flows:** the schemas, rules, recheck prompt and the per-card check live in `lib/phase-shared.js`; the by-hand review keeps its own lens pool and the run keeps its own card loop.
+- **Journal entries over 15 lines are cut to their first 15 with a warning,** not refused.
 
 ### Going back
 

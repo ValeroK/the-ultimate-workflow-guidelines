@@ -103,6 +103,9 @@ A calculator.
 
 - add(1, 2) is 3
 `;
+// The expert is the card's own (a card-level experts field), not the plan's.
+// The plan names two experts and card 1 narrows to one: that is the run's rule (narrowedExperts).
+const CARD_EXPERT_PLAN = PLAN.replace('experts: []', 'experts: [security, developer]').replace('  paths: src/add.js\n- 2', '  paths: src/add.js\n  experts: [security]\n- 2');
 const confirmed = (text) => expertsLib.setFrontLine(text, 'confirmed_hash', expertsLib.confirmHash(text));
 const PASSING = "const test = require('node:test'); const assert = require('node:assert');\ntest('add', () => assert.strictEqual(require('../src/add.js')(1, 2), 3));\n";
 const FAILING = "const test = require('node:test'); const assert = require('node:assert');\ntest('add', () => assert.strictEqual(require('../src/add.js')(1, 2), 4));\n";
@@ -189,7 +192,7 @@ test('contract G7 hand: one edit after the passing full run and the commit is re
   editSource(dir, 'one more byte'); // fact: one byte changed in a source file
   const r = hook(dir, COMMIT);
   assert.strictEqual(r.decision, 'deny', r.stdout);
-  assert.match(r.reason, /G7|G6/);
+  assert.match(r.reason, /Gate G7/);
 });
 
 test('contract G7 hand: a failed full run does not allow the commit', () => {
@@ -270,12 +273,15 @@ test('contract G6 hand: expert records made before a later edit do not allow the
   const dir = project();
   checked(dir);
   assert.strictEqual(hook(dir, COMMIT).decision, 'allow');
-  write(dir, 'src/extra.js', 'module.exports = 1;\n'); // fact: the fingerprint moved
-  assert.strictEqual(hook(dir, COMMIT).decision, 'deny');
+  write(dir, 'src/extra.js', 'module.exports = 1;\n'); // fact: the fingerprint moved after the expert records
+  assert.strictEqual(fullRun(dir).status, 0, 'G7 holds again, so only G6 can refuse');
+  const r = hook(dir, COMMIT);
+  assert.strictEqual(r.decision, 'deny', r.stdout);
+  assert.match(r.reason, /Gate G6/);
 });
 
 test("contract G6 run: card-commit with one of the card's experts missing is refused with gate G6 and names the card", () => {
-  const dir = runProject({ plan: PLAN.replace('experts: []', 'experts: [security]') });
+  const dir = runProject({ plan: CARD_EXPERT_PLAN });
   editSource(dir);
   assert.strictEqual(fullRun(dir).status, 0);
   reviewRecord(dir); // fact: the lane records no security expert
@@ -283,12 +289,13 @@ test("contract G6 run: card-commit with one of the card's experts missing is ref
   const r = commitCard(dir);
   assert.strictEqual(r.ok, false, JSON.stringify(r));
   assert.strictEqual(r.gate, 'G6');
+  assert.match(r.reason, /card 1/);
   assert.match(r.reason, /security/);
   assert.strictEqual(git(dir, 'rev-parse', 'HEAD'), tip);
 });
 
 test("contract G6 run: card-commit with exactly the card's experts recorded commits the card", () => {
-  const dir = runProject({ plan: PLAN.replace('experts: []', 'experts: [security]') });
+  const dir = runProject({ plan: CARD_EXPERT_PLAN });
   editSource(dir);
   assert.strictEqual(fullRun(dir).status, 0);
   reviewRecord(dir, LANE({ available: ['security'], selected: ['security'], ran: ['security'] })); // fact: record present
@@ -439,10 +446,10 @@ test('contract migration: 4.8.0 verify.json, expert records and waivers.json on 
   assert.strictEqual(hook(waived, COMMIT).decision, 'allow', hook(waived, COMMIT).stdout);
 });
 
-test('fixtures 4.8.0: each fixture file is tracked, byte-identical to the recorded checksum, and the table has 39 rows', () => {
+test('fixtures 4.8.0: each fixture file is tracked, byte-identical to the recorded checksum, and the table has 41 rows', () => {
   const crypto = require('node:crypto');
   const sums = JSON.parse(fixture('checksums.json'));
-  assert.strictEqual(Object.keys(sums).length, 39);
+  assert.strictEqual(Object.keys(sums).length, 41);
   const tracked = git(path.join(__dirname, '..', '..'), 'ls-files', 'evals/experts/fixtures/4.8.0').split('\n');
   for (const [rel, sum] of Object.entries(sums)) {
     assert.strictEqual(crypto.createHash('sha256').update(fs.readFileSync(path.join(FIXTURES, rel))).digest('hex'), sum, rel);
@@ -461,12 +468,19 @@ test('fixtures 4.8.0: every recorded 4.8.0 answer still holds (confirmHash of ea
   for (const [name, value] of Object.entries(headers)) assert.deepStrictEqual(JSON.parse(JSON.stringify(memoryLib.parseHeader(fixture('frozen', 'memory', name)))), value, name);
 });
 
-test('fixtures 4.8.0: a 4.8.0 plan with a hash only is read as confirmed, and a plan with no hash is not stamped by a read', () => {
-  const dir = project({ plan: fixture('plan-nohash.md.fixture') });
-  const out = json(cli(dir, 'check', '--plan', 'PLAN-calc.md'));
-  assert.strictEqual(typeof out.ok, 'boolean');
-  assert.ok(fs.existsSync(path.join(FIXTURES, 'state', 'heartbeat.json')));
-  assert.ok(fs.existsSync(path.join(FIXTURES, 'run', 'run-harvest-2.json')));
+test('fixtures 4.8.0: the Known failures plan was made by the real baseline accept, and the recorded counts match the code', () => {
+  const kf = fixture('plan-known-failures.md.fixture');
+  assert.match(kf, /^known_failures: 1\r?$/m);
+  assert.match(kf, /^## Known failures\r?$/m);
+  // 4.8.0 stamped the hash before the accept: it is the hash of the body without the section.
+  const stamped = kf.match(/^confirmed_hash: (\w+)/m)[1];
+  assert.strictEqual(stamped, expertsLib.confirmHash(fixture('plan-nohash.md.fixture')));
+  const caps = JSON.parse(fixture('recorded', 'caps.json'));
+  for (const [name, files] of Object.entries(caps)) {
+    for (const [file, value] of Object.entries(files)) assert.match(fs.readFileSync(path.join(PLUGIN, file), 'utf8'), new RegExp(`const ${name} = ${value}\\b`), `${name} in ${file}`);
+  }
+  const calls = JSON.parse(fixture('recorded', 'review-call-counts.json'));
+  assert.deepStrictEqual([calls.noExperts.count, calls.oneExpert.count, calls.twoExperts.count], [5, 6, 7]);
 });
 
 test('contract migration: a verify.json without a field the reader wants is refused with the tests item and the full-run fix', () => {

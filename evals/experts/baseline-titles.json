@@ -566,9 +566,9 @@
   "contract exempt: a hook payload that cannot be parsed fails open",
   "contract exempt: the run's stale memory index exception regenerates and commits the index, and the hook path refuses the same tree",
   "contract migration: 4.8.0 verify.json, expert records and waivers.json on their matching tree allow the commit",
-  "fixtures 4.8.0: each fixture file is tracked, byte-identical to the recorded checksum, and the table has 39 rows",
+  "fixtures 4.8.0: each fixture file is tracked, byte-identical to the recorded checksum, and the table has 41 rows",
   "fixtures 4.8.0: every recorded 4.8.0 answer still holds (confirmHash of each frozen plan, experts list, memory headers)",
-  "fixtures 4.8.0: a 4.8.0 plan with a hash only is read as confirmed, and a plan with no hash is not stamped by a read",
+  "fixtures 4.8.0: the Known failures plan was made by the real baseline accept, and the recorded counts match the code",
   "contract migration: a verify.json without a field the reader wants is refused with the tests item and the full-run fix",
   "contract harness: gate.js and card-commit are spawned only through the helper, and the helper refuses to build an env without gates on",
   "contract harness: an ordinary source commit is judged on evidence, not on a skip",
@@ -948,6 +948,10 @@
   "the security checklist passes the security profile",
   "where and how a finding is shown (file, line, evidence) is the protocol\\",
   "profile shape words are what the lint reads, not a fixed list"
+ ],
+ "evals/experts/measure.test.js": [
+  "measure: the script lists blocking checks and state files from the code and skips .claude/worktrees",
+  "measure: on the 4.8.0 payload the script names every known blocking check and state file"
  ],
  "evals/experts/memory-gate.test.js": [
   "newProblems: a problem is old when its file, kind and target are at HEAD, whatever line it is on",

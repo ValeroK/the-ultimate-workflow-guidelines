@@ -1,7 +1,7 @@
 {
   "5438b144da": {
     "reason": "accepted by the owner in 4.8.0",
-    "at": "2026-11-13T08:16:16.217Z",
+    "at": "2026-11-13T08:23:37.640Z",
     "expert": "security",
     "file": "src/add.js",
     "what": "The adder lets any caller overflow the total"

@@ -1,0 +1,9 @@
+{
+  "ROUND_CAP": {
+    "phases/build.js": 3,
+    "phases/run.js": 3
+  },
+  "MAX_FIXUP_CARDS": {
+    "phases/run.js": 4
+  }
+}

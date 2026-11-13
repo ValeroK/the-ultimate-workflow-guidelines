@@ -8,7 +8,8 @@ verify_rounds: 1
 last_verify: red
 dirty: true
 escalated: false
-confirmed_hash: x
+confirmed_hash: 8a8eb296b06202e1
+known_failures: 1
 ---
 
 # PLAN: calc
@@ -24,4 +25,6 @@ confirmed_hash: x
 
 ## Known failures
 
-- test a (accepted)
+Tests that failed before this change and that the user accepted as known. A full run passes while only these fail.
+
+- known bad

@@ -44,7 +44,7 @@ function project() {
 }
 
 /** One payload builder for every event and both hosts. */
-function payload(vendor, kind, dir) {
+function payload(vendor, kind, dir, opts = {}) {
   const claude = vendor === 'claude';
   const base = { cwd: dir, transcript_path: path.join(dir, 'transcript.jsonl'), session_id: 's1' };
   const file = path.join(dir, 'src', 'a.js');
@@ -55,7 +55,7 @@ function payload(vendor, kind, dir) {
   const shell = claude ? 'Bash' : 'Shell';
   switch (kind) {
     case 'pre-edit': return { ...base, hook_event_name: names.pre, tool_name: 'Write', tool_input: { file_path: file } };
-    case 'pre-bash': return { ...base, hook_event_name: names.pre, tool_name: shell, tool_input: { command: 'git status' } };
+    case 'pre-bash': return { ...base, hook_event_name: names.pre, tool_name: shell, tool_input: { command: opts.command || 'git status' } };
     case 'post-edit': return { ...base, hook_event_name: names.post, tool_name: 'Write', tool_input: { file_path: file }, tool_response: { success: true } };
     case 'post-test-run': return { ...base, hook_event_name: names.post, tool_name: shell, tool_input: { command: TEST_COMMAND }, tool_response: { exit_code: 0 } };
     case 'post-failure': return { ...base, hook_event_name: names.fail, tool_name: shell, tool_input: { command: TEST_COMMAND }, error: 'exit 1' };
@@ -64,6 +64,8 @@ function payload(vendor, kind, dir) {
     default: throw new Error(`unknown event kind ${kind}`);
   }
 }
+// The non-commit Bash commands a commit matcher must not mistake for a commit.
+const NON_COMMIT = ['git status', 'git log --grep=commit', 'git commit-tree HEAD^{tree}'];
 const KINDS = ['pre-edit', 'pre-bash', 'post-edit', 'post-test-run', 'post-failure', 'prompt', 'stop'];
 const VENDORS = ['claude', 'cursor'];
 
@@ -86,7 +88,10 @@ function snapshot(dir) {
 function send(vendor, kind) {
   const dir = project();
   const before = snapshot(dir);
-  const r = spawnSync(process.execPath, [GATE], { input: JSON.stringify(payload(vendor, kind, dir)), encoding: 'utf8', cwd: dir, env: { ...process.env, ULTIMATE_WORKFLOW_GATES: 'on', NODE_TEST_CONTEXT: '' } });
+  const sendOne = (opts) => spawnSync(process.execPath, [GATE], { input: JSON.stringify(payload(vendor, kind, dir, opts)), encoding: 'utf8', cwd: dir, env: { ...process.env, ULTIMATE_WORKFLOW_GATES: 'on', NODE_TEST_CONTEXT: '' } });
+  // pre-bash is one sub-case that sends all three non-commit commands.
+  const results = kind === 'pre-bash' ? NON_COMMIT.map((command) => sendOne({ command })) : [sendOne()];
+  const r = { status: results.some((x) => x.status === 2) ? 2 : results[0].status, stdout: results.map((x) => x.stdout).join(''), stderr: results.map((x) => x.stderr).join('') };
   const after = snapshot(dir);
   let out = null;
   try {

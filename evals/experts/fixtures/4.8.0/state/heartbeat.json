@@ -1,9 +1,9 @@
 {
   "count": 1,
-  "last_seen": "2026-11-13T08:16:16.262Z",
+  "last_seen": "2026-11-13T08:23:37.684Z",
   "recent": [
     {
-      "at": "2026-11-13T08:16:16.262Z",
+      "at": "2026-11-13T08:23:37.684Z",
       "event": "preTool",
       "vendor": "claude",
       "stage": "feature",

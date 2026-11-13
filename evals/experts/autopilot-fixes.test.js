@@ -837,3 +837,39 @@ test('report-cost 78: when every card is unknown the report gives the run\'s tot
   assert.match(none, /The run's total tokens are unknown/);
   assert.doesNotMatch(none, /used 0 tokens/);
 });
+
+// --- review of the whole branch (2026-11-13) --------------------------------------------------------
+
+// Plan test 8: card-commit reads the full-suite gate's state from its own --plan, not from the plan the
+// pointer names, so G6 and G7 never judge two different plans.
+test('plan-subfolder 8: card-commit judges G7 by its own --plan when the pointer names another plan', () => {
+  const setup = (pointer) => {
+    const g = gateRepo();
+    g.put('PLAN-two.md', gateConfirmed(gatePlan().replace(/^test_command:.*\r?\n/m, '')));
+    git(g.dir, 'add', '-A');
+    git(g.dir, 'commit', '-q', '-m', 'a second plan, with no test command');
+    assert.equal(lastJson(gateCli(g, 'run-branch', '--feature', 'gate')).ok, true);
+    touch(g, 'src/a/a.js');
+    reviewedBy(g, ['quality']);
+    g.put('.ultimate-workflow/active-plan', `${pointer}\n`);
+    return g;
+  };
+  const saved = process.env.ULTIMATE_WORKFLOW_GATES;
+  process.env.ULTIMATE_WORKFLOW_GATES = '';
+  try {
+    // The pointer names the plan with no test command; --plan names the one that has it and no full run.
+    const a = setup('PLAN-two.md');
+    const head = headOf(a);
+    const refused = autopilotLib.cardCommit(a.dir, { plan: 'PLAN-gate.md', card: 'A', feature: 'gate' });
+    assert.equal(refused.ok, false, JSON.stringify(refused));
+    assert.equal(refused.gate, 'G7', JSON.stringify(refused));
+    assert.equal(headOf(a), head, 'nothing was committed');
+    // The other way round: --plan has no test command, so G7 has nothing to ask, whatever the pointer says.
+    const b = setup('PLAN-gate.md');
+    const other = autopilotLib.cardCommit(b.dir, { plan: 'PLAN-two.md', card: 'A', feature: 'gate' });
+    assert.notEqual(other.gate, 'G7', JSON.stringify(other));
+  } finally {
+    if (saved === undefined) delete process.env.ULTIMATE_WORKFLOW_GATES;
+    else process.env.ULTIMATE_WORKFLOW_GATES = saved;
+  }
+});

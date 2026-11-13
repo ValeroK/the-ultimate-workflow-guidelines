@@ -749,7 +749,9 @@ function cardCommit(cwd, { plan, card: name, feature, claimed = [], fixedRound =
   checkFeature(feature);
   const branch = git(cwd, ['rev-parse', '--abbrev-ref', 'HEAD']).stdout.trim();
   if (branch !== `uw/run/${feature}`) return { ok: false, card: card.name, reason: `the run commits only on uw/run/${feature}, and HEAD is ${branch}` };
-  const state = stateLib.readState(cwd);
+  // The full-suite gate reads the plan this command was given, as the experts gate below does, never the
+  // plan the pointer names: the two gates must not judge two different plans.
+  const state = { stage: 'feature', file: path.resolve(cwd, plan), data: stateLib.parseFrontMatter(planText).data };
   if (stateLib.gatesEnabled(process.env)) {
     const tests = gates.fullSuiteGate(state, verify.fullEvidence(cwd), 'verify.js');
     if (!tests.allow) return { ok: false, card: card.name, gate: 'G7', reason: tests.reason };

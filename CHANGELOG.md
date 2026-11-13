@@ -38,7 +38,7 @@ These differ from what a reader of the plan would expect; each is on purpose.
 - **A plan with an empty or missing `test_command` is refused at commit** (owner decision 2026-11-13): the refusal says to set `test_command` in the plan's front matter and run the full suite. A documentation-only commit is still exempt.
 - **A memory that cannot be read at all lets the commit through, with a warning** that the memory check did not run.
 - **Bootstrap commits are still judged by the experts check** (no full-run check, as before); the PRD and design confirmations are reminders.
-- **A plan with no `confirmed_hash` counts as confirmed at commit**; the unattended run still requires the hash to start.
+- **A plan with no `confirmed_hash` is refused at commit** (it must go through the confirm step: `present --confirm`), and **a hash that no longer matches the plan is allowed with a reminder** to re-confirm when convenient (owner decision 2026-11-13). The unattended run still refuses either at its start.
 - **Harvest branches have no `-2` or `-3`:** a feature is harvested once; an open 4.8.0 `-N` branch is still recognised.
 - **A recheck that answers nothing does not refuse the commit;** it is named as failed and stored in the recheck record.
 - **The run's experts check is shared code, not one function used by both flows:** the schemas, rules, recheck prompt and the per-card check live in `lib/phase-shared.js`; the by-hand review keeps its own lens pool and the run keeps its own card loop.

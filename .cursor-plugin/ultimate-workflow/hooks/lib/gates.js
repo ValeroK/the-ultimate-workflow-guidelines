@@ -230,7 +230,9 @@ function commitGate(ev) {
     missing.push({ kind: 'memory', text: `Memory check: this commit leaves memory broken:\n${added.map((p) => `  - ${p.text}`).join('\n')}${hint}`, fix: stale ? 'node experts/experts.js memory index' : 'fix the files named above' });
   }
   const changed = (ev && ev.confirmation && ev.confirmation.settingsChanged) || [];
-  const notices = changed.length > 0 ? { notices: [`${changed.join(', ')} changed since the plan was confirmed`] } : {};
+  const planChanged = Boolean(ev && ev.confirmation && ev.confirmation.changedSince);
+  const noticeList = [...(planChanged ? ['the plan changed after you confirmed it; re-confirm when convenient'] : []), ...(changed.length > 0 ? [`${changed.join(', ')} changed since the plan was confirmed`] : [])];
+  const notices = noticeList.length > 0 ? { notices: noticeList } : {};
   if (missing.length > 0) return { allow: false, reason: missing.map((m) => m.text).join('\n'), missing, ...notices, ...warnings };
   if (exemptAll) return { allow: true, outcome: 'exempt', why: ev.skip, ...notices, ...warnings };
   return { allow: true, ...notices, ...warnings };

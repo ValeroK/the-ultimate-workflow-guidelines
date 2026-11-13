@@ -70,7 +70,7 @@ function dispatch(ev, state, opts = {}) {
     }
     const verdict = gates.commitGate(opts.commitEvidence);
     const check = gates.checkRecord(verdict);
-    const notes = (verdict.notices || []).map((n) => `Plan settings: ${n}.`);
+    const notes = (verdict.notices || []).map((n) => (/^the plan changed/.test(n) ? `Reminder: ${n}.` : `Plan settings: ${n}.`));
     if (verdict.allow) {
       // By hand, a check that cannot be satisfied lets the commit through and says so. The run parks instead.
       if (verdict.outcome === 'could-not-check') return { kind: 'allow', say: [`Commit check: could not check this commit (${verdict.why}). It goes through unchecked.`, ...notes].join('\n'), check };

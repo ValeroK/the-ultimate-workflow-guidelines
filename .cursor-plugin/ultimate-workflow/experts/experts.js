@@ -547,20 +547,22 @@ function settingsChanged(text) {
 
 /**
  * Whether the plan is confirmed: both confirmations, and the plan unchanged since the test plan was
- * confirmed (its `confirmed_hash`). The reason names what the user has to do. The run asks strictly:
- * a plan confirmed by hand, with no hash, is refused. The commit check passes `{ allowNoHash: true }`:
- * a plan confirmed before the hash existed counts as confirmed, and the next confirmation stamps it.
+ * confirmed (its `confirmed_hash`). The reason names what the user has to do. The run asks strictly: no hash, or a
+ * hash that no longer matches, is refused. At a commit (`{ atCommit: true }`, owner decision 2026-11-13) a missing hash
+ * is still refused (it proves the plan went through the confirm step, not a hand-typed flag), but a hash that no longer
+ * matches is allowed, with `changedSince: true` so the commit check can remind: re-confirm when convenient.
  */
-function checkConfirmed(text, { allowNoHash = false } = {}) {
+function checkConfirmed(text, { atCommit = false } = {}) {
   const data = stateLib.parseFrontMatter(text).data || {};
   if (data.plan_confirmed !== true) return { ok: false, missing: 'plan', reason: 'the plan is not confirmed (plan_confirmed is not true): the user confirms the plan first' };
   if (data.tests_confirmed !== true) return { ok: false, missing: 'tests', reason: 'the test plan is not confirmed (tests_confirmed is not true): the user confirms the Tests section next' };
   const want = String(data.confirmed_hash || '').trim();
   const have = confirmHash(text);
   if (!want) {
-    if (allowNoHash) return { ok: true, hash: have, noHash: true, settingsChanged: [] };
+    if (atCommit) return { ok: false, missing: 'hash', reason: 'the plan has no confirmed_hash, so nothing shows it went through the confirm step: confirm the plan and tests with the confirm step (present --confirm), then commit' };
     return { ok: false, missing: 'hash', reason: 'the plan has no confirmed_hash: it was confirmed by hand, not through experts.js present --confirm tests_confirmed, so nothing shows it is the plan the user saw. Show the user the plan and confirm it again' };
   }
+  if (have !== want && atCommit) return { ok: true, hash: have, changedSince: true, settingsChanged: settingsChanged(text) };
   if (have !== want) return { ok: false, missing: 'unchanged', reason: `the plan changed after the user confirmed it (confirmed_hash ${want}, now ${have}): show the user what changed and confirm again` };
   return { ok: true, hash: have, settingsChanged: settingsChanged(text) };
 }
@@ -1354,8 +1356,8 @@ function testsPart(cwd, planFile, changes, options) {
 function confirmationPart(cwd, planFile, options) {
   if (options.stage !== 'feature' || !planFile) return undefined;
   try {
-    const c = checkConfirmed(fs.readFileSync(path.resolve(cwd, planFile), 'utf8'), { allowNoHash: true });
-    return c.ok ? { ok: true, settingsChanged: c.settingsChanged || [] } : { ok: false, missing: c.missing, reason: c.reason };
+    const c = checkConfirmed(fs.readFileSync(path.resolve(cwd, planFile), 'utf8'), { atCommit: true });
+    return c.ok ? { ok: true, settingsChanged: c.settingsChanged || [], ...(c.changedSince ? { changedSince: true } : {}) } : { ok: false, missing: c.missing, reason: c.reason };
   } catch (err) {
     return { error: `the plan could not be read (${err.code || err.message})` };
   }

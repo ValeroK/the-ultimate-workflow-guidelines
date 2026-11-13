@@ -54,13 +54,14 @@ function pluginCopy() {
   return { payload, examples };
 }
 
+const stampedPlan = (text) => { const x = require('../../.cursor-plugin/ultimate-workflow/experts/experts.js'); return x.setFrontLine(text, 'confirmed_hash', x.confirmHash(text)); };
 function project(planBody = 'plan_confirmed: true\ntests_confirmed: true\ntest_command: node --test x') {
   const dir = tmp('proj');
   git(dir, 'init', '-q', '-b', 'main');
   git(dir, 'config', 'user.email', 't@example.com');
   git(dir, 'config', 'user.name', 't');
   write(path.join(dir, 'src', 'a.js'), 'module.exports = 1;\n');
-  write(path.join(dir, 'PLAN-x.md'), `---\n${planBody}\n---\nbody\n`);
+  write(path.join(dir, 'PLAN-x.md'), stampedPlan(`---\n${planBody}\n---\nbody\n`));
   git(dir, 'add', '-A');
   git(dir, 'commit', '-q', '-m', 'base');
   return { dir, plan: path.join(dir, 'PLAN-x.md') };

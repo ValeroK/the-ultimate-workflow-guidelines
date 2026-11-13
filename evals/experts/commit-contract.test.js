@@ -577,24 +577,23 @@ test('contract confirmation: each unconfirmed state is refused with the fix for 
   }
 });
 
-test('contract confirmation: a plan whose text changed after confirmation is refused and the reason says which confirmation to redo', () => {
+test('contract confirmation: a plan whose text changed after confirmation is allowed with a reminder to re-confirm (owner decision, 2026-11-13)', () => {
   const dir = project({ plan: userConfirmed(), stamp: false });
   checked(dir);
   assert.strictEqual(hook(dir, COMMIT).decision, 'allow');
   rewritePlan(dir, (t) => t.replace('A calculator.', 'A calculator that also divides.')); // fact: one line of plan text
   const r = hook(dir, COMMIT);
-  assert.strictEqual(r.decision, 'deny', r.stdout);
-  assert.match(r.reason, /changed after the user confirmed it/);
-  assert.match(r.reason, /--confirm tests_confirmed/);
+  assert.strictEqual(r.decision, 'allow', r.stdout);
+  assert.match(contextOf(r), /the plan changed after you confirmed it; re-confirm when convenient/);
 });
 
-test('contract confirmation: a card added to the plan after confirmation refuses the commit (concern 1)', () => {
+test('contract confirmation: a card added to the plan after confirmation is allowed with the same reminder (concern 1, owner decision 2026-11-13)', () => {
   const dir = project({ plan: userConfirmed(), stamp: false });
   checked(dir);
   rewritePlan(dir, (t) => t.replace('- 2: docs', '- 3: sneaky\n  paths: src/**\n- 2: docs')); // fact: a card an agent added
   const r = hook(dir, COMMIT);
-  assert.strictEqual(r.decision, 'deny', r.stdout);
-  assert.match(r.reason, /changed after the user confirmed it/);
+  assert.strictEqual(r.decision, 'allow', r.stdout);
+  assert.match(contextOf(r), /re-confirm when convenient/);
 });
 
 test('contract confirmation: a run-added card (findings, fixup) does not move the hash', () => {
@@ -604,11 +603,19 @@ test('contract confirmation: a run-added card (findings, fixup) does not move th
   assert.strictEqual(hook(dir, COMMIT).decision, 'allow');
 });
 
-test('contract confirmation: both flags true and no confirmed_hash counts as confirmed', () => {
+test('contract confirmation: both flags true and no confirmed_hash is refused, and the refusal names the confirm step (owner decision, 2026-11-13)', () => {
   const dir = project({ plan: noExperts(fixture('plan-nohash.md.fixture')), stamp: false });
   assert.ok(!/confirmed_hash/.test(read(dir, 'PLAN-calc.md')), 'the 4.8.0 fixture has no hash');
   checked(dir);
-  assert.strictEqual(hook(dir, COMMIT).decision, 'allow'); // fact: no hash, and the commit goes through
+  const r = hook(dir, COMMIT); // fact: no hash
+  assert.strictEqual(r.decision, 'deny', r.stdout);
+  assert.match(r.reason, /confirm the plan and tests with the confirm step \(present --confirm\), then commit/);
+  assert.deepStrictEqual(kindsOf(dir), ['confirmation']);
+  // With the hash stamped the same tree is allowed: one fact differs.
+  rewritePlan(dir, (t) => expertsLib.setFrontLine(t, 'confirmed_hash', expertsLib.confirmHash(t)));
+  assert.strictEqual(hook(dir, COMMIT).decision, 'allow');
+  // The run is unchanged: it still refuses a missing hash at its start.
+  assert.strictEqual(expertsLib.checkConfirmed(noExperts(fixture('plan-nohash.md.fixture'))).missing, 'hash');
 });
 
 test('contract confirmation: a Known failures section does not move the hash, and text after it does', () => {
@@ -624,7 +631,10 @@ test('contract confirmation: a Known failures section does not move the hash, an
   const after = project({ plan: withSection, stamp: false });
   checked(after);
   rewritePlan(after, (t) => t.replace('- 1: adder', '- 1: adder changed')); // fact: a line in the next ## section
-  assert.strictEqual(hook(after, COMMIT).decision, 'deny');
+  const changed = hook(after, COMMIT);
+  assert.strictEqual(changed.decision, 'allow');
+  assert.match(contextOf(changed), /re-confirm when convenient/, 'text after the section moves the hash; text inside it does not');
+  assert.doesNotMatch(contextOf(hook(inside, COMMIT)), /re-confirm/);
 });
 
 test('contract confirmation: a changed setting does not refuse and is named, an unchanged one is not', () => {

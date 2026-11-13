@@ -41,6 +41,7 @@ function git(cwd, ...args) {
 }
 
 /** A repository with one commit, a plan file and a source file. */
+const stampedPlan = (text) => { const x = require('../../.cursor-plugin/ultimate-workflow/experts/experts.js'); return x.setFrontLine(text, 'confirmed_hash', x.confirmHash(text)); };
 function repo() {
   const dir = tmp('repo');
   git(dir, 'init', '-q', '-b', 'main');
@@ -48,7 +49,7 @@ function repo() {
   git(dir, 'config', 'user.name', 't');
   write(path.join(dir, 'src', 'a.js'), 'module.exports = 1;\n');
   write(path.join(dir, 'README.md'), '# x\n');
-  write(path.join(dir, 'PLAN-x.md'), '---\nplan_confirmed: true\ntests_confirmed: true\ntest_command: node --test x\n---\nbody\n');
+  write(path.join(dir, 'PLAN-x.md'), stampedPlan('---\nplan_confirmed: true\ntests_confirmed: true\ntest_command: node --test x\n---\nbody\n'));
   git(dir, 'add', '-A');
   git(dir, 'commit', '-q', '-m', 'base');
   return dir;
@@ -414,7 +415,7 @@ function ready() {
   const dir = repo();
   write(path.join(dir, 'src', 'a.js'), 'module.exports = 2;\n');
   const plan = path.join(dir, 'PLAN-x.md');
-  fs.writeFileSync(plan, '---\nplan_confirmed: true\ntests_confirmed: true\ntest_command: node --test x\nexperts: [security]\n---\nbody\n');
+  fs.writeFileSync(plan, stampedPlan('---\nplan_confirmed: true\ntests_confirmed: true\ntest_command: node --test x\nexperts: [security]\n---\nbody\n'));
   return { dir, plan };
 }
 const verdict = (dir, plan) => gates.commitGate(ex.commitEvidence(dir, plan, PLUGIN));

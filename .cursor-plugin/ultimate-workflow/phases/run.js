@@ -850,7 +850,13 @@ async function runCard(card, { adhoc = false } = {}) {
     } else findingsQueue.push({ ...f, from: card.name })
   }
   if (carriedOn.length) {
-    await runSteps(`${card.name}:carry`, carriedOn.map((c) => cliCmd('card-field', '--plan', q(PLAN), '--card', c.to, '--carried', q(`${c.finding.expert} at ${c.finding.file}:${c.finding.line}: ${c.finding.what}`.replace(/;/g, ',')))))
+    // An expert wrote the file, the line and the words: they go in a file the step writes, never on the command line.
+    const carryFile = (i) => `${cardDir(card.name)}/carry-${i + 1}.txt`
+    await runSteps(
+      `${card.name}:carry`,
+      carriedOn.map((c, i) => cliCmd('card-field', '--plan', q(PLAN), '--card', c.to, '--carried-file', q(carryFile(i)))),
+      carriedOn.map((c, i) => ({ path: carryFile(i), text: `${c.finding.expert} at ${c.finding.file}:${c.finding.line}: ${c.finding.what}`.replace(/;/g, ',') }))
+    )
   }
   const entry = { card: card.name, title: card.title, status: 'committed', commit: committed.commit, handoff: committed.handoff, missingClaims: committed.missingClaims || [], outOfScope, build: buildSummary, ...(rerun && rerun.heldBranch ? { superseded: rerun.heldBranch } : {}), experts: { ran: check.lane.ran, added: check.lane.added, findings: check.lane.findings.length, refuted: check.refuted.length, carriedOn: carriedOn.map((c) => c.to) }, ...(fixRound ? { fixRound } : {}), ...(minorDecisions.length ? { decisions: { major: [], minor: minorDecisions } } : {}), ...(recordOk ? {} : { recordMismatch: recorded }) }
   report.push(entry)

@@ -1226,8 +1226,10 @@ function cli(argv, cwd, out, fail) {
   if (sub === 'run-finish') return run(() => runFinish(cwd, { output: o.output, runId: o['run-id'] || '', plan: o.plan || '' }));
   if (sub === 'card-field') {
     return run(() => {
-      if (!o.plan || !o.card || typeof o.carried !== 'string') throw new Error('card-field needs --plan, --card and --carried "<item; item>"');
-      writePlanField(cwd, o.plan, o.card, 'carried', o.carried);
+      // --carried-file: text an agent wrote comes in through a file, never the command line.
+      const carried = o['carried-file'] ? fs.readFileSync(path.resolve(cwd, o['carried-file']), 'utf8').trim() : o.carried;
+      if (!o.plan || !o.card || typeof carried !== 'string') throw new Error('card-field needs --plan, --card and --carried "<item; item>" (or --carried-file <file>)');
+      writePlanField(cwd, o.plan, o.card, 'carried', carried);
       return { ok: true, card: o.card, carried: cardsLib.findCard(fs.readFileSync(path.resolve(cwd, o.plan), 'utf8'), o.card).carried };
     });
   }

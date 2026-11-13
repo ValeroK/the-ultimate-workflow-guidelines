@@ -1284,3 +1284,33 @@ test('a run-state read that fails stops the settle step: no findings card, revie
     assert.equal(result.cards.find((c) => c.card === '1').status, 'committed', 'the card itself is not undone');
   }
 });
+
+test('21 (carry): a finding carried to a later card reaches card-field through a file, and running the line in a shell leaves no PWNED file', async (t) => {
+  const hostile = { file: 'src/2/$(touch PWNED).js', line: '1`touch PWNED`', what: '$(touch PWNED) and `touch PWNED` and $HOME', howItFails: 'x', confidence: 'low' };
+  const calls = [];
+  const base = responder({ findings: { 1: [hostile] } });
+  await run(baseArgs([card('1'), card('2')]), async (c) => { calls.push(c); return base(c); });
+  const carry = calls.find((c) => c.label === '1:carry');
+  assert.ok(carry, `the finding is carried to card 2: ${labelsOf(calls).join(' ')}`);
+  const lines = commandLinesOf([carry]);
+  assert.equal(lines.length, 1);
+  assert.ok(!/PWNED|\$\(|`|\$HOME/.test(lines[0]), lines[0]);
+  assert.match(lines[0], /card-field [^\n]*--card 2 [^\n]*--carried-file /);
+  assert.ok(!/--carried /.test(lines[0]), lines[0]);
+  assert.ok(carry.prompt.includes('$(touch PWNED) and `touch PWNED` and $HOME'), 'the text is not lost: it is in the file the step writes');
+  const bash = spawnSync('bash', ['-c', 'echo ok'], { encoding: 'utf8' });
+  if (bash.status !== 0) return t.skip('no bash on this machine: the command line was checked as text only');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'uw-pwned-'));
+  spawnSync('bash', ['-c', lines[0].replace(/^\d+\. /, '')], { cwd: dir, encoding: 'utf8' });
+  assert.deepStrictEqual(fs.readdirSync(dir), [], 'running the card-field line wrote nothing');
+});
+
+test('card-field --carried-file takes the carried text from the file, as written', () => {
+  const dir = tmpPlan('---\nplan_confirmed: true\n---\n\n# PLAN: x\n\n## Cards\n\n- a: first\n  paths: src/a/**\n');
+  fs.writeFileSync(path.join(dir, 'carry.txt'), 'quality at src/a/x.js:1: $(touch PWNED) and `x`\n');
+  const r = spawnSync(process.execPath, [path.join(PLUGIN, 'experts', 'experts.js'), 'card-field', '--plan', 'PLAN-x.md', '--card', 'a', '--carried-file', 'carry.txt'], { cwd: dir, encoding: 'utf8' });
+  const out = JSON.parse(r.stdout.trim().split('\n').pop());
+  assert.equal(out.ok, true, r.stdout + r.stderr);
+  assert.deepStrictEqual(out.carried, ['quality at src/a/x.js:1: $(touch PWNED) and `x`']);
+  assert.ok(!fs.existsSync(path.join(dir, 'PWNED')));
+});

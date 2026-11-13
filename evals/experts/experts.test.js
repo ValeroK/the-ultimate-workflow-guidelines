@@ -364,11 +364,21 @@ test('record writes one file per expert that ran and the recheck, against the pr
   assert.ok(!fs.existsSync(path.join(dir, '.ultimate-workflow', 'experts', 'review', 'devops.json')), 'a failed expert has no record');
 });
 
-test('a review without a successful recheck leaves no recheck record', () => {
+test('a review whose recheck failed stores the failure in the recheck record, and a changed-only review does not narrow from it', () => {
   const dir = repo();
   ex.prepare(dir, 'working', PLUGIN);
-  ex.record(dir, 'review', reviewResult({ recheck: false, recheckFailed: true }), { pluginRoot: PLUGIN });
-  assert.ok(!fs.existsSync(path.join(dir, '.ultimate-workflow', 'experts', 'review', '_recheck.json')));
+  // 2026-11-13: a failed recheck does not refuse the commit, so the lane says recheck true and recheckFailed true.
+  ex.record(dir, 'review', reviewResult({ recheck: true, recheckFailed: true }), { pluginRoot: PLUGIN });
+  const marker = JSON.parse(fs.readFileSync(path.join(dir, '.ultimate-workflow', 'experts', 'review', '_recheck.json'), 'utf8'));
+  assert.strictEqual(marker.recheckFailed, true);
+  write(path.join(dir, 'src', 'b.js'), 'b\n');
+  const p = ex.prepare(dir, 'working', PLUGIN, { delta: true });
+  assert.match(p.deltaRefused || '', /no answer from its recheck/);
+  // A lane with recheck false (the recheck was switched off) still leaves no record.
+  const dir2 = repo();
+  ex.prepare(dir2, 'working', PLUGIN);
+  ex.record(dir2, 'review', reviewResult({ recheck: false }), { pluginRoot: PLUGIN });
+  assert.ok(!fs.existsSync(path.join(dir2, '.ultimate-workflow', 'experts', 'review', '_recheck.json')));
 });
 
 test('record adds the lane\'s selected experts to the plan, add-only, and an empty selection still writes the decision', () => {

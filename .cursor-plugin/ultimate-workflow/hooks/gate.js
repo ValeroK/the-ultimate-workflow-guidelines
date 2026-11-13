@@ -110,7 +110,7 @@ async function main() {
   const state = stateLib.readState(cwd);
 
   // Reading the working tree is not free, so the commit evidence is gathered only
-  // for the one event that needs it. Any failure leaves it undefined, which allows.
+  // for the one event that needs it. Any failure leaves it undefined, and dispatch.js then says the commit could not be checked.
   let commitEvidence;
   if (ev.event === 'preTool' && ev.tool === 'shell' && gatesLib.isCommitCommand(ev.command)) {
     try {

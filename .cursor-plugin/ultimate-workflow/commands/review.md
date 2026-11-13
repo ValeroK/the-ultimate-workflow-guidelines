@@ -36,7 +36,7 @@ One exception: if the run failed before any agent started (0 agents, and an inpu
 
 Record the evidence, in code. The experts' lane is read from that file, not retyped:
 `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" record --stage review [--plan <plan file>] --result <the output file>`.
-It writes one record per expert that ran, against the fingerprint from step 3, and adds any expert the recheck found to the plan's `experts:` line. If `expertLane.recheckFailed` is true, say so: the commit gate will not be satisfied until the recheck succeeds.
+It writes one record per expert that ran, against the fingerprint from step 3, and adds any expert the recheck found to the plan's `experts:` line. If `expertLane.recheckFailed` is true, say so: the recheck answered nothing, so the planned experts reviewed and no expert was added. The commit is not refused for it (decided 2026-11-13), and the failure is stored in the recheck record so a later changed-only review does not narrow from it.
 
 ## High-confidence findings are raised and resolved
 

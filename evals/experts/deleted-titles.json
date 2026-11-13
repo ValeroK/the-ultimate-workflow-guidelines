@@ -518,5 +518,9 @@
  [
   "mirrors.test.js",
   "plugin manifests and the CHANGELOG say 4.8.0"
+ ],
+ [
+  "evals/experts/experts.test.js",
+  "a review without a successful recheck leaves no recheck record"
  ]
 ]

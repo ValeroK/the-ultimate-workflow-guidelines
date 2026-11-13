@@ -8,7 +8,7 @@
 // that body's globals (`args`, `agent`, `phase`, `log`). An error line number points into the assembled copy.
 
 // @@section agent-names
-// --- agent names (identical in every workflow; a test holds them equal) ---
+// --- agent names (one section, used by every workflow) ---
 // An installed plugin registers its agents as "<plugin>:<agent>", so a bare "uw-explorer"
 // is "agent type not found". Every agentType goes through agentName(). A local run against
 // agents copied to .claude/agents/ passes args.agentNamespace: "".
@@ -18,7 +18,7 @@ const agentName = (name) => (String(name).includes(':') ? name : AGENT_NAMESPACE
 // @@end agent-names
 
 // @@section reader-model
-// --- reader model (identical in plan and harvest; a test holds them to it) ---
+// --- reader model (one section, used by plan and harvest) ---
 // 4.2.0: the agents that only search and read run on a smaller model, chosen in code. `experts.js
 // script` passes ULTIMATE_WORKFLOW_READER_MODEL as args.readerModel ("inherit" turns it off). A
 // reader that returns nothing with the override is asked once more on the session model, so an
@@ -40,7 +40,7 @@ const asReader = async (prompt, opts) => {
 // @@end reader-model
 
 // @@section lane-helpers
-// --- expert lane helpers (identical in plan.js, tests.js and review.js; a test holds them equal) ---
+// --- expert lane helpers (one section, used by plan.js, tests.js and review.js) ---
 // The expert list is discovered by experts/experts.js from the agents folder and passed in
 // as args.available, because a workflow script cannot read the folder itself.
 const asList = (v) => (Array.isArray(v) ? v : String(v || '').split(',')).map((e) => String(e).trim()).filter(Boolean)
@@ -94,7 +94,7 @@ for (const [key, value] of [['implementerModel', IMPLEMENTER_MODEL], ['diagnoser
 // @@end build-model
 
 // @@section build-loop
-// --- build loop (identical in build.js and run.js; a test holds them equal) ---
+// --- build loop (one section, used by build.js and run.js) ---
 // The tests, proven red, then up to ROUND_CAP implementation rounds with a fresh diagnosis after
 // each failed one. One function so the build phase and every card of the autopilot run share it:
 // a hand copy would drift. It returns what the build phase returns. `o.locate` says what to read,

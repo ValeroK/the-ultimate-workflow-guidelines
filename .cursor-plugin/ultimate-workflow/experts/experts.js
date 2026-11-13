@@ -963,6 +963,7 @@ function computeDelta(cwd, changes) {
   if (changes.merge) return { refused: 'a merge reviews everything it adds, not a changed-only part of it' };
   const recheck = readJson(evidenceFile(cwd, 'review', '_recheck'));
   if (!recheck || !recheck.hash) return { refused: 'no earlier experts check to compare against' };
+  if (recheck.recheckFailed) return { refused: 'the last experts check had no answer from its recheck, so it is not a base to narrow from' };
   const base = recheck.hash;
   if (base === sha(changes.diff)) return { refused: 'nothing changed since the last experts check' };
   const experts = recheck.final || [];
@@ -1240,7 +1241,7 @@ function record(cwd, stage, result, { planFile = '', pluginRoot = PLUGIN_ROOT } 
     });
   }
   if (stage === 'review' && lane.recheck === true) {
-    writeJson(evidenceFile(cwd, 'review', '_recheck'), { hash, final: lane.selected || [], added: lane.added || [], at });
+    writeJson(evidenceFile(cwd, 'review', '_recheck'), { hash, final: lane.selected || [], added: lane.added || [], at, ...(lane.recheckFailed === true ? { recheckFailed: true } : {}) });
   }
   const all = found.concat(...Object.values(carried));
   const open = all.filter((f) => blocking(f) && !readWaivers(cwd)[f.id]);

@@ -1,5 +1,5 @@
 ---
-description: Read before changing anything under hooks/: the gates, the vendor adapters, the heartbeat, or status.js. Also when a gate is not firing, when adding support for a new host, or when a hook appears installed but is enforcing nothing.
+description: Read before changing anything under hooks/: the commit check, the reminders, the vendor adapters, or status.js. Also when the commit check is not firing, when adding support for a new host, or when a hook appears installed but is checking nothing.
 globs: hooks/**
 alwaysApply: false
 ---
@@ -9,12 +9,13 @@ alwaysApply: false
 **Read [`memory/hooks-and-gates.md`](../memory/hooks-and-gates.md) before going further.** This rule exists to
 fire on the topic and send you there; the knowledge itself lives in one place, not two.
 
-**Why it is worth the read:** Enforcement here fails OPEN, by three separate routes, and a hook that never loaded looks exactly like a hook that correctly allowed everything. Nothing in the source says which of those you are looking at.
+**Why it is worth the read:** The one check fails OPEN, and a hook that never loaded looks exactly like a hook that correctly allowed the commit. Nothing in the source says which of those you are looking at.
 
 ## Before you touch anything
 
-- Run `node hooks/status.js`. It separates never-ran / live / stale / disabled, which is the distinction the symptom does not give you.
-- If a gate is not firing, restart the host before debugging. Hook config is read at startup and a gate registered mid-session enforces nothing, silently.
+- Run `node hooks/status.js` and read "Last commit check": it is written only when the check runs on a commit, so an empty one after commits means the hook is not loaded.
+- Restart the host before debugging a hook that does not fire. Hook config is read at startup.
+- Only the commit is refused. Do not add a block to an edit or to a turn end; add a reminder in `gates.reminders`.
 - Never match a raw absolute `file_path`. Relativise against `cwd` first -- `toProjectPath` in `hooks/lib/gates.js`.
 
 ---

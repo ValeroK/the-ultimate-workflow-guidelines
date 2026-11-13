@@ -242,6 +242,7 @@ Each card is built by hand, test first, and ends with the full verify command gr
 - active-plan: No guessing of the plan by modification time
   paths: .cursor-plugin/ultimate-workflow/hooks/lib/state.js, .cursor-plugin/ultimate-workflow/experts/experts.js
   depends: commit-check
+  status: committed ad398b4
 - reminders: Edit and turn-end gates become reminders; flags and heartbeat go
   paths: .cursor-plugin/ultimate-workflow/hooks/lib/gates.js, .cursor-plugin/ultimate-workflow/hooks/lib/dispatch.js, .cursor-plugin/ultimate-workflow/hooks/gate.js, .cursor-plugin/ultimate-workflow/hooks/status.js, .cursor-plugin/ultimate-workflow/hooks/lib/heartbeat.js, .cursor-plugin/ultimate-workflow/hooks/lib/state.js, .cursor-plugin/ultimate-workflow/hooks/hooks.json, .cursor-plugin/ultimate-workflow/experts/autopilot.js, .cursor-plugin/ultimate-workflow/memory/hooks-and-gates.md, .cursor-plugin/ultimate-workflow/rules/uw-hooks-and-gates.mdc
   depends: active-plan

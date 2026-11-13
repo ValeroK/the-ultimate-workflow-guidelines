@@ -7,7 +7,6 @@
 // testable row by row, and it keeps the vendor adapters trivial: they translate
 // wire formats, these decide.
 
-const { ROUND_CAP } = require('./state.js');
 
 const DOC_EXTENSIONS = new Set(['.md', '.txt']);
 
@@ -115,119 +114,6 @@ function deny(reason) {
 }
 
 const ALLOW = { allow: true };
-
-/**
- * G1, G2, B-G1, B-G2 -- the pre-edit gates.
- *
- * Documentation is always writable. That is not a loophole: the plan file, the
- * PRD, and the living docs are exactly what the blocked party is being told to
- * go and write.
- */
-function preEditGate(state, input) {
-  const { stage, data } = state;
-  if (stage === 'none') return ALLOW;
-
-  const raw = input && input.path;
-  if (!raw) return ALLOW;
-
-  // Files outside the project are never this project's business.
-  const target = input.cwd ? toProjectPath(input.cwd, raw) : raw;
-  if (target === null || target === '') return ALLOW;
-
-  if (isDocPath(target)) return ALLOW;
-  if (isDiagramPath(target)) return ALLOW;
-  if (isRunPath(target)) return ALLOW;
-
-  if (stage === 'bootstrap') {
-    if (data.prd_confirmed !== true) {
-      return deny(
-        'Gate B-G1: prd_confirmed is not true in PRD.md. Confirm the PRD with the user before writing any source.'
-      );
-    }
-    if (data.design_confirmed !== true) {
-      return deny(
-        'Gate B-G2: design_confirmed is not true in PRD.md. Confirm the system design and framework choices before scaffolding -- this is the decision that is hardest to reverse.'
-      );
-    }
-    return ALLOW;
-  }
-
-  if (stage === 'feature') {
-    if (data.plan_confirmed !== true) {
-      return deny(
-        `Gate G1: plan_confirmed is not true in ${state.file || 'the plan file'}. Write the plan and get it confirmed before editing source.`
-      );
-    }
-    // G6: which domain experts apply must be decided before source is written, so
-    // that their plan-stage input has had a chance to shape it. "None" is a decision
-    // (`experts: []`); only an absent line is a block, and the message says how to
-    // write one.
-    if (data.experts === undefined && !isTestPath(target)) {
-      return deny(
-        `Gate G6: no domain-experts decision is recorded in ${state.file || 'the plan file'}. Run the experts step of /ultimate-workflow:plan, or record that none apply with \`node experts/experts.js select --plan <plan file> --add ""\`.`
-      );
-    }
-    if (data.tests_confirmed !== true && !isTestPath(target)) {
-      return deny(
-        `Gate G2: tests_confirmed is not true in ${state.file || 'the plan file'}. Write the tests first -- test files are not blocked by this gate.`
-      );
-    }
-    return ALLOW;
-  }
-
-  return ALLOW;
-}
-
-/**
- * G3 -- coding must route through verification.
- *
- * Blocks turn completion while source has changed since the last green run.
- * Steps aside once the run has escalated, because at that point the human is
- * being asked to decide, not to run tests again.
- */
-function stopGate(state, opts = {}) {
-  const { stage, data } = state;
-  if (stage === 'none') return ALLOW;
-  if (data.escalated === true) return ALLOW;
-  if (data.dirty !== true) return ALLOW;
-
-  // With no verification command configured -- which is exactly what the
-  // shipped plan template defaults to -- nothing can ever clear `dirty`, so
-  // blocking here makes every turn end unsatisfiable until the host's
-  // consecutive-block override fires. A gate that cannot be satisfied is worse
-  // than no gate, so this one steps aside; `status.js` reports it as inactive.
-  const cmd = data.test_command || data.build_command;
-  if (!cmd) return ALLOW;
-
-  // The plugin's verify.js runs only the tests related to the change, or the full suite when the
-  // narrow run cannot be trusted; any passing run of it clears this gate (4.1.1).
-  const how = opts.verifyScript
-    ? `Run \`${opts.verifyScript}\` (the tests related to your changes, or the full suite when it must) and get it passing before ending the turn.`
-    : `Run \`${cmd}\` and get it passing before ending the turn.`;
-  return deny(`Gate G3: source changed since the last green verification. ${how}`);
-}
-
-/**
- * G7 -- no commit until a passing full test run covers these exact changes (4.1.1).
- *
- * While working, G3 accepts the related tests; the full suite runs once, here. `ev` is gathered
- * by verify.fullEvidence: the fingerprint of the uncommitted changes and the last full run's
- * record. Any edit after the run changes the fingerprint. Docs-only and empty commits come with
- * `skip`. No test_command: nothing to run, so it steps aside, like G3.
- */
-function fullSuiteGate(state, ev, script) {
-  // Feature work only, like G6's plan check: at bootstrap the gates write their state into PRD.md,
-  // which is part of the fingerprinted changes, so a record could never be current there.
-  if (!state || state.stage !== 'feature') return ALLOW;
-  const cmd = state.data && state.data.test_command;
-  if (!cmd || !ev || ev.skip) return ALLOW;
-  const run = script ? `\`${script} --full\`` : `\`${cmd}\``;
-  const r = ev.record;
-  const full = r && r.mode === 'full' && r.passed === true;
-  if (full && r.fingerprint === ev.hash) return ALLOW;
-  if (full) return deny(`Gate G7: the changes have changed since the last passing full test suite run. Run ${run} once, then commit again. ${VOLATILE_HINT}`);
-  return deny(`Gate G7: no passing full test suite run covers these changes (only related tests ran, or none, or the last full run failed). Run ${run} once, then commit again.`);
-}
 
 /**
  * Whether a shell command runs `git commit`. Looks at each simple command, skips
@@ -389,39 +275,6 @@ function testsItem(ev) {
   return { kind: 'tests', text: `Gate G7: no passing full test suite run covers these changes (only related tests ran, or none, or the last full run failed)${why}. Run ${run} once, then commit again.`, fix };
 }
 
-/**
- * G4 -- the round cap.
- *
- * Returns a patch rather than writing, so the caller owns I/O and this stays
- * testable. `alreadyEscalated` lets the caller avoid announcing an escalation
- * twice.
- */
-function roundCap(state, input) {
-  const data = state.data || {};
-  const rounds = Number(data.verify_rounds) || 0;
-  const alreadyEscalated = data.escalated === true;
-
-  if (input && input.passed) {
-    // gate_violation is cleared here too. It records an edit that a
-    // detect-only host let through; once verification is green that edit has
-    // been dealt with, and continuing to quote it in stop messages would
-    // accuse the user of a problem they already fixed.
-    return {
-      patch: { verify_rounds: 0, last_verify: 'green', dirty: false, escalated: false, gate_violation: '' },
-      escalated: false,
-      alreadyEscalated,
-    };
-  }
-
-  const next = rounds + 1;
-  const escalated = alreadyEscalated || next >= ROUND_CAP;
-  return {
-    patch: { verify_rounds: next, last_verify: 'red', escalated },
-    escalated,
-    alreadyEscalated,
-  };
-}
-
 function nextAction(stage, data) {
   if (stage === 'bootstrap') {
     if (data.prd_confirmed !== true) return 'confirm the PRD with the user';
@@ -431,26 +284,46 @@ function nextAction(stage, data) {
   }
   if (data.plan_confirmed !== true) return 'write and confirm the plan';
   if (data.tests_confirmed !== true) return 'write and confirm the test plan';
-  if (data.dirty === true) return 'run the tests';
   return 'proceed with the plan';
 }
 
 /**
- * G5 -- the phase pointer. One line of injected context per prompt, so the
- * current stage survives compaction.
+ * The phase pointer. One line of injected context per prompt, so the current stage survives
+ * compaction.
  */
 function phasePointer(state, input) {
   const { stage, data } = state;
   if (stage === 'none') return '';
-
   const availability = input && input.workflowsAvailable ? 'workflows available' : 'workflows unavailable';
-
-  if (data.escalated === true) {
-    const rounds = Number(data.verify_rounds) || 0;
-    return `[ultimate-workflow] stage: ${stage}; ESCALATED after ${rounds} verify rounds. Stop, state the problem, present 2-3 options with tradeoffs, and wait for the user. (${availability})`;
-  }
-
   return `[ultimate-workflow] stage: ${stage}; next: ${nextAction(stage, data)}. (${availability})`;
+}
+
+/**
+ * The reminders (PLAN-simplify, card reminders): short lines that say what is not done yet. They replace the
+ * edit and turn-end blocks, so they only ever remind: nothing here refuses, and nothing is written. The one
+ * place that refuses is the commit check (commitGate). Computed from the plan, the PRD and one fact the
+ * caller gathers, \`codeChanged\` (the changes differ from the last passing full run), so no flag has to be
+ * kept in the plan. Sent at the start of a turn and at its end, never on an edit.
+ *
+ * input: { codeChanged, script } -- script names the verify runner in the fix command.
+ */
+function reminders(state, input = {}) {
+  const out = [];
+  if (!state || state.stage === 'none') return out;
+  const data = state.data || {};
+  if (state.stage === 'bootstrap') {
+    if (data.prd_confirmed !== true) out.push('The PRD is not confirmed yet (prd_confirmed in PRD.md): confirm it with the user before writing source.');
+    else if (data.design_confirmed !== true) out.push('The system design is not confirmed yet (design_confirmed in PRD.md): confirm it with the user before scaffolding.');
+    return out;
+  }
+  if (!state.file) {
+    if (state.several && state.several.length > 1) out.push('Several plans are open and none is chosen, so commits are not checked: pick one with node experts/experts.js use --plan <file>.');
+    return out;
+  }
+  if (data.plan_confirmed !== true) out.push(`The plan is not confirmed yet. When the user agrees: ${confirmFix('plan_confirmed')}`);
+  if (data.tests_confirmed !== true) out.push(`The test plan is not confirmed yet. When the user agrees: ${confirmFix('tests_confirmed')}`);
+  if (input.codeChanged && data.test_command) out.push(`Code changed since the last full test run: run ${input.script ? `\`${input.script} --full\`` : `\`${data.test_command}\``} before committing.`);
+  return out;
 }
 
 module.exports = {
@@ -459,12 +332,9 @@ module.exports = {
   isDiagramPath,
   isRunPath,
   isTestPath,
-  preEditGate,
-  stopGate,
   isCommitCommand,
   commitGate,
   checkRecord,
-  fullSuiteGate,
-  roundCap,
+  reminders,
   phasePointer,
 };

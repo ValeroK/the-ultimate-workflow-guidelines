@@ -77,7 +77,7 @@ test('no doc still says the gates are opt-in or off by default', () => {
 test('T26 the docs say related tests while working and a full run before a commit (G7)', () => {
   const gatesDoc = read('docs/gates.md');
   assert.match(gatesDoc, /^\| G7 \| No `git commit` until a passing FULL test run/m);
-  assert.match(gatesDoc, /^\| G3 \| .*related tests are enough/m);
+  assert.match(gatesDoc, /related tests/); // 5.0.0: the G3 row is gone; the related-tests table is in "Which tests run when"
   assert.match(gatesDoc, /^### Which tests run when/m);
   assert.match(read(P + 'skills/the-ultimate-workflow-guidelines/SKILL.md'), /verify\.js --full/);
   assert.match(read(P + 'rules/the-ultimate-workflow-guidelines.mdc'), /only the tests related to the changed files; the full suite once/);

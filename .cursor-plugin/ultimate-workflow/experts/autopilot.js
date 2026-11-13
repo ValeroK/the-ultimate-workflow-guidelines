@@ -305,17 +305,6 @@ function keepPlan(cwd, plan, fn) {
   }
 }
 
-/**
- * After a card is committed or parked the tree is a commit whose full run passed, so the plan's
- * `dirty` flag (set by every edit the card made) no longer describes it. Left set, it made G3 block
- * the session's first stop after the run until the suite ran once more for nothing.
- */
-function markClean(cwd, plan) {
-  try {
-    require('../hooks/lib/state.js').patchState(path.resolve(cwd, plan), { dirty: false });
-  } catch {}
-}
-
 function writePlanField(cwd, plan, card, key, value) {
   const file = path.resolve(cwd, plan);
   const text = fs.readFileSync(file, 'utf8');
@@ -652,7 +641,6 @@ function park(cwd, { plan, card: name, feature, reasonFile = '', reason = '', ne
     const within = /^cannot be done within the plan: needs decision (.*?); run --resume \S+ --accept to allow it, or change the plan\./i.exec(flat);
     writePlanField(cwd, plan, card.name, 'decision', (within ? within[1] : flat.replace(/^needs a decision the plan does not state:\s*/i, '')).slice(0, 1000));
   }
-  markClean(cwd, plan);
   // The run branch gets the plan's new state as its own commit, so the plan there matches git.
   const planCommit = commitPlan(cwd, plan, `plan: card ${card.name} ${needsDecision ? 'needs a decision' : 'parked'}, work on ${branch}`);
   return { ok: true, card: card.name, branch, commit: commit.slice(0, 12), resetTo: head.slice(0, 12), files: [...new Set([...changed, ...untracked])].length, parked: rel(cwd, path.join(dir, 'parked.md')), planCommit };
@@ -785,7 +773,6 @@ function cardCommit(cwd, { plan, card: name, feature, claimed = [], fixedRound =
   const after = git(cwd, ['rev-parse', 'HEAD']).stdout.trim();
   writePlanField(cwd, plan, card.name, 'committed', after.slice(0, 12));
   setStatus(cwd, plan, card.name, `${done} ${after.slice(0, 12)}`);
-  markClean(cwd, plan);
   const h = handoff(cwd, { card: card.name, feature, range: `${before}..${after}`, claimed });
   return { ok: true, card: card.name, commit: after.slice(0, 12), files: h.files, handoff: h.handoff, missingClaims: h.missingClaims, check };
 }

@@ -41,19 +41,6 @@ const ev = (o) => ({
 
 // --- pre-edit, per vendor capability ---------------------------------------
 
-test('a blocking vendor gets a deny when the plan is unconfirmed', () => {
-  const r = dispatch(ev({ vendor: 'claude' }), feature({ plan_confirmed: false }));
-  assert.equal(r.kind, 'deny');
-  assert.match(r.reason, /plan_confirmed/);
-});
-
-test('Cursor gets no deny, because a deny there is ignored and reported as success', () => {
-  const r = dispatch(ev({ vendor: 'cursor' }), feature({ plan_confirmed: false }));
-  assert.equal(r.kind, 'allow', 'emitting a deny would look enforced while doing nothing');
-  assert.equal(r.patch.dirty, true);
-  assert.match(r.patch.gate_violation, /plan_confirmed/);
-});
-
 test('an allowed edit produces no violation record', () => {
   const r = dispatch(ev({}), feature({ plan_confirmed: true, tests_confirmed: true, experts: '[]' }));
   assert.equal(r.kind, 'allow');
@@ -67,44 +54,6 @@ test('stage none is never gated', () => {
 
 // --- dirty marking ---------------------------------------------------------
 
-test('a landed source edit marks the tree dirty', () => {
-  const r = dispatch(ev({ event: 'postTool' }), feature({ plan_confirmed: true, tests_confirmed: true }));
-  assert.equal(r.patch.dirty, true);
-});
-
-test('a documentation edit does not mark the tree dirty', () => {
-  const r = dispatch(
-    ev({ event: 'postTool', path: `${CWD}/README.md` }),
-    feature({ plan_confirmed: true, tests_confirmed: true })
-  );
-  assert.equal(r.patch, undefined);
-});
-
-// Otherwise a diagram drawn during planning makes G3 demand a test run at the end of the turn.
-test('a diagram edit does not mark the tree dirty, an application html edit does', () => {
-  const state = feature({ plan_confirmed: true, tests_confirmed: true });
-  for (const p of ['docs/aws/target.html', 'docs/arch.svg', 'arch.mmd']) {
-    assert.equal(dispatch(ev({ event: 'postTool', path: `${CWD}/${p}` }), state).patch, undefined, p);
-  }
-  assert.equal(dispatch(ev({ event: 'postTool', path: `${CWD}/public/index.html` }), state).patch.dirty, true);
-});
-
-test('an edit outside the project does not mark the tree dirty', () => {
-  const r = dispatch(
-    ev({ event: 'postTool', path: 'C:/elsewhere/x.js' }),
-    feature({ plan_confirmed: true, tests_confirmed: true })
-  );
-  assert.equal(r.patch, undefined);
-});
-
-test('Cursor afterFileEdit marks dirty just like postTool', () => {
-  const r = dispatch(
-    ev({ vendor: 'cursor', event: 'afterEdit', tool: '' }),
-    feature({ plan_confirmed: true, tests_confirmed: true })
-  );
-  assert.equal(r.patch.dirty, true);
-});
-
 // --- verify and the round cap ----------------------------------------------
 
 test('isVerifyCommand matches a wrapped invocation', () => {
@@ -117,45 +66,12 @@ test('isVerifyCommand is false when no command is configured', () => {
   assert.equal(isVerifyCommand('node --test', feature({})), false);
 });
 
-test('a passing verify clears dirty and resets the counter', () => {
-  const r = dispatch(
-    ev({ event: 'postTool', tool: 'shell', command: 'node --test', path: null }),
-    feature({ test_command: 'node --test', verify_rounds: 2, dirty: true })
-  );
-  assert.equal(r.patch.last_verify, 'green');
-  assert.equal(r.patch.dirty, false);
-  assert.equal(r.patch.verify_rounds, 0);
-});
-
 test('the failure event is what marks a verify red -- no payload carries an exit code', () => {
-  const r = dispatch(
-    ev({ event: 'postToolFailure', tool: 'shell', command: 'node --test', path: null }),
-    feature({ test_command: 'node --test', verify_rounds: 0, dirty: true })
-  );
-  assert.equal(r.patch.last_verify, 'red');
-  assert.equal(r.patch.verify_rounds, 1);
-});
-
-test('the third failure escalates and hands the user the blocker protocol', () => {
-  const r = dispatch(
-    ev({ event: 'postToolFailure', tool: 'shell', command: 'node --test', path: null }),
-    feature({ test_command: 'node --test', verify_rounds: 2 })
-  );
-  assert.equal(r.kind, 'context');
-  assert.equal(r.patch.escalated, true);
-  assert.match(r.text, /2-3 options/);
+  const r = dispatch(ev({ event: 'postToolFailure', tool: 'shell', command: 'node --test', path: null }), feature({ test_command: 'node --test' }));
+  assert.deepEqual(r.verified, { kind: 'full', passed: false });
 });
 
 // --- stop ------------------------------------------------------------------
-
-test('stop blocks while the tree is dirty', () => {
-  const r = dispatch(
-    ev({ event: 'stop', tool: '', path: null, status: 'completed' }),
-    feature({ dirty: true, test_command: 'node --test' })
-  );
-  assert.equal(r.kind, 'stopBlock');
-  assert.match(r.reason, /node --test/);
-});
 
 test('stop stays silent on an aborted Cursor turn', () => {
   const r = dispatch(
@@ -163,16 +79,6 @@ test('stop stays silent on an aborted Cursor turn', () => {
     feature({ dirty: true, test_command: 'node --test' })
   );
   assert.equal(r.kind, 'allow', 'a follow-up here would burn the loop_limit for a turn that did nothing');
-});
-
-test('a recorded gate violation is surfaced in the stop message with a revert instruction', () => {
-  const r = dispatch(
-    ev({ vendor: 'cursor', event: 'stop', tool: '', path: null, status: 'completed' }),
-    feature({ dirty: true, gate_violation: 'Gate G1: plan_confirmed is not true.', test_command: 'npm test' })
-  );
-  assert.equal(r.kind, 'stopBlock');
-  assert.match(r.reason, /revert it/i);
-  assert.match(r.reason, /Gate G1/);
 });
 
 // --- end to end through gate.js -------------------------------------------
@@ -224,26 +130,6 @@ test('gate.js honours ULTIMATE_WORKFLOW_GATES=off', () => {
   assert.equal(out, '');
 });
 
-test('gate.js denies an unplanned source edit end to end, BOM and all', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'uw-gate-'));
-  fs.writeFileSync(path.join(dir, 'PLAN-x.md'), '---\nplan_confirmed: false\n---\n');
-  const payload =
-    '\uFEFF' +
-    JSON.stringify({
-      hook_event_name: 'PreToolUse',
-      permission_mode: 'auto',
-      cwd: dir,
-      tool_name: 'Write',
-      tool_input: { file_path: path.join(dir, 'src', 'a.js') },
-    });
-
-  const r = runGate(payload);
-  assert.equal(r.exit, 2);
-  const j = JSON.parse(r.stdout);
-  assert.equal(j.hookSpecificOutput.permissionDecision, 'deny');
-  assert.match(j.hookSpecificOutput.permissionDecisionReason, /plan_confirmed/);
-});
-
 test('gate.js allows a test-file edit end to end', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'uw-gate-'));
   fs.writeFileSync(path.join(dir, 'PLAN-x.md'), '---\nplan_confirmed: true\ntests_confirmed: false\n---\n');
@@ -265,106 +151,19 @@ test('gate.js allows a test-file edit end to end', () => {
 // the user to revert an edit that no longer existed. Stale nagging is exactly
 // how a gate earns an ULTIMATE_WORKFLOW_GATES=off.
 
-test('a green verify clears gate_violation', () => {
-  const r = dispatch(
-    ev({ event: 'postTool', tool: 'shell', command: 'node --test', path: null }),
-    feature({ test_command: 'node --test', dirty: true, gate_violation: 'Gate G1: stale.' })
-  );
-  assert.equal(r.patch.gate_violation, '');
-});
-
-test('a red verify leaves gate_violation alone', () => {
-  const r = dispatch(
-    ev({ event: 'postToolFailure', tool: 'shell', command: 'node --test', path: null }),
-    feature({ test_command: 'node --test', dirty: true, gate_violation: 'Gate G1: still true.' })
-  );
-  assert.equal(r.patch.gate_violation, undefined, 'red must not clear it -- nothing was fixed');
-});
-
-test('a newly allowed pre-edit clears a violation that is no longer true', () => {
-  const r = dispatch(
-    ev({ vendor: 'cursor' }),
-    feature({ plan_confirmed: true, tests_confirmed: true, experts: '[]', gate_violation: 'Gate G1: stale.' })
-  );
-  assert.equal(r.kind, 'allow');
-  assert.equal(r.patch.gate_violation, '');
-});
-
 test('an allowed pre-edit with no recorded violation writes no patch', () => {
   const r = dispatch(ev({}), feature({ plan_confirmed: true, tests_confirmed: true }));
   assert.equal(r.patch, undefined, 'no violation to clear means nothing to write');
 });
 
-test('a denied pre-edit on a detect-only host still records the violation', () => {
-  const r = dispatch(ev({ vendor: 'cursor' }), feature({ plan_confirmed: false }));
-  assert.match(r.patch.gate_violation, /plan_confirmed/);
-});
-
 // --- heartbeat integration -------------------------------------------------
 
-const hb = require('./heartbeat.js');
 
 function tmpRepo(frontMatter) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'uw-hbi-'));
   if (frontMatter) fs.writeFileSync(path.join(dir, 'PLAN-x.md'), frontMatter);
   return dir;
 }
-
-test('gate.js records a heartbeat even at stage none, where no gate acts', () => {
-  const dir = tmpRepo(null);
-  const r = runGate(
-    JSON.stringify({
-      hook_event_name: 'PreToolUse',
-      permission_mode: 'auto',
-      cwd: dir,
-      tool_name: 'Write',
-      tool_input: { file_path: path.join(dir, 'src', 'a.js') },
-    })
-  );
-  assert.equal(r.exit, 0);
-
-  const h = hb.read(dir);
-  assert.equal(h.count, 1, 'silence at stage none must still be evidenced');
-  assert.equal(h.recent[0].stage, 'none');
-  assert.equal(h.recent[0].decision, 'allow');
-});
-
-test('gate.js records the decision when it denies', () => {
-  const dir = tmpRepo('---\nplan_confirmed: false\n---\n');
-  const r = runGate(
-    JSON.stringify({
-      hook_event_name: 'PreToolUse',
-      permission_mode: 'auto',
-      cwd: dir,
-      tool_name: 'Write',
-      tool_input: { file_path: path.join(dir, 'src', 'a.js') },
-    })
-  );
-  assert.equal(r.exit, 2);
-
-  const h = hb.read(dir);
-  assert.equal(h.recent.at(-1).decision, 'deny');
-  assert.equal(h.recent.at(-1).stage, 'feature');
-  assert.equal(h.recent.at(-1).event, 'preTool');
-});
-
-test('gate.js still decides correctly when the heartbeat cannot be written', () => {
-  const dir = tmpRepo('---\nplan_confirmed: false\n---\n');
-  // Occupy the heartbeat directory name with a file, so mkdir cannot succeed.
-  fs.writeFileSync(path.join(dir, hb.DIR), 'blocked');
-
-  const r = runGate(
-    JSON.stringify({
-      hook_event_name: 'PreToolUse',
-      permission_mode: 'auto',
-      cwd: dir,
-      tool_name: 'Write',
-      tool_input: { file_path: path.join(dir, 'src', 'a.js') },
-    })
-  );
-  assert.equal(r.exit, 2, 'a diagnostics failure must not change the decision');
-  assert.match(JSON.parse(r.stdout).hookSpecificOutput.permissionDecisionReason, /plan_confirmed/);
-});
 
 // --- regressions from the v3.0.0 /review run --------------------------------
 //
@@ -373,63 +172,18 @@ test('gate.js still decides correctly when the heartbeat cannot be written', () 
 // accepted. Each test below fails against the code as it shipped.
 
 test('a failing verify run is NOT scored green just because the host sent postTool', () => {
-  // The bug: pass/fail was read from the event name alone, on the belief that a
-  // failure arrives as `postToolFailure`. Claude Code does not appear to send
-  // that event -- fixtures/claude-code/PostToolUse.18.json is a non-zero-exit
-  // command recorded as a plain PostToolUse. So a red run cleared `dirty` and
-  // reset the round counter: failing the tests satisfied the gate that exists
-  // to make you pass them.
-  const state = feature({ test_command: 'node --test', dirty: true, verify_rounds: 2 });
+  // The pass/fail signal is read from every signal the host gives, not from the event name alone: a red run once arrived as a
+  // plain PostToolUse (fixtures/claude-code/PostToolUse.18.json). It is what the full-run record is written from.
+  const state = feature({ test_command: 'node --test' });
   const r = dispatch(ev({ event: 'postTool', tool: 'shell', command: 'node --test', path: null, ok: false }), state, {});
-
-  assert.notEqual(r.patch.last_verify, 'green', 'a failing run must never be recorded as green');
-  assert.notEqual(r.patch.dirty, false, 'a failing run must not clear the dirty flag');
-  assert.ok(r.patch.verify_rounds > 2, `round counter must advance, got ${r.patch.verify_rounds}`);
+  assert.deepEqual(r.verified, { kind: 'full', passed: false });
 });
 
 test('a passing verify run on a plain postTool is still scored green', () => {
   // The other direction, so the fix above cannot be "call everything a failure".
-  const state = feature({ test_command: 'node --test', dirty: true, verify_rounds: 1 });
+  const state = feature({ test_command: 'node --test' });
   const r = dispatch(ev({ event: 'postTool', tool: 'shell', command: 'node --test', path: null, ok: true }), state, {});
-
-  assert.equal(r.patch.last_verify, 'green');
-  assert.equal(r.patch.dirty, false);
-  assert.equal(r.patch.verify_rounds, 0);
-});
-
-test('a recorded gate violation blocks the stop even with no verify command set', () => {
-  // The bug: this is the ENTIRE compensation for a host that cannot block a
-  // write, and it only fired when stopGate independently blocked. stopGate
-  // steps aside when no verification command is configured, and the shipped
-  // plan template ships `test_command: ""` -- so on Cursor, the one host it
-  // exists for, a bypassed G1 was recorded and reported to nobody.
-  const state = feature({
-    plan_confirmed: false,
-    test_command: '',
-    dirty: true,
-    gate_violation: 'Gate G1: plan_confirmed is not true in PLAN-x.md.',
-  });
-
-  const r = dispatch(ev({ event: 'stop', status: 'completed', tool: null, path: null }), state, {});
-
-  assert.equal(r.kind, 'stopBlock', 'a recorded violation must reach the user');
-  assert.match(r.reason, /Gate G1/);
-  assert.match(r.reason, /revert/i, 'it must say what to do about it');
-});
-
-test('the violation still carries the stop reason when stopGate also blocks', () => {
-  const state = feature({
-    plan_confirmed: false,
-    test_command: 'node --test',
-    dirty: true,
-    gate_violation: 'Gate G1: plan_confirmed is not true in PLAN-x.md.',
-  });
-
-  const r = dispatch(ev({ event: 'stop', status: 'completed', tool: null, path: null }), state, {});
-
-  assert.equal(r.kind, 'stopBlock');
-  assert.match(r.reason, /Gate G1/);
-  assert.match(r.reason, /node --test/, 'the verification command must still be named');
+  assert.deepEqual(r.verified, { kind: 'full', passed: true });
 });
 
 test('no violation and nothing to verify still ends the turn', () => {
@@ -437,45 +191,6 @@ test('no violation and nothing to verify still ends the turn', () => {
   const state = feature({ plan_confirmed: true, tests_confirmed: true, test_command: '', dirty: true });
   const r = dispatch(ev({ event: 'stop', status: 'completed', tool: null, path: null }), state, {});
   assert.equal(r.kind, 'allow');
-});
-
-test('gate.js echoes the real event name on a G4 escalation, end to end', () => {
-  // The hookEventName bug had two halves: adapters.respond() hardcoding
-  // 'UserPromptSubmit', and gate.js passing the real event through. The
-  // regression test in review-findings.test.js covers the first and REBUILDS
-  // the second by hand -- it calls adapters.respond() with the event spread in
-  // itself rather than invoking gate.js. So the gate.js half was protected by
-  // nothing: reverting that line left the whole suite green while every G4
-  // escalation and G5 pointer was discarded by the host for an event-name
-  // mismatch, which is the exact defect the file exists to prevent.
-  //
-  // This goes through gate.js, so it fails if either half regresses.
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'uw-gate-g4-'));
-  fs.writeFileSync(
-    path.join(dir, 'PLAN-x.md'),
-    '---\nplan_confirmed: true\ntests_confirmed: true\ntest_command: node --test\ndirty: true\nverify_rounds: 2\n---\n'
-  );
-
-  const r = runGate(
-    JSON.stringify({
-      hook_event_name: 'PostToolUse',
-      cwd: dir,
-      tool_name: 'Bash',
-      tool_input: { command: 'node --test' },
-      tool_response: { success: false },
-    })
-  );
-
-  assert.equal(r.exit, 0);
-  assert.ok(r.stdout.trim(), 'the third failing round must emit an escalation');
-
-  const out = JSON.parse(r.stdout);
-  const eventName = out.hookSpecificOutput && out.hookSpecificOutput.hookEventName;
-  assert.equal(
-    eventName,
-    'PostToolUse',
-    `the host discards output whose event name does not match; got ${eventName}`
-  );
 });
 
 // --- G6: the commit gate ------------------------------------------------------------
@@ -516,14 +231,6 @@ test('G6 applies only while a feature is active', () => {
   assert.equal(dispatch(commit(), { stage: 'none', file: null, data: {} }, { commitEvidence: staleEvidence }).kind, 'allow');
 });
 
-test('G6 on a commit does not disturb the write gates', () => {
-  const r = dispatch(ev({ tool: 'write' }), feature({ plan_confirmed: true, tests_confirmed: true, experts: '[]' }), { commitEvidence: staleEvidence });
-  assert.equal(r.kind, 'allow');
-  const denied = dispatch(ev({ tool: 'write' }), feature({ plan_confirmed: true, tests_confirmed: true }), {});
-  assert.equal(denied.kind, 'deny');
-  assert.match(denied.reason, /Gate G6/);
-});
-
 // --- 4.1.1: related runs while working, a full run before a commit ------------------
 
 const { verifyKind } = require('./dispatch.js');
@@ -545,23 +252,6 @@ test('T15 only a real full run counts as full; narrowed runs are related, others
   assert.equal(verifyKind('npm run build && npm test', chain), 'full');
   assert.equal(verifyKind('npm test', chain), null);
   assert.equal(verifyKind('npm test', feature({})), null);
-});
-
-test('T16 a passing related verify.js run clears dirty; a failing one counts a G4 round', () => {
-  const s = feature({ test_command: 'npm test', dirty: true, verify_rounds: 0 });
-  const ok = dispatch(ev({ event: 'postTool', tool: 'shell', command: VERIFY, path: null }), s);
-  assert.equal(ok.patch.dirty, false);
-  assert.deepEqual(ok.verified, { kind: 'related', passed: true });
-  const bad = dispatch(ev({ event: 'postTool', tool: 'shell', command: VERIFY, path: null, ok: false }), s);
-  assert.equal(bad.patch.verify_rounds, 1);
-  assert.deepEqual(bad.verified, { kind: 'related', passed: false });
-});
-
-test('G3 names the verify script when the hook knows it', () => {
-  const s = feature({ test_command: 'npm test', dirty: true });
-  const r = dispatch(ev({ event: 'stop', tool: null, path: null, status: 'completed' }), s, { verifyScript: VERIFY });
-  assert.equal(r.kind, 'stopBlock');
-  assert.ok(r.reason.includes(VERIFY), r.reason);
 });
 
 const tested = feature({ plan_confirmed: true, tests_confirmed: true, experts: '[security]', test_command: 'npm test' });

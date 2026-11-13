@@ -88,6 +88,7 @@ const CHECKS = [
   ['G6 at commit', 'hooks/lib/gates.js', /re-checked against these changes/],
   ['memory at commit', 'hooks/lib/gates.js', /Memory check: this commit leaves memory broken/],
   ['detect-only stop', 'hooks/lib/dispatch.js', /gate_violation[\s\S]*stopBlock/],
+['confirmation at commit', 'hooks/lib/gates.js', /Confirmation: /],
 ];
 
 function blockingChecks(root) {

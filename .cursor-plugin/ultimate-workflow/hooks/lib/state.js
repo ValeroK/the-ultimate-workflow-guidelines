@@ -14,9 +14,6 @@ const path = require('node:path');
 
 const DISABLED_VALUES = new Set(['off', '0', 'false', 'no']);
 
-/** Failing rounds allowed before the run escalates to a human. */
-const ROUND_CAP = 3;
-
 function coerce(raw) {
   const v = raw.trim();
   if (v === 'true') return true;
@@ -37,13 +34,6 @@ function coerce(raw) {
     }
   }
   return quoted[2];
-}
-
-function format(v) {
-  const s = String(v);
-  if (typeof v === 'boolean' || typeof v === 'number') return s;
-  // Quote only what would otherwise re-parse wrong.
-  return /[:#]|^\s|\s$/.test(s) ? JSON.stringify(s) : s;
 }
 
 /**
@@ -96,18 +86,6 @@ function setFrontLine(text, key, value) {
   const eol = fm.block.includes('\r\n') ? '\r\n' : '\n';
   const block = line.test(fm.block) ? fm.block.replace(line, `${key}: ${value}`) : `${fm.block.replace(/(\r?\n)?$/, '')}${eol}${key}: ${value}${/\r?\n$/.test(fm.block) ? eol : ''}`;
   return fm.bom + fm.open + block + fm.after;
-}
-
-function serializeFrontMatter(data, body) {
-  const lines = Object.entries(data).map(([k, v]) => `${k}: ${format(v)}`);
-  return `---\n${lines.join('\n')}\n---\n${body}`;
-}
-
-/** Merge `patch` into a file's front matter, preserving body and unknown keys. */
-function patchState(file, patch) {
-  const text = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
-  const { data, body } = parseFrontMatter(text);
-  fs.writeFileSync(file, serializeFrontMatter({ ...data, ...patch }, body));
 }
 
 function listPlanFiles(dir) {
@@ -259,7 +237,7 @@ function resolveStage(dir) {
  * plan (PLAN-*.md or PRD.md) or a `.git` entry (a directory, or the file a worktree has); `dir`
  * itself when there is none. A host fires hooks with whatever folder its shell is in, and the plan
  * is read from exactly the folder given, so from a subfolder every gate saw "no plan" and allowed,
- * and the heartbeat was written there. `.ultimate-workflow` is deliberately not a marker: one stray
+ * and the commit-check stamp was written there. `.ultimate-workflow` is deliberately not a marker: one stray
  * write would otherwise make its own folder the root from then on.
  */
 function projectRoot(dir) {
@@ -296,10 +274,10 @@ function readState(dir) {
  *
  * History: on by default when they were the enforcement story (2.4.0); demoted
  * to opt-in in v3 after a measurement found three routes to "installed and
- * silently enforcing nothing". What changed since: every gate leaves a
- * heartbeat and `hooks/status.js` tells "never ran", "live", "stale" and
- * "disabled" apart, and a real run showed that without them a session skips
- * steps unless someone steers it. They stay inert in a repo with no PRD.md
+ * silently enforcing nothing". What changed since: the commit check leaves a
+ * stamp (`.ultimate-workflow/commit-check.json`) that `hooks/status.js` shows, so a
+ * hook that never ran is visible, and a real run showed that without a check a
+ * session skips steps unless someone steers it. They stay inert in a repo with no PRD.md
  * and no PLAN-*.md, and fail open on an internal error.
  *
  * ULTIMATE_WORKFLOW_GATES=off (or 0/false/no) turns every gate off; unset or
@@ -341,15 +319,12 @@ function readCommitStamp(cwd) {
 }
 
 module.exports = {
-  ROUND_CAP,
   splitFrontMatter,
   writeCommitStamp,
   readCommitStamp,
   COMMIT_STAMP,
   parseFrontMatter,
   setFrontLine,
-  serializeFrontMatter,
-  patchState,
   listPlanFiles,
   activePlanFiles,
   pointedPlanFile,

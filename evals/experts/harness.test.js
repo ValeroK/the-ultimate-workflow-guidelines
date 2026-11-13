@@ -102,14 +102,13 @@ async function review(payload, dir, plan, { recheck = [], expertsArg } = {}) {
 
 // ---- the flow, with the shipped security expert ---------------------------------
 
-test('the flow end to end: a source edit waits for the experts decision, a commit waits for the experts, and any later change waits again', async () => {
+test('the flow end to end: a source edit is only reminded, a commit waits for the experts, and any later change waits again', async () => {
   const { payload } = pluginCopy();
   const { dir, plan } = project();
 
-  // 1. The plan is confirmed, but nobody has said which experts apply: no source edit.
+  // 1. The plan is confirmed, but nobody has said which experts apply: an edit is not refused (5.0.0); the commit waits.
   let r = gate(payload, dir, writeEdit(dir));
-  assert.strictEqual(decision(r), 'deny');
-  assert.match(reasonOf(r), /Gate G6: no domain-experts decision/);
+  assert.strictEqual(decision(r), 'allow');
 
   // 2. Planning records its selection (here: the model chose security).
   const planRec = experts(payload, dir, ['record', '--stage', 'plan', '--plan', plan], JSON.stringify({ ok: true, expertLane: { stage: 'plan', selected: ['security'], ran: ['security'], failed: [], added: ['security'] } }));
@@ -275,15 +274,15 @@ test('a failed expert review leaves the commit blocked', async () => {
   assert.match(reasonOf(r), /Gate G6/);
 });
 
-test('every gate invocation leaves a heartbeat, and status.js reports the experts state', () => {
+test('a refused commit leaves a stamp, and status.js reports the experts state', () => {
   const { payload } = pluginCopy();
   const { dir } = project();
   write(path.join(dir, 'src', 'a.js'), 'module.exports = 2;\n');
   gate(payload, dir, bash('git commit -m x'));
-  assert.ok(fs.existsSync(path.join(dir, '.ultimate-workflow', 'heartbeat.json')));
+  assert.strictEqual(JSON.parse(fs.readFileSync(path.join(dir, '.ultimate-workflow', 'commit-check.json'), 'utf8')).outcome, 'refused');
   const s = spawnSync(process.execPath, [path.join(payload, 'hooks', 'status.js'), '--json'], { cwd: dir, encoding: 'utf8', env: { ...process.env, ULTIMATE_WORKFLOW_GATES: 'on' } });
   const j = JSON.parse(s.stdout);
-  assert.strictEqual(j.liveness.state, 'live');
+  assert.strictEqual(j.lastCheck.outcome, 'refused');
   assert.strictEqual(j.experts.decided, false);
   assert.deepStrictEqual([...j.experts.available].sort(), JSON.parse(experts(payload, dir, ['list']).stdout).map((e) => e.name).sort());
   assert.strictEqual(j.experts.commit.allowed, false);

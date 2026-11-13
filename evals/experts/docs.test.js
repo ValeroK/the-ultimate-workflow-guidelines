@@ -266,3 +266,11 @@ test('one-notice 64b: run.md tells the session to look in notifications.jsonl fo
   assert.match(rule, /`"kind":"finished"`[^.]*newer than the run's start/);
   assert.match(rule, /If there is one, send nothing/);
 });
+
+test('build loop: ROUND_CAP 3, the same-signature stop, testMayBeWrong and escalationText are in phases/build.js, not in a hook', () => {
+  const BUILD_JS = fs.readFileSync(path.join(__dirname, '..', '..', '.cursor-plugin', 'ultimate-workflow', 'phases', 'build.js'), 'utf8');
+  assert.match(BUILD_JS, /^const ROUND_CAP = 3\s*$/m);
+  for (const needle of ['testMayBeWrong', 'escalationText', 'if (round >= ROUND_CAP) break']) assert.ok(BUILD_JS.includes(needle), needle);
+  const caps = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', '4.8.0', 'recorded', 'caps.json'), 'utf8'));
+  assert.strictEqual(caps.ROUND_CAP['phases/build.js'], 3);
+});

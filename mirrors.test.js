@@ -927,8 +927,45 @@ test('one decision: commitGate is called from exactly dispatch.js, autopilot.js,
   assert.ok(!/ev\.memory\s*=/.test(auto), 'autopilot.js does not edit the memory evidence');
 });
 
-test('gates: gates.js requires only ./state.js', () => {
+test('gates: gates.js requires nothing (it was only ./state.js, for the round cap)', () => {
   const src = fs.readFileSync(path.join(root, '.cursor-plugin', 'ultimate-workflow', 'hooks', 'lib', 'gates.js'), 'utf8');
   const requires = [...src.matchAll(/require\(\s*['"]([^'"]+)['"]\s*\)/g)].map((m) => m[1]);
-  assert.deepStrictEqual(requires, ['./state.js']);
+  assert.deepStrictEqual(requires, [], 'gates.js is pure: it requires nothing, so state.js cannot reach back into it');
+});
+
+// ---- PLAN-simplify, card reminders: the removed names are gone from everything that ships ----
+
+function shippedFiles() {
+  const base = path.join(root, '.cursor-plugin', 'ultimate-workflow');
+  const out = [];
+  (function walk(dir) {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, e.name);
+      // Recorded host payloads are data, and the eval corpus is not part of what users run.
+      if (e.isDirectory()) {
+        if (!['fixtures', 'architecture-evals', 'node_modules'].includes(e.name)) walk(p);
+      } else if (/\.(js|md|mdc|json)$/.test(e.name) && !e.name.endsWith('.test.js')) out.push({ rel: path.relative(base, p).split(path.sep).join('/'), text: fs.readFileSync(p, 'utf8') });
+    }
+  })(base);
+  for (const rel of ['docs/gates.md']) out.push({ rel, text: fs.readFileSync(path.join(root, rel), 'utf8') });
+  return out;
+}
+// A removed front-matter key as a key line, or a removed identifier. Not the bare English word "dirty" in prose.
+const REMOVED_KEY = /^[ \t]*(?:dirty|verify_rounds|last_verify|escalated|gate_violation)[ \t]*:/m;
+const REMOVED_IDENT = /\b(?:verify_rounds|last_verify|gate_violation|markClean|roundCap|stopGate|patchState|serializeFrontMatter|preEditGate|fullSuiteGate)\b|\.dirty\b/;
+const HEARTBEAT = /\bheartbeat(?:\.js|\.json)?\b/i;
+
+test('removed names: dirty, verify_rounds, last_verify, escalated, gate_violation, heartbeat, markClean, roundCap, stopGate and patchState appear in no shipped source file', () => {
+  assert.ok(REMOVED_KEY.test('---\ndirty: true\n---'), 'the pattern sees a front-matter key');
+  assert.ok(!REMOVED_KEY.test('the tree is dirty and escalated to the user'), 'and ignores the word in prose');
+  assert.ok(REMOVED_IDENT.test('const r = gates.roundCap(state);') && REMOVED_IDENT.test('state.dirty'), 'and sees an identifier');
+  const files = shippedFiles();
+  for (const sentinel of ['hooks/lib/dispatch.js', 'experts/autopilot.js', 'phases/run.js', 'commands/build.md', 'phases/plan.js', 'docs/gates.md', 'skills/the-ultimate-workflow-guidelines/references/plan-template.md', 'skills/project-bootstrap-guidelines/references/prd-template.md']) {
+    assert.ok(files.some((f) => f.rel === sentinel), `${sentinel} was scanned`);
+  }
+  const offenders = files.filter((f) => REMOVED_KEY.test(f.text) || REMOVED_IDENT.test(f.text)).map((f) => f.rel);
+  assert.deepStrictEqual(offenders, [], 'these still name a removed key or function');
+  // The heartbeat: no module, and no hook file but status.js (which says a leftover file can be deleted) mentions it.
+  const beats = files.filter((f) => f.rel.startsWith('hooks/') && f.rel !== 'hooks/status.js' && HEARTBEAT.test(f.text)).map((f) => f.rel);
+  assert.deepStrictEqual(beats, [], 'no hook code mentions the heartbeat');
 });

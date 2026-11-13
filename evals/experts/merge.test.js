@@ -239,8 +239,7 @@ test('T9 the stale-evidence refusals carry the volatile_paths hint; the never-ch
   assert.match(gates.commitGate(stale).reason, /volatile_paths/);
   assert.match(gates.commitGate(stale).reason, /have not been re-checked against these changes/);
   assert.doesNotMatch(gates.commitGate({ ...stale, recheck: null }).reason, /volatile_paths/);
-  const state = { stage: 'feature', file: 'PLAN-x.md', data: { test_command: 'node full.js' } };
-  const moved = gates.fullSuiteGate(state, { hash: 'h2', record: { mode: 'full', passed: true, fingerprint: 'h1' } }, null);
+  const moved = gates.commitGate({ skip: 'x', tests: { command: 'node full.js', script: '', hash: 'h2', record: { mode: 'full', passed: true, fingerprint: 'h1' } } });
   assert.match(moved.reason, /volatile_paths/);
 });
 

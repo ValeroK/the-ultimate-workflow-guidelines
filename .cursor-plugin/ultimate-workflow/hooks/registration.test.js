@@ -70,26 +70,6 @@ test('every registered command points at a file that exists', () => {
   assert.ok(seen.has('gate.js'), 'gate.js is registered nowhere');
 });
 
-test('the verify-command events match Bash, or G4 never sees a test run', () => {
-  // G4 counts verification rounds by watching shell commands. If Bash falls out
-  // of these matchers the round cap silently stops counting and escalation
-  // never happens -- the gate is present, registered, and blind.
-  for (const event of ['PostToolUse', 'PostToolUseFailure']) {
-    const matchers = config.hooks[event].map((g) => g.matcher || '');
-    assert.ok(
-      matchers.some((m) => m.split('|').includes('Bash')),
-      `${event} does not match Bash, so G4 cannot observe a verification run`
-    );
-  }
-});
-
-test('the pre-edit matcher covers every write tool', () => {
-  const matcher = config.hooks.PreToolUse.map((g) => g.matcher || '').join('|').split('|');
-  for (const tool of ['Write', 'Edit', 'MultiEdit', 'NotebookEdit']) {
-    assert.ok(matcher.includes(tool), `PreToolUse does not match ${tool}; edits through it bypass G1 and G2`);
-  }
-});
-
 test('every command is quoted, so a path with a space still runs', () => {
   // CLAUDE_PLUGIN_ROOT routinely expands under "Application Support" or
   // "Program Files". An unquoted path there fails at the shell, and the failure
@@ -113,4 +93,15 @@ test('the pre-tool matcher includes Bash, or the commit gate (G6) can never see 
   // correct, and blind.
   const matchers = config.hooks.PreToolUse.map((g) => g.matcher || '').join('|').split('|');
   assert.ok(matchers.includes('Bash'), 'PreToolUse does not match Bash, so G6 never sees a commit');
+});
+
+// ---- PLAN-simplify, card reminders ----
+
+test('registration: no event is registered that gate.js no longer acts on, and edits are not matched', () => {
+  // gate.js acts on a commit (PreToolUse), on a typed test run (PostToolUse and PostToolUseFailure), and on the start and
+  // end of a turn (UserPromptSubmit, Stop). A matcher that names an edit tool would wake it for nothing.
+  assert.deepStrictEqual(Object.keys(config.hooks).sort(), ['PostToolUse', 'PostToolUseFailure', 'PreToolUse', 'Stop', 'UserPromptSubmit']);
+  for (const event of ['PreToolUse', 'PostToolUse', 'PostToolUseFailure']) {
+    for (const g of config.hooks[event]) assert.strictEqual(g.matcher, 'Bash', `${event} matches Bash only`);
+  }
 });

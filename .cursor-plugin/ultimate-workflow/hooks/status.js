@@ -1,40 +1,30 @@
 #!/usr/bin/env node
 'use strict';
 
-// Answers one question the gates cannot answer for themselves:
-// are they actually running?
+// What the workflow says about this project right now: the reminders a turn would get, what the commit
+// check would say about a commit made now, and when the commit check last ran.
 //
-// A hook the host never loaded, a hook that crashes, and a hook that correctly
-// allows all look identical -- nothing blocks, nothing is logged. This reads
-// the heartbeat every gate leaves behind and says which of those is true, then
-// reports what would block next.
+// Read-only by construction. It never writes, so it can be run at any time without disturbing the state it
+// is describing. It asks the real functions (gates.reminders, gates.commitGate) rather than restating them,
+// so the report and the hook cannot disagree.
 //
-// Read-only by construction. It never writes, so it can be run at any time
-// without disturbing the state it is describing.
-//
-// One compute pass, two renderers: `report()` gathers the facts, the human
-// report and `--json` both render that same object, so they cannot disagree.
+// One compute pass, two renderers: `report()` gathers the facts, the human report and `--json` both render
+// that same object.
 
 const stateLib = require('./lib/state.js');
 const gates = require('./lib/gates.js');
-const heartbeat = require('./lib/heartbeat.js');
 const fs = require('node:fs');
+const path = require('node:path');
 const expertsLib = require('../experts/experts.js');
-const verify = require('./verify.js');
 
 const out = [];
 const say = (s = '') => out.push(s);
 
-// `gate_violation` is here because on a host that cannot block a write it is
-// the ONLY trace that a gate was bypassed. Omitting it meant the violation was
-// recorded in the plan front matter and shown to nobody, which is the same as
-// not recording it. Keys are filtered to those actually present, so this widens
-// nothing on a clean plan.
-const SHOWN = ['plan_confirmed', 'tests_confirmed', 'prd_confirmed', 'design_confirmed', 'dirty', 'last_verify', 'verify_rounds', 'escalated', 'test_command', 'gate_violation'];
+const SHOWN = ['plan_confirmed', 'tests_confirmed', 'prd_confirmed', 'design_confirmed', 'test_command'];
 
 /**
- * Where the domain experts stand: what the plan decided, and whether a commit would pass the
- * commit gate right now. Asks the real gate rather than restating it. Never throws.
+ * Where the domain experts stand: what the plan decided, and whether a commit would pass the commit check
+ * right now. Never throws.
  */
 function expertsReport(cwd, state) {
   if (state.stage !== 'feature' || !state.file) return null;
@@ -59,26 +49,23 @@ function expertsReport(cwd, state) {
       lastCheck: stateLib.readCommitStamp(cwd),
     };
   } catch (err) {
-    return { decided: false, selected: [], available: [], openFindings: 0, commit: { allowed: true, reason: null }, error: err && err.message ? err.message : 'unknown error' };
+    return { decided: false, selected: [], available: [], openFindings: 0, commit: { allowed: true, reason: null, missing: [] }, lastCheck: null, error: err && err.message ? err.message : 'unknown error' };
   }
 }
 
 /**
- * The whole report as data. Shape pinned by PLAN-status-json.md; renaming a key
- * is a contract change.
- *
- * Never throws: a report must never be the thing that fails, and the shape has
- * to survive the failure too, or every consumer reading `blocking.blocked` gets
- * `undefined` on the one path that needed it.
- */
-/**
- * The last full test run, for G7 (4.1.1): 'never', 'fresh' (passed, at the current changes),
- * 'stale' (passed, but the changes moved since), 'failed', or 'n/a' (no test_command, or nothing
- * that needs one: docs-only or no changes).
+ * The last full test run: 'never', 'fresh' (passed, at the current changes), 'stale' (passed, but the
+ * changes moved since), 'failed', or 'n/a' (no test_command, or nothing that needs one). Computed by the same
+ * code the commit check uses.
  */
 function fullVerifyReport(cwd, state) {
   if (state.stage === 'none' || !state.data.test_command) return 'n/a';
-  const ev = verify.fullEvidence(cwd);
+  let ev;
+  try {
+    ev = expertsLib.testsEvidence(cwd, expertsLib.workingChanges(cwd, state.file || ''), state.file || '');
+  } catch {
+    return 'n/a';
+  }
   if (ev.skip) return 'n/a';
   const r = ev.record;
   if (!r || r.mode !== 'full') return 'never';
@@ -87,156 +74,98 @@ function fullVerifyReport(cwd, state) {
 }
 
 /**
- * Whether G3 stepped aside at the most recent Stop because a workflow was still running. Read from
- * the heartbeat, since a Stop payload is only visible to the hook; a later Stop that was not
- * deferred clears it, so this never reports a deferral that ended.
+ * The whole report as data. Never throws: a report must never be the thing that fails, and the shape has
+ * to survive the failure too.
  */
-function deferralReport(hbData) {
-  const stops = (hbData.recent || []).filter((e) => e && e.event === 'stop');
-  const last = stops[stops.length - 1];
-  if (!last || !last.deferred) return null;
-  return {
-    gate: last.deferred.gate || 'G3',
-    workflowId: last.deferred.workflowId || null,
-    workflowName: last.deferred.workflowName || null,
-    at: last.at || null,
-  };
-}
-
 function report(cwd, env) {
   const disabled = stateLib.gatesDisabled(env);
-  const hbData = heartbeat.read(cwd);
-  const liveness = heartbeat.liveness(hbData, { disabled });
-  const deferral = deferralReport(hbData);
-
+  // 4.8.0 wrote a heartbeat on every hook event; nothing reads or writes it now.
+  const leftoverHeartbeat = fs.existsSync(path.join(cwd, '.ultimate-workflow', 'heartbeat.json'));
   try {
     const state = stateLib.readState(cwd);
-
     const shown = {};
     for (const k of SHOWN) if (state.data[k] !== undefined) shown[k] = state.data[k];
-
-    // Ask the real gates rather than reimplementing their logic here.
-    const edit = gates.preEditGate(state, { path: 'src/example.js' });
-    const stop = gates.stopGate(state);
-    // A deferred G3 is not a blocker: the report below says it is deferred, and listing it here as
-    // well sent a session off to verify half-built code while the workflow was still running.
-    const reason = !edit.allow ? edit.reason : !stop.allow && !deferral ? stop.reason : null;
-
+    let codeChanged = false;
+    const fullVerify = fullVerifyReport(cwd, state);
+    if (fullVerify === 'never' || fullVerify === 'stale' || fullVerify === 'failed') codeChanged = true;
     return {
-      liveness,
+      gates: disabled ? 'disabled' : 'enabled',
       stage: state.stage,
       file: state.file,
       state: shown,
-      blocking: { blocked: reason !== null, reason },
+      reminders: gates.reminders(state, { codeChanged, script: expertsLib.verifyScript() }),
       experts: expertsReport(cwd, state),
-      g3Active: state.stage !== 'none' && Boolean(state.data.test_command || state.data.build_command),
-      fullVerify: fullVerifyReport(cwd, state),
-      deferral,
+      fullVerify,
+      lastCheck: stateLib.readCommitStamp(cwd),
+      leftoverHeartbeat,
     };
   } catch (err) {
-    return {
-      liveness,
-      stage: 'none',
-      file: null,
-      state: {},
-      blocking: { blocked: false, reason: null },
-      experts: null,
-      g3Active: false,
-      fullVerify: 'n/a',
-      deferral,
-      error: err && err.message ? err.message : 'unknown error',
-    };
+    return { gates: disabled ? 'disabled' : 'enabled', stage: 'none', file: null, state: {}, reminders: [], experts: null, fullVerify: 'n/a', lastCheck: null, leftoverHeartbeat, error: err && err.message ? err.message : 'unknown error' };
   }
 }
 
-function reportLiveness(l) {
-  if (l.state === 'disabled') {
+function render(r) {
+  say('ultimate-workflow status');
+  say('');
+  if (r.gates === 'disabled') {
     say('Gates:   DISABLED (ULTIMATE_WORKFLOW_GATES is set to off)');
-    say('         Nothing is being enforced. Unset it, or set it to on, to enable.');
-    return;
-  }
-
-  if (l.state === 'never') {
-    say('Gates:   NEVER RUN in this project');
-    say('         The hooks are probably not loaded. Hook configuration is read');
-    say('         at startup, so a registration added mid-session does not take');
-    say('         effect until you restart the host.');
-    return;
-  }
-
-  const mins = Math.round(l.ageSeconds / 60);
-  const ago = l.ageSeconds < 90 ? `${l.ageSeconds}s ago` : `${mins}m ago`;
-
-  if (l.state === 'stale') {
-    say(`Gates:   STALE -- last ran ${ago}, ${l.count} invocations total`);
-    say('         Registered and working at some point, but quiet recently.');
-  } else {
-    say(`Gates:   LIVE -- last ran ${ago}, ${l.count} invocations total`);
-  }
-}
-
-function reportState(r) {
-  say(`Stage:   ${r.stage}`);
-
-  if (r.stage === 'none') {
-    say('         No PRD.md and no PLAN-*.md, so no gate will ever block here.');
-    return;
-  }
-
-  say(`File:    ${r.file}`);
-
-  const present = Object.entries(r.state);
-  if (present.length) {
-    say('State:');
-    for (const [k, v] of present) say(`         ${k}: ${v}`);
-  }
-
-  // A gate that stepped aside must say so, or it reads as a gate that did nothing.
-  if (r.deferral) {
-    const what = r.deferral.workflowName || r.deferral.workflowId || 'a workflow';
+    say('         Nothing is being checked. Unset it, or set it to on, to enable.');
     say('');
-    say(`${r.deferral.gate} deferred: the last turn ended while ${what} was still running.`);
-    say('         It applies again at the first turn end after the workflow finishes.');
+  }
+  say(`Stage:   ${r.stage}`);
+  if (r.stage === 'none') {
+    say('         No open plan and no PRD.md, so the commit check has nothing to judge here.');
+  } else {
+    say(`File:    ${r.file || '(none chosen)'}`);
+    const present = Object.entries(r.state);
+    if (present.length) {
+      say('State:');
+      for (const [k, v] of present) say(`         ${k}: ${v}`);
+    }
   }
 
   say('');
-  say('Blocking now:');
-  say(`         ${r.blocking.reason || 'Nothing blocking. Source edits and turn completion are both allowed.'}`);
+  say('Reminders:');
+  if (r.reminders.length === 0) say('         none');
+  for (const line of r.reminders) say(`         ${line}`);
 
   const e = r.experts;
   if (e) {
     say('');
     say('Experts:');
-    say(`         ${e.decided ? `decided: [${e.selected.join(', ')}]` : 'NO DECISION recorded in the plan (source edits are blocked by G6)'}`);
-    if (e.effective && e.effective.source === 'cards') {
+    say(`         ${e.decided ? `decided: [${e.selected.join(', ')}]` : 'no decision recorded in the plan yet'}`);
+    if (e.effective && e.effective.source === 'card' || e.effective.source === 'cards') {
       say(`         card ${e.effective.cards.join(', ')}: [${e.effective.experts.join(', ')}] (plan: ${e.effective.planExperts.length}) -- the commit is held to these`);
     }
     say(`         available: ${e.available.join(', ') || 'none'}`);
     if (e.openFindings > 0) say(`         open high-confidence findings: ${e.openFindings} (node experts/experts.js findings)`);
     say(`         commit: ${e.commit.allowed ? 'allowed now' : `BLOCKED -- ${e.commit.reason}`}`);
     if (e.commit.outcome) say(`         this commit would not be checked: ${e.commit.outcome}${e.commit.why ? ` (${e.commit.why})` : ''}`);
-    const last = e.lastCheck;
-    say(`         last commit check: ${last ? `${last.outcome}${last.why ? ` (${last.why})` : ''}${last.missing && last.missing.length ? `, missing ${last.missing.join(', ')}` : ''} at ${last.at}` : 'none yet'}`);
   }
 
   if (r.fullVerify && r.fullVerify !== 'n/a') {
     const says = {
-      never: 'NONE yet for these changes -- a commit is blocked by G7 until `node hooks/verify.js --full` passes',
+      never: 'NONE yet for these changes -- a commit is refused until `node hooks/verify.js --full` passes',
       fresh: 'passed, and covers the current changes',
-      stale: 'passed, but the changes moved since -- a commit is blocked by G7 until it runs again',
-      failed: 'FAILED -- a commit is blocked by G7 until it passes',
+      stale: 'passed, but the changes moved since -- a commit is refused until it runs again',
+      failed: 'FAILED -- a commit is refused until it passes',
     };
     say('');
     say(`Full test run: ${says[r.fullVerify]}`);
   }
 
-  // G3 cannot fire without a command to verify with, and the shipped plan
-  // template leaves it empty. Silence there would read as "the gate is fine",
-  // which is exactly the confusion this tool exists to prevent.
-  if (!r.g3Active) {
+  const last = r.lastCheck;
+  say('');
+  say(`Last commit check: ${last ? `${last.outcome}${last.why ? ` (${last.why})` : ''}${last.missing && last.missing.length ? `, missing ${last.missing.join(', ')}` : ''} at ${last.at}` : 'none yet'}`);
+  if (!last) say('         It is written when a commit is checked. If commits happen and it stays empty, the hook is not registered: restart the host.');
+
+  if (r.leftoverHeartbeat) {
     say('');
-    say('Note:    G3 (verify before finishing) is INACTIVE -- no test_command is set.');
-    say(`         Set test_command in ${r.file} to turn it on.`);
+    say('Note:    .ultimate-workflow/heartbeat.json is left over from an older version. Nothing reads it; it can be deleted.');
+  }
+  if (r.error) {
+    say('');
+    say(`Could not complete the report: ${r.error}`);
   }
 }
 
@@ -245,19 +174,7 @@ const r = report(stateLib.projectRoot(process.cwd()), process.env);
 if (process.argv.slice(2).includes('--json')) {
   process.stdout.write(`${JSON.stringify(r)}\n`);
 } else {
-  say('ultimate-workflow status');
-  say('');
-  reportLiveness(r.liveness);
-  say('');
-  reportState(r);
-
-  // A status report must never be the thing that fails. Say what went wrong in
-  // one line, in the same voice as the rest of the output, and exit clean.
-  if (r.error) {
-    say('');
-    say(`Could not complete the report: ${r.error}`);
-  }
-
+  render(r);
   process.stdout.write(`${out.join('\n')}\n`);
 }
 

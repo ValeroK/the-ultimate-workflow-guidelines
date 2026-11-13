@@ -101,29 +101,6 @@ test('a --- separator inside the body is not treated as front matter', () => {
 
 // --- patchState ------------------------------------------------------------
 
-test('patchState updates a key and preserves the body and other keys', () => {
-  const dir = tmpdir();
-  const file = write(dir, 'PLAN-x.md', fm({ plan_confirmed: false, verify_rounds: 0 }, '\n## Feature\n\nText.\n'));
-
-  state.patchState(file, { plan_confirmed: true });
-
-  const after = state.parseFrontMatter(fs.readFileSync(file, 'utf8'));
-  assert.strictEqual(after.data.plan_confirmed, true);
-  assert.strictEqual(after.data.verify_rounds, 0);
-  assert.match(after.body, /## Feature/);
-});
-
-test('patchState adds front matter to a file that has none', () => {
-  const dir = tmpdir();
-  const file = write(dir, 'PLAN-x.md', '# Plan\n\nNo front matter here.\n');
-
-  state.patchState(file, { plan_confirmed: true });
-
-  const after = state.parseFrontMatter(fs.readFileSync(file, 'utf8'));
-  assert.strictEqual(after.data.plan_confirmed, true);
-  assert.match(after.body, /No front matter here\./);
-});
-
 // --- resolveStage ----------------------------------------------------------
 
 test('resolveStage returns none for a repo with no PRD and no plan', () => {

@@ -377,6 +377,7 @@ const FINDINGS = {
   type: 'object',
   required: ['findings', 'lensVerdict'],
   properties: {
+    stillPresent: { type: 'array', items: { type: 'integer' }, description: 'Run only: indexes of the CARRIED findings you were given that this diff did not fix' },
     lensVerdict: {
       type: 'string',
       description: 'One sentence on the change through this lens, INCLUDING when nothing was found',

@@ -655,7 +655,8 @@ test('journal add appends a card\'s lines, keeps the first 15 of a longer one wi
   assert.match(read(dir, '.ultimate-workflow/run/calc/journal.md'), /line 14/);
   write(dir, 'empty.txt', '\n\n');
   assert.equal(json(cli(dir, 'journal', 'add', '--feature', 'calc', '--card', '2', '--from', 'empty.txt')).ok, false);
-  assert.ok(true);
+  // The long entry for card 2 was kept (cut to 15 lines); the refused empty one adds no second entry.
+  assert.equal((read(dir, '.ultimate-workflow/run/calc/journal.md').match(/^## 2 /gm) || []).length, 1, 'a refused empty entry adds nothing');
 });
 
 test('past 200 lines the journal names its oldest entries, and compact summarises one without dropping it', () => {

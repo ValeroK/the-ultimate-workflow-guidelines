@@ -121,3 +121,10 @@ test('saved diff: one location is written and read: prepare names .ultimate-work
   assert.ok(!/delta\.diff|review\.[a-z]+\.diff/.test(shared));
   assert.ok(run.includes('.ultimate-workflow/review.diff') || shared.includes('.ultimate-workflow/review.diff'));
 });
+
+test('review-core: the shared findings schema keeps stillPresent, which the run\'s experts check reads to carry unfixed findings forward', () => {
+  const core = experts.sharedSections(PLUGIN)['review-core'];
+  assert.match(core, /stillPresent: \{ type: 'array', items: \{ type: 'integer' \}/);
+  const check = experts.sharedSections(PLUGIN)['cards-experts-check'];
+  assert.ok(check.includes('stillPresent'));
+});

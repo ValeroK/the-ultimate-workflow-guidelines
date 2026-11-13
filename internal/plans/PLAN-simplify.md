@@ -287,6 +287,7 @@ Each card is built by hand, test first, and ends with the full verify command gr
   paths: .cursor-plugin/ultimate-workflow/commands/, .cursor-plugin/ultimate-workflow/memory/, .cursor-plugin/ultimate-workflow/memory.md, .cursor-plugin/ultimate-workflow/skills/, docs/, README.md, CHANGELOG.md, .cursor-plugin/, .claude-plugin/, mirrors.test.js, internal/plans/simplify-baseline.md
   depends: measure-experts
   Version changed in the five places and the regex in `mirrors.test.js` together. The memory index is regenerated with `node experts/experts.js memory index`, not edited by hand. The measure script is run again and the after column filled in. One release, 5.0.0 (owner decision, 2026-11-13): 4.8.0 does not ship on its own and nothing is pushed before this card. Order, each step by the owner or on the owner's word: (1) the branch goes to `main` by a pull request, so `validate.yml` runs the tests on Linux on the exact commit; (2) only when that is green, the `v5.0.0` tag is pushed (the release workflow runs no tests); (3) the marketplace switch. The way back is the last tag before 4.8.0. Because Linux CI first runs here, on everything at once, this card plans time for path and line-ending faults. The ZIP size is checked locally by the measure script before any tag. Last, by the owner: remove `ULTIMATE_WORKFLOW_GATES=off` from `.claude/settings.local.json`, and switch the installed plugin back to the GitHub marketplace after the release.
+  status: committed b0e91ea
 
 ## 8. How we check that nothing important is lost
 

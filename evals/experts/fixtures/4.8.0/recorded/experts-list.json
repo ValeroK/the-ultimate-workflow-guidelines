@@ -1,0 +1,100 @@
+{
+  "experts": [
+    {
+      "name": "architect",
+      "agent": "uw-expert-architect",
+      "description": "System architect expert. Applies when the plan or the diff changes how services, queues, data stores or AWS resources fit together: a new service, queue, topic, schedule, workflow or store; a call between services; where state or tenant data lives; retries, timeouts or failure handling across a boundary; or the choice of an AWS service or framework. Adds system-level constraints to the plan and reviews the diff for reliability, cost and operability defects. Not for: modules and imports inside one codebase (softarch), how a catch or retry is written inside a function (developer), deploy mechanics and IaC replacement (devops), IAM and network exposure (security), whether tests can fail (quality).",
+      "stages": [
+        "plan",
+        "review"
+      ]
+    },
+    {
+      "name": "data",
+      "agent": "uw-expert-data",
+      "description": "Data and database expert. Applies when the plan or the diff changes a database schema or migration, a query, index or transaction, a DynamoDB table, key or index design, connection pooling, vector storage, or Redis used as a queue, lock or message bus. Adds lock, backfill, access-pattern and concurrency requirements to the plan, cases to the tests, and reviews the diff for schema changes that block a busy table, queries that grow with the data, transactions that are wrong under concurrency and constraints that do not hold. Not for: where state lives and tenant isolation (architect), migration order in the pipeline and IaC that deletes a database (devops), two modules writing one table (softarch), the embedding model (genai), injection and grants (security).",
+      "stages": [
+        "plan",
+        "tests",
+        "review"
+      ]
+    },
+    {
+      "name": "developer",
+      "agent": "uw-expert-developer",
+      "description": "Senior developer expert. Applies when the plan or the diff adds or substantially rewrites production source code: new functions, classes or modules, a new abstraction or class hierarchy, a new error or fallback path, a new dependency, a change to a published library's exported API, or a change to what a web page loads and renders first (imports into shared entry code, images, scripts, fonts). Adds engineering constraints to the plan and reviews the diff for maintainability defects that cost something concrete. Not for: config, docs, renames or one-line fixes; imports across modules and contracts (softarch); failure across a service boundary (architect); tests (quality); infrastructure code, CI workflows, Dockerfiles or manifests (devops); vulnerabilities (security).",
+      "stages": [
+        "plan",
+        "build",
+        "review"
+      ]
+    },
+    {
+      "name": "devops",
+      "agent": "uw-expert-devops",
+      "description": "DevOps engineer expert. Applies when the plan or the diff changes how infrastructure is written or changed, or how software is built, shipped and rolled back: Terraform, CloudFormation, SAM or CDK code; a Dockerfile or compose file; Kubernetes manifests or Helm values; a CI/CD workflow, its environments or deploy steps; a feature flag, a canary, a rollback or the order a migration runs in the pipeline. Adds delivery and change-safety constraints to the plan and reviews the diff for changes that destroy, drift, or cannot be repeated or undone. Not for: what the system is made of or how it fails (architect), CI workflow security, secrets and IAM (security), whether a test or gate can fail (quality).",
+      "stages": [
+        "plan",
+        "build",
+        "review"
+      ]
+    },
+    {
+      "name": "frontend",
+      "agent": "uw-expert-frontend",
+      "description": "Frontend and accessibility expert. Applies when the plan or the diff adds or changes UI: components, dialogs, menus, forms and their states, keyboard and focus handling, ARIA, styles and layout, design-system tokens and primitives, right-to-left or localised rendering, phones and tablets (viewport, safe areas, the on-screen keyboard, touch and pointer input, gestures, orientation), and animation and motion. Adds interaction, state, device and data-limit requirements and interface and motion guidance to the plan, cases to the tests, and reviews the diff for UI that some users or devices cannot operate or that breaks on real data. Not for: component state, effects and hooks (developer), XSS through unsafe sinks (security), a UI test's oracle and determinism (quality), render performance and bundle size (developer).",
+      "stages": [
+        "plan",
+        "tests",
+        "review"
+      ]
+    },
+    {
+      "name": "genai",
+      "agent": "uw-expert-genai",
+      "description": "Generative AI engineer expert. Applies when the plan or the diff calls a language model or builds an agent: a prompt, a model call on the Anthropic API, OpenAI or Amazon Bedrock, structured output, tool definitions, an agent loop, MCP servers or clients, retrieval and embeddings, guardrails, token budgets, or Bedrock AgentCore. Adds model, loop and retrieval constraints to the plan, cases to the tests, and reviews the diff for unbounded loops, unapproved actions, misparsed output and retrieval that silently finds nothing. Not for: whether an eval can fail (quality), injection that makes an agent with tools act and the credentials behind a tool (security), the queue or workflow around model calls (architect), vector index storage (data).",
+      "stages": [
+        "plan",
+        "tests",
+        "review"
+      ]
+    },
+    {
+      "name": "quality",
+      "agent": "uw-expert-quality",
+      "description": "Quality engineer expert. Applies when the work adds or changes tests, evals, fixtures or CI test configuration, or when a plan or test plan decides how a behaviour will be verified, especially LLM or agent behaviour, contracts between services, and integrations with AWS. Not for: how production code is written (developer), whether a contract change is compatible (softarch), deploy wiring (devops), workflow security or leaked secrets (security).",
+      "stages": [
+        "plan",
+        "tests",
+        "build",
+        "review"
+      ],
+      "always": [
+        "tests"
+      ],
+      "reviewWhenSkills": [
+        "test-craft"
+      ]
+    },
+    {
+      "name": "security",
+      "agent": "uw-expert-security",
+      "description": "Security expert. Applies when the work touches authentication or authorization, input that reaches a query, shell, file path or rendered HTML, secrets or cryptography, a new or changed dependency, or agent, hook, MCP or CI configuration. Adds requirements to the plan, cases to the tests, and reviews the diff against both. Not for: the tenancy model (architect), pipeline mechanics (devops), whether a security test can fail (quality), whether a dependency should exist (developer).",
+      "stages": [
+        "plan",
+        "tests",
+        "review"
+      ]
+    },
+    {
+      "name": "softarch",
+      "agent": "uw-expert-softarch",
+      "description": "Software architect expert. Applies when the plan or the diff changes how code components relate: a new module or package, an import across a module boundary, a signature other modules call, an API, protobuf, GraphQL or event schema other code or services depend on, or which module owns a piece of data. Adds boundary and contract constraints to the plan and reviews the diff for dependency, boundary and compatibility defects. Not for: service topology and deploy order (architect), craft inside a module or a published library's API (developer), contract tests and fixtures (quality), contract security (security).",
+      "stages": [
+        "plan",
+        "review"
+      ]
+    }
+  ],
+  "problems": []
+}

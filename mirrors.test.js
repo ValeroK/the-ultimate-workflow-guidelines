@@ -796,3 +796,69 @@ test('no shipped file points at a path that exists only outside the payload', ()
     `these resolve for a contributor and are dead for an installed user:\n  ${offenders.join('\n  ')}`
   );
 });
+
+// ---- PLAN-simplify, card baseline: guards that make "done" a test, not a rule a reviewer holds ----
+
+const WALK_SKIP = new Set(['.git', 'node_modules', '.claude']);
+function allTestFiles(dir = root, out = []) {
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (e.isDirectory()) {
+      if (!WALK_SKIP.has(e.name)) allTestFiles(path.join(dir, e.name), out);
+    } else if (e.name.endsWith('.test.js')) out.push(path.relative(root, path.join(dir, e.name)).split(path.sep).join('/'));
+  }
+  return out;
+}
+/** Test files the verify command reaches: the hooks tree, the evals tree, and this file. */
+const reached = (rel) => rel === 'mirrors.test.js' || rel.startsWith('.cursor-plugin/ultimate-workflow/hooks/') || rel.startsWith('evals/');
+// A skip or todo site: an options object or a call. An evidence field named `skip` is not one.
+const SKIP_SITE = /\b(?:test|it|describe)\([^\n]*\{\s*(?:skip|todo)\s*:|\bt\.(?:skip|todo)\(|\b(?:test|it|describe)\.(?:skip|todo)\(/g;
+const ONLY_SITE = /\b(?:test|it|describe)\.only\(|\{\s*only\s*:\s*true/g;
+const TITLE_SITE = /^\s*(?:test|it)(?:\.\w+)?\(\s*(['"`])((?:\.|(?!\1).)*)\1/gm;
+const titlesOf = (text) => [...text.matchAll(TITLE_SITE)].map((m) => m[2]);
+const SELF_CHECK = "test('x', { skip: 'no bash' }, () => {});\n  t.skip('y');\ntest.skip('z');\ntest('p', { only: true }, () => {});\nconst e = { skip: 'only documentation changed' };";
+
+test('gate integrity: the skip, todo and only patterns match what they claim to and nothing else', () => {
+  assert.strictEqual((SELF_CHECK.match(SKIP_SITE) || []).length, 3);
+  assert.strictEqual((SELF_CHECK.match(ONLY_SITE) || []).length, 1);
+  assert.deepStrictEqual(titlesOf("test('a b', () => {});\n  it(\"c\", () => {});"), ['a b', 'c']);
+});
+
+test('gate integrity: every test file is reached by the verify command', () => {
+  const files = allTestFiles();
+  assert.ok(files.length > 50, `the scan found ${files.length} test files`);
+  assert.ok(files.includes('mirrors.test.js') && files.includes('evals/experts/commit-contract.test.js') && files.includes('.cursor-plugin/ultimate-workflow/hooks/lib/gates.test.js'));
+  const stray = files.filter((f) => !reached(f));
+  assert.deepStrictEqual(stray, [], `these test files are outside the verify globs and would never run: ${stray.join(', ')}`);
+});
+
+// Today's conditional skips: symlinks, bash missing, the Cursor recordings. A new one fails here.
+const SKIPS = {
+  '.cursor-plugin/ultimate-workflow/hooks/lib/adapters.test.js': 4,
+  '.cursor-plugin/ultimate-workflow/hooks/status.test.js': 1,
+  'evals/experts/autopilot-fixes.test.js': 1,
+  'evals/experts/run-phase.test.js': 2,
+};
+
+test('skips: the set of skip and todo sites in the test files equals the committed allowlist, and no test uses only', () => {
+  const found = {};
+  for (const rel of allTestFiles().filter(reached)) {
+    const text = fs.readFileSync(path.join(root, rel), 'utf8');
+    if (rel === 'mirrors.test.js') continue; // this file holds the patterns as data
+    const n = (text.match(SKIP_SITE) || []).length;
+    if (n) found[rel] = n;
+    assert.strictEqual((text.match(ONLY_SITE) || []).length, 0, `${rel} uses only`);
+  }
+  assert.deepStrictEqual(found, SKIPS);
+});
+
+test('titles: every test title recorded in card baseline still exists, except those in the deleted list', () => {
+  const recorded = JSON.parse(fs.readFileSync(path.join(root, 'evals', 'experts', 'baseline-titles.json'), 'utf8'));
+  const deleted = new Set(JSON.parse(fs.readFileSync(path.join(root, 'evals', 'experts', 'deleted-titles.json'), 'utf8')).map(([f, t]) => `${f}\u0000${t}`));
+  assert.ok(Object.keys(recorded).length > 50);
+  const lost = [];
+  for (const [rel, titles] of Object.entries(recorded)) {
+    const have = fs.existsSync(path.join(root, rel)) ? new Set(titlesOf(fs.readFileSync(path.join(root, rel), 'utf8'))) : new Set();
+    for (const title of titles) if (!have.has(title) && !deleted.has(`${rel}\u0000${title}`)) lost.push(`${rel}: ${title}`);
+  }
+  assert.deepStrictEqual(lost, [], `titles gone and not in the deleted list:\n  ${lost.join('\n  ')}`);
+});

@@ -1,0 +1,15 @@
+{
+  "frozen/plans/PLAN-autopilot.md.fixture": "e8dd4c5fbf45a460",
+  "frozen/plans/PLAN-gate-usability.md.fixture": "0e2629eee68b02d9",
+  "frozen/plans/PLAN-graph-native.md.fixture": "4c57466cac6bab48",
+  "frozen/plans/PLAN-hook-gates.md.fixture": "a91e6c975f0f4b16",
+  "frozen/plans/PLAN-memory-index.md.fixture": "7d75cc8a3134f14d",
+  "frozen/plans/PLAN-run-fixes.md.fixture": "f96ccac1bdce6fe7",
+  "frozen/plans/PLAN-run-records.md.fixture": "c651c4a8bed40f11",
+  "frozen/plans/PLAN-simplify.md.fixture": "8b4eafc5026b2ff6",
+  "plan-calc.md.fixture": "8a8eb296b06202e1",
+  "plan-nohash.md.fixture": "8a8eb296b06202e1",
+  "plan-known-failures.md.fixture": "1ef6fa66c4ab8373",
+  "plan-bom-crlf.md.fixture": "8a8eb296b06202e1",
+  "plan-two-cards.md.fixture": "c7adc1b01b5cb1c1"
+}

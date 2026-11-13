@@ -1,0 +1,21 @@
+{
+  "stage": "review",
+  "name": "security",
+  "at": "2026-11-13T08:16:16.170Z",
+  "hash": "ab7bca95f068b63ebc790ab3b6328b16a9bc81d5ebe17dd002d5c927967dcd56",
+  "failedElsewhere": false,
+  "skills": [],
+  "findings": [
+    {
+      "file": "src/add.js",
+      "line": 1,
+      "what": "The adder lets any caller overflow the total",
+      "confidence": "high",
+      "status": "confirmed",
+      "expert": "security",
+      "id": "5438b144da",
+      "basisCheck": "missing"
+    }
+  ],
+  "concerns": []
+}

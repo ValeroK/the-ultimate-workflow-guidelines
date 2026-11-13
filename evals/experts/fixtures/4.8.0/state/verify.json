@@ -1,0 +1,7 @@
+{
+  "mode": "full",
+  "passed": true,
+  "fingerprint": "ab7bca95f068b63ebc790ab3b6328b16a9bc81d5ebe17dd002d5c927967dcd56",
+  "command": "node --test \"test/**/*.test.js\"",
+  "at": "2026-11-13T08:16:15.415Z"
+}

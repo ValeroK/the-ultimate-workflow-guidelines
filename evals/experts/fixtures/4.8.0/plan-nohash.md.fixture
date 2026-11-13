@@ -1,0 +1,22 @@
+---
+phase: build
+plan_confirmed: true
+tests_confirmed: true
+test_command: node --test "test/**/*.test.js"
+experts: [security]
+verify_rounds: 1
+last_verify: red
+dirty: true
+escalated: false
+---
+
+# PLAN: calc
+
+## Cards
+
+- 1: adder
+  paths: src/add.js
+
+## Tests
+
+- add(1, 2) is 3

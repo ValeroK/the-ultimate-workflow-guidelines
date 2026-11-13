@@ -1,0 +1,10 @@
+{
+  "stage": "review",
+  "name": "security",
+  "at": "2026-11-13T08:16:15.620Z",
+  "hash": "ab7bca95f068b63ebc790ab3b6328b16a9bc81d5ebe17dd002d5c927967dcd56",
+  "failedElsewhere": false,
+  "skills": [],
+  "findings": [],
+  "concerns": []
+}

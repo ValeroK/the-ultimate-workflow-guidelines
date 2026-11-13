@@ -282,6 +282,7 @@ Each card is built by hand, test first, and ends with the full verify command gr
   paths: .cursor-plugin/ultimate-workflow/experts/ledger.js, .cursor-plugin/ultimate-workflow/commands/value.md
   depends: run-inputs
   Starts by reading what the ledger and the value command record today (not read by any reader). Adds only what is missing for "catches and cost per expert", and the cost line shown before and after a feature. No expert or skill is removed.
+  status: committed 90e03f5
 - release: Docs, version, numbers after, gates back on
   paths: .cursor-plugin/ultimate-workflow/commands/, .cursor-plugin/ultimate-workflow/memory/, .cursor-plugin/ultimate-workflow/memory.md, .cursor-plugin/ultimate-workflow/skills/, docs/, README.md, CHANGELOG.md, .cursor-plugin/, .claude-plugin/, mirrors.test.js, internal/plans/simplify-baseline.md
   depends: measure-experts

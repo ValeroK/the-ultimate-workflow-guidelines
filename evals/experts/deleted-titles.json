@@ -514,5 +514,9 @@
  [
   "evals/experts/autopilot-fixes.test.js",
   "harvest-name 54: the memory.md merge-conflict note is still given, on a second harvest branch too"
+ ],
+ [
+  "mirrors.test.js",
+  "plugin manifests and the CHANGELOG say 4.8.0"
  ]
 ]

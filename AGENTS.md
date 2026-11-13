@@ -38,7 +38,7 @@ Equally, do not bog down on a trivial reversible decision: decide, flag it, move
 | Read when | File |
 |---|---|
 | Deciding what belongs in always-on context; editing this file, `memory.md`, `SKILL.md`, or `rules/*.mdc` | `.cursor-plugin/ultimate-workflow/memory/context-boundary.md` |
-| Touching `hooks/**`, adapters, the heartbeat, `status.js`; a gate is not firing; adding a host | `.cursor-plugin/ultimate-workflow/memory/hooks-and-gates.md` |
+| Touching `hooks/**`, adapters, the commit check, `status.js`; a gate is not firing; adding a host | `.cursor-plugin/ultimate-workflow/memory/hooks-and-gates.md` |
 | Touching `phases/*.js` or `agents/uw-*.md`; adding a phase; `parallel()` returned nothing | `.cursor-plugin/ultimate-workflow/memory/workflows-authoring.md` |
 | Building a new expert or its skills end to end (scope, sources, research, compare, skills, verify, measure) | `docs/expert-playbook.md` |
 | Adding a domain expert (an `agents/uw-expert-*` agent and one reference per stage), changing how experts are offered, consulted or gated, or deciding whether a domain deserves one | `docs/adding-an-expert.md` |

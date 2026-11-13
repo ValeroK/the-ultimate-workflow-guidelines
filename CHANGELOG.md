@@ -4,6 +4,41 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.0] - 2026-11-13
+
+A smaller plugin: one blocking check, at commit, with reminders everywhere else, and one copy of each thing that used to exist two to four times. It includes the 4.8.0 work below, which was never released on its own. The plan is `internal/plans/PLAN-simplify.md`.
+
+### Changed (read this before updating)
+
+- **One blocking check, at `git commit`.** It asks four things and lists every missing one with one fix command each: the plan and the test plan are confirmed and the plan text is unchanged since; a full test run passed on exactly these changes; the domain experts reviewed exactly these changes with no high-confidence finding open; memory is not newly broken by the commit. The hook, the unattended run's `card-commit`, `status.js` and `experts.js check` all ask the same function.
+- **Nothing else blocks.** An edit is never refused and a turn can always end. The old checks for editing before the plan or tests are confirmed, for finishing a turn with unverified changes and for three failed verification rounds are reminders now (start and end of a turn), computed from the plan, so no hook writes your plan file. The plan keys `dirty`, `verify_rounds`, `last_verify`, `escalated` and `gate_violation` are no longer written; old ones are ignored.
+- **Three outcomes, always printed:** checked, exempt (documentation only, nothing to commit, no plan is open, several plans and none chosen) or could not check (a git error; by hand the commit goes through and says so, in the run the card parks).
+- **No plan is guessed by modification time.** One open plan is the plan. With several open plans and no pointer a commit goes through unchecked and says so, until you pick one with `node experts/experts.js use --plan <file>`. This is a behaviour change: a second unfinished plan switches the check off until a plan is picked.
+- **The heartbeat is gone.** `.ultimate-workflow/heartbeat.json` is no longer read or written (delete it). The sign that the hook is really loaded is `.ultimate-workflow/commit-check.json`, written only at a commit and shown by `status.js`. `status.js --json` has new keys (`gates`, `reminders`, `lastCheck`, `leftoverHeartbeat`).
+- **Restart the host after updating.** `hooks.json` now matches Bash only; a host that was not restarted still sends the old events and gets no block.
+- **A commit with a confirmed plan, a plan confirmed before the hash existed, or a plan with a Known failures section is accepted as before**; a card added to a confirmed plan, or changed plan text, is refused until it is confirmed again. Plan settings the hash leaves out (`test_command`, `volatile_paths`, `known_failures`, `full_suite_paths`, a shortened `experts` line) are recorded when the test plan is confirmed (`confirmed_settings`) and named when one changed; never a refusal.
+- **A recheck of the experts that answers nothing no longer refuses the commit.** It is named as failed in the report.
+- **A feature is harvested once:** `uw/harvest/<feature>`, no `-2`. The name is written to `run.json` before the branch is made; a second call returns it. A recorded name that is not that name is an error.
+- **One front-matter parser and one writer, one Cards-section reader, one shared file for the phase scripts** (`lib/phase-shared.js`, put in by `experts.js assemblePhase` both when a script is staged and when a test loads it). Expert selection is asked once, at plan; the review recheck only reports which experts' areas the diff touches and code adds them.
+
+### Fixed
+
+- A plan with a byte-order mark or a space after a fence was written as confirmed and read as unconfirmed.
+- `prepare --range` listed the files of the working tree, not of the range.
+- The preflight of a run parked a card for a backticked word with no folder that does not exist; it is a warning now. The run refuses to start when the plugin is another checkout of the same repository.
+
+### Added
+
+- The value report shows, per expert, runs, catches, confirmed catches and an estimated cost. No expert or skill was removed.
+
+### Not done in this release (see the report of the build)
+
+- The run's per-card experts check (`expertsCheck` in `phases/run.js`) is still the run's own; the run still has its own harvest step and resume audit; the measure-line parser, the cover rule and the text-to-file helper are not yet shared.
+
+### Going back
+
+Going back to 4.8.0 after using this version: a plan made without the old keys reads fine (they were optional), and a `uw/harvest/<feature>` branch with no `-N` is a valid name there. Restart the host.
+
 ## [4.8.0] - 2026-11-11
 
 Memory reaches the cards that need it, and cannot silently drift. Taken from the review of RinDig/icm-architect (MIT): generated index files, links that must resolve, a size budget for a step's context. Nothing is copied; the new code is Node only, in `lib/`.

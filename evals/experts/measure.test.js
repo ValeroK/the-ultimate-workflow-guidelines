@@ -72,3 +72,32 @@ test('measure: the current payload has the commit check alone, and no heartbeat 
   assert.ok(state.includes('commit-check.json') && state.includes('verify.json'));
   assert.ok(measure.zipSize(PAYLOAD).raw > 1000000);
 });
+
+// ---- card release ----
+
+test('commands: feature, plan, tests, build, review, harvest, experts, value, expert-attribution and handoff each have a command file', () => {
+  for (const name of ['feature', 'plan', 'tests', 'build', 'review', 'harvest', 'experts', 'value', 'expert-attribution', 'handoff']) {
+    assert.ok(fs.existsSync(path.join(PAYLOAD, 'commands', `${name}.md`)), name);
+  }
+});
+
+test('measure: payload bytes are under the 2 MB ZIP ceiling, with the numbers the report quotes', () => {
+  const z = measure.zipSize(PAYLOAD);
+  assert.ok(z.raw < 2000000 && z.deflated < 2000000, JSON.stringify(z));
+  const after = measure.measure(PAYLOAD, ROOT);
+  assert.deepStrictEqual(after.blockingChecks, ['G7', 'G6 at commit', 'memory at commit', 'confirmation at commit']);
+  assert.ok(after.stateFiles.includes('commit-check.json'));
+});
+
+test('rollback: the recorded 4.8.0 parser reads a plan made without the old keys', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'uw-rollback-'));
+  made.push(dir);
+  const file = path.join(dir, 'state-4.8.0.js');
+  fs.writeFileSync(file, fs.readFileSync(path.join(__dirname, 'fixtures', '4.8.0', 'recorded', 'state-4.8.0.js.fixture'), 'utf8'));
+  const old = require(file);
+  const plan = ['---', 'phase: build', 'plan_confirmed: true', 'tests_confirmed: true', 'confirmed_hash: abc', 'confirmed_settings: {"test_command":"ab12cd34"}', 'test_command: node --test', '---', 'body', ''].join('\n');
+  const data = old.parseFrontMatter(plan).data;
+  assert.strictEqual(data.plan_confirmed, true);
+  assert.strictEqual(data.tests_confirmed, true);
+  assert.strictEqual(data.dirty, undefined, 'the old keys are optional there');
+});

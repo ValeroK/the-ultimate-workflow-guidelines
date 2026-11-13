@@ -69,3 +69,56 @@ G6 at edit is the message "no domain-experts decision is recorded in <plan>" in 
 ## Fixtures
 
 `evals/experts/fixtures/4.8.0/` holds evidence made by the 4.8.0 writers (a plan with the old keys and a hash, plans with no hash, a known-failures section, a BOM and CRLF plan and a two-Cards plan; `verify.json`, expert records clean and with one open high finding, `waivers.json`, `heartbeat.json`, a `run.json` with `uw/harvest/calc-2`), frozen copies of every plan, agent file and memory file, and the recorded `confirmHash`, `experts list` and `parseHeader` answers. A checksum table covers all of it. `.gitattributes` marks the folder `-text`.
+
+## After (card release, 5.0.0)
+
+Measured with the same script. Blocking checks went from 11 (on the 4.8.0 code) to 4 parts of one check (confirmation, G7, G6, memory at commit). State file kinds: the script still lists 16 names, because it matches file names anywhere in the code (the heartbeat name appears only in status.js, to say a leftover file can be deleted; the run folder, baseline and ledger are unchanged); the by-hand target of 8 kinds is NOT met. Hook writes to the plan: 0.
+
+| Area | Files | Bytes | Lines |
+|---|---|---|---|
+| hooks | 23 | 232081 | 5077 |
+| experts (code and expert skills) | 162 | 914859 | 10585 |
+| lib | 6 | 70155 | 1380 |
+| phases | 7 | 156042 | 2490 |
+| commands | 10 | 64489 | 514 |
+| agents | 14 | 69389 | 693 |
+| skills | 19 | 107097 | 1691 |
+| memory | 6 | 39422 | 365 |
+
+Tests (titles in the files the verify command reaches): 1378
+
+Blocking checks (4): G7, G6 at commit, memory at commit, confirmation at commit
+
+State file kinds (16):
+- plan front matter
+- active-plan
+- verify.json
+- baseline.json
+- experts records and prepared.json
+- waivers.json
+- _recheck.json
+- ledger.jsonl
+- run folder (run.json, journal, parked.md, notifications)
+- review.diff
+- snapshots
+- verify.lock
+- verify.log
+- heartbeat.json
+- memory-warnings.json
+- commit-check.json
+
+Plugin ZIP contents: 1686027 bytes raw, about 687564 bytes deflated (ceiling 2000000)
+
+| Measure | Before (4.8.0) | After (5.0.0) |
+|---|---|---|
+| experts/experts.js lines | 1812 | 1982 (adds the commit evidence, assemblePhase, confirmation) |
+| experts/autopilot.js lines | 1260 | 1288 |
+| phases/run.js lines | 1154 | 877 |
+| hooks (bytes) | 284428 | 232081 |
+| phases (bytes) | 194909 | 156042 |
+| lib (bytes) | 48833 | 70155 (phase-shared.js is new) |
+| Test titles reached by the verify command | 1395 | 1378 |
+| Runner count (tests / pass / fail / skipped) | 1434 / 1430 / 0 / 4 | 1450 / 1446 / 0 / 4 |
+| Release ZIP contents, raw | 1746173 | 1686027 (under the 2 MB ceiling) |
+
+Plan targets not met: state-file kinds 8 or fewer; run.js without a review, harvest or experts-check of its own; one measure-line parser. See the build report.

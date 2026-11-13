@@ -42,6 +42,7 @@ if (!feature) {
   }
 }
 
+// @shared selection
 // @shared lane-helpers
 
 // The workflow cannot read files, so experts.js sends the shared rules (experts/protocol.md) with

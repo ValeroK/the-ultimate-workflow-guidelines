@@ -47,20 +47,6 @@ const asList = (v) => (Array.isArray(v) ? v : String(v || '').split(',')).map((e
 const wellFormedAvailable = (a) =>
   Array.isArray(a) && a.every((e) => e && typeof e.name === 'string' && typeof e.agent === 'string' && Array.isArray(e.stages))
 const describeExperts = (a) => a.map((e) => `- ${e.name}: ${e.description}`).join('\n')
-const SELECTION = {
-  type: 'object',
-  required: ['experts'],
-  properties: {
-    experts: {
-      type: 'array',
-      items: {
-        type: 'object',
-        required: ['name', 'why'],
-        properties: { name: { type: 'string' }, why: { type: 'string', description: 'One sentence tying this expert to something in the material' } },
-      },
-    },
-  },
-}
 // A model answer is merged into the current set by code: it can add a name from the list and
 // nothing else. A name that is not on the list is returned, never applied, and nothing is removed.
 const addOnly = (current, answered, available) => {
@@ -382,3 +368,232 @@ List every available expert that is not already selected and whose area this dif
 // The four lenses every review runs, by hand and at the end of a run.
 const CORE_LENSES = ['correctness', 'simplicity', 'surgical-scope', 'test-coverage']
 // @@end core-lenses
+
+
+// @@section review-core
+// The schemas and rules every expert review uses, by hand and in each card of the run: what a finding must say, what a
+// verdict says, the no-quota line and the basis rule.
+const FINDINGS = {
+  type: 'object',
+  required: ['findings', 'lensVerdict'],
+  properties: {
+    lensVerdict: {
+      type: 'string',
+      description: 'One sentence on the change through this lens, INCLUDING when nothing was found',
+    },
+    concerns: {
+      type: 'array',
+      description: 'Domain experts: a worry that is not a finding (rated below 8, or no failure path you can show). At most three. Each says why it is not a finding.',
+      items: {
+        type: 'object',
+        required: ['text', 'reason'],
+        properties: {
+          text: { type: 'string', description: 'The worry, in one sentence' },
+          reason: { type: 'string', description: 'Why it is not a finding: its confidence, or what you could not show' },
+          file: { type: 'string' },
+          line: { type: 'integer' },
+        },
+      },
+    },
+    findings: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['file', 'line', 'what', 'howItFails', 'confidence'],
+        properties: {
+          file: { type: 'string' },
+          line: { type: 'integer' },
+          what: { type: 'string', description: 'One sentence naming the defect' },
+          howItFails: { type: 'string', description: 'Concrete inputs or state leading to a wrong result' },
+          confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
+          wouldSettleIt: { type: 'string', description: 'What check would confirm or kill this' },
+          evidence: { type: 'array', items: { type: 'string' }, description: 'Domain experts: one step per item, each with file and line (or the plan line, or a cited URL), ending at the failure' },
+          category: { type: 'string', description: 'Domain experts: the category from your reference, or the owning expert when it is outside your domain' },
+          severity: { type: 'string', enum: ['high', 'medium', 'low'], description: 'Domain experts: by the protocol and your reference' },
+          fix: { type: 'string', description: 'Domain experts: the fix in one sentence, smaller than the problem' },
+          basis: { type: 'string', description: 'Domain experts: where this finding came from: "skill:<name>" for a skill pasted into your prompt, "reference:<category>" for your stage reference, or "general" for your own knowledge' },
+          basisQuote: { type: 'string', description: 'Domain experts, with a skill basis: the words of the skill row that made you see it, copied exactly' },
+        },
+      },
+    },
+  },
+}
+
+const VERDICTS = {
+  type: 'object',
+  required: ['verdicts'],
+  properties: {
+    verdicts: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['index', 'verdict', 'reason'],
+        properties: {
+          index: { type: 'integer', description: 'Index of the finding in the list you were given' },
+          verdict: { type: 'string', enum: ['confirmed', 'refuted'] },
+          reason: { type: 'string', description: 'For refuted: what you could not establish, or the guard the reviewer missed' },
+        },
+      },
+    },
+  },
+}
+
+const NO_QUOTA =
+  'You have no quota. Zero findings is a correct and common answer, and saying so plainly is more useful than padding. A reviewer who always finds something teaches the reader to skim past the one that mattered.'
+
+const BASIS_RULE =
+  ' For each finding set basis: "skill:<name>" when a row of a skill below is what made you see it, and copy that row\'s words into basisQuote; "reference:<category>" when it comes from your stage reference; "general" when it comes from your own knowledge. Say "general" rather than name a skill that did not lead you to it: the quote is checked against the skill.'
+const skillBlock = (name) => {
+  const mine = skillsFor(name)
+  return mine.length === 0
+    ? `\n\nNo skill applies to this change by its files and lines. Do not open skill files.${BASIS_RULE}`
+    : `\n\nSKILLS for this change (${mine.map((x) => x.name).join(', ')}), chosen by the workflow from the diff. Read them before you look for findings. Do not open other skill files.${BASIS_RULE}\n\n${mine.map((x) => x.text.trim()).join('\n\n')}`
+}
+// @@end review-core
+
+
+// @@section selection
+// The shape of an answer to "which experts": a name and one sentence each. Used by the plan question and by the
+// recheck of a diff.
+const SELECTION = {
+  type: 'object',
+  required: ['experts'],
+  properties: {
+    experts: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['name', 'why'],
+        properties: { name: { type: 'string' }, why: { type: 'string', description: 'One sentence tying this expert to something in the material' } },
+      },
+    },
+  },
+}
+// @@end selection
+
+
+// @@section cards-experts-check
+// The experts check of one card of the run: the planned experts plus those that raised a carried finding, the recheck
+// (code adds, never removes), one retry of an empty answer, the refute step, and the lane the commit check reads. It is
+// built from the same review-core schemas, recheck prompt and selection shape as the by-hand review (phases/review.js).
+// It uses the run script's own values (AVAILABLE, grownExperts, currentPhase, PROTOCOL, IMPLEMENTER_MODEL) by name.
+async function expertsCheck(card, carried, tag = '') {
+  // An expert an earlier card's recheck added is in the plan's experts line from then on (`record
+  // --plan` writes it there), and the commit gate holds every later card to that line. A card that
+  // names its own experts is held to those instead. The 4-card end-to-end run parked two cards for this.
+  const base = Array.isArray(card.experts) ? card.experts : []
+  const planned = [...new Set(card.ownExperts ? base : [...base, ...grownExperts])].filter((n) => AVAILABLE.some((e) => e.name === n))
+  let selected = [...planned]
+  for (const f of carried) if (f.expert && !selected.includes(f.expert) && AVAILABLE.some((e) => e.name === f.expert)) selected.push(f.expert)
+  let recheck = false
+  let recheckFailed = false
+  let added = []
+  if (AVAILABLE.length > 0) {
+    const askRecheck = (label) => agent(
+      recheckPrompt('.ultimate-workflow/review.diff', AVAILABLE, selected),
+      { agentType: agentName('uw-explorer'), label, phase: currentPhase, schema: SELECTION, ...modelOpt(IMPLEMENTER_MODEL) }
+    )
+    // Asked once more when it returns nothing, with a label built from card and tag only.
+    const answer = (await askRecheck(`${card.name}${tag}:recheck`)) || (await askRecheck(`${card.name}${tag}:recheck:retry`))
+    if (answer) {
+      recheck = true
+      const names = (answer.experts || []).map((x) => String((x && x.name) || '').trim()).filter((n) => AVAILABLE.some((e) => e.name === n) && !selected.includes(n))
+      added = [...new Set(names)]
+      selected = [...selected, ...added]
+    } else {
+      // Two empty answers: named as failed in the lane, never read as "no areas touched", and it does not refuse the commit.
+      recheck = true
+      recheckFailed = true
+    }
+  } else recheck = true
+  const reviewing = selected.map((n) => AVAILABLE.find((e) => e.name === n)).filter((e) => e && e.stages.includes('review'))
+  const skillsFor = (name) => skillsOf(card.reviewSkills && card.reviewSkills[name])
+  const askExpert = (e, label) => {
+      const mine = carried.map((f, i) => ({ ...f, index: i })).filter((f) => f.expert === e.name)
+      const skills = skillsFor(e.name)
+      return agent(
+        `Review the changes of card ${card.name} (${card.title}) as the ${e.name} expert. The diff is saved at .ultimate-workflow/review.diff. Stage: review. Read ${EXPERTS_DIR}/${e.name}/references/review.md.${PROTOCOL ? `\n\nTHE PROTOCOL every expert follows:\n${PROTOCOL}` : ''} The plan is at ${PLAN}: read what its "Expert input" section required of this change and report any requirement the diff does not honour. Read the surrounding code, not only the changed lines.${
+          mine.length
+            ? `\n\nCARRIED findings, made on an earlier card and handed to this one to fix. For each that this diff did NOT fix, put its index in stillPresent:\n${JSON.stringify(mine.map((f) => ({ index: f.index, file: f.file, line: f.line, what: f.what })), null, 2)}`
+            : ''
+        }${
+          skills.length
+            ? `\n\nSKILLS for this card (${skills.map((s) => s.name).join(', ')}), chosen by the workflow from the card's planned files and text. Read them before you look for findings.${BASIS_RULE}\n\n${skills.map((s) => s.text.trim()).join('\n\n')}`
+            : `\n\nNo skill applies to this card by its planned files. Do not open skill files.${BASIS_RULE}`
+        }
+
+Every finding needs a file, a line, one sentence on the defect and a concrete failure scenario. Set lensVerdict whether or not you find anything. ${NO_QUOTA}`,
+        { agentType: agentName(e.agent), label, phase: currentPhase, schema: FINDINGS, ...modelOpt(IMPLEMENTER_MODEL) }
+      )
+  }
+  const results = await parallel(reviewing.map((e) => () => askExpert(e, `${card.name}${tag}:${e.name}`)))
+  // An expert that returned nothing is asked once more, with a label built from the card, tag and name only,
+  // so a resumed run replays the same calls. A valid empty result is a success and is not asked again.
+  const retried = await parallel(reviewing.map((e, i) => () => (results[i] ? null : askExpert(e, `${card.name}${tag}:${e.name}:retry`))))
+  retried.forEach((r, i) => {
+    if (r) results[i] = r
+  })
+  const ran = reviewing.filter((_, i) => results[i]).map((e) => e.name)
+  const failed = reviewing.filter((_, i) => !results[i]).map((e) => e.name)
+  const all = []
+  const stillPresent = []
+  reviewing.forEach((e, i) => {
+    const r = results[i]
+    if (!r) return
+    for (const f of r.findings || []) all.push({ ...f, expert: e.name })
+    for (const idx of Array.isArray(r.stillPresent) ? r.stillPresent : []) if (carried[idx] && carried[idx].expert === e.name) stillPresent.push(carried[idx])
+  })
+  const concerns = []
+  reviewing.forEach((e, i) => {
+    const r = results[i]
+    if (!r) return
+    for (const c of (Array.isArray(r.concerns) ? r.concerns : []).slice(0, 3)) if (c && c.text && c.reason) concerns.push({ expert: e.name, text: String(c.text), reason: String(c.reason) })
+  })
+  let verdicts = new Map()
+  if (all.length > 0) {
+    const askRefute = (label) => agent(
+      `Try to REFUTE each finding below. Your job is not to agree.
+
+${JSON.stringify(all.map((f, index) => ({ index, ...f })), null, 2)}
+
+For each: read the code around it, check whether the failure path is reachable, look for the guard the reviewer missed. Default to refuted when uncertain. Return one verdict per finding, by index.`,
+      { agentType: agentName('uw-reviewer'), label, phase: currentPhase, schema: VERDICTS, ...modelOpt(IMPLEMENTER_MODEL) }
+    )
+    // Asked once more when it returns nothing. Findings no skeptic checked must not drive a paid fix round,
+    // so a second null counts as a failed check and the card is parked by the caller.
+    const v = (await askRefute(`${card.name}${tag}:refute`)) || (await askRefute(`${card.name}${tag}:refute:retry`))
+    if (!v) failed.push('refute')
+    verdicts = new Map(((v && v.verdicts) || []).map((x) => [x.index, x]))
+  }
+  const kept = []
+  const refuted = []
+  all.forEach((f, i) => {
+    const v = verdicts.get(i)
+    if (v && v.verdict === 'refuted') refuted.push({ ...f, refutedBecause: v.reason })
+    else kept.push({ ...f, status: v ? 'confirmed' : 'unverified' })
+  })
+  const laneFindings = kept.map((f) => ({ expert: f.expert, file: f.file, line: f.line, what: f.what, confidence: f.confidence, ...(f.severity ? { severity: f.severity } : {}), ...(typeof f.basis === 'string' ? { basis: f.basis } : {}), ...(typeof f.basisQuote === 'string' ? { basisQuote: f.basisQuote } : {}), status: f.status }))
+  const lane = {
+    stage: 'review',
+    available: AVAILABLE.map((e) => e.name),
+    planned,
+    selected,
+    added,
+    ran,
+    failed,
+    skillsLoaded: Object.fromEntries(reviewing.map((e) => [e.name, skillsFor(e.name).map((s) => s.name)])),
+    recheck,
+    ...(recheckFailed ? { recheckFailed: true } : {}),
+    findings: laneFindings,
+    concerns,
+  }
+  return {
+    lane,
+    blocking: laneFindings.filter((f) => f.confidence === 'high'),
+    nonBlocking: laneFindings.filter((f) => f.confidence !== 'high'),
+    refuted,
+    stillPresent,
+    failed,
+  }
+}
+// @@end cards-experts-check

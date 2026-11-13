@@ -36,6 +36,7 @@ const extraLenses = ((args && args.lenses) || '')
 // @shared core-lenses
 const CORE = CORE_LENSES
 
+// @shared selection
 // @shared lane-helpers
 
 // Domain experts run as extra lenses under their own agent type. Which experts exist is
@@ -137,73 +138,7 @@ const lenses = [
   ...reviewingNames,
 ]
 
-const FINDINGS = {
-  type: 'object',
-  required: ['findings', 'lensVerdict'],
-  properties: {
-    lensVerdict: {
-      type: 'string',
-      description: 'One sentence on the change through this lens, INCLUDING when nothing was found',
-    },
-    concerns: {
-      type: 'array',
-      description: 'Domain experts: a worry that is not a finding (rated below 8, or no failure path you can show). At most three. Each says why it is not a finding.',
-      items: {
-        type: 'object',
-        required: ['text', 'reason'],
-        properties: {
-          text: { type: 'string', description: 'The worry, in one sentence' },
-          reason: { type: 'string', description: 'Why it is not a finding: its confidence, or what you could not show' },
-          file: { type: 'string' },
-          line: { type: 'integer' },
-        },
-      },
-    },
-    findings: {
-      type: 'array',
-      items: {
-        type: 'object',
-        required: ['file', 'line', 'what', 'howItFails', 'confidence'],
-        properties: {
-          file: { type: 'string' },
-          line: { type: 'integer' },
-          what: { type: 'string', description: 'One sentence naming the defect' },
-          howItFails: { type: 'string', description: 'Concrete inputs or state leading to a wrong result' },
-          confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
-          wouldSettleIt: { type: 'string', description: 'What check would confirm or kill this' },
-          evidence: { type: 'array', items: { type: 'string' }, description: 'Domain experts: one step per item, each with file and line (or the plan line, or a cited URL), ending at the failure' },
-          category: { type: 'string', description: 'Domain experts: the category from your reference, or the owning expert when it is outside your domain' },
-          severity: { type: 'string', enum: ['high', 'medium', 'low'], description: 'Domain experts: by the protocol and your reference' },
-          fix: { type: 'string', description: 'Domain experts: the fix in one sentence, smaller than the problem' },
-          basis: { type: 'string', description: 'Domain experts: where this finding came from: "skill:<name>" for a skill pasted into your prompt, "reference:<category>" for your stage reference, or "general" for your own knowledge' },
-          basisQuote: { type: 'string', description: 'Domain experts, with a skill basis: the words of the skill row that made you see it, copied exactly' },
-        },
-      },
-    },
-  },
-}
-
-const VERDICTS = {
-  type: 'object',
-  required: ['verdicts'],
-  properties: {
-    verdicts: {
-      type: 'array',
-      items: {
-        type: 'object',
-        required: ['index', 'verdict', 'reason'],
-        properties: {
-          index: { type: 'integer', description: 'Index of the finding in the list you were given' },
-          verdict: { type: 'string', enum: ['confirmed', 'refuted'] },
-          reason: { type: 'string', description: 'For refuted: what you could not establish, or the guard the reviewer missed' },
-        },
-      },
-    },
-  },
-}
-
-const NO_QUOTA =
-  'You have no quota. Zero findings is a correct and common answer, and saying so plainly is more useful than padding. A reviewer who always finds something teaches the reader to skim past the one that mattered.'
+// @shared review-core
 
 phase('Lenses')
 
@@ -226,14 +161,7 @@ const droppedFor = (name) => {
 }
 // Each finding says where it came from, so a run can show what the skills added over the model's
 // own knowledge. experts.js checks a skill basis against the skills that were loaded.
-const BASIS_RULE =
-  ' For each finding set basis: "skill:<name>" when a row of a skill below is what made you see it, and copy that row\'s words into basisQuote; "reference:<category>" when it comes from your stage reference; "general" when it comes from your own knowledge. Say "general" rather than name a skill that did not lead you to it: the quote is checked against the skill.'
-const skillBlock = (name) => {
-  const mine = skillsFor(name)
-  return mine.length === 0
-    ? `\n\nNo skill applies to this change by its files and lines. Do not open skill files.${BASIS_RULE}`
-    : `\n\nSKILLS for this change (${mine.map((x) => x.name).join(', ')}), chosen by the workflow from the diff. Read them before you look for findings. Do not open other skill files.${BASIS_RULE}\n\n${mine.map((x) => x.text.trim()).join('\n\n')}`
-}
+// (BASIS_RULE is in the shared review-core section)
 
 // A changed-only recheck (experts.js prepare --delta): an expert whose last review covers the
 // previous changes reads only what changed since, and what uses it. An expert the recheck added,

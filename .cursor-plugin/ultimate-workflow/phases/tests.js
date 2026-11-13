@@ -34,6 +34,7 @@ const extraAngles = ((args && args.angles) || '')
 const CORE_ANGLES = ['coverage', 'edge-cases', 'oracle-quality', 'runnability']
 const angles = [...CORE_ANGLES, ...extraAngles.filter((a) => !CORE_ANGLES.includes(a))]
 
+// @shared selection
 // @shared lane-helpers
 
 const TESTS_INPUT = {

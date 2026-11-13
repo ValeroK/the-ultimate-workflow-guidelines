@@ -982,3 +982,15 @@ test('shared block: the code that moved to lib/phase-shared.js is declared in no
     assert.deepStrictEqual(where, [], `${name} is declared in ${where.join(', ')}`);
   }
 });
+
+// ---- PLAN-simplify, card one-review: the run holds no experts check, review schema or lens list of its own ----
+
+test('one review: phases/run.js declares no experts check, no findings or verdict schema and no lens list of its own', () => {
+  const files = shippedSources().filter((f) => f.rel.startsWith('phases/'));
+  const run = files.find((f) => f.rel === 'phases/run.js');
+  assert.ok(run, 'run.js was scanned');
+  for (const name of ['expertsCheck', 'FINDINGS', 'VERDICTS', 'NO_QUOTA', 'BASIS_RULE', 'SELECTION', 'REVIEW_LENSES_LIST']) {
+    assert.ok(!new RegExp(String.raw`^\s*(?:async\s+)?(?:function\s+${name}\b|const\s+${name}\s*=)`, 'm').test(run.text), `${name} is declared in run.js`);
+  }
+  assert.ok(/^\/\/ @shared cards-experts-check/m.test(run.text) && /^\/\/ @shared review-core/m.test(run.text));
+});

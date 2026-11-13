@@ -69,7 +69,7 @@ test('the expert prompts no longer carry the rules the protocol holds; the plain
 });
 
 test('the findings schema has a field for everything a review reference asks for', () => {
-  const review = read('phases', 'review.js');
+  const review = require('../security-expert/lib/run-workflow.js').readScript(path.join(__dirname, '..', '..', '.cursor-plugin', 'ultimate-workflow', 'phases', 'review.js')); // assembled
   for (const field of ['evidence', 'category', 'severity', 'fix']) assert.match(review, new RegExp(`\\b${field}: \\{ type:`), field);
   assert.match(review, /required: \['file', 'line', 'what', 'howItFails', 'confidence'\]/, 'the new fields stay optional, so the plain reviewer is unaffected');
 });

@@ -93,7 +93,7 @@ test('a malformed concerns value is ignored without failing the review', async (
 });
 
 test('concerns are optional in the schema, and each needs text and a reason', () => {
-  const src = read('phases/review.js');
+  const src = require('../security-expert/lib/run-workflow.js').readScript(path.join(__dirname, '..', '..', '.cursor-plugin', 'ultimate-workflow', 'phases', 'review.js')); // assembled: the schema is the shared review-core section
   const schema = /const FINDINGS = \{[\s\S]*?\r?\n\}\r?\n/.exec(src)[0];
   assert.match(schema, /concerns:/);
   assert.match(schema, /required: \['text', 'reason'\]/);

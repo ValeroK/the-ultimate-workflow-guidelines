@@ -1263,3 +1263,24 @@ test('one-notice 63: a run with two parked cards, blocked cards and a stop sends
   for (const name of ['b1', 'b2']) assert.match(text, new RegExp(`blocked: [^;]*\\b${name}\\b`), `${name} is named as blocked: ${text}`);
   assert.match(text, /stopped/);
 });
+
+// --- review of the whole branch (2026-11-13) --------------------------------------------------------
+
+test('a run-state read that fails stops the settle step: no findings card, review or harvest, nothing written, and the result says why', async () => {
+  const stuck = { file: 'docs/x.md', line: 2, what: 'stale doc', howItFails: 'misleads', confidence: 'low' };
+  for (const [name, answer] of [['ok: false', steps({ ok: false, reason: 'run.json is not JSON' })], ['nothing', null]]) {
+    const calls = [];
+    const base = responder({ findings: { 1: [stuck] } });
+    const { result } = await run(baseArgs([card('1')]), async (c) => { calls.push(c); return c.label === 'settle:state' ? answer : base(c); });
+    const labels = labelsOf(calls);
+    assert.deepStrictEqual(waitingLabels(labels), [], `${name}: ${labels.join(' ')}`);
+    assert.ok(!labels.includes('settle:findings'), `${name}: the saved findings are not overwritten`);
+    assert.equal(recordCalls(calls).length, 0, `${name}: nothing is recorded`);
+    assert.equal(result.review.ran, false);
+    assert.match(result.review.reason, /the run state could not be read/, name);
+    assert.match(result.harvest.reason, /the run state could not be read/, name);
+    assert.match(result.stateError, /could not be read/, name);
+    assert.match(result.summary, /the run state could not be read/, name);
+    assert.equal(result.cards.find((c) => c.card === '1').status, 'committed', 'the card itself is not undone');
+  }
+});

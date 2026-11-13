@@ -951,14 +951,18 @@ const anyCommitted = Object.values(status).includes('committed')
 // What run.json recorded of the last review and harvest: a later settling resume reviews only what is new.
 // It also holds the findings no card fixed, which a run that waited could not hand to the findings card.
 let state = { head: '', reviewedHead: '', harvestedHead: '', harvestBranch: '', pendingFindings: [] }
+let stateError = ''
 if (anyCommitted) {
   const [read] = await runSteps('settle:state', [cliCmd('run-state', '--feature', FEATURE)])
   if (read && read.ok) state = read
+  // A read that failed is not "nothing recorded": going on would review everything again and overwrite
+  // the findings saved in run.json. The settle step stops, and the result and the report say why.
+  else stateError = `the run state could not be read (${(read && read.reason) || 'the run-state step returned nothing'}), so the findings card, the review, the fix-up cards and the harvest did not run. Run /ultimate-workflow:feature --resume to try again`
 }
 findingsQueue.push(...(state.pendingFindings || []))
 
 let findingsCard = null
-if (!stoppedBecause && waiting.length === 0 && findingsQueue.length > 0) {
+if (!stoppedBecause && !stateError && waiting.length === 0 && findingsQueue.length > 0) {
   setPhase('Findings')
   // G6 asks a run-added card for the experts of every plan card covering its files as well: the raisers
   // alone can fall short.
@@ -968,7 +972,7 @@ if (!stoppedBecause && waiting.length === 0 && findingsQueue.length > 0) {
 }
 // The findings still unfixed are written to run.json, so the resume that settles the waiting cards fixes them.
 const unfixed = findingsCard && findingsCard.status !== 'not started' ? [] : findingsQueue
-if (unfixed.length > 0 || (state.pendingFindings || []).length > 0) {
+if (!stateError && (unfixed.length > 0 || (state.pendingFindings || []).length > 0)) {
   const file = `${RUN_DIR}/findings.json`
   await runSteps('settle:findings', [cliCmd('run-state', '--feature', FEATURE, '--findings', q(file))], [{ path: file, text: JSON.stringify(unfixed) }])
 }
@@ -981,11 +985,11 @@ const nothingNew = !findingsCard && Boolean(state.reviewedHead) && state.reviewe
 // The harvest has its own recorded head: a harvest that failed is run again though the review is on record.
 const covered = (head) => !findingsCard && Boolean(head) && head === state.head
 const FROM = state.reviewedHead || BASE
-let review = { ran: false, reason: waiting.length > 0 ? waitingReason(waiting) : !anyCommitted ? 'no card was committed, so there is nothing to review' : nothingNew ? 'no card was committed since the last review' : '' }
+let review = { ran: false, reason: stateError ? stateError : waiting.length > 0 ? waitingReason(waiting) : !anyCommitted ? 'no card was committed, so there is nothing to review' : nothingNew ? 'no card was committed since the last review' : '' }
 let fixupCard = null
 // A fix-up card committed by this run's review is newer than the head read before it.
 let fixupCommitted = false
-if (anyCommitted && !stoppedBecause && waiting.length === 0 && !nothingNew) {
+if (anyCommitted && !stoppedBecause && !stateError && waiting.length === 0 && !nothingNew) {
   const lensResults = await parallel(
     REVIEW_LENSES.map((lens) => () =>
       agent(
@@ -1090,8 +1094,8 @@ const PROPOSALS = {
 const harvested = covered(state.harvestedHead) && !fixupCommitted
 // Branch names from run.json, shown to an agent: only names of the right shape are passed on.
 const openHarvests = (state.openHarvests || []).filter((b) => /^uw\/harvest\/[A-Za-z0-9._-]+$/.test(b))
-let harvest = { ran: false, reason: waiting.length > 0 ? waitingReason(waiting) : !anyCommitted ? 'nothing was committed' : harvested ? 'no card was committed since the last harvest' : '' }
-if (anyCommitted && waiting.length === 0 && !harvested) {
+let harvest = { ran: false, reason: stateError ? stateError : waiting.length > 0 ? waitingReason(waiting) : !anyCommitted ? 'nothing was committed' : harvested ? 'no card was committed since the last harvest' : '' }
+if (anyCommitted && !stateError && waiting.length === 0 && !harvested) {
   const routed = await agent(
     `Harvest the durable lessons of this run.${openHarvests.length > 0 ? ` Earlier harvests of this feature are still open on ${openHarvests.join(', ')}: read what each holds (\`git log ${BASE}..<branch>\` and \`git show\`) and drop what they already hold.` : ''} Read the run journal ${RUN_DIR}/journal.md (what each card learned), the plan ${PLAN}, \`git diff ${BASE}..HEAD --stat\` and \`git log ${BASE}..HEAD\`, and what the project already records: the "## Gotchas" of AGENTS.md (or CLAUDE.md), memory.md and memory/*.md. First run \`${CLI} memory check\` (add \`--root <folder>\` when memory.md is not in the project root) and use its warnings: a topical not migrated, or a header path that matches no file, which you correct with add_paths, add_keywords and remove_paths on that topical.
 
@@ -1138,6 +1142,7 @@ return {
   harvest,
   expertLanes: lanes,
   pendingFindings: unfixed,
+  ...(stateError ? { stateError } : {}),
   ...(stoppedBecause ? { stopped: stoppedBecause } : {}),
   summary: `${counts.committed || 0} committed, ${counts.parked || 0} parked, ${counts.blocked || 0} blocked${counts['not started'] ? `, ${counts['not started']} not started` : ''}${stoppedBecause ? `; stopped: ${stoppedBecause}` : ''}. Review: ${review.ran ? `${(review.findings || []).length} confirmed` : review.reason || 'not run'}. Harvest: ${harvest.ran ? `${harvest.proposals || 0} proposals${harvest.branch ? ` on ${harvest.branch}` : ''}` : harvest.reason || 'not run'}.`,
 }

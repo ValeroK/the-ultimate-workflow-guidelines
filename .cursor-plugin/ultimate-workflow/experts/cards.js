@@ -258,4 +258,4 @@ function outOfScope(files, paths, makeRegExp) {
   return files.map(cleanPath).filter((f) => !covers(paths, f, makeRegExp));
 }
 
-module.exports = { parseCards, findCard, cardText, headingCardText, addCard, setField, outOfScope, covers, cleanPath, checkStatus, statusKind, NAME };
+module.exports = { cardsRange, parseCards, findCard, cardText, headingCardText, addCard, setField, outOfScope, covers, cleanPath, checkStatus, statusKind, NAME };

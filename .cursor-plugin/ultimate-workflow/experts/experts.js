@@ -477,9 +477,12 @@ function confirmHash(text) {
   const lines = body.split(/\r?\n/);
   const kept = [];
   let section = '';
+  // The one Cards-section finder (experts/cards.js): the first heading named Cards, to the next heading.
+  const cardsAt = require('./cards.js').cardsRange(lines);
   let dropCard = false;
   let inRunStatus = false;
-  for (const l of lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
     const h = /^(#{1,6})\s+(.*?)\s*#*\s*$/.exec(l);
     if (h) {
       section = h[2].toLowerCase();
@@ -488,7 +491,7 @@ function confirmHash(text) {
       if (inRunStatus) continue;
     }
     if (inRunStatus) continue;
-    if (section === 'cards') {
+    if (cardsAt && i >= cardsAt.start && i < cardsAt.end) {
       const item = /^[-*]\s+([A-Za-z0-9][A-Za-z0-9._-]*):/.exec(l);
       if (item) dropCard = runRules.RUN_ADDED.test(item[1]);
       else if (l.trim() !== '' && !/^[ \t]/.test(l)) dropCard = false;

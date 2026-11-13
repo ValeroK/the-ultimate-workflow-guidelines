@@ -896,3 +896,17 @@ test('one copy: the front-matter parser, finder and in-place writer are each dec
   const statusTest = fs.readFileSync(path.join(root, '.cursor-plugin', 'ultimate-workflow', 'hooks', 'status.test.js'), 'utf8');
   assert.ok(!declaresFunction(statusTest, 'frontMatter'), 'hooks/status.test.js declares no frontMatter helper');
 });
+
+// ---- PLAN-simplify, card cards-reader: no second Cards-section finder ----
+
+test('one copy: no Cards-heading match outside cardsRange in experts.js, verify.js and run-rules.js', () => {
+  // The pattern: a comparison of a section name against the literal cards, in either quote style.
+  const PATTERN = /(?:===?|!==?)\s*['"]cards['"]|['"]cards['"]\s*(?:===?|!==?)|\/\^cards\$\/i/;
+  assert.ok(PATTERN.test("if (section === 'cards') {"), 'the pattern sees a section comparison');
+  assert.ok(PATTERN.test('headings.find((h) => /^cards$/i.test(h))'), 'and a heading regex');
+  assert.ok(!PATTERN.test('const cards = parseCards(text);'), 'and ignores the word as a variable');
+  const files = shippedSources();
+  for (const rel of ['experts/experts.js', 'hooks/verify.js', 'lib/run-rules.js']) assert.ok(files.some((f) => f.rel === rel), `${rel} was scanned`);
+  const offenders = files.filter((f) => ['experts/experts.js', 'hooks/verify.js', 'lib/run-rules.js'].includes(f.rel) && PATTERN.test(f.text)).map((f) => f.rel);
+  assert.deepStrictEqual(offenders, [], 'only experts/cards.js finds the Cards section');
+});

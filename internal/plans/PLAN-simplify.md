@@ -229,6 +229,7 @@ Each card is built by hand, test first, and ends with the full verify command gr
   paths: .cursor-plugin/ultimate-workflow/hooks/lib/state.js, .cursor-plugin/ultimate-workflow/hooks/verify.js, .cursor-plugin/ultimate-workflow/experts/experts.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, .cursor-plugin/ultimate-workflow/lib/memory.js, .cursor-plugin/ultimate-workflow/hooks/status.test.js
   depends: baseline
   No behaviour change. `confirmHash` of every plan under `internal/plans/` is the same before and after.
+  status: committed 75fb806
 - cards-reader: One Cards-section reader; `accepted` is a known field
   paths: .cursor-plugin/ultimate-workflow/experts/cards.js, .cursor-plugin/ultimate-workflow/experts/experts.js, .cursor-plugin/ultimate-workflow/lib/run-rules.js
   depends: frontmatter

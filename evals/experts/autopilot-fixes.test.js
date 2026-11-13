@@ -873,3 +873,17 @@ test('plan-subfolder 8: card-commit judges G7 by its own --plan when the pointer
     else process.env.ULTIMATE_WORKFLOW_GATES = saved;
   }
 });
+
+test('gate-card 17b: an accepted: line written by the plan\'s own writer is read by parseCards, and G6 judges the accepted file by that card\'s experts', () => {
+  const g = gateRepo();
+  touch(g, 'src/out/o.js', 'src/out/p.js');
+  assert.deepStrictEqual(required(g, 'A'), [...GATE_FIVE].sort(), 'before it is accepted, a file no card covers brings the plan\'s whole line back');
+  const before = expertsLib.confirmHash(fs.readFileSync(g.plan, 'utf8'));
+  fs.writeFileSync(g.plan, cardsLib.setField(fs.readFileSync(g.plan, 'utf8'), 'A', 'accepted', 'src/out/o.js, src/out/p.js'));
+  const text = fs.readFileSync(g.plan, 'utf8');
+  assert.deepStrictEqual(cardsLib.findCard(text, 'A').accepted, ['src/out/o.js', 'src/out/p.js']);
+  assert.deepStrictEqual(cardsLib.findCard(text, 'A').carried, []);
+  assert.equal(expertsLib.confirmHash(text), before, 'the confirmed hash is unchanged');
+  assert.deepStrictEqual(required(g, 'A'), ['quality']);
+  assert.deepStrictEqual(required(g, 'B'), [...GATE_FIVE].sort(), 'accepted for A only: card B is not narrowed by it');
+});

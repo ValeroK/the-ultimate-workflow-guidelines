@@ -1052,6 +1052,13 @@ function runStart(cwd, { plan, feature, resume = null, implementerModel = '', di
       // plan is confirmed again with it, by the user's own --accept.
       if (held && held.decision) acceptDecision(cwd, plan, held);
       const back = unpark(cwd, { plan, card: resume.card, feature });
+      // What the user accepted with --accept and no card's paths cover is recorded on the card, so the
+      // commit check judges those files by this card's experts and not by the plan's whole line.
+      if (resume.accept) {
+        const globRe = require('./experts.js').globToRegExp;
+        const outside = workFiles(cwd).all.map(fwd).filter((f) => !planCards.some((c) => c.paths.length > 0 && cardsLib.covers(c.paths, f, globRe)));
+        if (outside.length > 0) writePlanField(cwd, plan, (held && held.name) || resume.card, 'accepted', outside.sort().join(', '));
+      }
       resume = { card: resume.card, reason: resume.reason, testFiles: back.testFiles, ...(held && held.decision ? { accepted: held.decision } : {}) };
     }
     // The resume is a notice too: which card, and how it goes on.

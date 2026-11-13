@@ -659,7 +659,7 @@ function effectiveExperts(cwd, planFile, pluginRoot = PLUGIN_ROOT, files = null,
       cards: cardList,
       name: options.card,
       changed,
-      accepted: runRules.acceptedFiles(planText, options.card),
+      accepted: (cardList.find((c) => c.name.toLowerCase() === String(options.card).trim().toLowerCase()) || {}).accepted || [],
       covers: (paths, f) => cardsLib.covers(paths, f, globToRegExp),
       valid: (n) => installed.has(n) && planExperts.includes(n),
     });

@@ -1118,3 +1118,32 @@ test('run-start with memory_root checks the memory under that root', () => {
   assert.equal(r.ok, true, JSON.stringify(r));
   assert.match((r.warnings || []).join('\n'), /memory\/b\.md is missing from the index/);
 });
+
+// Review of the whole branch (2026-11-13), PLAN-run-fixes.md card gate-card: `--resume <card> --accept`
+// writes the files it accepted outside every card's paths to the card's `accepted:` run field.
+test('--accept writes the accepted files to the card\'s accepted: field, which parseCards reads and the confirmed hash leaves out', () => {
+  const dir = repo();
+  json(cli(dir, 'run-branch', '--feature', 'calc'));
+  write(dir, 'src/add.js', 'module.exports = require("left-pad");\n');
+  write(dir, 'package.json', '{ "dependencies": { "left-pad": "1.3.0" } }\n');
+  write(dir, 'why.txt', 'needs a decision the plan does not state:\n- dependency: added dependency left-pad@1.3.0 in package.json\n');
+  json(cli(dir, 'park', '--plan', 'PLAN-calc.md', '--card', '1', '--feature', 'calc', '--reason-file', 'why.txt', '--needs-decision'));
+  const r = json(cli(dir, 'run-start', '--plan', 'PLAN-calc.md', '--feature', 'calc', '--resume-card', '1', '--accept'));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const plan = read(dir, 'PLAN-calc.md');
+  const card = cards.findCard(plan, '1');
+  assert.deepStrictEqual([...card.accepted].sort(), ['package.json', 'why.txt'], 'the files outside every card\'s paths; src/add.js is the card\'s own');
+  assert.deepStrictEqual(card.carried, [], 'accepted is its own field, not carried text');
+  assert.match(plan, /^  accepted: /m);
+  const without = plan.split('\n').filter((l) => !/^  accepted: /.test(l)).join('\n');
+  assert.equal(expertsLib.confirmHash(plan), expertsLib.confirmHash(without), 'the accepted line is a run field, left out of the hash');
+  assert.equal(expertsLib.checkConfirmed(plan).ok, true);
+  // A resume that is not an --accept writes no accepted line.
+  const other = repo();
+  json(cli(other, 'run-branch', '--feature', 'calc'));
+  write(other, 'src/add.js', 'module.exports = 1;\n');
+  write(other, 'stray.txt', 'x\n');
+  json(cli(other, 'park', '--plan', 'PLAN-calc.md', '--card', '1', '--feature', 'calc', '--reason', 'red three times'));
+  json(cli(other, 'run-start', '--plan', 'PLAN-calc.md', '--feature', 'calc', '--resume-card', '1'));
+  assert.equal(cards.findCard(read(other, 'PLAN-calc.md'), '1').accepted, undefined);
+});

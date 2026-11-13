@@ -11,21 +11,6 @@ const RUN_ADDED = /^(findings|fixup)(-\d+)?$/i;
 // A card's `experts: none` is the empty list.
 const expertsOf = (card) => (card.experts.length === 1 && card.experts[0].toLowerCase() === 'none' ? [] : card.experts);
 
-/** The files a card was accepted for (`accepted:` run field), in the plan text. */
-function acceptedFiles(planText, name) {
-  const want = String(name).trim().toLowerCase();
-  const out = [];
-  let inCard = false;
-  for (const line of String(planText).split(/\r?\n/)) {
-    const item = /^[-*]\s+([A-Za-z0-9][A-Za-z0-9._-]*):/.exec(line);
-    if (item) inCard = item[1].toLowerCase() === want;
-    else if (line.trim() !== '' && !/^[ \t]/.test(line)) inCard = false;
-    const field = inCard && /^[ \t]+accepted:\s*(.*)$/i.exec(line);
-    if (field) out.push(...field[1].split(',').map((p) => p.trim().replace(/\\/g, '/')).filter(Boolean));
-  }
-  return out;
-}
-
 /**
  * The experts G6 asks for when card `name` is being committed, or null when the card cannot narrow
  * the union of the cards that cover the changed files (the caller then keeps that union).
@@ -146,4 +131,4 @@ function cardTokens(cardNames, agents) {
   return out;
 }
 
-module.exports = { RUN_ADDED, acceptedFiles, narrowedExperts, freeName, reusableCard, REASON_KEEP, shortReason, CONFLICT_TAIL, conflictOf, cardTokens };
+module.exports = { RUN_ADDED, narrowedExperts, freeName, reusableCard, REASON_KEEP, shortReason, CONFLICT_TAIL, conflictOf, cardTokens };

@@ -741,7 +741,6 @@ function cardCommit(cwd, { plan, card: name, feature, claimed = [], fixedRound =
   if (!plan) throw new Error('card-commit needs --plan');
   const gates = require('../hooks/lib/gates.js');
   const stateLib = require('../hooks/lib/state.js');
-  const verify = require('../hooks/verify.js');
   const expertsLib = require('./experts.js');
   const planText = fs.readFileSync(path.resolve(cwd, plan), 'utf8');
   const card = cardsLib.findCard(planText, name);
@@ -749,16 +748,19 @@ function cardCommit(cwd, { plan, card: name, feature, claimed = [], fixedRound =
   checkFeature(feature);
   const branch = git(cwd, ['rev-parse', '--abbrev-ref', 'HEAD']).stdout.trim();
   if (branch !== `uw/run/${feature}`) return { ok: false, card: card.name, reason: `the run commits only on uw/run/${feature}, and HEAD is ${branch}` };
-  // The full-suite gate reads the plan this command was given, as the experts gate below does, never the
-  // plan the pointer names: the two gates must not judge two different plans.
-  const state = { stage: 'feature', file: path.resolve(cwd, plan), data: stateLib.parseFrontMatter(planText).data };
+  // The one commit decision, the same as the hook asks. Off means off: the check is recorded as exempt.
+  let check = { outcome: 'exempt', why: 'gates off (ULTIMATE_WORKFLOW_GATES)', missing: [] };
   if (stateLib.gatesEnabled(process.env)) {
     // A stale memory index is no reason to refuse: it is regenerated below and committed with the card.
     const ev = expertsLib.commitEvidence(cwd, path.resolve(cwd, plan), undefined, { card: card.name, stage: 'feature', script: 'verify.js', staleIndexOk: true });
     const g = gates.commitGate(ev);
+    check = gates.checkRecord(g);
+    stateLib.writeCommitStamp(cwd, check);
+    // Nobody watches the run: a check that cannot be made parks the card, where by hand it lets the commit through.
+    if (g.outcome === 'could-not-check') return { ok: false, card: card.name, gate: 'could-not-check', reason: `could not check this commit: ${g.why}`, check };
     if (!g.allow) {
       const kinds = (g.missing || []).map((m) => m.kind);
-      return { ok: false, card: card.name, gate: kinds.includes('tests') ? 'G7' : kinds.includes('memory') ? 'memory' : 'G6', reason: g.reason };
+      return { ok: false, card: card.name, gate: kinds.includes('tests') ? 'G7' : kinds.includes('memory') ? 'memory' : kinds.includes('experts') ? 'G6' : 'confirmation', reason: g.reason, check };
     }
     const stale = Boolean(ev.staleIndex);
     if (stale) memoryLib.cli(['index', '--root', memoryLib.rootOfPlan(planText) || '.'], cwd, () => {}, (m) => { throw new Error(m); });
@@ -785,7 +787,7 @@ function cardCommit(cwd, { plan, card: name, feature, claimed = [], fixedRound =
   setStatus(cwd, plan, card.name, `${done} ${after.slice(0, 12)}`);
   markClean(cwd, plan);
   const h = handoff(cwd, { card: card.name, feature, range: `${before}..${after}`, claimed });
-  return { ok: true, card: card.name, commit: after.slice(0, 12), files: h.files, handoff: h.handoff, missingClaims: h.missingClaims };
+  return { ok: true, card: card.name, commit: after.slice(0, 12), files: h.files, handoff: h.handoff, missingClaims: h.missingClaims, check };
 }
 
 /** Create uw/run/<feature> from the current tip and check it out; reuse it when HEAD is already on it. */

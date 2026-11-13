@@ -301,45 +301,92 @@ function expertsGate(ev) {
  * The one commit decision (PLAN-simplify, card commit-check). The hook, the run's `card-commit`, the
  * status report and `experts.js check` all ask this and nothing else. `ev` is gathered by experts.js
  * commitEvidence. It lists everything missing, not just the first thing, each with one fix command,
- * in the order tests, experts, memory (confirmation joins in front of them in the second commit).
+ * in the order confirmation, tests, experts, memory.
  *
- * Returns { allow, reason, warnings?, missing: [{ kind, text, fix }] }; an allow carries no `reason` and no
- * `missing` (the 4.8.0 shape, pinned by gates.test.js). `reason` is the texts joined, so with one item
- * it is exactly that item's wording.
+ * Returns { allow, reason, warnings?, missing: [{ kind, text, fix }] } for a refusal. An allow carries no
+ * `reason` and no `missing` (the 4.8.0 shape, pinned by gates.test.js); it carries `outcome` only when
+ * the commit was not checked:
+ *   outcome 'exempt'          -- nothing to check, with `why` (documentation only, nothing to commit, ...);
+ *   outcome 'could-not-check' -- the working tree could not be inspected, with `why`. By hand this lets
+ *                                the commit through and says so; the unattended run parks the card.
+ * `reason` is the item texts joined, so with one item it is exactly that item's wording. `notices` lists
+ * plan settings changed since the confirmation (shown, never a refusal).
  *
- *   tests:   a passing full run on exactly these changes (ev.tests, feature work only; G7).
- *   experts: the domain experts reviewed exactly these changes, no open high finding (G6).
- *   memory:  this commit does not leave memory newly broken. It is judged even for a
- *            documentation-only commit.
+ *   confirmation: plan and tests confirmed, and the plan unchanged since (feature work).
+ *   tests:        a passing full run on exactly these changes (G7).
+ *   experts:      the domain experts reviewed exactly these changes, no open high finding (G6).
+ *   memory:       this commit does not leave memory newly broken. Judged even for a documentation-only
+ *                 commit.
  */
 function commitGate(ev) {
-  const { added = [], existing = [] } = (ev && ev.memory) || {};
-  const warnings = existing.length > 0 ? { warnings: existing.map((p) => p.text) } : {};
+  if (ev && ev.couldNotCheck) return { allow: true, outcome: 'could-not-check', why: ev.couldNotCheck };
+  const { added = [], existing = [], error: memoryError } = (ev && ev.memory) || {};
+  // A memory that cannot be read at all (a malformed index) lets the commit through, as in 4.8.0 (memory-gate.test.js
+  // pins it); the check says it did not run, as a warning.
+  const unread = memoryError ? [`the memory check did not run: the memory could not be read (${memoryError})`] : [];
+  const warned = [...existing.map((p) => p.text), ...unread];
+  const warnings = warned.length > 0 ? { warnings: warned } : {};
+  // A commit that is only documentation, or empty, is exempt from confirmation, tests and experts together.
+  const exemptAll = Boolean(ev && ev.skip && (!ev.tests || ev.tests.skip));
   const missing = [];
+  const confirmation = exemptAll ? null : confirmationItem(ev);
+  if (confirmation) missing.push(confirmation);
   const tests = testsItem(ev);
   if (tests) missing.push(tests);
-  const verdict = expertsGate(ev);
-  if (!verdict.allow) missing.push({ kind: 'experts', text: verdict.reason, fix: '/ultimate-workflow:experts' });
+  if (ev && ev.expertsError && !ev.skip) missing.push({ kind: 'experts', text: `Gate G6: ${ev.expertsError}. Run /ultimate-workflow:experts, then commit again.`, fix: '/ultimate-workflow:experts' });
+  else {
+    const verdict = expertsGate(ev);
+    if (!verdict.allow) missing.push({ kind: 'experts', text: verdict.reason, fix: '/ultimate-workflow:experts' });
+  }
   if (added.length > 0) {
     const stale = added.some((p) => p.kind === 'index');
     const hint = stale ? '\nFix the index with: node experts/experts.js memory index' : '';
     missing.push({ kind: 'memory', text: `Memory check: this commit leaves memory broken:\n${added.map((p) => `  - ${p.text}`).join('\n')}${hint}`, fix: stale ? 'node experts/experts.js memory index' : 'fix the files named above' });
   }
-  if (missing.length > 0) return { allow: false, reason: missing.map((m) => m.text).join('\n'), missing, ...warnings };
-  return { allow: true, ...warnings };
+  const changed = (ev && ev.confirmation && ev.confirmation.settingsChanged) || [];
+  const notices = changed.length > 0 ? { notices: [`${changed.join(', ')} changed since the plan was confirmed`] } : {};
+  if (missing.length > 0) return { allow: false, reason: missing.map((m) => m.text).join('\n'), missing, ...notices, ...warnings };
+  if (exemptAll) return { allow: true, outcome: 'exempt', why: ev.skip, ...notices, ...warnings };
+  return { allow: true, ...notices, ...warnings };
+}
+
+/** What a decision is recorded as (the stamp, status, card-commit): its outcome, why, and the kinds missing. */
+function checkRecord(verdict) {
+  return {
+    outcome: verdict.outcome || (verdict.allow ? 'checked' : 'refused'),
+    ...(verdict.why ? { why: verdict.why } : {}),
+    missing: (verdict.missing || []).map((m) => m.kind),
+    ...(verdict.notices ? { notices: verdict.notices } : {}),
+  };
+}
+
+/** Where a user confirms: the same command for both flags, named per flag. */
+const confirmFix = (flag) => `node experts/experts.js present --confirm ${flag}`;
+
+/** The confirmation part of commitGate: both confirmations given, and the plan text unchanged since. */
+function confirmationItem(ev) {
+  const c = ev && ev.confirmation;
+  if (!c) return null;
+  if (c.error) return { kind: 'confirmation', text: `Confirmation: ${c.error}, so it cannot be shown to be confirmed. Fix: ${confirmFix('tests_confirmed')}`, fix: confirmFix('tests_confirmed') };
+  if (c.ok) return null;
+  const fix = confirmFix(c.missing === 'plan' ? 'plan_confirmed' : 'tests_confirmed');
+  return { kind: 'confirmation', text: `Confirmation: ${c.reason}. Once the user agrees: ${fix}`, fix };
 }
 
 /** The full-suite part of commitGate (G7): feature work with a test_command, unless the evidence says to skip. */
 function testsItem(ev) {
   const t = ev && ev.tests;
-  if (!t || t.skip || !t.command) return null;
+  if (!t || t.skip) return null;
   const run = t.script ? `\`${t.script} --full\`` : `\`${t.command}\``;
   const fix = t.script ? `${t.script} --full` : t.command;
+  if (t.unreadable) return { kind: 'tests', text: `Gate G7: ${t.unreadable}, so the test command is unknown. Fix the plan, then run ${run}.`, fix };
+  if (!t.command) return null;
   const r = t.record;
   const full = r && r.mode === 'full' && r.passed === true;
-  if (full && r.fingerprint === t.hash) return null;
-  if (full) return { kind: 'tests', text: `Gate G7: the changes have changed since the last passing full test suite run. Run ${run} once, then commit again. ${VOLATILE_HINT}`, fix };
-  return { kind: 'tests', text: `Gate G7: no passing full test suite run covers these changes (only related tests ran, or none, or the last full run failed). Run ${run} once, then commit again.`, fix };
+  if (full && typeof r.fingerprint === 'string' && r.fingerprint === t.hash) return null;
+  const why = t.problem ? ` (${t.problem})` : '';
+  if (full && typeof r.fingerprint === 'string') return { kind: 'tests', text: `Gate G7: the changes have changed since the last passing full test suite run. Run ${run} once, then commit again. ${VOLATILE_HINT}`, fix };
+  return { kind: 'tests', text: `Gate G7: no passing full test suite run covers these changes (only related tests ran, or none, or the last full run failed)${why}. Run ${run} once, then commit again.`, fix };
 }
 
 /**
@@ -416,6 +463,7 @@ module.exports = {
   stopGate,
   isCommitCommand,
   commitGate,
+  checkRecord,
   fullSuiteGate,
   roundCap,
   phasePointer,

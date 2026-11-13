@@ -113,7 +113,7 @@ const topic = (desc) => `---\ndescription: ${desc}\nread_when:\n  paths:\n    - 
 const AGENTS_OK = '# Rules\n\nSee [memory](memory.md).\n';
 
 /** A committed project on `main` (hand path) with a confirmed plan; the working tree is clean. */
-function project({ plan = PLAN, memory = false, agents = AGENTS_OK, testBody = PASSING } = {}) {
+function project({ plan = PLAN, memory = false, agents = AGENTS_OK, testBody = PASSING, stamp = true } = {}) {
   const dir = tmp();
   git(dir, 'init', '-q', '-b', 'main');
   git(dir, 'config', 'user.email', 't@localhost');
@@ -123,7 +123,7 @@ function project({ plan = PLAN, memory = false, agents = AGENTS_OK, testBody = P
   write(dir, 'src/add.js', 'module.exports = (a, b) => a + b;\n');
   write(dir, 'test/add.test.js', testBody);
   write(dir, 'README.md', '# calc\n');
-  write(dir, 'PLAN-calc.md', confirmed(plan));
+  write(dir, 'PLAN-calc.md', stamp ? confirmed(plan) : plan);
   if (memory) {
     write(dir, 'memory/a.md', topic('Topic A.'));
     write(dir, 'memory.md', memoryLib.renderIndex('# Memory\n', { 'memory/a.md': topic('Topic A.') }));
@@ -461,7 +461,8 @@ test('fixtures 4.8.0: each fixture file is tracked, byte-identical to the record
 test('fixtures 4.8.0: every recorded 4.8.0 answer still holds (confirmHash of each frozen plan, experts list, memory headers)', () => {
   const hashes = JSON.parse(fixture('recorded', 'confirm-hashes.json'));
   assert.ok(Object.keys(hashes).length >= 12);
-  for (const [rel, hash] of Object.entries(hashes)) assert.strictEqual(expertsLib.confirmHash(fixture(rel)), hash, rel);
+  // The Known failures plan is the one recorded answer that card commit-check changes on purpose (see frontmatter.test.js).
+  for (const [rel, hash] of Object.entries(hashes)) if (rel !== 'plan-known-failures.md.fixture') assert.strictEqual(expertsLib.confirmHash(fixture(rel)), hash, rel);
   assert.deepStrictEqual(JSON.parse(JSON.stringify(expertsLib.list(PLUGIN))), JSON.parse(fixture('recorded', 'experts-list.json')));
   const headers = JSON.parse(fixture('recorded', 'parse-header.json'));
   assert.ok(Object.keys(headers).length >= 5);
@@ -522,4 +523,349 @@ test('contract harness: each guarantee has a refuse case and an allow case on bo
       assert.ok(mine.length >= 2, `${id} ${path_} needs a refuse case and an allow case, found ${mine.length}`);
     }
   }
+});
+
+// ======================================================================================================
+// PLAN-simplify, card commit-check (second commit): confirmation at commit, the full list with one fix
+// each, the three outcomes, the commit-time stamp. Same rules as above: real hook, real card-commit,
+// gates forced on, one fact differs between a refuse case and its allow twin.
+// ======================================================================================================
+
+const STAMP = '.ultimate-workflow/commit-check.json';
+const stampOf = (dir) => JSON.parse(read(dir, STAMP));
+const contextOf = (r) => {
+  try {
+    return JSON.parse(r.stdout).hookSpecificOutput.additionalContext || '';
+  } catch {
+    return '';
+  }
+};
+/** A plan the way a user confirms it: flags false, then setConfirmed twice (hash and recorded settings). */
+const userConfirmed = (plan = PLAN) => expertsLib.setConfirmed(expertsLib.setConfirmed(plan.replace('plan_confirmed: true', 'plan_confirmed: false').replace('tests_confirmed: true', 'tests_confirmed: false'), 'plan_confirmed'), 'tests_confirmed');
+const noExperts = (text) => text.replace('experts: [security]', 'experts: []');
+const checkOut = (dir) => JSON.parse(run(CLI, ['check', '--plan', 'PLAN-calc.md'], { cwd: dir }).stdout);
+const kindsOf = (dir) => (checkOut(dir).missing || []).map((m) => m.kind);
+function rewritePlan(dir, fn) {
+  write(dir, 'PLAN-calc.md', fn(read(dir, 'PLAN-calc.md')));
+}
+
+test('contract confirmation: each unconfirmed state is refused with the fix for that state, on both paths', () => {
+  const rows = [
+    ['tests_confirmed false', (t) => t.replace('tests_confirmed: true', 'tests_confirmed: false'), 'tests_confirmed'],
+    ['plan_confirmed false with tests_confirmed true', (t) => t.replace('plan_confirmed: true', 'plan_confirmed: false'), 'plan_confirmed'],
+  ];
+  for (const [name, edit, flag] of rows) {
+    for (const path_ of ['hand', 'run']) {
+      const mk = () => (path_ === 'hand' ? project() : runProject());
+      const twin = mk();
+      checked(twin);
+      assert.ok(path_ === 'hand' ? hook(twin, COMMIT).decision === 'allow' : commitCard(twin).ok === true, `${name} ${path_}: the twin with the flag true is allowed`);
+      const dir = mk();
+      checked(dir);
+      rewritePlan(dir, edit); // fact: the flag
+      if (path_ === 'hand') {
+        const r = hook(dir, COMMIT);
+        assert.strictEqual(r.decision, 'deny', `${name}: ${r.stdout}`);
+        assert.match(r.reason, new RegExp(`--confirm ${flag}`), `${name}: the fix names the confirm command for the flag that is false`);
+      } else {
+        const r = commitCard(dir);
+        assert.strictEqual(r.ok, false, `${name}: ${JSON.stringify(r)}`);
+        assert.strictEqual(r.gate, 'confirmation');
+        assert.match(r.reason, new RegExp(`--confirm ${flag}`));
+      }
+    }
+  }
+});
+
+test('contract confirmation: a plan whose text changed after confirmation is refused and the reason says which confirmation to redo', () => {
+  const dir = project({ plan: userConfirmed(), stamp: false });
+  checked(dir);
+  assert.strictEqual(hook(dir, COMMIT).decision, 'allow');
+  rewritePlan(dir, (t) => t.replace('A calculator.', 'A calculator that also divides.')); // fact: one line of plan text
+  const r = hook(dir, COMMIT);
+  assert.strictEqual(r.decision, 'deny', r.stdout);
+  assert.match(r.reason, /changed after the user confirmed it/);
+  assert.match(r.reason, /--confirm tests_confirmed/);
+});
+
+test('contract confirmation: a card added to the plan after confirmation refuses the commit (concern 1)', () => {
+  const dir = project({ plan: userConfirmed(), stamp: false });
+  checked(dir);
+  rewritePlan(dir, (t) => t.replace('- 2: docs', '- 3: sneaky\n  paths: src/**\n- 2: docs')); // fact: a card an agent added
+  const r = hook(dir, COMMIT);
+  assert.strictEqual(r.decision, 'deny', r.stdout);
+  assert.match(r.reason, /changed after the user confirmed it/);
+});
+
+test('contract confirmation: a run-added card (findings, fixup) does not move the hash', () => {
+  const dir = project({ plan: userConfirmed(), stamp: false });
+  checked(dir);
+  rewritePlan(dir, (t) => t.replace('- 2: docs', '- findings: review findings\n  paths: src/add.js\n- 2: docs')); // fact: a card the run adds itself
+  assert.strictEqual(hook(dir, COMMIT).decision, 'allow');
+});
+
+test('contract confirmation: both flags true and no confirmed_hash counts as confirmed', () => {
+  const dir = project({ plan: noExperts(fixture('plan-nohash.md.fixture')), stamp: false });
+  assert.ok(!/confirmed_hash/.test(read(dir, 'PLAN-calc.md')), 'the 4.8.0 fixture has no hash');
+  checked(dir);
+  assert.strictEqual(hook(dir, COMMIT).decision, 'allow'); // fact: no hash, and the commit goes through
+});
+
+test('contract confirmation: a Known failures section does not move the hash, and text after it does', () => {
+  // The 4.8.0 baseline accept: section last, the hash stamped before it.
+  const dir = project({ plan: noExperts(fixture('plan-known-failures.md.fixture')), stamp: false });
+  checked(dir);
+  assert.strictEqual(hook(dir, COMMIT).decision, 'allow', hook(dir, COMMIT).stdout);
+  // The section in the middle: a list item and a ### subheading inside it are still inside it.
+  const withSection = userConfirmed(PLAN.replace('## Cards', '## Known failures\n\n- known one\n\n## Cards'));
+  const inside = project({ plan: withSection.replace('- known one', '- known one, edited\n\n### Why\n\nbecause'), stamp: false });
+  checked(inside);
+  assert.strictEqual(hook(inside, COMMIT).decision, 'allow', 'editing inside the section is not a plan change');
+  const after = project({ plan: withSection, stamp: false });
+  checked(after);
+  rewritePlan(after, (t) => t.replace('- 1: adder', '- 1: adder changed')); // fact: a line in the next ## section
+  assert.strictEqual(hook(after, COMMIT).decision, 'deny');
+});
+
+test('contract confirmation: a changed setting does not refuse and is named, an unchanged one is not', () => {
+  const settings = {
+    test_command: (t) => t.replace('test_command: node --test "test/**/*.test.js"', 'test_command: node --test "test/**/*.test.js" --test-reporter=spec'),
+    volatile_paths: (t) => t.replace('experts: []', 'experts: []\nvolatile_paths: logs/**'),
+    known_failures: (t) => t.replace('experts: []', 'experts: []\nknown_failures: 2'),
+    full_suite_paths: (t) => t.replace('experts: []', 'experts: []\nfull_suite_paths: src/**'),
+  };
+  const same = project({ plan: userConfirmed(), stamp: false });
+  checked(same);
+  const unchanged = hook(same, COMMIT);
+  assert.strictEqual(unchanged.decision, 'allow');
+  for (const key of Object.keys(settings)) assert.ok(!contextOf(unchanged).includes(key), `unchanged: ${key} is not named`);
+  for (const [key, edit] of Object.entries(settings)) {
+    const dir = project({ plan: userConfirmed(), stamp: false });
+    rewritePlan(dir, edit); // fact: only this key, after the confirmation
+    git(dir, 'add', '-A');
+    git(dir, 'commit', '-q', '-m', 'settings');
+    checked(dir);
+    const r = hook(dir, COMMIT);
+    assert.strictEqual(r.decision, 'allow', `${key}: ${r.stdout}`);
+    const said = contextOf(r);
+    assert.ok(said.includes(key), `${key} is named: ${said}`);
+    for (const other of Object.keys(settings).filter((k) => k !== key)) assert.ok(!said.includes(other), `${key}: ${other} is not named`);
+  }
+  // The 4.8.0 plan has a hash and no record of the settings: judged normally, no notice.
+  const old = project({ plan: noExperts(fixture('plan-calc.md.fixture')), stamp: false });
+  checked(old);
+  const r = hook(old, COMMIT);
+  assert.strictEqual(r.decision, 'allow');
+  assert.strictEqual(contextOf(r), '');
+});
+
+test('contract list: with all four missing the hook text and the missing array hold four items in the order confirmation, tests, experts, memory', () => {
+  const dir = project({ memory: true });
+  rewritePlan(dir, (t) => t.replace('tests_confirmed: true', 'tests_confirmed: false'));
+  editSource(dir);
+  write(dir, 'memory/b.md', topic('Topic B.')); // a topical the index does not list, so the memory item has a fix command
+  assert.deepStrictEqual(kindsOf(dir), ['confirmation', 'tests', 'experts', 'memory']);
+  const r = hook(dir, COMMIT);
+  assert.strictEqual(r.decision, 'deny', r.stdout);
+  const at = ['--confirm tests_confirmed', '--full', '/ultimate-workflow:experts', 'memory index'].map((s) => r.reason.indexOf(s));
+  assert.ok(at.every((i) => i >= 0), `all four fixes are in the text: ${r.reason}`);
+  assert.deepStrictEqual([...at].sort((a, b) => a - b), at, 'and in that order');
+  const fixes = checkOut(dir).missing.map((m) => m.fix);
+  assert.strictEqual(fixes.length, 4);
+  assert.ok(fixes.every((f) => typeof f === 'string' && f.length > 0), 'one fix command each');
+  assert.match(fixes[0], /--confirm tests_confirmed/);
+  assert.match(fixes[1], /verify\.js.* --full$/);
+  assert.match(fixes[2], /^\/ultimate-workflow:experts/);
+  assert.match(fixes[3], /memory/);
+});
+
+test('contract list: with one item missing the refusal holds exactly that item', () => {
+  const cases = {
+    confirmation: (dir) => { checked(dir); rewritePlan(dir, (t) => t.replace('tests_confirmed: true', 'tests_confirmed: false')); },
+    tests: (dir) => { editSource(dir); reviewRecord(dir); },
+    experts: (dir) => { editSource(dir); assert.strictEqual(fullRun(dir).status, 0); },
+    memory: (dir) => { write(dir, 'memory/b.md', topic('Topic B.')); checked(dir); },
+  };
+  for (const [kind, setup] of Object.entries(cases)) {
+    const dir = project({ memory: true });
+    setup(dir);
+    assert.deepStrictEqual(kindsOf(dir), [kind], kind);
+    const r = hook(dir, COMMIT);
+    assert.strictEqual(r.decision, 'deny', `${kind}: ${r.stdout}`);
+  }
+});
+
+test('contract outcome: evidence that cannot be read as a record is a missing item with a fix, and the commit is refused', () => {
+  const rows = {
+    'verify.json is not JSON': [(d) => write(d, '.ultimate-workflow/verify.json', '{'), 'tests'],
+    'verify.json lacks the fingerprint': [(d) => write(d, '.ultimate-workflow/verify.json', JSON.stringify({ mode: 'full', passed: true })), 'tests'],
+    'verify.json is a directory': [(d) => { fs.rmSync(path.join(d, '.ultimate-workflow/verify.json')); fs.mkdirSync(path.join(d, '.ultimate-workflow/verify.json')); }, 'tests'],
+    '_recheck.json is not JSON': [(d) => write(d, '.ultimate-workflow/experts/review/_recheck.json', '{not json'), 'experts'],
+    '_recheck.json is a directory': [(d) => { fs.rmSync(path.join(d, '.ultimate-workflow/experts/review/_recheck.json')); fs.mkdirSync(path.join(d, '.ultimate-workflow/experts/review/_recheck.json')); }, 'experts'],
+  };
+  for (const [name, [corrupt, kind]] of Object.entries(rows)) {
+    for (const path_ of ['hand', 'run']) {
+      const dir = path_ === 'hand' ? project() : runProject();
+      checked(dir);
+      corrupt(dir); // fact: one state file
+      if (path_ === 'hand') {
+        const r = hook(dir, COMMIT);
+        assert.strictEqual(r.decision, 'deny', `${name}: ${r.stdout}`);
+        assert.doesNotMatch(r.reason + contextOf(r), /could not check/i);
+        assert.strictEqual(stampOf(dir).outcome, 'refused', name);
+        assert.ok(kindsOf(dir).includes(kind), `${name}: ${kind} is missing`);
+      } else {
+        const tip = git(dir, 'rev-parse', 'HEAD');
+        const r = commitCard(dir);
+        assert.strictEqual(r.ok, false, `${name}: ${JSON.stringify(r)}`);
+        assert.strictEqual(git(dir, 'rev-parse', 'HEAD'), tip);
+      }
+    }
+  }
+});
+
+test('contract outcome: a git error by hand lets the commit through and prints could not check with the reason', () => {
+  const dir = project();
+  checked(dir);
+  fs.writeFileSync(path.join(dir, '.git', 'index'), 'not an index'); // fact: git cannot read the index
+  const r = hook(dir, COMMIT);
+  assert.strictEqual(r.decision, 'allow', r.stdout);
+  assert.match(contextOf(r), /could not check/i);
+  const s = stampOf(dir);
+  assert.strictEqual(s.outcome, 'could-not-check');
+  assert.ok(s.why && s.why.length > 0);
+});
+
+test('contract outcome: a git error in the run parks the card and commits nothing', () => {
+  const dir = runProject();
+  checked(dir);
+  const tip = git(dir, 'rev-parse', 'HEAD');
+  fs.writeFileSync(path.join(dir, '.git', 'index'), 'not an index');
+  const r = commitCard(dir);
+  assert.strictEqual(r.ok, false, JSON.stringify(r));
+  assert.strictEqual(r.gate, 'could-not-check');
+  assert.strictEqual(git(dir, 'rev-parse', 'HEAD'), tip, 'nothing was committed');
+});
+
+test('contract outcome: a failure reading any one guarantee leaves the other three listed', () => {
+  const inject = {
+    confirmation: (d) => { fs.rmSync(path.join(d, 'PLAN-calc.md')); fs.mkdirSync(path.join(d, 'PLAN-calc.md')); },
+    tests: (d) => fs.mkdirSync(path.join(d, '.ultimate-workflow/verify.json'), { recursive: true }),
+    experts: (d) => fs.mkdirSync(path.join(d, '.ultimate-workflow/experts/review/_recheck.json'), { recursive: true }),
+    memory: (d) => write(d, 'memory.md', '# Memory\n\n<!-- uw:memory-index:start -->\n- [A](memory/a.md)\n'),
+  };
+  for (const [kind, fail] of Object.entries(inject)) {
+    const dir = project({ memory: true });
+    rewritePlan(dir, (t) => t.replace('tests_confirmed: true', 'tests_confirmed: false'));
+    editSource(dir);
+    write(dir, 'AGENTS.md', `${AGENTS_OK}See [gone](gone.md).\n`);
+    fail(dir); // fact: this guarantee's evidence cannot be read
+    const out = checkOut(dir);
+    const kinds = out.missing.map((m) => m.kind);
+    // memory-gate.test.js pins that a memory that cannot be read at all lets the commit through (4.8.0): it is a warning, not an item.
+    const expectKinds = ['confirmation', 'tests', 'experts', 'memory'].filter((k) => !(k === 'memory' && (kind === 'memory' || kind === 'confirmation')));
+    for (const k of expectKinds) assert.ok(kinds.includes(k), `${kind} unreadable: ${k} is still listed (${kinds.join(',')})`);
+    if (kind === 'memory') {
+      assert.match((out.warnings || []).join(' '), /memory could not be read/);
+      continue;
+    }
+    const mine = out.missing.find((m) => m.kind === kind);
+    assert.match(mine.text, /could not|cannot|unreadable|re-?checked|covers|broken/i, `${kind}: reported in words: ${mine.text}`);
+  }
+});
+
+test('contract outcome: exempt reasons are printed by the hook, by check and in card-commit, and each says what it is', () => {
+  const docs = project();
+  write(docs, 'README.md', '# calc\n\nmore words\n');
+  const dr = hook(docs, COMMIT);
+  assert.strictEqual(dr.decision, 'allow');
+  assert.match(contextOf(dr), /documentation/i);
+  assert.strictEqual(stampOf(docs).outcome, 'exempt');
+  const dcheck = checkOut(docs);
+  assert.strictEqual(dcheck.outcome, 'exempt');
+  assert.match(dcheck.why, /documentation/i);
+  const empty = project();
+  const er = hook(empty, 'git commit --allow-empty -m "empty"');
+  assert.match(contextOf(er), /nothing to commit/i);
+  const noplan = project();
+  fs.rmSync(path.join(noplan, 'PLAN-calc.md'));
+  git(noplan, 'add', '-A');
+  git(noplan, 'commit', '-q', '-m', 'no plan');
+  editSource(noplan);
+  const nr = hook(noplan, COMMIT);
+  assert.match(contextOf(nr), /no plan/i);
+  const off = runProject();
+  editSource(off);
+  const jr = json(run(CLI, ['card-commit', '--plan', 'PLAN-calc.md', '--card', '1', '--feature', 'calc'], { cwd: off, gates: 'off' }));
+  assert.strictEqual(jr.ok, true, JSON.stringify(jr));
+  assert.strictEqual(jr.check.outcome, 'exempt');
+  assert.match(jr.check.why, /gates off/i);
+  const whys = [contextOf(dr), contextOf(er), contextOf(nr), jr.check.why];
+  assert.strictEqual(new Set(whys).size, whys.length, 'each reason is its own');
+});
+
+test('contract exempt: a documentation-only or empty commit is exempt from confirmation, tests and experts together, and still refused for a memory link it breaks', () => {
+  const dir = project({ memory: true });
+  rewritePlan(dir, (t) => t.replace('tests_confirmed: true', 'tests_confirmed: false').replace('test_command: node --test "test/**/*.test.js"', 'test_command:'));
+  write(dir, 'README.md', '# calc\n\nmore words\n'); // fact: documentation only, in a plan that confirms and tests nothing
+  assert.strictEqual(hook(dir, COMMIT).decision, 'allow');
+  write(dir, 'AGENTS.md', `${AGENTS_OK}See [gone](gone.md).\n`); // fact: and a broken memory link
+  const r = hook(dir, COMMIT);
+  assert.strictEqual(r.decision, 'deny', r.stdout);
+  assert.match(r.reason, /gone\.md/);
+});
+
+test('contract stamp: commit-check.json is written when the check runs on a commit, holds the outcome, and is not written by any other event', () => {
+  const dir = project();
+  checked(dir);
+  for (const command of ['git status', 'git log --grep=commit', 'git commit-tree HEAD^{tree}']) hook(dir, command);
+  hook(dir, '', { input: JSON.stringify({ cwd: dir, hook_event_name: 'UserPromptSubmit', prompt: 'go' }) });
+  assert.ok(!fs.existsSync(path.join(dir, STAMP)), 'no stamp from a non-commit event');
+  assert.strictEqual(hook(dir, COMMIT).decision, 'allow');
+  const s = stampOf(dir);
+  assert.strictEqual(s.outcome, 'checked');
+  assert.deepStrictEqual(s.missing, []);
+  assert.ok(!Number.isNaN(Date.parse(s.at)));
+  const status = run(path.join(PLUGIN, 'hooks', 'status.js'), [], { cwd: dir });
+  assert.match(status.stdout, /last commit check/i);
+});
+
+test('contract stamp: when the stamp cannot be written a refusal is still a refusal', () => {
+  const refused = project();
+  editSource(refused);
+  fs.mkdirSync(path.join(refused, STAMP), { recursive: true }); // fact: the stamp path is a directory
+  const r = hook(refused, COMMIT);
+  assert.strictEqual(r.decision, 'deny', r.stdout);
+  assert.match(r.reason, /Gate G7/);
+  const ok = project();
+  checked(ok);
+  fs.mkdirSync(path.join(ok, STAMP), { recursive: true });
+  const spawned = run(GATE, [], { cwd: ok, input: JSON.stringify({ cwd: ok, hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: COMMIT } }) });
+  assert.strictEqual(spawned.status, 0);
+  assert.doesNotMatch(spawned.stderr, /at .*\.js:\d+/, 'no stack trace');
+});
+
+test('contract volatile: the evidence uses the volatile_paths of the plan it was given', () => {
+  const dir = project();
+  write(dir, 'PLAN-other.md', PLAN.replace('experts: []', 'experts: []\nvolatile_paths: logs/**'));
+  git(dir, 'add', '-A');
+  git(dir, 'commit', '-q', '-m', 'other');
+  write(dir, '.ultimate-workflow/active-plan', 'PLAN-other.md\n'); // the pointer names the other plan
+  write(dir, 'logs/run.log', 'noise 1\n');
+  const a = expertsLib.testFingerprint(dir, 'PLAN-calc.md');
+  const b = expertsLib.testFingerprint(dir, 'PLAN-other.md');
+  assert.notStrictEqual(a, b, 'logs/run.log counts for calc and is excluded by other');
+  assert.strictEqual(expertsLib.testsEvidence(dir, expertsLib.workingChanges(dir, 'PLAN-calc.md'), 'PLAN-calc.md').hash, a);
+});
+
+test('status and hook agree: status.js --json lists the same missing kinds the hook refuses with', () => {
+  const dir = project({ memory: true });
+  rewritePlan(dir, (t) => t.replace('tests_confirmed: true', 'tests_confirmed: false'));
+  editSource(dir);
+  write(dir, 'AGENTS.md', `${AGENTS_OK}See [gone](gone.md).\n`);
+  const status = JSON.parse(run(path.join(PLUGIN, 'hooks', 'status.js'), ['--json'], { cwd: dir }).stdout);
+  assert.deepStrictEqual(status.experts.commit.missing, ['confirmation', 'tests', 'experts', 'memory']);
+  const r = hook(dir, COMMIT);
+  assert.strictEqual(r.decision, 'deny');
+  assert.deepStrictEqual(stampOf(dir).missing, status.experts.commit.missing);
 });

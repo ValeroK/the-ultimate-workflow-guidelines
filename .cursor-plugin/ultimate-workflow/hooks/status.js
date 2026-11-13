@@ -55,7 +55,8 @@ function expertsReport(cwd, state) {
         }
       })(),
       openFindings: (evidence.open || []).length,
-      commit: verdict.allow ? { allowed: true, reason: null } : { allowed: false, reason: verdict.reason },
+      commit: verdict.allow ? { allowed: true, reason: null, ...(verdict.outcome ? { outcome: verdict.outcome, why: verdict.why } : {}), missing: [] } : { allowed: false, reason: verdict.reason, missing: (verdict.missing || []).map((m) => m.kind) },
+      lastCheck: stateLib.readCommitStamp(cwd),
     };
   } catch (err) {
     return { decided: false, selected: [], available: [], openFindings: 0, commit: { allowed: true, reason: null }, error: err && err.message ? err.message : 'unknown error' };
@@ -213,6 +214,9 @@ function reportState(r) {
     say(`         available: ${e.available.join(', ') || 'none'}`);
     if (e.openFindings > 0) say(`         open high-confidence findings: ${e.openFindings} (node experts/experts.js findings)`);
     say(`         commit: ${e.commit.allowed ? 'allowed now' : `BLOCKED -- ${e.commit.reason}`}`);
+    if (e.commit.outcome) say(`         this commit would not be checked: ${e.commit.outcome}${e.commit.why ? ` (${e.commit.why})` : ''}`);
+    const last = e.lastCheck;
+    say(`         last commit check: ${last ? `${last.outcome}${last.why ? ` (${last.why})` : ''}${last.missing && last.missing.length ? `, missing ${last.missing.join(', ')}` : ''} at ${last.at}` : 'none yet'}`);
   }
 
   if (r.fullVerify && r.fullVerify !== 'n/a') {

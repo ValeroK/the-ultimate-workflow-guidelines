@@ -129,6 +129,9 @@ async function main() {
     verifyScript: VERIFY_SCRIPT,
   });
 
+  // A commit that was not checked says so: the dispatch asks for it with `say`, and the host shows it as context.
+  if (result.kind === 'allow' && result.say) result = { ...result, kind: 'context', text: result.say };
+
   if (reminder) {
     if (result.kind === 'context') result = { ...result, text: `${result.text}\n${reminder}` };
     else if (result.kind === 'allow') result = { ...result, kind: 'context', text: reminder };
@@ -151,6 +154,9 @@ async function main() {
       // A state write failure must not turn into a block.
     }
   }
+
+  // The commit-time stamp: written only when the check ran on a commit. A failed write never changes the answer.
+  if (result.check) stateLib.writeCommitStamp(cwd, result.check);
 
   // Leave a trace that this gate ran, whatever it decided. Without it, "not
   // loaded", "crashed", and "allowed" are indistinguishable from outside --

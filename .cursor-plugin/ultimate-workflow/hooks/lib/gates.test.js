@@ -567,7 +567,8 @@ test('commitGate: evidence with no memory part, or an empty one, behaves as befo
 
 test('gates: commitGate keeps allow, reason and warnings and adds missing', () => {
   const ok = gates.commitGate({ skip: 'only documentation changed', memory: { added: [], existing: [{ text: 'old.md: broken link' }] } });
-  assert.deepStrictEqual(Object.keys(ok).sort(), ['allow', 'warnings']);
+  assert.deepStrictEqual(Object.keys(ok).sort(), ['allow', 'outcome', 'warnings', 'why']);
+  assert.strictEqual(ok.outcome, 'exempt');
   assert.strictEqual(ok.allow, true);
   const no = gates.commitGate({ memory: { added: [{ kind: 'index', text: 'memory.md is stale' }], existing: [] }, skip: 'only documentation changed' });
   assert.strictEqual(no.allow, false);

@@ -68,17 +68,33 @@ function isVerifyCommand(command, state) {
 function dispatch(ev, state, opts = {}) {
   const allow = { kind: 'allow' };
   if (!ev || !ev.event) return allow;
-  if (state.stage === 'none') return allow;
+  const isCommit = ev.event === 'preTool' && ev.tool === 'shell' && gates.isCommitCommand(ev.command);
+  if (state.stage === 'none') {
+    // No plan and no PRD: nothing to check. A commit says so, and the stamp records it.
+    if (!isCommit) return allow;
+    const why = 'no plan in the project';
+    return { kind: 'allow', say: `Commit check: this commit was not checked (exempt: ${why}).`, check: { outcome: 'exempt', why, missing: [] } };
+  }
 
-  // --- G7, G6: no commit before a full test run, and before the experts, cover these changes --
-  if (ev.event === 'preTool' && ev.tool === 'shell' && gates.isCommitCommand(ev.command)) {
-    // The evidence is gathered by the entry point, only for a commit, because it
-    // reads the working tree. Without it there is nothing to judge, so allow.
-    if (!opts.commitEvidence) return allow;
+  // --- the one commit check: confirmation, a full run, the experts, memory -----------------------
+  if (isCommit) {
+    // The evidence is gathered by the entry point, only for a commit, because it reads the working tree.
+    if (!opts.commitEvidence) {
+      const why = 'the commit evidence could not be gathered';
+      return { kind: 'allow', say: `Commit check: could not check this commit (${why}). It goes through unchecked.`, check: { outcome: 'could-not-check', why, missing: [] } };
+    }
     const verdict = gates.commitGate(opts.commitEvidence);
-    if (verdict.allow) return allow;
-    if (!canBlockWrite(ev.vendor)) return { kind: 'allow', note: 'detect-only on this vendor', reason: verdict.reason };
-    return { kind: 'deny', reason: verdict.reason };
+    const check = gates.checkRecord(verdict);
+    const notes = (verdict.notices || []).map((n) => `Plan settings: ${n}.`);
+    if (verdict.allow) {
+      // By hand, a check that cannot be satisfied lets the commit through and says so. The run parks instead.
+      if (verdict.outcome === 'could-not-check') return { kind: 'allow', say: [`Commit check: could not check this commit (${verdict.why}). It goes through unchecked.`, ...notes].join('\n'), check };
+      if (verdict.outcome === 'exempt') return { kind: 'allow', say: [`Commit check: this commit was not checked (exempt: ${verdict.why}).`, ...notes].join('\n'), check };
+      if (notes.length > 0) return { kind: 'allow', say: notes.join('\n'), check };
+      return { ...allow, check };
+    }
+    if (!canBlockWrite(ev.vendor)) return { kind: 'allow', note: 'detect-only on this vendor', reason: verdict.reason, check };
+    return { kind: 'deny', reason: verdict.reason, check };
   }
 
   // --- G1, G2, B-G1, B-G2: pre-edit ---------------------------------------

@@ -481,16 +481,20 @@ function confirmHash(text) {
   const cardsAt = require('./cards.js').cardsRange(lines);
   let dropCard = false;
   let inRunStatus = false;
+  // The `## Known failures` section a baseline accept writes after the confirmation is left out (to the next heading of level 1 or 2).
+  let inKnown = false;
   for (let i = 0; i < lines.length; i++) {
     const l = lines[i];
     const h = /^(#{1,6})\s+(.*?)\s*#*\s*$/.exec(l);
     if (h) {
       section = h[2].toLowerCase();
       inRunStatus = h[1].length <= 2 && section === 'run status';
+      if (h[1].length <= 2) inKnown = section === 'known failures';
+      if (inKnown) continue;
       dropCard = false;
       if (inRunStatus) continue;
     }
-    if (inRunStatus) continue;
+    if (inRunStatus || inKnown) continue;
     if (cardsAt && i >= cardsAt.start && i < cardsAt.end) {
       const item = /^[-*]\s+([A-Za-z0-9][A-Za-z0-9._-]*):/.exec(l);
       if (item) dropCard = runRules.RUN_ADDED.test(item[1]);
@@ -506,18 +510,59 @@ function confirmHash(text) {
 }
 
 /**
- * Whether the run may start from this plan: both confirmations, and the plan unchanged since the
- * test plan was confirmed (its `confirmed_hash`). The reason names what the user has to do.
+ * The plan settings the commit check reads and the confirmed hash leaves out (front matter). Changing one
+ * after the confirmation does not refuse a commit; the check names it, so a weakened check is visible.
+ * `experts` is named only when a confirmed expert was taken away (the review may add to the line).
  */
-function checkConfirmed(text) {
+const SETTING_KEYS = ['test_command', 'volatile_paths', 'known_failures', 'full_suite_paths'];
+const sha8 = (value) => crypto.createHash('sha256').update(String(value === undefined || value === null ? '' : value).trim()).digest('hex').slice(0, 8);
+
+/** The settings as they stand now, in the form `confirmed_settings:` records them. */
+function settingsNow(text) {
+  const data = stateLib.parseFrontMatter(text).data || {};
+  const out = {};
+  for (const k of SETTING_KEYS) out[k] = sha8(data[k]);
+  const parsed = readExperts(text);
+  out.experts = (parsed.error ? [] : parsed.experts).slice().sort().join(',');
+  return out;
+}
+
+/** Which recorded settings differ from now. A plan with no record (confirmed before this) names none. */
+function settingsChanged(text) {
+  const data = stateLib.parseFrontMatter(text).data || {};
+  let was;
+  try {
+    was = JSON.parse(String(data.confirmed_settings || ''));
+  } catch {
+    return [];
+  }
+  if (!was || typeof was !== 'object') return [];
+  const now = settingsNow(text);
+  const changed = SETTING_KEYS.filter((k) => k in was && was[k] !== now[k]);
+  const before = String(was.experts || '').split(',').filter(Boolean);
+  const after = now.experts.split(',').filter(Boolean);
+  if (before.some((n) => !after.includes(n))) changed.push('experts');
+  return changed;
+}
+
+/**
+ * Whether the plan is confirmed: both confirmations, and the plan unchanged since the test plan was
+ * confirmed (its `confirmed_hash`). The reason names what the user has to do. The run asks strictly:
+ * a plan confirmed by hand, with no hash, is refused. The commit check passes `{ allowNoHash: true }`:
+ * a plan confirmed before the hash existed counts as confirmed, and the next confirmation stamps it.
+ */
+function checkConfirmed(text, { allowNoHash = false } = {}) {
   const data = stateLib.parseFrontMatter(text).data || {};
   if (data.plan_confirmed !== true) return { ok: false, missing: 'plan', reason: 'the plan is not confirmed (plan_confirmed is not true): the user confirms the plan first' };
   if (data.tests_confirmed !== true) return { ok: false, missing: 'tests', reason: 'the test plan is not confirmed (tests_confirmed is not true): the user confirms the Tests section next' };
   const want = String(data.confirmed_hash || '').trim();
-  if (!want) return { ok: false, missing: 'hash', reason: 'the plan has no confirmed_hash: it was confirmed by hand, not through experts.js present --confirm tests_confirmed, so nothing shows it is the plan the user saw. Show the user the plan and confirm it again' };
   const have = confirmHash(text);
+  if (!want) {
+    if (allowNoHash) return { ok: true, hash: have, noHash: true, settingsChanged: [] };
+    return { ok: false, missing: 'hash', reason: 'the plan has no confirmed_hash: it was confirmed by hand, not through experts.js present --confirm tests_confirmed, so nothing shows it is the plan the user saw. Show the user the plan and confirm it again' };
+  }
   if (have !== want) return { ok: false, missing: 'unchanged', reason: `the plan changed after the user confirmed it (confirmed_hash ${want}, now ${have}): show the user what changed and confirm again` };
-  return { ok: true, hash: have };
+  return { ok: true, hash: have, settingsChanged: settingsChanged(text) };
 }
 
 /** Turn the plan's `plan_confirmed: false` into true. Throws when the front matter has no such key. */
@@ -527,7 +572,9 @@ function setConfirmed(text, key) {
   if (!fm || !line.test(fm.block)) throw new Error(`the document has no \`${key}:\` line in its front matter to confirm`);
   const next = fm.bom + fm.open + fm.block.replace(line, `${key}: true`) + fm.after;
   // The test plan is the second and last confirmation: what the user saw then is what the run builds.
-  return key === 'tests_confirmed' ? setFrontLine(next, 'confirmed_hash', confirmHash(next)) : next;
+  // The settings the hash leaves out are recorded with it, so a later change to one is shown.
+  if (key !== 'tests_confirmed') return next;
+  return setFrontLine(setFrontLine(next, 'confirmed_hash', confirmHash(next)), 'confirmed_settings', JSON.stringify(settingsNow(next)));
 }
 
 /**
@@ -688,10 +735,11 @@ function hasHead(cwd) {
  * test-timing file or a live database. Left out of the changes, so they move no fingerprint (G6,
  * G7), reach no expert and pick no test. Comma-separated globs, `**` across folders.
  */
-function volatileExcludes(cwd) {
+function volatileExcludes(cwd, planFile = '') {
   let value = '';
   try {
-    value = stateLib.readState(cwd).data.volatile_paths || '';
+    // The plan the caller was given, not whichever plan the pointer names: the evidence and the decision must judge one plan.
+    value = (planFile ? stateLib.parseFrontMatter(fs.readFileSync(path.resolve(cwd, planFile), 'utf8')).data : stateLib.readState(cwd).data).volatile_paths || '';
   } catch {}
   return String(value)
     .split(',')
@@ -714,14 +762,14 @@ function volatileExcludes(cwd) {
  * in progress, unresolved conflicts, or tracked edits not yet staged. Callers then use the whole
  * diff against HEAD, so every doubt resolves to reviewing more.
  */
-function mergeInfo(cwd) {
+function mergeInfo(cwd, planFile = '') {
   try {
     git(cwd, ['rev-parse', '-q', '--verify', 'MERGE_HEAD']);
   } catch {
     return null;
   }
   try {
-    const ex = [...BASE_EXCLUDES, ...volatileExcludes(cwd)];
+    const ex = [...BASE_EXCLUDES, ...volatileExcludes(cwd, planFile)];
     if (git(cwd, ['diff', '--name-only', '--diff-filter=U']).trim()) return null;
     const unstaged = spawnSync('git', ['diff', '--quiet', '--', '.', ...ex], { cwd });
     if (unstaged.status !== 0) return null;
@@ -740,13 +788,13 @@ function mergeInfo(cwd) {
   }
 }
 
-function workingChanges(cwd) {
-  const merge = mergeInfo(cwd);
+function workingChanges(cwd, planFile = '') {
+  const merge = mergeInfo(cwd, planFile);
   if (merge) return { diff: merge.diff, files: merge.files, untracked: [], merge: { tree: merge.tree, headTree: merge.headTree, vsHead: merge.vsHead } };
   // Before the first commit there is no HEAD to diff against, and the empty tree is not an
   // object a fresh repository has. What would be committed is the index, so use that.
   const heads = hasHead(cwd);
-  const EXCLUDES = [...BASE_EXCLUDES, ...volatileExcludes(cwd)];
+  const EXCLUDES = [...BASE_EXCLUDES, ...volatileExcludes(cwd, planFile)];
   const tracked = heads
     ? git(cwd, ['diff', ...DIFF_FORMAT, '--binary', 'HEAD', '--', '.', ...EXCLUDES])
     : git(cwd, ['diff', ...DIFF_FORMAT, '--cached', '--binary', '--', '.', ...EXCLUDES]) + git(cwd, ['diff', ...DIFF_FORMAT, '--binary', '--', '.', ...EXCLUDES]);
@@ -771,15 +819,15 @@ function workingChanges(cwd) {
 }
 
 const sha = (text) => crypto.createHash('sha256').update(text).digest('hex');
-const fingerprint = (cwd) => sha(workingChanges(cwd).diff);
+const fingerprint = (cwd, planFile = '') => sha(workingChanges(cwd, planFile).diff);
 /**
  * What a full test run is recorded against. A merge is the tree that will be committed (its
  * combined diff can be empty while the tree still has never been tested); anything else is the
  * fingerprint of the changes.
  */
-const testFingerprint = (cwd) => {
-  const m = mergeInfo(cwd);
-  return m ? `merge:${m.tree}` : fingerprint(cwd);
+const testFingerprint = (cwd, planFile = '') => {
+  const m = mergeInfo(cwd, planFile);
+  return m ? `merge:${m.tree}` : fingerprint(cwd, planFile);
 };
 
 // ---- the changed-only recheck (decided 2026-10-29) ----
@@ -1202,8 +1250,8 @@ function record(cwd, stage, result, { planFile = '', pluginRoot = PLUGIN_ROOT } 
 
 /**
  * The memory check of a commit (lib/memory.js): { added, existing } of the memory in the plan's
- * memory_root, when the commit touches a file of it; undefined otherwise, and on an internal
- * error, so the commit is allowed (fail open, like every other gate).
+ * memory_root, when the commit touches a file of it; undefined otherwise. { error } when the memory could not
+ * be read, which the commit decision lists as missing.
  */
 function memoryEvidence(cwd, planFile, files) {
   try {
@@ -1215,8 +1263,9 @@ function memoryEvidence(cwd, planFile, files) {
     // `all` and `at` (every tracked path from the repository top, and where the root sits in it) let a link that leaves the root be looked up at HEAD.
     const atHead = hasHead(cwd) ? { names: lines(['ls-tree', '-r', '--name-only', 'HEAD']), all: lines(['ls-tree', '-r', '--name-only', '--full-tree', 'HEAD']), at: lines(['rev-parse', '--show-prefix'])[0] || '', show: (f) => git(rootDir, ['show', `HEAD:./${f}`]) } : null;
     return memory.commitProblems(rootDir, atHead);
-  } catch {
-    return undefined;
+  } catch (err) {
+    // The memory could not be read at all (a malformed index, say): that is reported, not allowed silently.
+    return { added: [], existing: [], error: String((err && err.message) || err).split(/\r?\n/)[0] };
   }
 }
 
@@ -1226,62 +1275,102 @@ function memoryEvidence(cwd, planFile, files) {
 const verifyScript = (pluginRoot = PLUGIN_ROOT) => `node "${path.join(pluginRoot, 'hooks', 'verify.js').split(path.sep).join('/')}"`;
 
 const RECORD_FILE = path.join('.ultimate-workflow', 'verify.json');
-const readFullRecord = (cwd) => {
+/**
+ * The last full run's record. A file that is absent is null (never run). A file that exists and cannot be
+ * read as a record (half-written, a directory) is null with a `problem`, so the check says why instead of
+ * pretending no run happened.
+ */
+function readFullRecord(cwd) {
+  const file = path.join(cwd, RECORD_FILE);
+  if (!fs.existsSync(file)) return { record: null };
   try {
-    return JSON.parse(fs.readFileSync(path.join(cwd, RECORD_FILE), 'utf8'));
-  } catch {
-    return null;
+    const record = JSON.parse(fs.readFileSync(file, 'utf8'));
+    if (!record || typeof record !== 'object') return { record: null, problem: 'verify.json does not hold a record' };
+    return { record };
+  } catch (err) {
+    return { record: null, problem: `verify.json could not be read (${err.code || err.message})` };
   }
-};
+}
 
 /**
  * What the full-suite check needs: the fingerprint of the changes and the last full run's record, or
  * the reason none applies. Computed here once; hooks/verify.js `fullEvidence` and the status report
  * call it too, so "fresh, stale, never, failed" has one source. A merge is judged on the tree it will
  * commit, not on its combined diff (which is empty for a clean merge whose tree was never tested).
+ * `planFile` makes the fingerprint use that plan's volatile_paths, not the pointed plan's.
  */
-function testsEvidence(cwd, changes = workingChanges(cwd)) {
+function testsEvidence(cwd, changes = workingChanges(cwd), planFile = '') {
   const { ALWAYS_FULL } = require('../hooks/lib/selection.js');
   const onlyDocs = (files) => files.every((f) => gates.isDocPath(f) && !ALWAYS_FULL.some((re) => re.test(f)));
+  const withRecord = () => {
+    const { record, problem } = readFullRecord(cwd);
+    return { hash: testFingerprint(cwd, planFile), record, ...(problem ? { problem } : {}) };
+  };
   if (changes.merge) {
     const m = changes.merge;
     if (m.tree === m.headTree || m.vsHead.length === 0) return { skip: 'a merge that changes nothing in the tree' };
     if (onlyDocs(m.vsHead)) return { skip: 'only documentation changed' };
-    return { hash: testFingerprint(cwd), record: readFullRecord(cwd) };
+    return withRecord();
   }
   if (changes.files.length === 0) return { skip: 'nothing to commit' };
   // `requirements.txt` ends in a documentation extension and still changes what the tests run against.
   if (onlyDocs(changes.files)) return { skip: 'only documentation changed' };
-  return { hash: testFingerprint(cwd), record: readFullRecord(cwd) };
+  return withRecord();
 }
 
 /** The tests part of the commit evidence: feature work with a test_command in the plan it was given. */
 function testsPart(cwd, planFile, changes, options) {
   if (options.stage !== 'feature' || !planFile) return undefined;
-  const data = stateLib.parseFrontMatter(fs.readFileSync(path.resolve(cwd, planFile), 'utf8')).data;
-  if (!data.test_command) return undefined;
-  return { command: String(data.test_command), script: options.script || '', ...testsEvidence(cwd, changes) };
+  let command;
+  try {
+    command = stateLib.parseFrontMatter(fs.readFileSync(path.resolve(cwd, planFile), 'utf8')).data.test_command;
+  } catch (err) {
+    // The plan cannot be read, so the test command is unknown. The confirmation item says so too.
+    return { command: '', script: options.script || '', unreadable: `the plan could not be read (${err.code || err.message})` };
+  }
+  if (!command) return undefined;
+  return { command: String(command), script: options.script || '', ...testsEvidence(cwd, changes, planFile) };
+}
+
+/** The confirmation part: the plan is confirmed and unchanged since (feature work, the plan it was given). */
+function confirmationPart(cwd, planFile, options) {
+  if (options.stage !== 'feature' || !planFile) return undefined;
+  try {
+    const c = checkConfirmed(fs.readFileSync(path.resolve(cwd, planFile), 'utf8'), { allowNoHash: true });
+    return c.ok ? { ok: true, settingsChanged: c.settingsChanged || [] } : { ok: false, missing: c.missing, reason: c.reason };
+  } catch (err) {
+    return { error: `the plan could not be read (${err.code || err.message})` };
+  }
 }
 
 /**
  * What the commit decision needs, gathered once. `options`: { card } (the run's card, which narrows the
- * experts), { stage: 'feature', script } (adds the full-suite part; the hook, card-commit, status and
- * `check` pass it), { staleIndexOk } (a stale memory index is regenerated by the caller, not refused).
- * Fails open to a skip.
+ * experts), { stage: 'feature', script } (adds the confirmation and full-suite parts; the hook, card-commit,
+ * status and `check` pass it), { staleIndexOk } (a stale memory index is regenerated by the caller).
+ *
+ * Each guarantee is read on its own, so one failure cannot switch the others off: a guarantee whose
+ * evidence cannot be read comes back with an error of its own, and the decision lists it as missing. Only
+ * a failure to look at the working tree at all (a git error) is `couldNotCheck`.
  */
 function commitEvidence(cwd, planFile, pluginRoot = PLUGIN_ROOT, options = {}) {
+  let changes;
+  try {
+    changes = workingChanges(cwd, planFile);
+  } catch (err) {
+    return { couldNotCheck: `the working tree could not be inspected (${err.message})` };
+  }
   try {
     const available = list(pluginRoot).experts.map((e) => e.name);
-    const changes = workingChanges(cwd);
     // The memory check runs before the skips below: a commit of memory files alone is documentation only.
     let memory = memoryEvidence(cwd, planFile, changes.files);
     let staleIndex = false;
-    if (memory && options.staleIndexOk && memory.added.some((p) => p.kind === 'index')) {
+    if (memory && options.staleIndexOk && !memory.error && memory.added.some((p) => p.kind === 'index')) {
       staleIndex = true;
       memory = { ...memory, added: memory.added.filter((p) => p.kind !== 'index') };
     }
     const tests = testsPart(cwd, planFile, changes, options);
-    const wrap = (ev) => ({ ...ev, ...(memory ? { memory } : {}), ...(tests ? { tests } : {}), ...(staleIndex ? { staleIndex } : {}) });
+    const confirmation = confirmationPart(cwd, planFile, options);
+    const wrap = (ev) => ({ ...ev, ...(memory ? { memory } : {}), ...(tests ? { tests } : {}), ...(confirmation ? { confirmation } : {}), ...(staleIndex ? { staleIndex } : {}) });
     if (available.length === 0) return wrap({ skip: 'no experts are installed' });
     if (changes.files.length === 0) return wrap({ skip: changes.merge ? 'a merge that adds nothing beyond its parents' : 'nothing to commit' });
     if (changes.files.every((f) => gates.isDocPath(f))) return wrap({ skip: 'only documentation changed' });
@@ -1294,6 +1383,7 @@ function commitEvidence(cwd, planFile, pluginRoot = PLUGIN_ROOT, options = {}) {
     }
     let planExperts = [];
     let cards = [];
+    let expertsError;
     const hash = sha(changes.diff);
     if (planFile) {
       try {
@@ -1302,12 +1392,14 @@ function commitEvidence(cwd, planFile, pluginRoot = PLUGIN_ROOT, options = {}) {
         cards = eff.cards;
         // The experts the recheck added for these very changes are required of a narrowed card too.
         if (eff.source === 'card' && recheck && recheck.hash === hash) planExperts = [...new Set([...planExperts, ...(recheck.added || [])])];
-      } catch {}
+      } catch (err) {
+        expertsError = `could not work out which experts apply (${err.code || err.message})`;
+      }
     }
     const open = allFindings(cwd, hash, available).filter((f) => f.current && blocking(f) && !f.waived);
-    return wrap({ hash, recheck: recheck ? { hash: recheck.hash, final: recheck.final || [] } : null, records, planExperts, cards, available, open });
-  } catch {
-    return { skip: 'the working tree could not be inspected' };
+    return wrap({ hash, recheck: recheck ? { hash: recheck.hash, final: recheck.final || [] } : null, records, planExperts, cards, available, open, ...(expertsError ? { expertsError } : {}) });
+  } catch (err) {
+    return { couldNotCheck: `the commit evidence could not be gathered (${err.message})` };
   }
 }
 
@@ -1772,7 +1864,8 @@ function main(argv) {
     if (o.cmd === 'check') {
       const evidence = commitEvidence(o.cwd, o.plan, o.pluginRoot, o.plan ? { stage: 'feature', script: verifyScript(o.pluginRoot) } : {});
       const verdict = gates.commitGate(evidence);
-      out(verdict.allow ? { ok: true } : { ok: false, reason: verdict.reason, open: evidence.open || [] });
+      const extra = { ...(verdict.notices ? { notices: verdict.notices } : {}), ...(verdict.warnings ? { warnings: verdict.warnings } : {}) };
+      out(verdict.allow ? { ok: true, ...(verdict.outcome ? { outcome: verdict.outcome, why: verdict.why } : {}), ...extra } : { ok: false, reason: verdict.reason, open: evidence.open || [], missing: verdict.missing || [], ...extra });
       if (!verdict.allow) process.exit(1);
       return undefined;
     }
@@ -1786,6 +1879,8 @@ module.exports = {
   confirmHash,
   checkConfirmed,
   setConfirmed,
+  settingsChanged,
+  SETTING_KEYS,
   setFrontLine,
   STAGES,
   BUILD,

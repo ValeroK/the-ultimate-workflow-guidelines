@@ -153,7 +153,9 @@ test('present --append: adds the tests section to the end of the plan and confir
   const text = fs.readFileSync(plan, 'utf8');
   // 2026-11-09: confirming the test plan also records the hash of the plan the user confirmed.
   assert.match(text, /^confirmed_hash: [0-9a-f]{16}$/m);
-  const withoutHash = text.replace(/^confirmed_hash: [0-9a-f]{16}\r?\n/m, '');
+  // 2026-11-13 (PLAN-simplify, commit-check): it also records the settings the hash leaves out, in `confirmed_settings`, to show a later change to one.
+  assert.match(text, /^confirmed_settings: \{.*\}$/m);
+  const withoutHash = text.replace(/^confirmed_hash: [0-9a-f]{16}\r?\n/m, '').replace(/^confirmed_settings: .*\r?\n/m, '');
   assert.ok(withoutHash.startsWith(PLAN.replace('plan_confirmed: false', 'plan_confirmed: true').replace('tests_confirmed: false', 'tests_confirmed: true').trimEnd()), 'the plan is untouched apart from the flag and the hash');
   assert.ok(text.endsWith('\n\n## Tests\n\n- a case\n'));
   assert.match(text, /^plan_confirmed: true$/m);

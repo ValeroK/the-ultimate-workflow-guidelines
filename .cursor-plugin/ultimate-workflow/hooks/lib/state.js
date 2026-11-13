@@ -311,9 +311,36 @@ function gatesDisabled(env) {
   return !gatesEnabled(env);
 }
 
+/**
+ * The commit-time stamp (PLAN-simplify, card commit-check): when the commit check last ran on a commit and
+ * what it found. Written only at a commit, by the hook and by card-commit, never by any other event. It is
+ * the sign that the hook is really registered; `status.js` shows it. A write that fails changes nothing.
+ */
+const COMMIT_STAMP = path.join('.ultimate-workflow', 'commit-check.json');
+function writeCommitStamp(cwd, check) {
+  try {
+    const file = path.join(cwd, COMMIT_STAMP);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, JSON.stringify({ at: new Date().toISOString(), ...check }, null, 2) + '\n');
+    return true;
+  } catch {
+    return false;
+  }
+}
+function readCommitStamp(cwd) {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(cwd, COMMIT_STAMP), 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
 module.exports = {
   ROUND_CAP,
   splitFrontMatter,
+  writeCommitStamp,
+  readCommitStamp,
+  COMMIT_STAMP,
   parseFrontMatter,
   setFrontLine,
   serializeFrontMatter,

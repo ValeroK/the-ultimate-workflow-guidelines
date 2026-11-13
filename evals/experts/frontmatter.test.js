@@ -22,7 +22,11 @@ test('frontmatter: confirmHash of every frozen 4.8.0 plan copy equals the record
   assert.ok(rows.some(([k]) => k === 'plan-bom-crlf.md.fixture'), 'the BOM and CRLF plan is in the table');
   assert.ok(rows.some(([k]) => k === 'plan-two-cards.md.fixture'), 'the two-Cards plan is in the table');
   assert.ok(rows.some(([k]) => k === 'plan-known-failures.md.fixture'), 'the Known failures plan is in the table');
-  for (const [file, hash] of rows) assert.strictEqual(experts.confirmHash(read(file)), hash, file);
+  // The Known failures section is left out of the hash from card commit-check on (a baseline accept writes it after the
+  // confirmation); the 4.8.0 value of that one plan is the only recorded answer that is meant to change.
+  const KNOWN = 'plan-known-failures.md.fixture';
+  for (const [file, hash] of rows) if (file !== KNOWN) assert.strictEqual(experts.confirmHash(read(file)), hash, file);
+  assert.strictEqual(experts.confirmHash(read(KNOWN)), experts.confirmHash(read('plan-nohash.md.fixture')), 'the section does not move the hash');
 });
 
 test('frontmatter: experts list over the frozen 4.8.0 agent files returns the recorded output for all 9 experts', () => {

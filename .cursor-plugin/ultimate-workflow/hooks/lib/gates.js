@@ -266,6 +266,7 @@ function testsItem(ev) {
   const run = t.script ? `\`${t.script} --full\`` : `\`${t.command}\``;
   const fix = t.script ? `${t.script} --full` : t.command;
   if (t.unreadable) return { kind: 'tests', text: `Gate G7: ${t.unreadable}, so the test command is unknown. Fix the plan, then run ${run}.`, fix };
+  if (t.noCommand) return { kind: 'tests', text: "Gate G7: the plan has no test_command, so no full test run can cover these changes. Fix: set test_command in the plan's front matter, then run the full suite with the verify script, then commit again.", fix: "set test_command in the plan's front matter, then run the full suite" };
   if (!t.command) return null;
   const r = t.record;
   const full = r && r.mode === 'full' && r.passed === true;

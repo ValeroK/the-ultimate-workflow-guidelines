@@ -930,3 +930,29 @@ test('contract exempt: the only plan flipped to phase done after confirmation is
   assert.strictEqual(s.outcome, 'exempt');
   assert.match(s.why, /no plan is open/);
 });
+
+test('contract tests: a plan with an empty or missing test_command refuses the commit, and the refusal says what to do (owner decision, 2026-11-13)', () => {
+  for (const variant of ['empty', 'missing']) {
+    const plan = variant === 'empty' ? PLAN.replace('test_command: node --test "test/**/*.test.js"', 'test_command:') : PLAN.replace('test_command: node --test "test/**/*.test.js"\n', '');
+    for (const path_ of ['hand', 'run']) {
+      const dir = path_ === 'hand' ? project({ plan }) : runProject({ plan });
+      editSource(dir); // fact: no command to run the full suite with
+      reviewRecord(dir);
+      if (path_ === 'hand') {
+        const r = hook(dir, COMMIT);
+        assert.strictEqual(r.decision, 'deny', `${variant}: ${r.stdout}`);
+        assert.match(r.reason, /set test_command in the plan's front matter, then run the full suite/);
+        assert.deepStrictEqual(kindsOf(dir), ['tests']);
+      } else {
+        const r = commitCard(dir);
+        assert.strictEqual(r.ok, false, `${variant}: ${JSON.stringify(r)}`);
+        assert.strictEqual(r.gate, 'G7');
+        assert.match(r.reason, /set test_command in the plan's front matter/);
+      }
+    }
+  }
+  // A documentation-only commit is still exempt.
+  const docs = project({ plan: PLAN.replace('test_command: node --test "test/**/*.test.js"', 'test_command:') });
+  write(docs, 'README.md', '# calc\n\nmore\n');
+  assert.strictEqual(hook(docs, COMMIT).decision, 'allow');
+});

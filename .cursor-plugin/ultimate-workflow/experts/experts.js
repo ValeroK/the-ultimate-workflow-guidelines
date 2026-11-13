@@ -1344,7 +1344,9 @@ function testsPart(cwd, planFile, changes, options) {
     // The plan cannot be read, so the test command is unknown. The confirmation item says so too.
     return { command: '', script: options.script || '', unreadable: `the plan could not be read (${err.code || err.message})` };
   }
-  if (!command) return undefined;
+  // No command to run the full suite with: a commit that needs a full run is refused (owner decision, 2026-11-13); one that
+  // needs none (documentation only, nothing to commit) still comes back with its skip.
+  if (!command) return { command: '', noCommand: true, script: options.script || '', ...testsEvidence(cwd, changes, planFile) };
   return { command: String(command), script: options.script || '', ...testsEvidence(cwd, changes, planFile) };
 }
 

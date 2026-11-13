@@ -842,10 +842,11 @@ test('plan-subfolder 8: card-commit judges G7 by its own --plan when the pointer
     assert.equal(refused.ok, false, JSON.stringify(refused));
     assert.equal(refused.gate, 'G7', JSON.stringify(refused));
     assert.equal(headOf(a), head, 'nothing was committed');
-    // The other way round: --plan has no test command, so G7 has nothing to ask, whatever the pointer says.
+    // The other way round: --plan has no test command, so G7 refuses for that (owner decision, 2026-11-13), whatever the pointer says.
     const b = setup('PLAN-gate.md');
     const other = autopilotLib.cardCommit(b.dir, { plan: 'PLAN-two.md', card: 'A', feature: 'gate' });
-    assert.notEqual(other.gate, 'G7', JSON.stringify(other));
+    assert.equal(other.gate, 'G7', JSON.stringify(other));
+    assert.match(other.reason, /no test_command/);
   } finally {
     if (saved === undefined) delete process.env.ULTIMATE_WORKFLOW_GATES;
     else process.env.ULTIMATE_WORKFLOW_GATES = saved;

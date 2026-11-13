@@ -48,7 +48,7 @@ function repo() {
   git(dir, 'config', 'user.name', 't');
   write(path.join(dir, 'src', 'a.js'), 'module.exports = 1;\n');
   write(path.join(dir, 'README.md'), '# x\n');
-  write(path.join(dir, 'PLAN-x.md'), '---\nplan_confirmed: true\ntests_confirmed: true\n---\nbody\n');
+  write(path.join(dir, 'PLAN-x.md'), '---\nplan_confirmed: true\ntests_confirmed: true\ntest_command: node --test x\n---\nbody\n');
   git(dir, 'add', '-A');
   git(dir, 'commit', '-q', '-m', 'base');
   return dir;
@@ -67,7 +67,11 @@ const agentText = (name, extra = {}) => {
   return `---\n${lines.join('\n')}\n---\n\n# ${name}\n`;
 };
 
-const cli = (cwd, args, input) => spawnSync(process.execPath, [CLI, ...args], { cwd, input, encoding: 'utf8' });
+// These tests are about the experts check (G6): a passing full run is recorded before a `check` so G7 holds.
+const cli = (cwd, args, input) => {
+  if (args[0] === 'check') require(path.join(PLUGIN, 'hooks', 'verify.js')).recordFull(cwd, { passed: true, command: 'node --test x' });
+  return spawnSync(process.execPath, [CLI, ...args], { cwd, input, encoding: 'utf8' });
+};
 
 // ---- discovery -----------------------------------------------------------
 
@@ -410,7 +414,7 @@ function ready() {
   const dir = repo();
   write(path.join(dir, 'src', 'a.js'), 'module.exports = 2;\n');
   const plan = path.join(dir, 'PLAN-x.md');
-  fs.writeFileSync(plan, '---\nplan_confirmed: true\ntests_confirmed: true\nexperts: [security]\n---\nbody\n');
+  fs.writeFileSync(plan, '---\nplan_confirmed: true\ntests_confirmed: true\ntest_command: node --test x\nexperts: [security]\n---\nbody\n');
   return { dir, plan };
 }
 const verdict = (dir, plan) => gates.commitGate(ex.commitEvidence(dir, plan, PLUGIN));

@@ -551,7 +551,7 @@ function acceptDecision(cwd, plan, card) {
   let next = all.join(nl);
   next = cardsLib.setField(next, card.name, 'decision', null);
   const ex = require('./experts.js');
-  next = ex.setFrontLine(next, 'confirmed_hash', ex.confirmHash(next));
+  next = ex.setConfirmed(next, 'tests_confirmed');
   fs.writeFileSync(file, next);
 }
 

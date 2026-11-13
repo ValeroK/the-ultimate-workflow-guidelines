@@ -224,6 +224,7 @@ Each card is built by hand, test first, and ends with the full verify command gr
 - baseline: Measure the plugin as it is and pin the commit guarantees end to end
   paths: internal/plans/simplify-baseline.md, internal/tools/measure.js, evals/experts/commit-contract.test.js
   The harness comes first. It drives the real hook (`hooks/gate.js`) and the real `card-commit` through the existing fixtures of `evals/experts/harness.test.js`, `experts.test.js` and `autopilot.test.js`, once per guarantee and once per exemption, on both paths. It is written against today's behaviour and must stay green through every later card, changing only where this plan says a behaviour changes (confirmation at commit, the refusal listing all items). The measure script (plain Node, not shipped) writes bytes and lines per area, test count, the list of blocking checks and the list of state files into `simplify-baseline.md`. It skips `.claude/worktrees/`. It also lists, from the code, every exemption of G6 and G7 and the exact rule of G6 at edit.
+  status: committed 629a84c
 - frontmatter: One front-matter parser and one in-place writer
   paths: .cursor-plugin/ultimate-workflow/hooks/lib/state.js, .cursor-plugin/ultimate-workflow/hooks/verify.js, .cursor-plugin/ultimate-workflow/experts/experts.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, .cursor-plugin/ultimate-workflow/lib/memory.js, .cursor-plugin/ultimate-workflow/hooks/status.test.js
   depends: baseline

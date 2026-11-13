@@ -183,12 +183,12 @@ test('status writes nothing at all', () => {
 // `experts` was added with the G6 commit gate: additive, null outside a feature.
 const JSON_KEYS = ['blocking', 'deferral', 'experts', 'file', 'fullVerify', 'g3Active', 'liveness', 'stage', 'state'];
 
-function frontMatter(lines) {
+function fenced(lines) {
   return `---\n${lines.join('\n')}\n---\n`;
 }
 
 function writePlan(dir, lines, name = 'PLAN-x.md') {
-  fs.writeFileSync(path.join(dir, name), frontMatter(lines));
+  fs.writeFileSync(path.join(dir, name), fenced(lines));
   return path.join(dir, name);
 }
 
@@ -219,7 +219,7 @@ test('the --json object carries the documented top-level keys, and only those, a
   writePlan(plan, ['plan_confirmed: false', 'tests_confirmed: false']);
 
   const prd = tmpdir();
-  fs.writeFileSync(path.join(prd, 'PRD.md'), frontMatter(['prd_confirmed: false']));
+  fs.writeFileSync(path.join(prd, 'PRD.md'), fenced(['prd_confirmed: false']));
 
   const bare = tmpdir();
   writePlan(bare, ['feature: y'], 'PLAN-y.md');
@@ -294,7 +294,7 @@ test('--json carries the stage and the absolute path of the file it read', () =>
   assert.equal(f.file, path.join(feature, 'PLAN-x.md'), 'the full path, not the basename');
 
   const bootstrap = tmpdir();
-  fs.writeFileSync(path.join(bootstrap, 'PRD.md'), frontMatter(['prd_confirmed: false']));
+  fs.writeFileSync(path.join(bootstrap, 'PRD.md'), fenced(['prd_confirmed: false']));
 
   const b = runJson(bootstrap).json;
   assert.equal(b.stage, 'bootstrap');
@@ -352,7 +352,7 @@ test('--json reports blocking exactly as the gate predicates do, for every gate'
   const rows = [
     ['G1', (d) => writePlan(d, ['plan_confirmed: false'])],
     ['G2', (d) => writePlan(d, ['plan_confirmed: true', 'tests_confirmed: false'])],
-    ['B-G1', (d) => fs.writeFileSync(path.join(d, 'PRD.md'), frontMatter(['prd_confirmed: false']))],
+    ['B-G1', (d) => fs.writeFileSync(path.join(d, 'PRD.md'), fenced(['prd_confirmed: false']))],
     ['G3', (d) => writePlan(d, ['plan_confirmed: true', 'tests_confirmed: true', 'dirty: true', 'test_command: node --test'])],
     ['G3 escalated', (d) => writePlan(d, ['plan_confirmed: true', 'tests_confirmed: true', 'dirty: true', 'test_command: node --test', 'escalated: true'])],
     ['G3 no command', (d) => writePlan(d, ['plan_confirmed: true', 'tests_confirmed: true', 'dirty: true'])],
@@ -420,7 +420,7 @@ test('the JSON and the human report agree on every fact both carry', () => {
       },
       {},
     ],
-    ['bootstrap', (d) => fs.writeFileSync(path.join(d, 'PRD.md'), frontMatter(['prd_confirmed: false'])), {}],
+    ['bootstrap', (d) => fs.writeFileSync(path.join(d, 'PRD.md'), fenced(['prd_confirmed: false'])), {}],
     [
       'gates disabled',
       (d) => {

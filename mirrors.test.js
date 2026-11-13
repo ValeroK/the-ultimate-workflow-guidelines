@@ -862,3 +862,37 @@ test('titles: every test title recorded in card baseline still exists, except th
   }
   assert.deepStrictEqual(lost, [], `titles gone and not in the deleted list:\n  ${lost.join('\n  ')}`);
 });
+
+// ---- PLAN-simplify, card frontmatter: one copy of the parser, the finder and the writer ----
+
+/** Non-test JavaScript under the shipped plugin, as { rel, text }. */
+function shippedSources() {
+  const base = path.join(root, '.cursor-plugin', 'ultimate-workflow');
+  const out = [];
+  (function walk(dir) {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) {
+        if (!['fixtures', 'architecture-evals', 'node_modules'].includes(e.name)) walk(p);
+      } else if (e.name.endsWith('.js') && !e.name.endsWith('.test.js')) out.push({ rel: path.relative(base, p).split(path.sep).join('/'), text: fs.readFileSync(p, 'utf8') });
+    }
+  })(base);
+  return out;
+}
+const declaresFunction = (text, name) => new RegExp(String.raw`^\s*(?:async\s+)?function\s+${name}\b`, 'm').test(text);
+
+test('one copy: the front-matter parser, finder and in-place writer are each declared in exactly one shipped file', () => {
+  // The scan proves itself first: it sees a declaration and ignores a call and a comment.
+  assert.ok(declaresFunction('function setFrontLine(a) {}', 'setFrontLine'));
+  assert.ok(!declaresFunction('x = setFrontLine(a);\n// function setFrontLine', 'setFrontLine'));
+  const files = shippedSources();
+  for (const sentinel of ['hooks/lib/state.js', 'experts/experts.js', 'hooks/verify.js', 'experts/autopilot.js', 'phases/run.js']) assert.ok(files.some((f) => f.rel === sentinel), `${sentinel} was scanned`);
+  const where = (name) => files.filter((f) => declaresFunction(f.text, name)).map((f) => f.rel);
+  assert.deepStrictEqual(where('parseFrontMatter'), ['hooks/lib/state.js']);
+  assert.deepStrictEqual(where('splitFrontMatter'), ['hooks/lib/state.js']);
+  assert.deepStrictEqual(where('setFrontLine'), ['hooks/lib/state.js']);
+  assert.deepStrictEqual(where('frontmatter'), []);
+  assert.deepStrictEqual(where('parseAgentFile'), []);
+  const statusTest = fs.readFileSync(path.join(root, '.cursor-plugin', 'ultimate-workflow', 'hooks', 'status.test.js'), 'utf8');
+  assert.ok(!declaresFunction(statusTest, 'frontMatter'), 'hooks/status.test.js declares no frontMatter helper');
+});

@@ -171,21 +171,17 @@ function judge(code, output, baseline) {
   };
 }
 
-/** Set `key: value` in a document's front matter, keeping its line endings; unchanged when it has none. */
-function setFrontLine(text, key, value) {
-  const m = /^(﻿?---[ \t]*\r?\n)([\s\S]*?)(\r?\n---[ \t]*(?:\r?\n|$))/.exec(text);
-  if (!m) return text;
-  const eol = m[1].endsWith('\r\n') ? '\r\n' : '\n';
-  const re = new RegExp(`^${key}[ \\t]*:.*$`, 'm');
-  const block = re.test(m[2]) ? m[2].replace(re, `${key}: ${value}`) : `${m[2]}${eol}${key}: ${value}`;
-  return m[1] + block + m[3] + text.slice(m[0].length);
+/** The shared writer, but a document without front matter comes back unchanged (the shape callers of this export rely on). */
+function lenientFrontLine(text, key, value) {
+  return stateLib.splitFrontMatter(text) ? stateLib.setFrontLine(text, key, value) : text;
 }
 
 /** Put the accepted list in the plan as a "Known failures" section, replacing an earlier one. */
 function writeKnownFailures(planFile, names) {
   let text = fs.readFileSync(planFile, 'utf8');
   const eol = /\r\n/.test(text) ? '\r\n' : '\n';
-  text = setFrontLine(text, 'known_failures', names.length);
+  // A plan with no front matter still gets the section; the one shared writer throws on such a file.
+  if (stateLib.splitFrontMatter(text)) text = stateLib.setFrontLine(text, 'known_failures', names.length);
   const section = `## Known failures${eol}${eol}Tests that failed before this change and that the user accepted as known. A full run passes while only these fail.${eol}${eol}${names.map((n) => `- ${n}`).join(eol)}${eol}`;
   const re = /^## Known failures[ \t]*\r?\n[\s\S]*?(?=^## |(?![\s\S]))/m;
   // When another heading follows, a blank line stays between the list and it.
@@ -597,4 +593,4 @@ function main(argv, startDir = process.cwd()) {
 
 if (require.main === module) process.exit(main(process.argv.slice(2)));
 
-module.exports = { main, shellFor, readRecord, recordFull, fullEvidence, relatedTests, acquireLock, shortOutput, extractFailures, readBaseline, baselineApplies, judge, setFrontLine, RECORD, LOCK, LOG, BASELINE };
+module.exports = { main, shellFor, readRecord, recordFull, fullEvidence, relatedTests, acquireLock, shortOutput, extractFailures, readBaseline, baselineApplies, judge, setFrontLine: lenientFrontLine, writeKnownFailures, RECORD, LOCK, LOG, BASELINE };

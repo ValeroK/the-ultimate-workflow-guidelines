@@ -382,3 +382,74 @@ test('handoff still fails when neither file carries the sections', () => {
 
   assert.equal(state.handoffComplete(dir), false);
 });
+
+// ---- PLAN-simplify, card frontmatter: one block finder, one parser, one in-place writer ----
+
+const expertsLib = require('../../experts/experts.js');
+
+// Every fence shape a real editor produces. `write` builds the plan the way that editor saves it.
+const SHAPES = {
+  LF: { eol: '\n', bom: '', fence: '---' },
+  CRLF: { eol: '\r\n', bom: '', fence: '---' },
+  BOM: { eol: '\n', bom: '﻿', fence: '---' },
+  'BOM and CRLF': { eol: '\r\n', bom: '﻿', fence: '---' },
+  'trailing spaces on both fences': { eol: '\n', bom: '', fence: '--- ' },
+  'trailing tab on both fences': { eol: '\n', bom: '', fence: '---\t' },
+  'closing fence at end of file, no newline': { eol: '\n', bom: '', fence: '---', noFinalNewline: true },
+};
+function planOf(shape, front, body = '# PLAN\n\n## Cards\n\n- 1: a\n  paths: src/a.js\n') {
+  const { eol, bom, fence, noFinalNewline } = shape;
+  const tail = noFinalNewline ? '' : body.replace(/\n/g, eol);
+  return `${bom}${fence}${eol}${front.join(eol)}${eol}${fence}${noFinalNewline ? '' : eol}${tail}`;
+}
+const FRONT = ['phase: build', 'plan_confirmed: false', 'tests_confirmed: false', 'test_command: node --test x', 'dirty: true', 'verify_rounds: 2'];
+
+test('frontmatter: a plan written by setConfirmed is read as confirmed by checkConfirmed, for every fence shape', () => {
+  for (const [name, shape] of Object.entries(SHAPES)) {
+    let text = planOf(shape, FRONT);
+    text = expertsLib.setConfirmed(text, 'plan_confirmed');
+    text = expertsLib.setConfirmed(text, 'tests_confirmed');
+    const verdict = expertsLib.checkConfirmed(text);
+    assert.strictEqual(verdict.ok, true, `${name}: ${verdict.reason}`);
+    assert.strictEqual(state.parseFrontMatter(text).data.plan_confirmed, true, `${name}: the flag reads as true`);
+  }
+});
+
+test('frontmatter: setFrontLine keeps the BOM, the line endings and every other byte, on replace and on insert', () => {
+  for (const [name, shape] of Object.entries(SHAPES)) {
+    const text = planOf(shape, FRONT);
+    // replace: the key is present
+    const replaced = state.setFrontLine(text, 'tests_confirmed', 'true');
+    assert.strictEqual(replaced, text.replace('tests_confirmed: false', 'tests_confirmed: true'), `${name}: replace changes one line only`);
+    // insert: the key is absent; the new line uses the file's own line ending and sits last in the block
+    const inserted = state.setFrontLine(text, 'confirmed_hash', 'abc');
+    const closing = shape.fence + (shape.noFinalNewline ? '' : shape.eol);
+    const at = text.lastIndexOf(shape.fence + (shape.noFinalNewline ? '' : shape.eol), text.length);
+    const expected = text.slice(0, at) + `confirmed_hash: abc${shape.eol}` + text.slice(at);
+    assert.strictEqual(inserted, expected, `${name}: insert adds one line with the file's line ending (${JSON.stringify(closing)})`);
+  }
+});
+
+test('frontmatter: setFrontLine on a file with no front matter throws', () => {
+  assert.throws(() => state.setFrontLine('# no front matter\n', 'a', '1'), /no front matter/);
+});
+
+test('frontmatter: unknown and old keys survive a write untouched', () => {
+  const text = planOf(SHAPES.LF, ['phase: build', 'plan_confirmed: false', 'tests_confirmed: false', 'dirty: true', 'verify_rounds: 2', 'last_verify: red', 'escalated: false', 'gate_violation: G1 text', 'odd_key: some value']);
+  let next = expertsLib.setConfirmed(text, 'plan_confirmed');
+  next = expertsLib.setConfirmed(next, 'tests_confirmed');
+  for (const line of ['dirty: true', 'verify_rounds: 2', 'last_verify: red', 'escalated: false', 'gate_violation: G1 text', 'odd_key: some value']) {
+    assert.ok(next.split('\n').includes(line), `${line} is still there, byte for byte`);
+  }
+});
+
+test('frontmatter: the block finder and the parser agree on a BOM plan', () => {
+  const parsed = state.parseFrontMatter(planOf(SHAPES['BOM and CRLF'], FRONT));
+  assert.strictEqual(parsed.hadFrontMatter, true);
+  assert.strictEqual(parsed.data.test_command, 'node --test x');
+  assert.strictEqual(parsed.body.startsWith('# PLAN'), true);
+  const split = state.splitFrontMatter(planOf(SHAPES.LF, FRONT));
+  assert.deepStrictEqual(Object.keys(split).sort(), ['after', 'block', 'bom', 'eol', 'open']);
+  assert.strictEqual(state.splitFrontMatter('no front matter'), null);
+  assert.strictEqual(state.splitFrontMatter('---\nunclosed: true\n'), null);
+});

@@ -50,6 +50,7 @@ const { spawnSync } = require('node:child_process');
 
 const gates = require('../hooks/lib/gates.js');
 const stateLib = require('../hooks/lib/state.js');
+const { setFrontLine } = stateLib;
 const runRules = require('../lib/run-rules.js');
 
 const PLUGIN_ROOT = path.join(__dirname, '..');
@@ -68,17 +69,6 @@ const EVIDENCE = path.join('.ultimate-workflow', 'experts');
 const AGENT_FILE = /^uw-expert-([a-z][a-z0-9-]*)\.md$/;
 
 // ---- discovery ----
-
-function parseAgentFile(text) {
-  const m = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text.charCodeAt(0) === 0xfeff ? text.slice(1) : text);
-  const out = {};
-  if (!m) return out;
-  for (const line of m[1].split(/\r?\n/)) {
-    const i = line.indexOf(':');
-    if (i > 0) out[line.slice(0, i).trim()] = line.slice(i + 1).trim();
-  }
-  return out;
-}
 
 function inlineList(value) {
   return [...new Set(String(value).replace(/^\[/, '').replace(/\]$/, '').split(',').map((s) => s.trim().replace(/^['"]|['"]$/g, '')).filter(Boolean))];
@@ -99,7 +89,7 @@ function list(pluginRoot = PLUGIN_ROOT) {
   }
   for (const f of files) {
     const name = AGENT_FILE.exec(f)[1];
-    const fm = parseAgentFile(fs.readFileSync(path.join(dir, f), 'utf8'));
+    const fm = stateLib.parseFrontMatter(fs.readFileSync(path.join(dir, f), 'utf8'), { raw: true }).data;
     const stages = fm.stages === undefined ? ['review'] : inlineList(fm.stages);
     const always = fm.always === undefined ? [] : inlineList(fm.always);
     const whenSkills = fm['review-when-skills'] === undefined ? [] : inlineList(fm['review-when-skills']);
@@ -437,21 +427,10 @@ function mergeAdd(current, additions, availableNames) {
 
 // ---- the plan's `experts:` line ----
 
-function frontmatter(text) {
-  const bom = text.charCodeAt(0) === 0xfeff ? '﻿' : '';
-  const body = text.slice(bom.length);
-  const open = /^---[ \t]*\r?\n/.exec(body);
-  if (!open) return null;
-  const rest = body.slice(open[0].length);
-  const close = /^---[ \t]*(\r?\n|$)/m.exec(rest);
-  if (!close) return null;
-  return { bom, open: open[0], block: rest.slice(0, close.index), after: rest.slice(close.index), eol: open[0].endsWith('\r\n') ? '\r\n' : '\n' };
-}
-
 const EXPERTS_LINE = /^experts[ \t]*:[ \t]*(.*?)[ \t]*$/m;
 
 function readExperts(text) {
-  const fm = frontmatter(text);
+  const fm = stateLib.splitFrontMatter(text);
   if (!fm) return { present: false, experts: [] };
   const m = EXPERTS_LINE.exec(fm.block);
   if (!m) return { present: false, experts: [] };
@@ -462,7 +441,7 @@ function readExperts(text) {
 
 /** Replace or insert the line. Callers merge first; this only writes. */
 function setExperts(text, names) {
-  const fm = frontmatter(text);
+  const fm = stateLib.splitFrontMatter(text);
   if (!fm) throw new Error('the plan file has no frontmatter block (--- ... ---) to record experts in');
   const line = `experts: [${names.join(', ')}]`;
   if (EXPERTS_LINE.test(fm.block)) return fm.bom + fm.open + fm.block.replace(EXPERTS_LINE, line) + fm.after;
@@ -493,7 +472,7 @@ function looksEscaped(text) {
  */
 const RUN_FIELD = /^[ \t]+(status|committed|parked|carried|decision|accepted):/i;
 function confirmHash(text) {
-  const fm = frontmatter(text);
+  const fm = stateLib.splitFrontMatter(text);
   const body = (fm ? fm.after : String(text)).replace(/^﻿/, '');
   const lines = body.split(/\r?\n/);
   const kept = [];
@@ -523,16 +502,6 @@ function confirmHash(text) {
   return require('node:crypto').createHash('sha256').update(norm).digest('hex').slice(0, 16);
 }
 
-/** Set (or add) one front matter line, keeping the file's line endings. */
-function setFrontLine(text, key, value) {
-  const fm = frontmatter(text);
-  if (!fm) throw new Error('the document has no front matter');
-  const line = new RegExp(`^${key}[ \\t]*:.*$`, 'm');
-  const eol = fm.block.includes('\r\n') ? '\r\n' : '\n';
-  const block = line.test(fm.block) ? fm.block.replace(line, `${key}: ${value}`) : `${fm.block.replace(/(\r?\n)?$/, '')}${eol}${key}: ${value}${/\r?\n$/.test(fm.block) ? eol : ''}`;
-  return fm.bom + fm.open + block + fm.after;
-}
-
 /**
  * Whether the run may start from this plan: both confirmations, and the plan unchanged since the
  * test plan was confirmed (its `confirmed_hash`). The reason names what the user has to do.
@@ -550,7 +519,7 @@ function checkConfirmed(text) {
 
 /** Turn the plan's `plan_confirmed: false` into true. Throws when the front matter has no such key. */
 function setConfirmed(text, key) {
-  const fm = frontmatter(text);
+  const fm = stateLib.splitFrontMatter(text);
   const line = new RegExp(`^${key}[ \\t]*:[ \\t]*(true|false)[ \\t]*$`, 'm');
   if (!fm || !line.test(fm.block)) throw new Error(`the document has no \`${key}:\` line in its front matter to confirm`);
   const next = fm.bom + fm.open + fm.block.replace(line, `${key}: true`) + fm.after;
@@ -1759,6 +1728,7 @@ function main(argv) {
 module.exports = {
   confirmHash,
   checkConfirmed,
+  setConfirmed,
   setFrontLine,
   STAGES,
   BUILD,

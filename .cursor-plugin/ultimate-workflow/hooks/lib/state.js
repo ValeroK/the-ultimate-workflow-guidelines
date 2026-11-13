@@ -12,9 +12,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-/** Front matter is only front matter when it opens the file. */
-const FRONT_MATTER = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
-
 const DISABLED_VALUES = new Set(['off', '0', 'false', 'no']);
 
 /** Failing rounds allowed before the run escalates to a human. */
@@ -50,23 +47,55 @@ function format(v) {
 }
 
 /**
+ * The one front-matter block finder (PLAN-simplify, card frontmatter). Reader and writer both sit
+ * on it, so a plan can never be written as confirmed and read as unconfirmed because the two
+ * disagreed about a BOM or a space after a fence. Accepts a BOM, CRLF, trailing spaces or tabs on
+ * the fences, and a closing fence at the end of the file. Returns null when the text does not open
+ * with a closed block. `after` starts at the closing fence line.
+ */
+function splitFrontMatter(text) {
+  const bom = text.charCodeAt(0) === 0xfeff ? '﻿' : '';
+  const body = text.slice(bom.length);
+  const open = /^---[ \t]*\r?\n/.exec(body);
+  if (!open) return null;
+  const rest = body.slice(open[0].length);
+  const close = /^---[ \t]*(\r?\n|$)/m.exec(rest);
+  if (!close) return null;
+  return { bom, open: open[0], block: rest.slice(0, close.index), after: rest.slice(close.index), eol: open[0].endsWith('\r\n') ? '\r\n' : '\n' };
+}
+
+/**
  * Parse a leading YAML-ish front-matter block. Scalars only -- no nesting,
  * no lists. Malformed lines are skipped rather than thrown on, because a hook
  * that dies on a typo is worse than a hook that reads four keys instead of five.
+ * `{ raw: true }` keeps every value as the trimmed text (agent files, whose values are read as text).
  */
-function parseFrontMatter(text) {
-  const m = FRONT_MATTER.exec(text);
-  if (!m) return { data: {}, body: text, hadFrontMatter: false };
+function parseFrontMatter(text, { raw = false } = {}) {
+  const fm = splitFrontMatter(text);
+  if (!fm) return { data: {}, body: text, hadFrontMatter: false };
 
   const data = {};
-  for (const line of m[1].split(/\r?\n/)) {
+  for (const line of fm.block.split(/\r?\n/)) {
     const idx = line.indexOf(':');
     if (idx <= 0) continue;
     const key = line.slice(0, idx).trim();
     if (!key) continue;
-    data[key] = coerce(line.slice(idx + 1));
+    data[key] = raw ? line.slice(idx + 1).trim() : coerce(line.slice(idx + 1));
   }
-  return { data, body: text.slice(m[0].length), hadFrontMatter: true };
+  return { data, body: fm.after.replace(/^---[ \t]*(\r?\n|$)/, ''), hadFrontMatter: true };
+}
+
+/**
+ * Set (or add) one front-matter line in place, keeping the BOM, the line endings and every other
+ * byte. Throws when the text has no front matter. The one writer: a hook never calls it.
+ */
+function setFrontLine(text, key, value) {
+  const fm = splitFrontMatter(text);
+  if (!fm) throw new Error('the document has no front matter');
+  const line = new RegExp(`^${key}[ \\t]*:.*$`, 'm');
+  const eol = fm.block.includes('\r\n') ? '\r\n' : '\n';
+  const block = line.test(fm.block) ? fm.block.replace(line, `${key}: ${value}`) : `${fm.block.replace(/(\r?\n)?$/, '')}${eol}${key}: ${value}${/\r?\n$/.test(fm.block) ? eol : ''}`;
+  return fm.bom + fm.open + block + fm.after;
 }
 
 function serializeFrontMatter(data, body) {
@@ -284,7 +313,9 @@ function gatesDisabled(env) {
 
 module.exports = {
   ROUND_CAP,
+  splitFrontMatter,
   parseFrontMatter,
+  setFrontLine,
   serializeFrontMatter,
   patchState,
   listPlanFiles,

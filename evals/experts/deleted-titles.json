@@ -502,5 +502,17 @@
  [
   "evals/security-expert/review-fanout.test.js",
   "a failed recheck is visible, runs the planned experts only, and is not recorded as a recheck"
+ ],
+ [
+  "evals/experts/autopilot-fixes.test.js",
+  "harvest-name 51: with uw/harvest/<f> taken, harvest makes <f>-2 and returns ok: true"
+ ],
+ [
+  "evals/experts/autopilot-fixes.test.js",
+  "harvest-name 52: with <f> and <f>-2 taken, harvest makes <f>-3"
+ ],
+ [
+  "evals/experts/autopilot-fixes.test.js",
+  "harvest-name 54: the memory.md merge-conflict note is still given, on a second harvest branch too"
  ]
 ]

@@ -592,28 +592,6 @@ const harvest = (g, proposals = [{ destination: 'gotcha', path: 'AGENTS.md', tex
 };
 const branchesOf = (g) => git(g.dir, 'branch', '--list', 'uw/harvest/*', '--format=%(refname:short)').split(/\r?\n/).filter(Boolean).sort();
 
-test('harvest-name 51: with uw/harvest/<f> taken, harvest makes <f>-2 and returns ok: true', () => {
-  const g = gateRepo();
-  const first = harvest(g);
-  assert.equal(first.ok, true, JSON.stringify(first));
-  assert.equal(first.branch, 'uw/harvest/f');
-  const second = harvest(g);
-  assert.equal(second.ok, true, JSON.stringify(second));
-  assert.equal(second.branch, 'uw/harvest/f-2');
-  assert.deepStrictEqual(branchesOf(g), ['uw/harvest/f', 'uw/harvest/f-2']);
-  assert.match(git(g.dir, 'show', 'uw/harvest/f-2:AGENTS.md'), /Beware x/, 'the second branch holds the proposals');
-});
-
-test('harvest-name 52: with <f> and <f>-2 taken, harvest makes <f>-3', () => {
-  const g = gateRepo();
-  git(g.dir, 'branch', 'uw/harvest/f');
-  git(g.dir, 'branch', 'uw/harvest/f-2');
-  const third = harvest(g);
-  assert.equal(third.ok, true, JSON.stringify(third));
-  assert.equal(third.branch, 'uw/harvest/f-3');
-  assert.deepStrictEqual(branchesOf(g), ['uw/harvest/f', 'uw/harvest/f-2', 'uw/harvest/f-3']);
-});
-
 test('harvest-name 53b: run-state lists the open harvest branches of this feature only', () => {
   const g = gateRepo();
   writeRunFile(g);
@@ -622,13 +600,13 @@ test('harvest-name 53b: run-state lists the open harvest branches of this featur
   assert.deepStrictEqual(runState(g).openHarvests, ['uw/harvest/f', 'uw/harvest/f-2']);
 });
 
-test('harvest-name 54: the memory.md merge-conflict note is still given, on a second harvest branch too', () => {
+test('harvest-name 54: the memory.md merge-conflict note is still given on the one harvest branch of a feature', () => {
   const g = gateRepo();
   g.put('memory.md', '# Memory\n');
   git(g.dir, 'add', '-A');
   git(g.dir, 'commit', '-q', '-m', 'memory');
   const topical = (name) => [{ destination: 'memory', path: `memory/${name}.md`, text: `# ${name}\n\nHow it works.`, description: `How ${name} works.`, paths: [`lib/${name}.js`], keywords: [name], source: 'card 1', rationale: 'r' }];
-  for (const [name, branch] of [['parsing', 'uw/harvest/f'], ['hooks', 'uw/harvest/f-2']]) {
+  for (const [name, branch] of [['parsing', 'uw/harvest/f']]) {
     const r = harvest(g, topical(name));
     assert.equal(r.ok, true, JSON.stringify(r));
     assert.equal(r.branch, branch);

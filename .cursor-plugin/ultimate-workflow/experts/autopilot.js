@@ -803,7 +803,7 @@ function openHarvestBranches(cwd, feature) {
   return git(cwd, ['for-each-ref', '--format=%(refname:short)', 'refs/heads/uw/harvest/'], { allowFail: true }).stdout.split(/\r?\n/).filter((b) => mine.test(b)).sort();
 }
 
-function runState(cwd, { feature, record, review, harvest, harvestBranch: branch, findingsFrom }) {
+function runState(cwd, { feature, record, review, harvest, harvestBranch: branch, findingsFrom, intend }) {
   const file = path.join(runDir(cwd, feature), 'run.json');
   const saved = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : {};
   const head = git(cwd, ['rev-parse', 'HEAD']).stdout.trim().slice(0, 12);
@@ -816,6 +816,12 @@ function runState(cwd, { feature, record, review, harvest, harvestBranch: branch
     if (!Array.isArray(pendingFindings)) throw new Error(`${findingsFrom} must hold a JSON array of findings`);
     write({ pendingFindings });
     return { ok: true, head, pendingFindings };
+  }
+  // The name of the harvest branch is written BEFORE the branch is made, so a crash between the two leaves the name to be reused
+  // and never a second branch (-2). Every other key is kept.
+  if (intend) {
+    write({ harvestBranch: intend });
+    return { ok: true, head, harvestBranch: intend };
   }
   const pendingFindings = saved.pendingFindings || [];
   // The harvest branches of this feature still open (not merged away or deleted): a later harvest is told them.
@@ -835,7 +841,22 @@ function runState(cwd, { feature, record, review, harvest, harvestBranch: branch
  * The user merges the branch or drops it; nothing reaches project memory unseen.
  */
 function harvestBranch(cwd, { feature, from }) {
-  let branch = `uw/harvest/${checkFeature(feature)}`;
+  const branch = `uw/harvest/${checkFeature(feature)}`;
+  // A feature is harvested once. The name run.json recorded is used only if it is the name computed here, or a 4.8.0 -N
+  // branch of this feature that still exists; anything else (run.json sits in the working tree, where an agent can write
+  // it) is an error, and no ref is created or moved.
+  const refExists = (name) => git(cwd, ['rev-parse', '--verify', '-q', `refs/heads/${name}`], { allowFail: true }).status === 0;
+  let recorded = '';
+  try {
+    recorded = JSON.parse(fs.readFileSync(path.join(runDir(cwd, feature), 'run.json'), 'utf8')).harvestBranch || '';
+  } catch {}
+  if (recorded !== '') {
+    const old = typeof recorded === 'string' && new RegExp(`^uw/harvest/${feature.replace(/[.]/g, '[.]')}-[0-9]+$`).test(recorded) && refExists(recorded);
+    if (recorded !== branch && !old) return { ok: false, branch, reason: `the recorded harvest branch ${JSON.stringify(recorded)} is not this feature's name (${branch}); nothing was made` };
+    if (refExists(recorded)) return { ok: true, branch: recorded, commits: [], note: 'this feature was already harvested; its branch is returned and no new one is made' };
+  } else if (refExists(branch)) {
+    return { ok: true, branch, commits: [], note: 'this feature was already harvested; its branch is returned and no new one is made' };
+  }
   const raw = JSON.parse(fs.readFileSync(path.resolve(cwd, from), 'utf8').replace(/^﻿/, ''));
   const proposals = (Array.isArray(raw) ? raw : raw.proposals || []).filter((p) => p && typeof p.path === 'string' && typeof p.text === 'string' && p.text.trim());
   // A harvester may name a file by its absolute path; one inside the project is taken as relative to it.
@@ -874,10 +895,8 @@ function harvestBranch(cwd, { feature, from }) {
     steps.push({ subject: `harvest: ${[...new Set(list.map((p) => p.destination || 'note'))].join(', ')} -> ${file}`, files: { [file]: text }, list });
   }
   if (steps.length === 0) return { ok: true, branch: null, commits: [], note: 'no proposals, so no branch' };
-  // An earlier harvest of this feature keeps its branch: this one takes the next free name (-2, -3, ...).
-  const free = runRules.freeName(branch, (name) => git(cwd, ['rev-parse', '--verify', '-q', `refs/heads/${name}`], { allowFail: true }).status === 0);
-  if (!free.ok) return { ok: false, branch, reason: free.reason };
-  branch = free.name;
+  // The name goes into run.json first (the one writer), then the branch is made.
+  runState(cwd, { feature, intend: branch });
   // Merging a second harvest branch can conflict in the generated block of memory.md.
   if (steps.some((s) => Object.keys(s.files).some((f) => /(^|\/)memory\.md$/.test(f)))) {
     steps[steps.length - 1].note = 'If merging this branch conflicts in memory.md, take either side, run `node experts/experts.js memory index`, and commit.';

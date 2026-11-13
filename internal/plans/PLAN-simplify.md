@@ -263,6 +263,7 @@ Each card is built by hand, test first, and ends with the full verify command gr
   paths: .cursor-plugin/ultimate-workflow/phases/review.js, .cursor-plugin/ultimate-workflow/phases/run.js, .cursor-plugin/ultimate-workflow/lib/phase-shared.js, .cursor-plugin/ultimate-workflow/experts/experts.js
   depends: selection
   Starts by reading `phases/run.js` lines 797-1155, which no reader opened. Moving code and changing behaviour are separate commits here and in `one-harvest`: first the move with the tests unchanged, then each fix with its own test. Includes fault 20 and concerns 5, 11, 12, and the single saved-diff location.
+  status: committed 344c0d4 (partial)
 - one-harvest: The run uses the by-hand harvest, once per feature
   paths: .cursor-plugin/ultimate-workflow/phases/harvest.js, .cursor-plugin/ultimate-workflow/phases/run.js, .cursor-plugin/ultimate-workflow/experts/autopilot.js, .cursor-plugin/ultimate-workflow/lib/memory.js
   depends: one-review

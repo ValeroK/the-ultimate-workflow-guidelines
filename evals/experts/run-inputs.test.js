@@ -87,3 +87,25 @@ test('fault 22: the pack drops optional entries only, lists each dropped path, a
   assert.ok(fs.readFileSync(path.join(dir, r.contextFile), 'utf8').includes('src/a.js'), 'the card\'s own file is never dropped');
   assert.ok(Array.isArray(r.dropped));
 });
+
+test('fault 22: confirming the test plan shows the pack warning at plan time, the same one the run would show', () => {
+  const dir = planRepo('x');
+  write(dir, 'PLAN-x.md', fs.readFileSync(path.join(dir, 'PLAN-x.md'), 'utf8').replace('plan_confirmed: true\ntests_confirmed: true', 'plan_confirmed: true\ntests_confirmed: false').replace('experts: []', 'experts: []\npack_budget: 5'));
+  write(dir, 'result.json', JSON.stringify({ summary: 's', logs: [], result: { ok: true, testsMarkdown: '## Tests\n\n- it works\n' } }));
+  const r = spawnSync(process.execPath, [path.join(PLUGIN, 'experts', 'experts.js'), 'present', '--result', 'result.json', '--field', 'testsMarkdown', '--out', 'PLAN-x.md', '--append', '--confirm', 'tests_confirmed'], { cwd: dir, encoding: 'utf8' });
+  assert.strictEqual(r.status, 0, r.stdout + r.stderr);
+  const out = JSON.parse(r.stdout.trim().split('\n').pop());
+  assert.ok(Array.isArray(out.packWarnings) && out.packWarnings.length > 0, r.stdout);
+  assert.match(out.packWarnings[0], /card 1/);
+  assert.match(out.packWarnings[0], /budget of 5/);
+});
+
+test('size limits: an over-long journal or expert answer warns and does not stop the run (no limit in the run script ends it)', () => {
+  const run = expertsLib.assemblePhase(PLUGIN, 'run');
+  assert.ok(!/budget exceeded|too long.*(return|park)/i.test(run));
+});
+
+test('fault 19: the implementer brief states that the plugin root is read-only', () => {
+  const loop = expertsLib.sharedSections(PLUGIN)['build-loop'];
+  assert.match(loop, /plugin's own folder[^.]*is read-only: never create or edit a file in it/);
+});

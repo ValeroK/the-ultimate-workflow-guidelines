@@ -151,7 +151,7 @@ function matchingTopicals(cwd, card, memoryRoot = '') {
  * exist (and that no card is to create), or no test-plan section for the card, fails with a reason
  * the run turns into a park.
  */
-function pack(cwd, { plan, card: name, feature, resume = false, adhoc = false }) {
+function pack(cwd, { plan, card: name, feature, resume = false, adhoc = false, dry = false }) {
   if (!plan) throw new Error('pack needs --plan');
   const planFile = path.resolve(cwd, plan);
   const planText = fs.readFileSync(planFile, 'utf8');
@@ -226,9 +226,12 @@ function pack(cwd, { plan, card: name, feature, resume = false, adhoc = false })
 
   const intro = 'Read these before you write anything. Paths are relative to the project root; "lines a-b" is the part of the file that matters. An entry marked "if present" may not exist yet: skip it then.';
   const built = packLib.assemble({ title: `# Context pack: card ${card.name} (${card.title})`, intro, entries, mayChange: card.paths.join(', ') || '(none listed)', budget: budget.budget, warnings: [...packWarnings, ...(budget.warning ? [budget.warning] : [])] });
-  fs.mkdirSync(dir, { recursive: true });
   const file = path.join(dir, 'context.md');
-  fs.writeFileSync(file, built.body);
+  // A dry pack (the plan-time check) measures and writes nothing.
+  if (!dry) {
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(file, built.body);
+  }
   const contextFile = rel(cwd, file);
   if (problems.length > 0) return { ok: false, card: card.name, reason: `missing input: ${problems.join('; ')}`, contextFile };
   return { ok: true, card: card.name, contextFile, entries: entries.length, tokens: built.tokens, budget: built.budget, dropped: built.dropped, overBudget: built.overBudget, warnings: built.warnings };
@@ -682,7 +685,9 @@ function journalAdd(cwd, { feature, card, from, status = '', at = new Date().toI
   const text = fs.readFileSync(path.resolve(cwd, from), 'utf8').replace(/^﻿/, '').trim();
   const body = lines(text).filter((l) => l.trim() !== '').map((l) => (/^\s*[-*]\s/.test(l) ? l.trim() : `- ${l.trim()}`));
   if (body.length === 0) throw new Error(`${from} is empty: a card with nothing to say writes one line saying so`);
-  if (body.length > JOURNAL_CARD_LINES) throw new Error(`${body.length} lines for card ${card}; a journal entry is at most ${JOURNAL_CARD_LINES}. Shorten it and add it again`);
+  // A size limit warns and never stops a run: the entry keeps its first lines and says so.
+  const tooLong = body.length > JOURNAL_CARD_LINES ? `${body.length} lines for card ${card}; a journal entry is at most ${JOURNAL_CARD_LINES}, so only the first ${JOURNAL_CARD_LINES} were kept` : '';
+  if (tooLong) body.length = JOURNAL_CARD_LINES;
   const file = path.join(runDir(cwd, feature), 'journal.md');
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const existing = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : `# Run journal: ${feature}\n\nLessons from each card of this run, for the cards after it. Not committed; harvest reads it at the end.\n`;
@@ -691,7 +696,7 @@ function journalAdd(cwd, { feature, card, from, status = '', at = new Date().toI
   fs.writeFileSync(file, next);
   const count = lines(next).length;
   const entries = journalEntries(next);
-  return { ok: true, card, journal: rel(cwd, file), lines: count, ...(count > JOURNAL_MAX_LINES ? { overLimit: true, oldest: entries.slice(0, Math.max(1, entries.length - 3)).map((e) => e.card) } : {}) };
+  return { ok: true, card, journal: rel(cwd, file), lines: count, ...(tooLong ? { warning: tooLong } : {}), ...(count > JOURNAL_MAX_LINES ? { overLimit: true, oldest: entries.slice(0, Math.max(1, entries.length - 3)).map((e) => e.card) } : {}) };
 }
 
 function journalEntries(text) {

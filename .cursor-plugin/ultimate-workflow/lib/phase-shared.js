@@ -210,7 +210,7 @@ ${
 
 ${o.implementCommitRule || IMPLEMENT_COMMIT_RULE}
 
-Smallest change that works. Nothing beyond the plan. Do not improve adjacent code, reformat untouched lines, or rename anything not in scope -- every changed line must trace to a plan item.
+Smallest change that works. Nothing beyond the plan. Do not improve adjacent code, reformat untouched lines, or rename anything not in scope -- every changed line must trace to a plan item. The plugin's own folder (the one that holds experts/, phases/ and hooks/) is read-only: never create or edit a file in it.
 
 List in decisions every choice you made that the plan does not state, each with major true or false. Major: a new or changed dependency, a schema or migration, an external service or environment variable, a removed or renamed exported name, security or permission configuration, a file outside this change's scope. Minor: everything else (a helper's name, an error message, an internal structure). A major one is not committed without the user, so prefer the plan's way when there is one.
 

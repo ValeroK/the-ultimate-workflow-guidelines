@@ -627,7 +627,21 @@ function present(opts) {
   fs.mkdirSync(path.dirname(at(outFile)), { recursive: true });
   fs.writeFileSync(at(outFile), text);
   const headings = text.split(/\r?\n/).filter((l) => /^#{1,6}\s/.test(l));
-  return { out: outFile, chars: text.length, bytes: Buffer.byteLength(text), lastHeading: headings.length ? headings[headings.length - 1] : '', confirmed: Boolean(confirm), appended: Boolean(append) };
+  // Confirming the test plan shows, now, the warning the run would show for a card whose pack is over its budget (fault 22).
+  let packWarnings = [];
+  if (confirm === 'tests_confirmed') {
+    try {
+      const auto = require('./autopilot.js');
+      const planRel = path.relative(cwd, at(outFile)).split(path.sep).join('/');
+      for (const c of require('./cards.js').parseCards(text)) {
+        const r = auto.pack(cwd, { plan: planRel, card: c.name, feature: 'plan-check', dry: true });
+        if (r.overBudget) packWarnings.push(`card ${c.name}: its context pack is about ${r.tokens} tokens against a budget of ${r.budget}; the run goes on with a warning (raise pack_budget in the plan, or split the card)`);
+      }
+    } catch {
+      packWarnings = [];
+    }
+  }
+  return { out: outFile, chars: text.length, bytes: Buffer.byteLength(text), lastHeading: headings.length ? headings[headings.length - 1] : '', confirmed: Boolean(confirm), appended: Boolean(append), ...(packWarnings.length ? { packWarnings } : {}) };
 }
 
 /** Add to a plan's experts. Returns what changed; a human's entries are always kept. */

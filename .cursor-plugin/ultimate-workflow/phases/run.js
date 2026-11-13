@@ -12,6 +12,7 @@ export const meta = {
 }
 
 // @shared agent-names
+// @shared recheck
 
 // The autopilot run (PLAN-autopilot.md). After the user's two confirmations nothing stops for them:
 // every card is built, verified, expert-checked and committed, or parked on a branch with its
@@ -192,14 +193,7 @@ async function expertsCheck(card, carried, tag = '') {
   let added = []
   if (AVAILABLE.length > 0) {
     const askRecheck = (label) => agent(
-      `Decide which domain experts should review this change. The diff is saved at .ultimate-workflow/review.diff; read it, and the surrounding code where a hunk is not clear on its own.
-
-Available experts (the only names you may answer with):
-${AVAILABLE.map((e) => `- ${e.name}: ${e.description}`).join('\n')}
-
-Already selected: ${selected.length ? selected.join(', ') : 'none'}.
-
-Name every available expert that applies to this change and is not already selected, each with one sentence tying it to something in the diff. You cannot remove one. If none apply, return an empty list.`,
+      recheckPrompt('.ultimate-workflow/review.diff', AVAILABLE, selected),
       { agentType: agentName('uw-explorer'), label, phase: currentPhase, schema: SELECTION, ...modelOpt(IMPLEMENTER_MODEL) }
     )
     // Asked once more when it returns nothing, with a label built from card and tag only.

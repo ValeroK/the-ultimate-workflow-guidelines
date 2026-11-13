@@ -73,6 +73,7 @@ if (noExperts && (planned.length > 0 || expertsOnly)) {
   return { ok: false, error: 'noExperts contradicts experts/expertsOnly: pass one or the other. Nothing was reviewed.' }
 }
 
+// @shared recheck
 const RECHECK_ANSWER = SELECTION
 // The experts of the last check stay selected while the changes are the same work in progress
 // (prepare's `keep`, and the experts a changed-only review narrows): a recheck that answers
@@ -92,14 +93,7 @@ const notInstalled = []
 if (!noExperts && available.length > 0 && args.recheck !== false) {
   phase('Recheck')
   const answer = await agent(
-    `Decide which domain experts should review this change. The diff is saved at ${args.diffFile}; read it, and read the surrounding code where a hunk is not clear on its own.
-
-Available experts (the only names you may answer with):
-${describeExperts(available)}
-
-Already selected: ${experts.length ? experts.join(', ') : 'none'}.
-
-Name every available expert that applies to this change and is not already selected, each with one sentence tying it to something in the diff. You cannot remove an expert that is already selected; do not mention those. When you are unsure whether one applies, include it: an unnecessary review costs a few minutes, a missed one costs a defect nobody looked for. If none apply, return an empty list.`,
+    recheckPrompt(args.diffFile, available, experts),
     { agentType: agentName('uw-explorer'), label: 'recheck', phase: 'Recheck', schema: RECHECK_ANSWER }
   )
   if (!answer) {

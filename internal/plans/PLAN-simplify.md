@@ -254,6 +254,7 @@ Each card is built by hand, test first, and ends with the full verify command gr
   depends: reminders
   One assemble function builds the runnable script from `phases/<name>.js` plus `lib/phase-shared.js`; `stageScript` and the test loader (`evals/security-expert/lib/run-workflow.js`) both call it, so tests run what users run. The shared file is read from the plugin only, never from the project. Its tests live under `evals/`, because the verify command does not reach `lib/`.
   `stageScript` adds the shared block to the copy it already writes. Moved in: `agentName` and the model options, the expert-lane block with `addOnly`, `asReader`, `readFirst`, `buildLoop`, the cover rule, the measure-line parser, and the text-to-file helper. The equal-copies tests are replaced by a test that each staged script holds the block exactly once. No behaviour change.
+  status: committed 9c63657
 - selection: Experts are chosen once, at plan; later steps only add
   paths: .cursor-plugin/ultimate-workflow/phases/plan.js, .cursor-plugin/ultimate-workflow/phases/tests.js, .cursor-plugin/ultimate-workflow/phases/review.js, .cursor-plugin/ultimate-workflow/phases/run.js, .cursor-plugin/ultimate-workflow/experts/experts.js
   depends: shared-blocks

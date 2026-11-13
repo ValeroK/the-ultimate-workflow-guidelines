@@ -362,3 +362,18 @@ const readFirst = (dir, name, stage) =>
   ? `Read ${dir}/${name}/references/${stage}.md.\n\nTHE PROTOCOL every expert follows:\n${protocolText}`
   : `Read ${dir}/protocol.md first (the rules every expert follows), then ${dir}/${name}/references/${stage}.md.`
 // @@end read-first
+
+// @@section recheck
+// The check of a diff for experts nobody selected (review, and every card of the run). The experts are chosen once,
+// at plan; this does not ask that question again. It asks which experts' areas the diff touches, and code adds
+// them (addOnly), so an answer can add and never remove.
+const recheckPrompt = (diffFile, available, selected) =>
+  `Report which domain experts' areas this change touches. The diff is saved at ${diffFile}; read it, and read the surrounding code where a hunk is not clear on its own.
+
+Available experts (the only names you may answer with):
+${available.map((e) => `- ${e.name}: ${e.description}`).join(String.fromCharCode(10))}
+
+Already selected: ${selected.length ? selected.join(', ') : 'none'}.
+
+List every available expert that is not already selected and whose area this diff touches, each with one sentence tying it to something in the diff. You are reporting what the diff touches; you are not choosing who reviews, and you cannot remove anyone. If none, return an empty list.`
+// @@end recheck

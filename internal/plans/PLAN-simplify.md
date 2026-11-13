@@ -258,6 +258,7 @@ Each card is built by hand, test first, and ends with the full verify command gr
 - selection: Experts are chosen once, at plan; later steps only add
   paths: .cursor-plugin/ultimate-workflow/phases/plan.js, .cursor-plugin/ultimate-workflow/phases/tests.js, .cursor-plugin/ultimate-workflow/phases/review.js, .cursor-plugin/ultimate-workflow/phases/run.js, .cursor-plugin/ultimate-workflow/experts/experts.js
   depends: shared-blocks
+  status: committed aca8eeb
 - one-review: The run uses the by-hand review
   paths: .cursor-plugin/ultimate-workflow/phases/review.js, .cursor-plugin/ultimate-workflow/phases/run.js, .cursor-plugin/ultimate-workflow/lib/phase-shared.js, .cursor-plugin/ultimate-workflow/experts/experts.js
   depends: selection

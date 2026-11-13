@@ -1104,7 +1104,8 @@ function prepare(cwd, range = 'working', pluginRoot = PLUGIN_ROOT, { delta = fal
   }
   // The shared rules ride with the skills, because the workflow cannot read files (see protocolText).
   return {
-    hash, range, diffFile, files: changes.files, available, skills: { ...skills, _protocol: protocolText(pluginRoot) },
+    // The files of the diff that was saved: for a range, the range's files, not whatever the working tree holds (fault 20).
+    hash, range, diffFile, files: range === 'working' ? changes.files : change.files, available, skills: { ...skills, _protocol: protocolText(pluginRoot) },
     ...(skillProblems.length > 0 ? { skillProblems } : {}),
     ...(d && d.delta ? { delta: d.delta, deltaFile: d.deltaFile } : {}),
     ...(d && d.refused ? { deltaRefused: d.refused } : {}),

@@ -498,5 +498,9 @@
  [
   "evals/experts/run-phase.test.js",
   "run.js carries the build loop and the build model exactly as build.js has them"
+ ],
+ [
+  "evals/security-expert/review-fanout.test.js",
+  "a failed recheck is visible, runs the planned experts only, and is not recorded as a recheck"
  ]
 ]

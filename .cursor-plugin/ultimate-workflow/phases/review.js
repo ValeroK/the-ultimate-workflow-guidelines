@@ -33,7 +33,8 @@ const extraLenses = ((args && args.lenses) || '')
   .map((l) => l.trim())
   .filter(Boolean)
 
-const CORE = ['correctness', 'simplicity', 'surgical-scope', 'test-coverage']
+// @shared core-lenses
+const CORE = CORE_LENSES
 
 // @shared lane-helpers
 
@@ -97,8 +98,11 @@ if (!noExperts && available.length > 0 && args.recheck !== false) {
     { agentType: agentName('uw-explorer'), label: 'recheck', phase: 'Recheck', schema: RECHECK_ANSWER }
   )
   if (!answer) {
+    // Decided 2026-11-13: a recheck that answers nothing does not refuse the commit. The planned experts review, and the
+    // lane says the recheck failed, so it is named in the report and never read as "no areas touched".
     recheckFailed = true
-    log('recheck failed; continuing with the planned experts only, and the commit gate will not be satisfied')
+    recheck = true
+    log('recheck failed; continuing with the planned experts only, and the report names the failed recheck')
   } else {
     const merged = addOnly(experts, answer.experts, available)
     experts = merged.experts

@@ -111,7 +111,7 @@ test('prepare: a main..HEAD review with nothing uncommitted still selects skills
   git(dir, 'add', '-A');
   git(dir, 'commit', '-q', '-m', 'feature');
   const p = ex.prepare(dir, 'main..HEAD', PLUGIN);
-  assert.deepEqual(p.files, [], 'nothing uncommitted');
+  assert.deepEqual(p.files, ['main.go'], 'the files of the range (fault 20)');
   assert.ok(p.skills.developer.skills.some((s) => s.name === 'go-craft'));
   assert.equal(p.skills.security, undefined, 'an expert with no skills is left out');
 });

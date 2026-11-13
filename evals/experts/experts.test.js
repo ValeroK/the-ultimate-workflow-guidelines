@@ -317,7 +317,7 @@ test('prepare with a git range saves that range, while the fingerprint stays the
   git(dir, 'commit', '-q', '-m', 'feature');
   const p = ex.prepare(dir, 'main..HEAD', PLUGIN);
   assert.match(fs.readFileSync(path.join(dir, p.diffFile), 'utf8'), /b\.js/);
-  assert.deepStrictEqual(p.files, [], 'nothing uncommitted');
+  assert.deepStrictEqual(p.files, ['src/b.js'], 'the files of the saved range, not of the working tree (fault 20)');
 });
 
 // ---- recording evidence --------------------------------------------------------

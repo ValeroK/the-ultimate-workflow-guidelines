@@ -886,7 +886,8 @@ test('44: a recheck agent null is retried once', async () => {
   assert.equal(second.result.cards[0].status, 'committed', JSON.stringify(second.result.cards[0]));
   const commit = twice.calls.find((c) => c.label === '1:commit');
   const lane = JSON.parse(/<<<CONTENT\n([\s\S]*?)\nCONTENT>>>/.exec(commit.prompt)[1]).expertLane;
-  assert.equal(lane.recheck, false);
+  assert.equal(lane.recheck, true, 'a failed recheck does not refuse the commit (owner decision, 2026-11-13)');
+  assert.equal(lane.recheckFailed, true, 'and it is named');
   assert.deepStrictEqual(lane.added, []);
 });
 

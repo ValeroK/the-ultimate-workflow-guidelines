@@ -47,10 +47,10 @@ test('selection: the review recheck can only add: an empty answer, a name not in
   assert.deepStrictEqual(odd.result.expertLane.added, ['data']);
 });
 
-test('selection: a recheck that returns nothing is a failed recheck, not "no areas touched"', async () => {
+test('selection: a recheck that returns nothing is named as failed and does not refuse the commit', async () => {
   const { result } = await wf('review')(reviewArgs(), reviewer(null));
   assert.strictEqual(result.expertLane.recheckFailed, true);
-  assert.strictEqual(result.expertLane.recheck, false);
+  assert.strictEqual(result.expertLane.recheck, true, 'it does not refuse the commit (owner decision, 2026-11-13)');
   assert.ok(result.expertLane.selected.includes('security'));
 });
 

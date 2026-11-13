@@ -377,3 +377,8 @@ Already selected: ${selected.length ? selected.join(', ') : 'none'}.
 
 List every available expert that is not already selected and whose area this diff touches, each with one sentence tying it to something in the diff. You are reporting what the diff touches; you are not choosing who reviews, and you cannot remove anyone. If none, return an empty list.`
 // @@end recheck
+
+// @@section core-lenses
+// The four lenses every review runs, by hand and at the end of a run.
+const CORE_LENSES = ['correctness', 'simplicity', 'surgical-scope', 'test-coverage']
+// @@end core-lenses

@@ -190,6 +190,7 @@ async function expertsCheck(card, carried, tag = '') {
   let selected = [...planned]
   for (const f of carried) if (f.expert && !selected.includes(f.expert) && AVAILABLE.some((e) => e.name === f.expert)) selected.push(f.expert)
   let recheck = false
+  let recheckFailed = false
   let added = []
   if (AVAILABLE.length > 0) {
     const askRecheck = (label) => agent(
@@ -203,6 +204,10 @@ async function expertsCheck(card, carried, tag = '') {
       const names = (answer.experts || []).map((x) => String((x && x.name) || '').trim()).filter((n) => AVAILABLE.some((e) => e.name === n) && !selected.includes(n))
       added = [...new Set(names)]
       selected = [...selected, ...added]
+    } else {
+      // Two empty answers: named as failed in the lane, never read as "no areas touched", and it does not refuse the commit.
+      recheck = true
+      recheckFailed = true
     }
   } else recheck = true
   const reviewing = selected.map((n) => AVAILABLE.find((e) => e.name === n)).filter((e) => e && e.stages.includes('review'))
@@ -282,6 +287,7 @@ For each: read the code around it, check whether the failure path is reachable, 
     failed,
     skillsLoaded: Object.fromEntries(reviewing.map((e) => [e.name, skillsFor(e.name).map((s) => s.name)])),
     recheck,
+    ...(recheckFailed ? { recheckFailed: true } : {}),
     findings: laneFindings,
     concerns,
   }
@@ -701,7 +707,8 @@ if (!stateError && (unfixed.length > 0 || (state.pendingFindings || []).length >
 
 waiting = waitingFor()
 setPhase('Review')
-const REVIEW_LENSES = ['correctness', 'simplicity', 'surgical-scope', 'test-coverage']
+// @shared core-lenses
+const REVIEW_LENSES = CORE_LENSES
 // A findings card that ran added a commit the recorded head does not cover.
 const nothingNew = !findingsCard && Boolean(state.reviewedHead) && state.reviewedHead === state.head
 // The harvest has its own recorded head: a harvest that failed is run again though the review is on record.

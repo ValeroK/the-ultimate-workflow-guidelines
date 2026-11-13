@@ -640,3 +640,73 @@ const PROPOSALS = {
   },
 }
 // @@end harvest-proposals
+
+
+// @@section cover-rule
+// Which files a card may change: its paths (globs, `dir/**`, `dir/`), and for a finding the test files its build wrote.
+// experts/cards.js `covers` is the same rule for code that can import; a test holds the two to the same answers.
+function covers(paths, file) {
+  const f = String(file || '').replace(/\\/g, '/').replace(/^\.\//, '')
+  return (paths || []).some((g) => {
+    const p = String(g).replace(/\\/g, '/').replace(/^\.\//, '')
+    if (p.endsWith('/**')) return f === p.slice(0, -3) || f.startsWith(p.slice(0, -2))
+    if (p.endsWith('/')) return f.startsWith(p)
+    const re = new RegExp(`^${p.split('**/').map((s) => s.split('*').map((x) => x.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('[^/]*')).join('(?:.*/)?')}$`)
+    return re.test(f)
+  })
+}
+
+/**
+ * Whether a finding's file is one this card may change: under its paths, or one of the test files
+ * its build wrote. Agents often name a file by its absolute path, and the script has no project
+ * root, so an absolute path is matched by its trailing segments.
+ */
+function inCard(card, file, testFiles = []) {
+  const f = String(file || '').replace(/\\/g, '/').replace(/^\.\//, '')
+  if (!f) return false
+  const absolute = /^([A-Za-z]:)?\//.test(f)
+  const parts = f.split('/').filter(Boolean)
+  const candidates = absolute ? parts.map((_, i) => parts.slice(i).join('/')) : [f]
+  const tests = (testFiles || []).map((t) => String(t).replace(/\\/g, '/'))
+  return candidates.some((c) => covers(card.paths || [], c) || tests.some((t) => t === c || t.endsWith(`/${c}`)))
+}
+// @@end cover-rule
+
+
+// @@section measure-parser
+// How a `measure: bytes <glob> <= <number>` line of a plan is read. lib/claims.js evaluates this section and the tests
+// phase script has it pasted in, so there is one parser.
+const MEASURE = /^\s*[-*]\s+measure:\s*(.*)$/i;
+const CLAIM = /^bytes\s+(\S+)\s+<=\s+([0-9][0-9_,]*)$/i;
+// A glob is letters, digits, dot, dash, underscore, slash and star: no shell syntax, no backslash, no drive.
+const GLOB = /^[A-Za-z0-9._*/-]+$/;
+
+/** Why a glob is refused, or '' when it stays inside the root. */
+function globProblem(glob) {
+  if (!GLOB.test(glob)) return 'the glob may hold only letters, digits, . _ - / and *';
+  if (glob.startsWith('/')) return 'the glob must be relative to the project root';
+  if (glob.split('/').includes('..')) return 'the glob must not leave the project root';
+  return '';
+}
+
+/** Every `measure:` line of the plan, read: `{ line, understood, glob, limit }` or `{ line, understood: false, why }`. */
+function parseMeasures(planText) {
+  const out = [];
+  for (const raw of String(planText || '').split(/\r?\n/)) {
+    const m = MEASURE.exec(raw);
+    if (!m) continue;
+    const line = m[1].trim().replace(/^`|`$/g, '');
+    const claim = CLAIM.exec(line);
+    if (!claim) {
+      out.push({ line, understood: false, why: 'not of the form "bytes <glob> <= <number>"' });
+      continue;
+    }
+    const glob = claim[1].replace(/^`|`$/g, '');
+    const why = globProblem(glob);
+    if (why) out.push({ line, understood: false, why });
+    else out.push({ line, understood: true, glob, limit: Number(claim[2].replace(/[_,]/g, '')) });
+  }
+  return out;
+}
+
+// @@end measure-parser

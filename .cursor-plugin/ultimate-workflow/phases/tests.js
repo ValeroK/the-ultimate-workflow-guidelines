@@ -116,19 +116,9 @@ phase('Draft')
 // `measure:` line, and `experts.js claims` measures them before the user confirms. This script has no
 // file access, so it only reads the lines out of the final section and says which it cannot read; the
 // rule is the one in lib/claims.js (a test holds the two equal).
-const MEASURE_LINE = /^\s*[-*]\s+measure:\s*(.*)$/i
-const MEASURE_CLAIM = /^bytes\s+(\S+)\s+<=\s+([0-9][0-9_,]*)$/i
-const understoodGlob = (g) => /^[A-Za-z0-9._*/-]+$/.test(g) && !g.startsWith('/') && !g.split('/').includes('..')
+// @shared measure-parser
 function claimsOf(text) {
-  const lines = String(text || '')
-    .split(/\r?\n/)
-    .map((l) => MEASURE_LINE.exec(l))
-    .filter(Boolean)
-    .map((m) => m[1].trim().replace(/^`|`$/g, ''))
-    .map((line) => {
-      const c = MEASURE_CLAIM.exec(line)
-      return { line, understood: Boolean(c) && understoodGlob(c[1].replace(/^`|`$/g, '')) }
-    })
+  const lines = parseMeasures(text).map((m) => ({ line: m.line, understood: m.understood }))
   return {
     lines,
     stop: lines.some((l) => !l.understood),

@@ -17,19 +17,14 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const MEASURE = /^\s*[-*]\s+measure:\s*(.*)$/i;
-const CLAIM = /^bytes\s+(\S+)\s+<=\s+([0-9][0-9_,]*)$/i;
-// A glob is letters, digits, dot, dash, underscore, slash and star: no shell syntax, no backslash, no drive.
-const GLOB = /^[A-Za-z0-9._*/-]+$/;
+// The reading of a `measure:` line is one piece of code (the shared section `measure-parser` of lib/phase-shared.js), because
+// the tests phase script has to read the same lines and cannot import this file. It is evaluated here.
+const SHARED = fs.readFileSync(path.join(__dirname, 'phase-shared.js'), 'utf8').split(/\r?\n/);
+const at = SHARED.findIndex((l) => l.trim() === '// @@section measure-parser');
+const end = SHARED.findIndex((l, i) => i > at && l.trim() === '// @@end measure-parser');
+const { MEASURE, CLAIM, GLOB, globProblem, parseMeasures } = new Function(`${SHARED.slice(at + 1, end).join('\n')}\nreturn { MEASURE, CLAIM, GLOB, globProblem, parseMeasures }`)();
 const SKIP = new Set(['.git', 'node_modules']);
 
-/** Why a glob is refused, or '' when it stays inside the root. */
-function globProblem(glob) {
-  if (!GLOB.test(glob)) return 'the glob may hold only letters, digits, . _ - / and *';
-  if (glob.startsWith('/')) return 'the glob must be relative to the project root';
-  if (glob.split('/').includes('..')) return 'the glob must not leave the project root';
-  return '';
-}
 
 /** `*` stays inside one path segment; `**` + `/` matches any number of folders; a trailing `/**` is everything under the folder. */
 function globMatcher(glob) {
@@ -41,26 +36,6 @@ function globMatcher(glob) {
   const segment = (s) => s.split('*').map((x) => x.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('[^/]*');
   const re = new RegExp(`^${g.split('**/').map(segment).join('(?:.*/)?')}$`);
   return (file) => re.test(file);
-}
-
-/** Every `measure:` line of the plan, read: `{ line, understood, glob, limit }` or `{ line, understood: false, why }`. */
-function parseMeasures(planText) {
-  const out = [];
-  for (const raw of String(planText || '').split(/\r?\n/)) {
-    const m = MEASURE.exec(raw);
-    if (!m) continue;
-    const line = m[1].trim().replace(/^`|`$/g, '');
-    const claim = CLAIM.exec(line);
-    if (!claim) {
-      out.push({ line, understood: false, why: 'not of the form "bytes <glob> <= <number>"' });
-      continue;
-    }
-    const glob = claim[1].replace(/^`|`$/g, '');
-    const why = globProblem(glob);
-    if (why) out.push({ line, understood: false, why });
-    else out.push({ line, understood: true, glob, limit: Number(claim[2].replace(/[_,]/g, '')) });
-  }
-  return out;
 }
 
 /** The files under `root` as `{ path, bytes }`, paths with forward slashes. Links and junctions are not followed. */

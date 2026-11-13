@@ -483,3 +483,15 @@ test('memory under a nested root, not migrated: a proposal there brings the migr
   assert.equal(out.status, 0, out.stdout);
   assert.doesNotMatch(out.stdout, /not migrated/);
 });
+
+test('text to file: a warning holding $(...) and backticks reaches the notify command as a file path, and q() is applied to no plan or agent text', async () => {
+  const calls = [];
+  const evil = 'the plan cites `$(touch PWNED)`, which does not exist';
+  const pre = { ok: true, contextFile: '.ultimate-workflow/run/f/cards/1/context.md', tokens: 100, budget: 15000, overBudget: false, warnings: [evil] };
+  await loadWorkflow(RUN)(runArgs([card1({ preflight: pre })]), healthy(calls));
+  const notice = calls.find((c) => / notify /.test(c.prompt) && /--kind warning/.test(c.prompt));
+  assert.ok(notice, 'the warning is still shown');
+  const command = notice.prompt.split('\n').find((l) => /^\d+\. .* notify .*--kind warning/.test(l));
+  assert.ok(command && !command.includes('$(') && !command.includes('`') && /--reason-file/.test(command), command);
+  assert.ok(notice.prompt.includes('$(touch PWNED)'), 'the text is in the file the agent writes');
+});

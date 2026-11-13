@@ -38,7 +38,7 @@ const countOf = (text, needle) => text.split(needle).length - 1;
 const sections = experts.sharedSections(PLUGIN);
 
 test('shared block: lib/phase-shared.js is read by experts.js and holds every section the phases name', () => {
-  assert.deepStrictEqual(Object.keys(sections).sort(), ['agent-names', 'build-loop', 'build-model', 'cards-experts-check', 'core-lenses', 'harvest-proposals', 'lane-helpers', 'read-first', 'reader-model', 'recheck', 'review-core', 'selection']);
+  assert.deepStrictEqual(Object.keys(sections).sort(), ['agent-names', 'build-loop', 'build-model', 'cards-experts-check', 'core-lenses', 'cover-rule', 'harvest-proposals', 'lane-helpers', 'measure-parser', 'read-first', 'reader-model', 'recheck', 'review-core', 'selection']);
   for (const f of fs.readdirSync(path.join(PLUGIN, 'phases')).filter((x) => x.endsWith('.js'))) {
     const text = fs.readFileSync(path.join(PLUGIN, 'phases', f), 'utf8');
     for (const m of text.matchAll(/^[ \t]*\/\/ @shared ([a-z-]+)/gm)) assert.ok(m[1] in sections, `${f} names ${m[1]}`);
@@ -118,4 +118,25 @@ test('staged script: argument values holding script-breaking text arrive as data
   await fn({}, async () => null, async (t) => Promise.all(t.map(async (x) => { try { return await x(); } catch { return null; } })), () => {}, () => {});
   for (const f of ['PWNED', 'PWNED3']) assert.ok(!fs.existsSync(path.join(dir, f)) && !fs.existsSync(path.join(process.cwd(), f)), f);
   assert.strictEqual(countOf(text.replace(/\r\n/g, '\n'), sections['lane-helpers'].replace(/\r\n/g, '\n')), 1, 'the block is still there exactly once');
+});
+
+test('cover rule: the run\'s shared cover rule and cards.covers give the same answer on a table of paths', () => {
+  const cards = require(path.join(PLUGIN, 'experts', 'cards.js'));
+  const shared = experts.sharedSections(PLUGIN)['cover-rule'];
+  const { covers } = new Function(`${shared}\nreturn { covers }`)();
+  const table = [
+    [['src/**'], 'src/a/b.js'], [['src/**'], 'src'], [['src/**'], 'srcx/a.js'], [['src/'], 'src/a.js'], [['src/'], 'other/a.js'],
+    [['README.md'], 'README.md'], [['README.md'], 'docs/README.md'], [['src/*.js'], 'src/a.js'], [['src/*.js'], 'src/x/a.js'],
+    [['**/*.test.js'], 'a/b/c.test.js'], [['**/*.test.js'], 'c.test.js'], [['./src/**'], 'src/a.js'], [['a.js', 'b.js'], 'b.js'], [[], 'a.js'],
+  ];
+  for (const [globs, file] of table) assert.strictEqual(covers(globs, file), cards.covers(globs, file, experts.globToRegExp), `${JSON.stringify(globs)} vs ${file}`);
+});
+
+test('measure parser: lib/claims.js evaluates the shared section and the tests phase has it pasted in, so there is one parser', () => {
+  const claims = require(path.join(PLUGIN, 'lib', 'claims.js'));
+  const sec = experts.sharedSections(PLUGIN)['measure-parser'];
+  assert.ok(sec.includes('function parseMeasures'));
+  assert.ok(!/^const MEASURE = /m.test(fs.readFileSync(path.join(PLUGIN, 'lib', 'claims.js'), 'utf8')), 'claims.js holds no copy');
+  assert.ok(!/MEASURE_LINE|understoodGlob/.test(fs.readFileSync(path.join(PLUGIN, 'phases', 'tests.js'), 'utf8')), 'the tests phase holds no copy');
+  assert.deepStrictEqual(claims.parseMeasures('- measure: bytes src/** <= 10')[0], { line: 'bytes src/** <= 10', understood: true, glob: 'src/**', limit: 10 });
 });

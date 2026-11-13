@@ -198,31 +198,7 @@ At most 10 short lines: what tripped it up, conventions found in the code, decis
 }
 
 /** Where a non-blocking finding goes: the first later card whose paths cover its file, else the findings card. */
-function covers(paths, file) {
-  const f = String(file || '').replace(/\\/g, '/').replace(/^\.\//, '')
-  return (paths || []).some((g) => {
-    const p = String(g).replace(/\\/g, '/').replace(/^\.\//, '')
-    if (p.endsWith('/**')) return f === p.slice(0, -3) || f.startsWith(p.slice(0, -2))
-    if (p.endsWith('/')) return f.startsWith(p)
-    const re = new RegExp(`^${p.split('**/').map((s) => s.split('*').map((x) => x.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('[^/]*')).join('(?:.*/)?')}$`)
-    return re.test(f)
-  })
-}
-
-/**
- * Whether a finding's file is one this card may change: under its paths, or one of the test files
- * its build wrote. Agents often name a file by its absolute path, and the script has no project
- * root, so an absolute path is matched by its trailing segments.
- */
-function inCard(card, file, testFiles = []) {
-  const f = String(file || '').replace(/\\/g, '/').replace(/^\.\//, '')
-  if (!f) return false
-  const absolute = /^([A-Za-z]:)?\//.test(f)
-  const parts = f.split('/').filter(Boolean)
-  const candidates = absolute ? parts.map((_, i) => parts.slice(i).join('/')) : [f]
-  const tests = (testFiles || []).map((t) => String(t).replace(/\\/g, '/'))
-  return candidates.some((c) => covers(card.paths || [], c) || tests.some((t) => t === c || t.endsWith(`/${c}`)))
-}
+// @shared cover-rule
 
 const FIXED = {
   type: 'object',
@@ -264,7 +240,9 @@ async function runCard(card, { adhoc = false } = {}) {
   // A warning the pack returned (a mistyped pack_budget) is shown once, however many cards carry it.
   for (const w of (pre.warnings || []).filter((x) => !warned.has(x))) {
     warned.add(w)
-    await runSteps(`${card.name}:warning`, [cliCmd('notify', '--feature', FEATURE, '--kind', 'warning', '--card', card.name, '--reason', q(w))])
+    // The warning can hold text from the plan (a cited name), so it goes through a file and never onto the command line.
+    const warningFile = `${RUN_DIR}/warning-${warned.size}.txt`
+    await runSteps(`${card.name}:warning`, [cliCmd('notify', '--feature', FEATURE, '--kind', 'warning', '--card', card.name, '--reason-file', q(warningFile))], [{ path: warningFile, text: w }])
   }
   if (pre.overBudget) await runSteps(`${card.name}:budget`, [cliCmd('notify', '--feature', FEATURE, '--kind', 'over-budget', '--card', card.name, '--reason', q(`the context pack is about ${pre.tokens} tokens, over its budget of ${pre.budget}: the required entries alone are too large`))])
   // The plan shows the card as running before any work, so a run that dies inside it leaves it there.

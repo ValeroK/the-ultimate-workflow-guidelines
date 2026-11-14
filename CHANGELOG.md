@@ -35,7 +35,7 @@ A smaller plugin: one blocking check, at commit, with reminders everywhere else,
 
 ### Added
 
-- **The assistant talks to the user in Simplified Technical English (ASD-STE100)**, and every question it asks has five parts: the concern, the options, the pros and cons of each, a recommendation, and the effect of each answer. The rule is in `AGENTS.md`, the always-on Cursor rule and the workflow skill (principle 5 and "How to stop and ask").
+- **The assistant talks to the user in Simplified Technical English (ASD-STE100)**, and every question it asks has five parts: the concern, the options, the pros and cons of each, a recommendation, and the effect of each answer. The rule is in `AGENTS.md`, the always-on Cursor rule and the workflow skill (principle 5 and "How to stop and ask"). New projects get it in their own `AGENTS.md` from the bootstrap template.
 - The value report shows, per expert, runs, catches, confirmed catches and an estimated cost. No expert or skill was removed.
 
 ### Differences the owner accepted (2026-11-13)

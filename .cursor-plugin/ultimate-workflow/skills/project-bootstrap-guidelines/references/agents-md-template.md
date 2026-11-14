@@ -33,6 +33,13 @@ Short textual map of the components and how they connect. Two or three sentences
 
 Keep this section to intentional, up-front project decisions. Empirical discoveries go under `## Gotchas`.
 
+## How the assistant talks to you
+
+Keep this section as it is. It is a rule, not a placeholder.
+
+- **Simplified Technical English (ASD-STE100).** Short sentences, active voice, one idea in each sentence, the same word for the same thing. Technical names (files, commands, code) stay as they are.
+- **Every question has five parts:** the concern, the options, the pros and cons of each option, a recommendation, and the effect of each answer. One question at a time.
+
 ## Key files
 
 Points at every other living doc so future turns know where to look for what.

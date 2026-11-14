@@ -96,24 +96,22 @@ function blockingChecks(root) {
   return CHECKS.filter(([, file, re]) => re.test(src.get(file) || '')).map(([id]) => id);
 }
 
-// State files, by the name that code uses for them.
+// State files, one row per kind: a file or folder a plugin module writes and another reads between runs. Rows that are
+// one folder or one record count once. Three things the 4.8.0 list counted are not state and are left out on purpose:
+//   - the plan's front matter (the user's own document, not a file the plugin keeps);
+//   - verify.lock and verify.log (a lock while a run is going and a log of its output; PLAN-simplify section 5.3);
+//   - heartbeat.json after 5.0.0 (nothing writes or reads it; status.js only names a leftover). It counts while a
+//     module keeps the file name as its own constant (FILE = 'heartbeat.json'), which is how 4.8.0 wrote it.
 const STATE = [
-  ['plan front matter', /confirmed_hash|plan_confirmed/],
   ['active-plan', /'active-plan'/],
-  ['verify.json', /verify\.json/],
-  ['baseline.json', /baseline\.json/],
-  ['experts records and prepared.json', /prepared\.json/],
-  ['waivers.json', /waivers\.json/],
-  ['_recheck.json', /_recheck/],
-  ['ledger.jsonl', /ledger\.jsonl/],
-  ['run folder (run.json, journal, parked.md, notifications)', /run\.json/],
-  ['review.diff', /review\.diff/],
-  ['snapshots', /snapshots/],
-  ['verify.lock', /verify\.lock/],
-  ['verify.log', /verify\.log/],
-  ['heartbeat.json', /heartbeat\.json/],
-  ['memory-warnings.json', /memory-warnings\.json/],
-  ['commit-check.json', /commit-check\.json/],
+  ['verify.json', /verify.json/],
+  ['baseline.json', /baseline.json/],
+  ['experts evidence folder (records, prepared.json, waivers.json, _recheck.json)', /prepared.json|waivers.json|_recheck/],
+  ['ledger.jsonl', /ledger.jsonl/],
+  ['run folder (run.json, journal, parked.md, notifications, memory-warnings.json)', /run.json|memory-warnings.json/],
+  ['saved diffs (review.diff, snapshots)', /review.diff|snapshots/],
+  ['commit-check.json', /commit-check.json/],
+  ['heartbeat.json', /FILE = 'heartbeat.json'/],
 ];
 
 function stateFiles(root) {

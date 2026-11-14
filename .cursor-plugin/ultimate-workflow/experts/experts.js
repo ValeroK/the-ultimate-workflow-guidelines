@@ -27,6 +27,7 @@
 //   node experts.js read    --plan P                        the plan's experts
 //   node experts.js select  --plan P --add a,b              add experts to the plan (never removes)
 //   node experts.js prepare [--range working|A..B]          save the diff, fingerprint the tree
+//   node experts.js check --range A..B                       was that range reviewed, with no high finding open (before merging a run branch)
 //   node experts.js record  --stage S [--plan P] < result   record a workflow result as evidence
 //   node experts.js record  --stage S [--plan P] --result R  the same, read from the Workflow output file R (never retype the result)
 //   node experts.js present --result R --field F --out P [--append] [--confirm plan_confirmed|tests_confirmed]
@@ -863,6 +864,10 @@ function workingChanges(cwd, planFile = '') {
 }
 
 const sha = (text) => crypto.createHash('sha256').update(text).digest('hex');
+/** The fingerprint of an empty working tree: a record under it reviewed nothing. */
+const EMPTY_HASH = sha('');
+/** The fingerprint of a reviewed range: of the range's own diff, never of the working tree. */
+const rangeHash = (diff) => sha(`range\n${diff}`);
 const fingerprint = (cwd, planFile = '') => sha(workingChanges(cwd, planFile).diff);
 /**
  * What a full test run is recorded against. A merge is the tree that will be committed (its
@@ -1090,7 +1095,35 @@ function allFindings(cwd, hash, names) {
   for (const name of names) {
     const r = readJson(evidenceFile(cwd, 'review', name));
     if (!r || !Array.isArray(r.findings)) continue;
-    for (const f of r.findings) out.push({ ...f, waived: Boolean(waivers[f.id]), current: r.hash === hash });
+    // A record counts for the working tree only when it was made of the working tree: not of a range, and not of an empty tree
+    // (which reviewed nothing; 5.0.0 wrote such records for range reviews on a clean tree).
+    const ofWorkingTree = (!r.range || r.range === 'working') && r.hash !== EMPTY_HASH;
+    for (const f of r.findings) out.push({ ...f, waived: Boolean(waivers[f.id]), current: ofWorkingTree && r.hash === hash, ...(r.range && r.range !== 'working' ? { range: r.range } : {}) });
+  }
+  return out;
+}
+
+/**
+ * Whether a range was reviewed and has no high finding open: the question before merging a run branch. The range is
+ * fingerprinted by its own diff, so only a review of this very range answers it, and a later commit makes it unreviewed.
+ */
+function rangeCheck(cwd, range, pluginRoot = PLUGIN_ROOT) {
+  const hash = rangeHash(git(cwd, ['diff', ...DIFF_FORMAT, range]));
+  const names = list(pluginRoot).experts.map((e) => e.name);
+  const records = names.map((n) => readJson(evidenceFile(cwd, 'review', n))).filter((r) => r && r.hash === hash);
+  const open = allFindingsOfHash(cwd, hash, names).filter((f) => blocking(f) && !f.waived);
+  if (records.length === 0) return { ok: false, range, reviewed: false, open: [], reason: `the range ${range} was not reviewed by the experts (no review of exactly this range is on record)` };
+  return open.length === 0 ? { ok: true, range, reviewed: true, open: [], experts: records.map((r) => r.name) } : { ok: false, range, reviewed: true, open, reason: `${open.length} high-confidence finding(s) of the review of ${range} are open` };
+}
+
+/** Every finding of the records made under one fingerprint, whatever they reviewed. */
+function allFindingsOfHash(cwd, hash, names) {
+  const waivers = readWaivers(cwd);
+  const out = [];
+  for (const name of names) {
+    const r = readJson(evidenceFile(cwd, 'review', name));
+    if (!r || r.hash !== hash || !Array.isArray(r.findings)) continue;
+    for (const f of r.findings) out.push({ ...f, waived: Boolean(waivers[f.id]) });
   }
   return out;
 }
@@ -1126,7 +1159,9 @@ function prepare(cwd, range = 'working', pluginRoot = PLUGIN_ROOT, { delta = fal
   const diffFile = path.join('.ultimate-workflow', 'review.diff');
   fs.mkdirSync(path.join(cwd, '.ultimate-workflow'), { recursive: true });
   fs.writeFileSync(path.join(cwd, diffFile), diff);
-  const hash = sha(changes.diff);
+  // The working tree's own fingerprint is what snapshots and a changed-only check are keyed by; a range has its own.
+  const workHash = sha(changes.diff);
+  const hash = range === 'working' ? workHash : rangeHash(diff);
   writeJson(path.join(cwd, EVIDENCE, 'prepared.json'), { hash, range, at: new Date().toISOString() });
   // Computed before this tree's snapshot is saved; only the experts check (range working) narrows.
   const d = delta ? (range === 'working' ? computeDelta(cwd, changes) : { refused: 'a changed-only review needs range working' }) : null;
@@ -1135,7 +1170,7 @@ function prepare(cwd, range = 'working', pluginRoot = PLUGIN_ROOT, { delta = fal
   // experts read: 1.8 MB of it on a real install. Say so, and name the biggest, before anyone pays
   // to review it; ignoring it is the user's call.
   const heavy = untrackedHeavy(changes);
-  saveSnapshot(cwd, hash, changes.diff);
+  saveSnapshot(cwd, workHash, changes.diff);
   const available = list(pluginRoot).experts;
   // Skills for every expert that could review, not only the planned ones: the recheck inside the
   // workflow can add an expert, and the workflow cannot read a file to fetch that expert's skills.
@@ -1241,10 +1276,12 @@ function record(cwd, stage, result, { planFile = '', pluginRoot = PLUGIN_ROOT } 
   if (unknown.length > 0) throw new Error(`Unknown expert(s): ${unknown.join(', ')}`);
 
   let hash = null;
+  let reviewedRange = '';
   if (stage === 'review') {
     const prepared = readJson(path.join(cwd, EVIDENCE, 'prepared.json'));
     if (!prepared) throw new Error('no prepared.json: run `experts.js prepare` before the review, so the record says what was reviewed');
     hash = prepared.hash;
+    if (prepared.range && prepared.range !== 'working') reviewedRange = prepared.range;
   }
 
   let plan = null;
@@ -1278,6 +1315,7 @@ function record(cwd, stage, result, { planFile = '', pluginRoot = PLUGIN_ROOT } 
       name,
       at,
       hash,
+      ...(reviewedRange ? { range: reviewedRange } : {}),
       failedElsewhere: (lane.failed || []).length > 0,
       skills: lane.skillsLoaded && Array.isArray(lane.skillsLoaded[name]) ? lane.skillsLoaded[name] : [],
       ...(stage === 'review' ? { findings: mine, concerns: (Array.isArray(lane.concerns) ? lane.concerns : []).filter((c) => c && c.expert === name) } : {}),
@@ -1285,7 +1323,7 @@ function record(cwd, stage, result, { planFile = '', pluginRoot = PLUGIN_ROOT } 
     });
   }
   if (stage === 'review' && lane.recheck === true) {
-    writeJson(evidenceFile(cwd, 'review', '_recheck'), { hash, final: lane.selected || [], added: lane.added || [], at, ...(lane.recheckFailed === true ? { recheckFailed: true } : {}) });
+    writeJson(evidenceFile(cwd, 'review', '_recheck'), { hash, ...(reviewedRange ? { range: reviewedRange } : {}), final: lane.selected || [], added: lane.added || [], at, ...(lane.recheckFailed === true ? { recheckFailed: true } : {}) });
   }
   const all = found.concat(...Object.values(carried));
   const open = all.filter((f) => blocking(f) && !readWaivers(cwd)[f.id]);
@@ -1952,6 +1990,12 @@ function main(argv) {
       if (!stateLib.setActivePlan(o.cwd, o.plan)) return fail(`${o.plan} is not a plan of this project: it must be a PLAN-*.md inside the project folder`);
       return out({ ok: true, plan: o.plan });
     }
+    if (o.cmd === 'check' && o.range && o.range !== 'working') {
+      const verdict = rangeCheck(o.cwd, o.range, o.pluginRoot);
+      out(verdict);
+      if (!verdict.ok) process.exit(1);
+      return undefined;
+    }
     if (o.cmd === 'check') {
       const evidence = commitEvidence(o.cwd, o.plan, o.pluginRoot, o.plan ? { stage: 'feature', script: verifyScript(o.pluginRoot) } : {});
       const verdict = gates.commitGate(evidence);
@@ -1972,6 +2016,7 @@ module.exports = {
   setConfirmed,
   settingsChanged,
   cardsChanged,
+  rangeCheck,
   SETTING_KEYS,
   setFrontLine,
   STAGES,

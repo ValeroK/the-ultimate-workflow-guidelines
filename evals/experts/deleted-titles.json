@@ -526,5 +526,9 @@
  [
   ".cursor-plugin/ultimate-workflow/hooks/status.test.js",
   "--json degrades inside the contract when the report itself throws"
+ ],
+ [
+  "evals/experts/commit-contract.test.js",
+  "contract G6 run: card-commit with one of the card's experts missing is refused with gate G6 and names the card"
  ]
 ]

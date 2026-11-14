@@ -981,6 +981,19 @@ test('contract confirmation: the notice names the cards added after the confirma
   // A run-added card (findings, fixup) is outside the hash and is never named.
   const quiet = project({ plan: userConfirmed(), stamp: false });
   checked(quiet);
-  rewritePlan(quiet, (t) => t.replace('- 2: docs', '- findings: x\n  paths: src/add.js\n- 2: docs'));
-  assert.doesNotMatch(contextOf(hook(quiet, COMMIT)), /cards added/);
+  // The plan text also changes, so the hash differs and the card comparison really runs.
+  rewritePlan(quiet, (t) => t.replace('- 2: docs', '- findings: x\n  paths: src/add.js\n- 2: docs') + '\nOne more sentence.\n');
+  const q = contextOf(hook(quiet, COMMIT));
+  assert.match(q, /plan changed after you confirmed/, 'the comparison ran');
+  assert.doesNotMatch(q, /cards added|findings/);
+});
+
+test('contract confirmation: cardsChanged names a card whose experts changed, one added, and nothing for a plan with no card record', () => {
+  const confirmed = userConfirmed(PLAN.replace('  paths: src/add.js\n', '  paths: src/add.js\n  experts: [quality]\n'));
+  assert.deepStrictEqual(expertsLib.cardsChanged(confirmed), { added: [], changed: [] });
+  const narrowed = confirmed.replace('experts: [quality]', 'experts: [security]');
+  assert.deepStrictEqual(expertsLib.cardsChanged(narrowed), { added: [], changed: ['1'] });
+  assert.deepStrictEqual(expertsLib.cardsChanged(confirmed.replace('- 2: docs', '- 3: new\n  paths: x/**\n- 2: docs')).added, ['3']);
+  const noRecord = confirmed.replace(/^confirmed_settings:.*$/m, '');
+  assert.deepStrictEqual(expertsLib.cardsChanged(noRecord.replace('experts: [quality]', 'experts: [security]')), { added: [], changed: [] });
 });

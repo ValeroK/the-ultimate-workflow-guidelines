@@ -104,13 +104,13 @@ function blockingChecks(root) {
 //     module keeps the file name as its own constant (FILE = 'heartbeat.json'), which is how 4.8.0 wrote it.
 const STATE = [
   ['active-plan', /'active-plan'/],
-  ['verify.json', /verify.json/],
-  ['baseline.json', /baseline.json/],
-  ['experts evidence folder (records, prepared.json, waivers.json, _recheck.json)', /prepared.json|waivers.json|_recheck/],
-  ['ledger.jsonl', /ledger.jsonl/],
-  ['run folder (run.json, journal, parked.md, notifications, memory-warnings.json)', /run.json|memory-warnings.json/],
-  ['saved diffs (review.diff, snapshots)', /review.diff|snapshots/],
-  ['commit-check.json', /commit-check.json/],
+  ['verify.json', /verify[.]json/],
+  ['baseline.json', /baseline[.]json/],
+  ['experts evidence folder (records, prepared.json, waivers.json, _recheck.json)', /prepared[.]json|waivers[.]json|_recheck/],
+  ['ledger.jsonl', /ledger[.]jsonl/],
+  ['run folder (run.json, journal, parked.md, notifications, memory-warnings.json)', /run[.]json|memory-warnings[.]json/],
+  ['saved diffs (review.diff, snapshots)', /review[.]diff|snapshots/],
+  ['commit-check.json', /commit-check[.]json/],
   ['heartbeat.json', /FILE = 'heartbeat.json'/],
 ];
 

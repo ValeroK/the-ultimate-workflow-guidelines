@@ -33,8 +33,10 @@ test('frontmatter: experts list over the frozen 4.8.0 agent files returns the re
   const recorded = JSON.parse(read('recorded', 'experts-list.json'));
   assert.strictEqual(recorded.experts.length, 9);
   assert.deepStrictEqual(JSON.parse(JSON.stringify(experts.list(PLUGIN))), recorded);
-  // The frozen agent files are the ones the list reads.
-  for (const e of recorded.experts) assert.strictEqual(read('frozen', 'agents', `uw-expert-${e.name}.md.fixture`), fs.readFileSync(path.join(PLUGIN, 'agents', `uw-expert-${e.name}.md`), 'utf8'));
+  // The frozen agent files are the ones the list reads. Line endings are left out: the fixtures are
+  // stored byte for byte (-text) and the live files are checked out LF on Linux and CRLF on Windows.
+  const lf = (s) => s.split('\r\n').join('\n');
+  for (const e of recorded.experts) assert.strictEqual(lf(read('frozen', 'agents', `uw-expert-${e.name}.md.fixture`)), lf(fs.readFileSync(path.join(PLUGIN, 'agents', `uw-expert-${e.name}.md`), 'utf8')));
 });
 
 test('frontmatter: memory parseHeader returns the recorded 4.8.0 value for every frozen memory file copy, line-numbered errors included', () => {

@@ -106,8 +106,6 @@ test('a malformed plan file exits 0 with no stack trace', () => {
 // allowed only by editing that plan and the key-set test below in one commit.
 
 // `experts` was added with the G6 commit gate: additive, null outside a feature.
-const JSON_KEYS = ['blocking', 'deferral', 'experts', 'file', 'fullVerify', 'g3Active', 'liveness', 'stage', 'state'];
-
 function fenced(lines) {
   return `---\n${lines.join('\n')}\n---\n`;
 }
@@ -170,26 +168,19 @@ test('--json carries file as an explicit null when there is no plan or PRD', () 
 
 // 13-15 --- exit code and robustness ----------------------------------------
 
-test('--json degrades inside the contract when the report itself throws', (t) => {
+test('--json stays valid JSON when a plan cannot be read', () => {
+  // A PLAN-*.md that is a folder cannot be read as a plan. Before 5.0.0 a broken plan threw out of
+  // readState (the plan was picked by modification time); nothing stats a plan now, so the report
+  // must simply stay inside its contract. A folder works on every OS; a symlink needed rights
+  // Windows does not give, so the old test only ever ran on CI.
   const dir = tmpdir();
-  try {
-    // state.js:100 stats every PLAN-*.md outside a try/catch, so a broken
-    // symlink throws out of readState into the catch at status.js:110.
-    fs.symlinkSync(path.join(dir, 'nowhere.md'), path.join(dir, 'PLAN-broken.md'));
-  } catch {
-    t.skip('symlink unavailable');
-    return;
-  }
+  fs.mkdirSync(path.join(dir, 'PLAN-broken.md'));
 
   const r = runJson(dir);
   assert.equal(r.exit, 0);
-  assert.equal(typeof r.json.error, 'string', 'the failure is named');
-  assert.deepEqual(Object.keys(r.json).sort(), [...JSON_KEYS, 'error'].sort(), 'the contract survives the error');
-  assert.ok(
-    ['never', 'stale', 'live', 'disabled'].includes(r.json.liveness.state),
-    'liveness is still one of the four legal values'
-  );
-  assert.equal(typeof r.json.blocking.blocked, 'boolean', 'blocked must never read as undefined');
+  assert.equal(typeof r.json.gates, 'string', 'the report still says whether the gates are on');
+  assert.equal(typeof r.json.stage, 'string', 'the stage is still named');
+  assert.ok(Array.isArray(r.json.reminders), 'reminders is still a list');
   assert.doesNotMatch(r.stdout, /Could not complete/, 'no bare prose line on stdout');
 });
 

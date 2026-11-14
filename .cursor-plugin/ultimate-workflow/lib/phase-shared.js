@@ -377,7 +377,6 @@ const FINDINGS = {
   type: 'object',
   required: ['findings', 'lensVerdict'],
   properties: {
-    stillPresent: { type: 'array', items: { type: 'integer' }, description: 'Run only: indexes of the CARRIED findings you were given that this diff did not fix' },
     lensVerdict: {
       type: 'string',
       description: 'One sentence on the change through this lens, INCLUDING when nothing was found',
@@ -444,8 +443,8 @@ const NO_QUOTA =
 
 const BASIS_RULE =
   ' For each finding set basis: "skill:<name>" when a row of a skill below is what made you see it, and copy that row\'s words into basisQuote; "reference:<category>" when it comes from your stage reference; "general" when it comes from your own knowledge. Say "general" rather than name a skill that did not lead you to it: the quote is checked against the skill.'
-const skillBlock = (name) => {
-  const mine = skillsFor(name)
+// `mine` is the skills chosen for this expert: [{ name, text }].
+const skillBlock = (mine) => {
   return mine.length === 0
     ? `\n\nNo skill applies to this change by its files and lines. Do not open skill files.${BASIS_RULE}`
     : `\n\nSKILLS for this change (${mine.map((x) => x.name).join(', ')}), chosen by the workflow from the diff. Read them before you look for findings. Do not open other skill files.${BASIS_RULE}\n\n${mine.map((x) => x.text.trim()).join('\n\n')}`
@@ -472,133 +471,332 @@ const SELECTION = {
 }
 // @@end selection
 
+// @@section experts-check
+// The steps of an experts check that the by-hand review and the run's one review take the same way (reviewRange calls them):
+// the recheck that can only add, an expert's finding as the lane records it, and the concerns an expert raised. Uses addOnly
+// from lane-helpers.
+const CONCERN_CAP = 3
 
-// @@section cards-experts-check
-// The experts check of one card of the run: the planned experts plus those that raised a carried finding, the recheck
-// (code adds, never removes), one retry of an empty answer, the refute step, and the lane the commit check reads. It is
-// built from the same review-core schemas, recheck prompt and selection shape as the by-hand review (phases/review.js).
-// It uses the run script's own values (AVAILABLE, grownExperts, currentPhase, PROTOCOL, IMPLEMENTER_MODEL) by name.
-async function expertsCheck(card, carried, tag = '') {
-  // An expert an earlier card's recheck added is in the plan's experts line from then on (`record
-  // --plan` writes it there), and the commit gate holds every later card to that line. A card that
-  // names its own experts is held to those instead. The 4-card end-to-end run parked two cards for this.
-  const base = Array.isArray(card.experts) ? card.experts : []
-  const planned = [...new Set(card.ownExperts ? base : [...base, ...grownExperts])].filter((n) => AVAILABLE.some((e) => e.name === n))
-  let selected = [...planned]
-  for (const f of carried) if (f.expert && !selected.includes(f.expert) && AVAILABLE.some((e) => e.name === f.expert)) selected.push(f.expert)
+// Ask which more experts apply: `ask(label)` returns the answer or null. With `retry`, a null is asked once more
+// under the same label with a retry mark. Code adds a name from the list and nothing else, so an answer can add and never remove.
+// Two nulls (or one without a retry) come back as `failed`, never as "no areas touched".
+async function recheckAdd(ask, label, selected, available, retry) {
+  let answer = await ask(label)
+  if (!answer && retry) answer = await ask(`${label}:retry`)
+  if (!answer) return { failed: true, selected, added: [], rejected: [] }
+  const merged = addOnly(selected, answer.experts, available)
+  return { failed: false, selected: merged.experts, added: merged.added, rejected: merged.rejected }
+}
+
+// One finding of an expert, in the form the lane records and the commit check reads.
+const laneFinding = (f, expert, status) => ({ expert, file: f.file, line: f.line, what: f.what, confidence: f.confidence, ...(f.severity ? { severity: f.severity } : {}), ...(typeof f.basis === 'string' ? { basis: f.basis } : {}), ...(typeof f.basisQuote === 'string' ? { basisQuote: f.basisQuote } : {}), status })
+
+// What experts worried about without being able to call it a finding. `pairs` is [[expert name, result or null]].
+// An item without text and reason is dropped and counted, an expert keeps CONCERN_CAP, a failed expert has none.
+function collectConcerns(pairs) {
+  let dropped = 0
+  const list = []
+  for (const [expert, r] of pairs) {
+    if (!r) continue
+    const valid = []
+    for (const c of Array.isArray(r.concerns) ? r.concerns : []) {
+      const text = c && typeof c.text === 'string' ? c.text.trim() : ''
+      const reason = c && typeof c.reason === 'string' ? c.reason.trim() : ''
+      if (!text || !reason) {
+        dropped += 1
+        continue
+      }
+      valid.push({ expert, text, reason, ...(typeof c.file === 'string' && c.file ? { file: c.file } : {}), ...(Number.isInteger(c.line) ? { line: c.line } : {}) })
+    }
+    list.push(...valid.slice(0, CONCERN_CAP))
+    dropped += Math.max(0, valid.length - CONCERN_CAP)
+  }
+  return { list, dropped }
+}
+// @@end experts-check
+
+
+
+
+// @@section review-range
+// One review of a range, the same code for the by-hand review (phases/review.js) and the unattended run (phases/run.js):
+// the recheck that can only add, the four core lenses and the experts in parallel, and one verify pass. The caller
+// passes what differs: the range, the experts and their skills, the labels and phase names, whether an agent that
+// returns nothing is asked once more (`retry`), and, for a changed-only review, `delta`. It returns the result the
+// by-hand review always returned. Uses review-core, selection, lane-helpers, experts-check, recheck, core-lenses and
+// read-first, and the caller's agentName.
+async function reviewRange(o) {
+  const { range, rigor = 'normal', available = [], planned = [], noExperts = false, expertsOnly = false, retry = false } = o
+  const label = (s) => `${o.labelPrefix || ''}${s}`
+  const ph = o.phases || {}
+  const announce = (p) => {
+    if (p) phase(p)
+  }
+  const agentOpts = o.agentOpts || {}
+  // An agent that returns nothing is asked once more, under the same label with a retry mark, when the caller asks for it.
+  const ask = async (prompt, opts) => {
+    const first = await agent(prompt, { ...opts, ...agentOpts })
+    if (first || !retry) return first
+    return agent(prompt, { ...opts, label: `${opts.label}:retry`, ...agentOpts })
+  }
+  const CORE = CORE_LENSES
+  const extraLenses = o.extraLenses || []
+
+  // The experts of the last check stay selected while the changes are the same work in progress (`keep`, and the
+  // experts a changed-only review narrows): a recheck that answers "nobody" must not drop them, as it cannot drop the
+  // plan's. The recheck can still add.
+  const keptNames = [...(o.keep && Array.isArray(o.keep.experts) ? o.keep.experts : []), ...(o.deltaFile && o.delta && Array.isArray(o.delta.experts) ? o.delta.experts : [])]
+  const kept = keptNames.filter((n, i) => keptNames.indexOf(n) === i && available.some((e) => e.name === n) && !planned.includes(n))
+  let experts = [...planned, ...kept]
+  let added = []
   let recheck = false
   let recheckFailed = false
-  let added = []
-  if (AVAILABLE.length > 0) {
-    const askRecheck = (label) => agent(
-      recheckPrompt('.ultimate-workflow/review.diff', AVAILABLE, selected),
-      { agentType: agentName('uw-explorer'), label, phase: currentPhase, schema: SELECTION, ...modelOpt(IMPLEMENTER_MODEL) }
+  const notInstalled = []
+  if (!noExperts && available.length > 0 && o.recheck !== false) {
+    announce(ph.recheck)
+    const asked = await recheckAdd(
+      (l) => ask(recheckPrompt(o.diffFile, available, experts), { agentType: agentName('uw-explorer'), label: l, phase: ph.recheck, schema: SELECTION }),
+      label('recheck'), experts, available, retry
     )
-    // Asked once more when it returns nothing, with a label built from card and tag only.
-    const answer = (await askRecheck(`${card.name}${tag}:recheck`)) || (await askRecheck(`${card.name}${tag}:recheck:retry`))
-    if (answer) {
-      recheck = true
-      const names = (answer.experts || []).map((x) => String((x && x.name) || '').trim()).filter((n) => AVAILABLE.some((e) => e.name === n) && !selected.includes(n))
-      added = [...new Set(names)]
-      selected = [...selected, ...added]
-    } else {
-      // Two empty answers: named as failed in the lane, never read as "no areas touched", and it does not refuse the commit.
-      recheck = true
+    recheck = true
+    if (asked.failed) {
+      // Decided 2026-11-13: a recheck that answers nothing does not refuse the commit. The planned experts review, and the
+      // lane says the recheck failed, so it is named in the report and never read as "no areas touched".
       recheckFailed = true
+      log('recheck failed; continuing with the planned experts only, and the report names the failed recheck')
+    } else {
+      experts = asked.selected
+      added = asked.added
+      notInstalled.push(...asked.rejected)
+      log(`recheck: ${added.length ? 'added ' + added.join(', ') : 'nothing to add'}${asked.rejected.length ? '; ignored unknown ' + asked.rejected.join(', ') : ''}`)
     }
-  } else recheck = true
-  const reviewing = selected.map((n) => AVAILABLE.find((e) => e.name === n)).filter((e) => e && e.stages.includes('review'))
-  const skillsFor = (name) => skillsOf(card.reviewSkills && card.reviewSkills[name])
-  const askExpert = (e, label) => {
-      const mine = carried.map((f, i) => ({ ...f, index: i })).filter((f) => f.expert === e.name)
-      const skills = skillsFor(e.name)
-      return agent(
-        `Review the changes of card ${card.name} (${card.title}) as the ${e.name} expert. The diff is saved at .ultimate-workflow/review.diff. Stage: review. Read ${EXPERTS_DIR}/${e.name}/references/review.md.${PROTOCOL ? `\n\nTHE PROTOCOL every expert follows:\n${PROTOCOL}` : ''} The plan is at ${PLAN}: read what its "Expert input" section required of this change and report any requirement the diff does not honour. Read the surrounding code, not only the changed lines.${
-          mine.length
-            ? `\n\nCARRIED findings, made on an earlier card and handed to this one to fix. For each that this diff did NOT fix, put its index in stillPresent:\n${JSON.stringify(mine.map((f) => ({ index: f.index, file: f.file, line: f.line, what: f.what })), null, 2)}`
-            : ''
-        }${
-          skills.length
-            ? `\n\nSKILLS for this card (${skills.map((s) => s.name).join(', ')}), chosen by the workflow from the card's planned files and text. Read them before you look for findings.${BASIS_RULE}\n\n${skills.map((s) => s.text.trim()).join('\n\n')}`
-            : `\n\nNo skill applies to this card by its planned files. Do not open skill files.${BASIS_RULE}`
-        }
+  }
+  // An expert with `review-when-skills` joins whenever the diff selected one of those review skills, whether or not the
+  // plan or the recheck named it: quality reviews every change that touches tests.
+  if (!noExperts) {
+    for (const e of available) {
+      const selected = o.skillNames ? o.skillNames(e.name) : []
+      const triggers = Array.isArray(e.reviewWhenSkills) ? e.reviewWhenSkills : []
+      if (triggers.some((t) => selected.includes(t)) && !experts.includes(e.name)) {
+        experts = [...experts, e.name]
+        added = [...added, e.name]
+        log(`${e.name} joins: its review skills matched this diff`)
+      }
+    }
+  }
+  const reviewing = takingPart(available, experts, 'review')
+  const reviewingNames = reviewing.map((e) => e.name)
+  const agentFor = Object.fromEntries(reviewing.map((e) => [e.name, e.agent]))
+  const lenses = [
+    ...(expertsOnly ? [] : CORE),
+    ...(expertsOnly ? [] : extraLenses.filter((l) => !CORE.includes(l) && !reviewingNames.includes(l))),
+    ...reviewingNames,
+  ]
+  announce(ph.lenses)
 
-Every finding needs a file, a line, one sentence on the defect and a concrete failure scenario. Set lensVerdict whether or not you find anything. ${NO_QUOTA}`,
-        { agentType: agentName(e.agent), label, phase: currentPhase, schema: FINDINGS, ...modelOpt(IMPLEMENTER_MODEL) }
+  const skillsFor = o.skillsFor || (() => [])
+  const droppedFor = o.droppedFor || (() => [])
+  // A changed-only review: an expert whose last review covers the previous changes reads only what changed since, and
+  // what uses it. An expert the recheck added, and the recheck itself, read the full diff.
+  const deltaArgs = o.delta && o.deltaFile && Array.isArray(o.delta.experts) ? o.delta : null
+  const narrowed = (lens) => Boolean(deltaArgs) && reviewingNames.includes(lens) && deltaArgs.experts.includes(lens)
+  const usedDelta = reviewingNames.filter(narrowed)
+  if (usedDelta.length) log(`changed-only review for ${usedDelta.join(', ')}: ${deltaArgs.files.length} file(s) since ${String(deltaArgs.base).slice(0, 12)}`)
+  log(`Reviewing ${range} through ${lenses.length} lenses (rigor: ${rigor})`)
+
+  const lensResults = await parallel(
+    lenses.map((lens) => () =>
+      ask(
+        `${reviewingNames.includes(lens) ? `Review the diff for ${range} as the ${lens} expert.` : `Review the diff for ${range} through the ${lens} lens ONLY. Another reviewer has each of the other lenses; stay inside yours.`}
+
+${
+  reviewingNames.includes(lens)
+    ? `${
+        narrowed(lens)
+          ? `You reviewed these changes before. Only some files changed since, or use a file that did: their current patches are at ${o.deltaFile}, and its header lists what changed, what uses it and what was removed. Review those files. Your earlier findings on every other file stand and are carried forward, so do not repeat them. The full diff is at ${o.diffFile} if you need context.`
+          : `The diff for ${range} is saved at ${o.diffFile}. Read it there.`
+      } Stage: review. ${readFirst(o.expertsDir, lens, 'review')}${
+        o.plan
+          ? ` The plan is at ${o.plan}: find the "Expert input" section, read what you required from this change at planning time, and report any requirement the diff does not honour.`
+          : ''
+      }`
+    : 'Start by reading the diff: `git diff ' + range + '`.'
+} Read the surrounding code, not just the changed lines -- a hunk is rarely comprehensible on its own.
+
+${
+  lens === 'surgical-scope'
+    ? 'Read any PLAN-*.md in the repository first, to learn what was actually requested. Then, for each changed hunk, ask whether it traces to that request. Flag adjacent improvements, opportunistic refactors, drive-by formatting, and unrequested renames. If everything traces, say so explicitly in your verdict -- that is a real result.'
+    : ''
+}
+${
+  lens === 'test-coverage'
+    ? 'The question is not only whether tests exist. Ask whether they would FAIL if the code were wrong. A test that passes against a broken implementation is worse than no test.'
+    : ''
+}
+
+${
+  reviewingNames.includes(lens)
+    ? `You are the ${lens} domain expert. Follow your agent definition and its index for what to read.
+
+Dependency audit (JSON, produced by a script before this run; do not fetch anything yourself): ${
+        o.deps ? JSON.stringify(o.deps) : 'not provided'
+      }
+Treat a dependency item as a finding only when this diff introduces it or makes it reachable; otherwise mention it as pre-existing in lensVerdict.${skillBlock(skillsFor(lens))}`
+    : ''
+}
+
+Every finding needs a file, a line, one sentence on the defect, and a concrete failure scenario. If you cannot describe the path from cause to symptom, it is a suspicion and does not belong in the list.
+
+Set lensVerdict whether or not you find anything.
+
+${NO_QUOTA}`,
+        { agentType: agentName(reviewingNames.includes(lens) ? agentFor[lens] : 'uw-reviewer'), label: label(lens), phase: ph.lenses, schema: FINDINGS }
       )
-  }
-  const results = await parallel(reviewing.map((e) => () => askExpert(e, `${card.name}${tag}:${e.name}`)))
-  // An expert that returned nothing is asked once more, with a label built from the card, tag and name only,
-  // so a resumed run replays the same calls. A valid empty result is a success and is not asked again.
-  const retried = await parallel(reviewing.map((e, i) => () => (results[i] ? null : askExpert(e, `${card.name}${tag}:${e.name}:retry`))))
-  retried.forEach((r, i) => {
-    if (r) results[i] = r
-  })
-  const ran = reviewing.filter((_, i) => results[i]).map((e) => e.name)
-  const failed = reviewing.filter((_, i) => !results[i]).map((e) => e.name)
-  const all = []
-  const stillPresent = []
-  reviewing.forEach((e, i) => {
-    const r = results[i]
-    if (!r) return
-    for (const f of r.findings || []) all.push({ ...f, expert: e.name })
-    for (const idx of Array.isArray(r.stillPresent) ? r.stillPresent : []) if (carried[idx] && carried[idx].expert === e.name) stillPresent.push(carried[idx])
-  })
-  const concerns = []
-  reviewing.forEach((e, i) => {
-    const r = results[i]
-    if (!r) return
-    for (const c of (Array.isArray(r.concerns) ? r.concerns : []).slice(0, 3)) if (c && c.text && c.reason) concerns.push({ expert: e.name, text: String(c.text), reason: String(c.reason) })
-  })
-  let verdicts = new Map()
-  if (all.length > 0) {
-    const askRefute = (label) => agent(
-      `Try to REFUTE each finding below. Your job is not to agree.
-
-${JSON.stringify(all.map((f, index) => ({ index, ...f })), null, 2)}
-
-For each: read the code around it, check whether the failure path is reachable, look for the guard the reviewer missed. Default to refuted when uncertain. Return one verdict per finding, by index.`,
-      { agentType: agentName('uw-reviewer'), label, phase: currentPhase, schema: VERDICTS, ...modelOpt(IMPLEMENTER_MODEL) }
     )
-    // Asked once more when it returns nothing. Findings no skeptic checked must not drive a paid fix round,
-    // so a second null counts as a failed check and the card is parked by the caller.
-    const v = (await askRefute(`${card.name}${tag}:refute`)) || (await askRefute(`${card.name}${tag}:refute:retry`))
-    if (!v) failed.push('refute')
-    verdicts = new Map(((v && v.verdicts) || []).map((x) => [x.index, x]))
-  }
-  const kept = []
-  const refuted = []
-  all.forEach((f, i) => {
-    const v = verdicts.get(i)
-    if (v && v.verdict === 'refuted') refuted.push({ ...f, refutedBecause: v.reason })
-    else kept.push({ ...f, status: v ? 'confirmed' : 'unverified' })
-  })
-  const laneFindings = kept.map((f) => ({ expert: f.expert, file: f.file, line: f.line, what: f.what, confidence: f.confidence, ...(f.severity ? { severity: f.severity } : {}), ...(typeof f.basis === 'string' ? { basis: f.basis } : {}), ...(typeof f.basisQuote === 'string' ? { basisQuote: f.basisQuote } : {}), status: f.status }))
-  const lane = {
+  )
+
+  const failedLenses = lenses.filter((_, i) => !lensResults[i])
+  // What an expert found is carried in the lane, because the lane is what gets recorded as evidence and what the commit gate
+  // reads. Only findings from an expert's own lens, and only those the skeptic confirmed or never ruled on.
+  const expertFindings = (list, status) => list.filter((f) => reviewingNames.includes(f.lens)).map((f) => laneFinding(f, f.lens, status))
+  // What an expert worried about without being able to call it a finding (a core lens's are ignored).
+  const gathered = collectConcerns(lenses.map((lens, i) => [lens, reviewingNames.includes(lens) ? lensResults[i] : null]))
+  const lane = (found = []) => ({
     stage: 'review',
-    available: AVAILABLE.map((e) => e.name),
+    available: available.map((e) => e.name),
     planned,
-    selected,
+    selected: experts,
     added,
-    ran,
-    failed,
-    skillsLoaded: Object.fromEntries(reviewing.map((e) => [e.name, skillsFor(e.name).map((s) => s.name)])),
+    ran: reviewingNames.filter((n) => !failedLenses.includes(n)),
+    skillsLoaded: Object.fromEntries(reviewingNames.map((n) => [n, skillsFor(n).map((x) => x.name)])),
+    skillsDropped: Object.fromEntries(reviewingNames.map((n) => [n, droppedFor(n)])),
+    failed: reviewingNames.filter((n) => failedLenses.includes(n)),
     recheck,
+    findings: found,
+    concerns: gathered.list,
+    concernsDropped: gathered.dropped,
+    ...(usedDelta.length ? { delta: { base: deltaArgs.base, files: deltaArgs.files, removed: deltaArgs.removed || [], chain: deltaArgs.chain, experts: usedDelta } } : {}),
     ...(recheckFailed ? { recheckFailed: true } : {}),
-    findings: laneFindings,
-    concerns,
+    ...(notInstalled.length ? { ignoredUnknown: notInstalled } : {}),
+    ...(noExperts ? { skipped: 'noExperts was passed, so domain experts were not considered' } : {}),
+  })
+  if (lenses.length === 0) {
+    return {
+      ok: true,
+      range,
+      rigor,
+      experts,
+      expertLane: lane(),
+      findings: [],
+      refuted: [],
+      lensVerdicts: [],
+      failedLenses,
+      summary: noExperts ? 'Nothing ran: noExperts was passed and no lenses were asked for.' : 'No expert applies to this change, so nothing ran.',
+    }
   }
+  if (failedLenses.length === lenses.length) {
+    return {
+      ok: false,
+      error: 'Every lens failed, so nothing was reviewed. This is NOT a clean review.',
+      failedLenses,
+      hint: 'Check the run in /workflows. If the uw-reviewer agent type is missing, agent definitions are read at host startup and need a restart.',
+    }
+  }
+
+  // Flatten, keeping the lens that produced each finding.
+  const all = []
+  lenses.forEach((lens, i) => {
+    const r = lensResults[i]
+    if (!r) return
+    ;(r.findings || []).forEach((f) => all.push({ ...f, lens }))
+  })
+  const verdicts = lenses.map((lens, i) => (lensResults[i] ? { lens, verdict: lensResults[i].lensVerdict } : null)).filter(Boolean)
+  if (all.length === 0) {
+    return {
+      ok: true,
+      range,
+      rigor,
+      experts,
+      expertLane: lane(),
+      findings: [],
+      refuted: [],
+      lensVerdicts: verdicts,
+      failedLenses,
+      summary:
+        failedLenses.length > 0
+          ? `No findings, but ${failedLenses.join(' and ')} did not run -- coverage was incomplete.`
+          : 'No findings. Every lens ran and reported the change sound through its concern.',
+    }
+  }
+
+  log(`${all.length} findings across ${lenses.length - failedLenses.length} lenses; verifying`)
+  announce(ph.verify)
+  const numbered = all.map((f, i) => ({ index: i, ...f }))
+  // Normal rigor: one skeptic sees everything at once. High rigor: one skeptic per finding, each in its own context.
+  const verifyRuns =
+    rigor === 'high'
+      ? numbered.map((f) => () =>
+          ask(
+            `Try to REFUTE this single finding. Your job is not to agree.
+
+${JSON.stringify(f, null, 2)}
+
+Read the code around it. Check whether the described failure path is actually reachable. Look for the guard the reviewer missed. Consider whether the behaviour is intentional and documented elsewhere.
+
+Default to refuted when uncertain. A false finding costs the reader more than a missed one, because it burns trust in every other finding beside it. Return a verdict for index ${f.index} only.`,
+            { agentType: agentName('uw-reviewer'), label: label(`verify:${f.index}`), phase: ph.verify, schema: VERDICTS }
+          )
+        )
+      : [
+          () =>
+            ask(
+              `Try to REFUTE each finding below. Your job is not to agree.
+
+${JSON.stringify(numbered, null, 2)}
+
+For each: read the code around it, check whether the described failure path is reachable, look for the guard the reviewer missed, and consider whether the behaviour is intentional and documented elsewhere.
+
+Default to refuted when uncertain. A false finding costs the reader more than a missed one, because it burns trust in every other finding beside it.
+
+Return one verdict per finding, by index. Do not soften -- confirmed or refuted, with the reason.`,
+              { agentType: agentName('uw-reviewer'), label: label('refute'), phase: ph.verify, schema: VERDICTS }
+            ),
+        ]
+  const verifyResults = await parallel(verifyRuns)
+  const byIndex = new Map()
+  verifyResults.filter(Boolean).forEach((r) => {
+    ;(r.verdicts || []).forEach((v) => byIndex.set(v.index, v))
+  })
+  const confirmed = []
+  const refuted = []
+  const unverified = []
+  numbered.forEach((f) => {
+    const v = byIndex.get(f.index)
+    if (!v) unverified.push({ ...f, note: 'The verifier returned no verdict for this finding.' })
+    else if (v.verdict === 'confirmed') confirmed.push({ ...f, verifiedBecause: v.reason })
+    else refuted.push({ ...f, refutedBecause: v.reason })
+  })
+  // Order for the reader: severity first where an expert gave one, then confidence.
+  const rank = { high: 0, medium: 1, low: 2 }
+  const by = (key) => (f) => (f[key] in rank ? rank[f[key]] : 1)
+  confirmed.sort((a, b) => by('severity')(a) - by('severity')(b) || by('confidence')(a) - by('confidence')(b))
+  log(`${confirmed.length} confirmed, ${refuted.length} refuted, ${unverified.length} unverified`)
+  // Refuted findings are returned, not dropped: a verifier that silently filters cannot itself be audited.
   return {
-    lane,
-    blocking: laneFindings.filter((f) => f.confidence === 'high'),
-    nonBlocking: laneFindings.filter((f) => f.confidence !== 'high'),
+    ok: true,
+    range,
+    rigor,
+    experts,
+    expertLane: lane([...expertFindings(confirmed, 'confirmed'), ...expertFindings(unverified, 'unverified')]),
+    lensVerdicts: verdicts,
+    findings: confirmed,
     refuted,
-    stillPresent,
-    failed,
+    unverified,
+    failedLenses,
+    summary: `${confirmed.length} confirmed, ${refuted.length} refuted by the adversarial pass, ${unverified.length} unverified. Refuted findings are listed so the verifier can be checked.`,
   }
 }
-// @@end cards-experts-check
-
+// @@end review-range
 
 // @@section harvest-proposals
 // What a harvest agent returns: the lessons routed to a store, and the ones discarded with a reason. The by-hand harvest

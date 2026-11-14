@@ -27,6 +27,7 @@
 //   node experts.js read    --plan P                        the plan's experts
 //   node experts.js select  --plan P --add a,b              add experts to the plan (never removes)
 //   node experts.js prepare [--range working|A..B]          save the diff, fingerprint the tree
+//   node experts.js check --range A..B                       was that range reviewed, with no high finding open (before merging a run branch)
 //   node experts.js record  --stage S [--plan P] < result   record a workflow result as evidence
 //   node experts.js record  --stage S [--plan P] --result R  the same, read from the Workflow output file R (never retype the result)
 //   node experts.js present --result R --field F --out P [--append] [--confirm plan_confirmed|tests_confirmed]
@@ -524,7 +525,35 @@ function settingsNow(text) {
   for (const k of SETTING_KEYS) out[k] = sha8(data[k]);
   const parsed = readExperts(text);
   out.experts = (parsed.error ? [] : parsed.experts).slice().sort().join(',');
+  out.cards = cardsNow(text);
   return out;
+}
+
+/** Each plan card (not the ones a run adds) with a short hash of its paths and experts, so a later change can be named. */
+function cardsNow(text) {
+  const out = {};
+  for (const c of require('./cards.js').parseCards(text)) {
+    if (runRules.RUN_ADDED.test(c.name)) continue;
+    out[c.name] = sha8(`${(c.paths || []).join(',')}|${(c.experts || []).join(',')}`);
+  }
+  return out;
+}
+
+/** The cards added since the confirmation and the cards whose paths or experts changed. A plan with no card record names none. */
+function cardsChanged(text) {
+  const data = stateLib.parseFrontMatter(text).data || {};
+  let was;
+  try {
+    was = JSON.parse(String(data.confirmed_settings || ''));
+  } catch {
+    return { added: [], changed: [] };
+  }
+  if (!was || typeof was !== 'object' || !was.cards || typeof was.cards !== 'object') return { added: [], changed: [] };
+  const now = cardsNow(text);
+  return {
+    added: Object.keys(now).filter((n) => !(n in was.cards)),
+    changed: Object.keys(now).filter((n) => n in was.cards && was.cards[n] !== now[n]),
+  };
 }
 
 /** Which recorded settings differ from now. A plan with no record (confirmed before this) names none. */
@@ -562,7 +591,7 @@ function checkConfirmed(text, { atCommit = false } = {}) {
     if (atCommit) return { ok: false, missing: 'hash', reason: 'the plan has no confirmed_hash, so nothing shows it went through the confirm step: confirm the plan and tests with the confirm step (present --confirm), then commit' };
     return { ok: false, missing: 'hash', reason: 'the plan has no confirmed_hash: it was confirmed by hand, not through experts.js present --confirm tests_confirmed, so nothing shows it is the plan the user saw. Show the user the plan and confirm it again' };
   }
-  if (have !== want && atCommit) return { ok: true, hash: have, changedSince: true, settingsChanged: settingsChanged(text) };
+  if (have !== want && atCommit) return { ok: true, hash: have, changedSince: true, settingsChanged: settingsChanged(text), cards: cardsChanged(text) };
   if (have !== want) return { ok: false, missing: 'unchanged', reason: `the plan changed after the user confirmed it (confirmed_hash ${want}, now ${have}): show the user what changed and confirm again` };
   return { ok: true, hash: have, settingsChanged: settingsChanged(text) };
 }
@@ -835,6 +864,10 @@ function workingChanges(cwd, planFile = '') {
 }
 
 const sha = (text) => crypto.createHash('sha256').update(text).digest('hex');
+/** The fingerprint of an empty working tree: a record under it reviewed nothing. */
+const EMPTY_HASH = sha('');
+/** The fingerprint of a reviewed range: of the range's own diff, never of the working tree. */
+const rangeHash = (diff) => sha(`range\n${diff}`);
 const fingerprint = (cwd, planFile = '') => sha(workingChanges(cwd, planFile).diff);
 /**
  * What a full test run is recorded against. A merge is the tree that will be committed (its
@@ -1021,6 +1054,8 @@ function computeDelta(cwd, changes) {
 // ---- evidence ----
 
 const evidenceFile = (cwd, stage, name) => path.join(cwd, EVIDENCE, stage, `${name}.json`);
+/** A range review's record of one expert, under the range's own fingerprint, apart from the working tree's evidence. */
+const rangeEvidenceFile = (cwd, hash, name) => path.join(cwd, EVIDENCE, 'ranges', String(hash).slice(0, 16), `${name}.json`);
 
 function readJson(file) {
   try {
@@ -1062,9 +1097,26 @@ function allFindings(cwd, hash, names) {
   for (const name of names) {
     const r = readJson(evidenceFile(cwd, 'review', name));
     if (!r || !Array.isArray(r.findings)) continue;
-    for (const f of r.findings) out.push({ ...f, waived: Boolean(waivers[f.id]), current: r.hash === hash });
+    // A record counts for the working tree only when it was made of the working tree: not of a range, and not of an empty tree
+    // (which reviewed nothing; 5.0.0 wrote such records for range reviews on a clean tree).
+    const ofWorkingTree = (!r.range || r.range === 'working') && r.hash !== EMPTY_HASH;
+    for (const f of r.findings) out.push({ ...f, waived: Boolean(waivers[f.id]), current: ofWorkingTree && r.hash === hash, ...(r.range && r.range !== 'working' ? { range: r.range } : {}) });
   }
   return out;
+}
+
+/**
+ * Whether a range was reviewed and has no high finding open: the question before merging a run branch. The range is
+ * fingerprinted by its own diff, so only a review of this very range answers it, and a later commit makes it unreviewed.
+ */
+function rangeCheck(cwd, range, pluginRoot = PLUGIN_ROOT) {
+  const hash = rangeHash(git(cwd, ['diff', ...DIFF_FORMAT, range]));
+  const names = list(pluginRoot).experts.map((e) => e.name);
+  const records = names.map((n) => readJson(rangeEvidenceFile(cwd, hash, n))).filter((r) => r && r.hash === hash);
+  const waivers = readWaivers(cwd);
+  const open = records.flatMap((r) => (Array.isArray(r.findings) ? r.findings : []).map((f) => ({ ...f, waived: Boolean(waivers[f.id]) }))).filter((f) => blocking(f) && !f.waived);
+  if (records.length === 0) return { ok: false, range, reviewed: false, open: [], reason: `the range ${range} was not reviewed by the experts (no review of exactly this range is on record)` };
+  return open.length === 0 ? { ok: true, range, reviewed: true, open: [], experts: records.map((r) => r.name) } : { ok: false, range, reviewed: true, open, reason: `${open.length} high-confidence finding(s) of the review of ${range} are open` };
 }
 
 /** Dismiss one finding. The reason is the user's, kept as given, and shows up wherever findings do. */
@@ -1098,7 +1150,9 @@ function prepare(cwd, range = 'working', pluginRoot = PLUGIN_ROOT, { delta = fal
   const diffFile = path.join('.ultimate-workflow', 'review.diff');
   fs.mkdirSync(path.join(cwd, '.ultimate-workflow'), { recursive: true });
   fs.writeFileSync(path.join(cwd, diffFile), diff);
-  const hash = sha(changes.diff);
+  // The working tree's own fingerprint is what snapshots and a changed-only check are keyed by; a range has its own.
+  const workHash = sha(changes.diff);
+  const hash = range === 'working' ? workHash : rangeHash(diff);
   writeJson(path.join(cwd, EVIDENCE, 'prepared.json'), { hash, range, at: new Date().toISOString() });
   // Computed before this tree's snapshot is saved; only the experts check (range working) narrows.
   const d = delta ? (range === 'working' ? computeDelta(cwd, changes) : { refused: 'a changed-only review needs range working' }) : null;
@@ -1107,7 +1161,7 @@ function prepare(cwd, range = 'working', pluginRoot = PLUGIN_ROOT, { delta = fal
   // experts read: 1.8 MB of it on a real install. Say so, and name the biggest, before anyone pays
   // to review it; ignoring it is the user's call.
   const heavy = untrackedHeavy(changes);
-  saveSnapshot(cwd, hash, changes.diff);
+  saveSnapshot(cwd, workHash, changes.diff);
   const available = list(pluginRoot).experts;
   // Skills for every expert that could review, not only the planned ones: the recheck inside the
   // workflow can add an expert, and the workflow cannot read a file to fetch that expert's skills.
@@ -1213,10 +1267,12 @@ function record(cwd, stage, result, { planFile = '', pluginRoot = PLUGIN_ROOT } 
   if (unknown.length > 0) throw new Error(`Unknown expert(s): ${unknown.join(', ')}`);
 
   let hash = null;
+  let reviewedRange = '';
   if (stage === 'review') {
     const prepared = readJson(path.join(cwd, EVIDENCE, 'prepared.json'));
     if (!prepared) throw new Error('no prepared.json: run `experts.js prepare` before the review, so the record says what was reviewed');
     hash = prepared.hash;
+    if (prepared.range && prepared.range !== 'working') reviewedRange = prepared.range;
   }
 
   let plan = null;
@@ -1245,18 +1301,20 @@ function record(cwd, stage, result, { planFile = '', pluginRoot = PLUGIN_ROOT } 
   for (const name of lane.ran || []) {
     const mine = found.filter((f) => f.expert === name).concat(carried[name] || []);
     const narrowed = delta && delta.experts.includes(name);
-    writeJson(evidenceFile(cwd, stage, name), {
+    writeJson(reviewedRange ? rangeEvidenceFile(cwd, hash, name) : evidenceFile(cwd, stage, name), {
       stage,
       name,
       at,
       hash,
+      ...(reviewedRange ? { range: reviewedRange } : {}),
       failedElsewhere: (lane.failed || []).length > 0,
       skills: lane.skillsLoaded && Array.isArray(lane.skillsLoaded[name]) ? lane.skillsLoaded[name] : [],
       ...(stage === 'review' ? { findings: mine, concerns: (Array.isArray(lane.concerns) ? lane.concerns : []).filter((c) => c && c.expert === name) } : {}),
       ...(narrowed ? { delta: { base: delta.base, files: delta.files || [], removed: delta.removed || [], chain: Number(delta.chain) || 1 } } : {}),
     });
   }
-  if (stage === 'review' && lane.recheck === true) {
+  // The recheck marker is the working tree's (a changed-only check narrows from it); a range review leaves it alone.
+  if (stage === 'review' && lane.recheck === true && !reviewedRange) {
     writeJson(evidenceFile(cwd, 'review', '_recheck'), { hash, final: lane.selected || [], added: lane.added || [], at, ...(lane.recheckFailed === true ? { recheckFailed: true } : {}) });
   }
   const all = found.concat(...Object.values(carried));
@@ -1357,7 +1415,7 @@ function confirmationPart(cwd, planFile, options) {
   if (options.stage !== 'feature' || !planFile) return undefined;
   try {
     const c = checkConfirmed(fs.readFileSync(path.resolve(cwd, planFile), 'utf8'), { atCommit: true });
-    return c.ok ? { ok: true, settingsChanged: c.settingsChanged || [], ...(c.changedSince ? { changedSince: true } : {}) } : { ok: false, missing: c.missing, reason: c.reason };
+    return c.ok ? { ok: true, settingsChanged: c.settingsChanged || [], ...(c.changedSince ? { changedSince: true, cards: c.cards } : {}) } : { ok: false, missing: c.missing, reason: c.reason };
   } catch (err) {
     return { error: `the plan could not be read (${err.code || err.message})` };
   }
@@ -1390,7 +1448,7 @@ function commitEvidence(cwd, planFile, pluginRoot = PLUGIN_ROOT, options = {}) {
     }
     const tests = testsPart(cwd, planFile, changes, options);
     const confirmation = confirmationPart(cwd, planFile, options);
-    const wrap = (ev) => ({ ...ev, ...(memory ? { memory } : {}), ...(tests ? { tests } : {}), ...(confirmation ? { confirmation } : {}), ...(staleIndex ? { staleIndex } : {}) });
+    const wrap = (ev) => ({ ...ev, ...(options.deferExperts ? { expertsDeferred: true } : {}), ...(memory ? { memory } : {}), ...(tests ? { tests } : {}), ...(confirmation ? { confirmation } : {}), ...(staleIndex ? { staleIndex } : {}) });
     if (available.length === 0) return wrap({ skip: 'no experts are installed' });
     if (changes.files.length === 0) return wrap({ skip: changes.merge ? 'a merge that adds nothing beyond its parents' : 'nothing to commit' });
     if (changes.files.every((f) => gates.isDocPath(f))) return wrap({ skip: 'only documentation changed' });
@@ -1924,6 +1982,12 @@ function main(argv) {
       if (!stateLib.setActivePlan(o.cwd, o.plan)) return fail(`${o.plan} is not a plan of this project: it must be a PLAN-*.md inside the project folder`);
       return out({ ok: true, plan: o.plan });
     }
+    if (o.cmd === 'check' && o.range && o.range !== 'working') {
+      const verdict = rangeCheck(o.cwd, o.range, o.pluginRoot);
+      out(verdict);
+      if (!verdict.ok) process.exit(1);
+      return undefined;
+    }
     if (o.cmd === 'check') {
       const evidence = commitEvidence(o.cwd, o.plan, o.pluginRoot, o.plan ? { stage: 'feature', script: verifyScript(o.pluginRoot) } : {});
       const verdict = gates.commitGate(evidence);
@@ -1943,6 +2007,8 @@ module.exports = {
   checkConfirmed,
   setConfirmed,
   settingsChanged,
+  cardsChanged,
+  rangeCheck,
   SETTING_KEYS,
   setFrontLine,
   STAGES,

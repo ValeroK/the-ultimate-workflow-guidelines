@@ -395,3 +395,18 @@ test('reminders: several plans and none chosen names the use command; stage none
 test('gates: nothing in gates.js refuses an edit or a turn end any more', () => {
   for (const name of ['preEditGate', 'stopGate', 'roundCap', 'fullSuiteGate']) assert.strictEqual(gates[name], undefined, `${name} is gone`);
 });
+
+test('gates: expertsDeferred leaves the experts part to the run review, as an outcome of its own, and the other parts still count', () => {
+  const ev = { hash: 'h', records: {}, planExperts: ['security'], cards: [], available: ['security'], open: [] };
+  assert.equal(gates.commitGate(ev).allow, false, 'without the flag the missing review refuses');
+  const deferred = gates.commitGate({ ...ev, expertsDeferred: true });
+  assert.equal(deferred.allow, true);
+  assert.equal(deferred.outcome, 'deferred');
+  assert.match(deferred.why, /experts: deferred to the run's review/);
+  assert.deepStrictEqual(gates.checkRecord(deferred).outcome, 'deferred');
+  const refused = gates.commitGate({ ...ev, expertsDeferred: true, confirmation: { ok: false, missing: 'plan', reason: 'the plan is not confirmed' } });
+  assert.equal(refused.allow, false, 'a missing confirmation still refuses');
+  assert.deepStrictEqual(refused.missing.map((m) => m.kind), ['confirmation']);
+  const memory = gates.commitGate({ ...ev, expertsDeferred: true, memory: { added: [{ kind: 'index', text: 'memory.md is stale' }], existing: [] } });
+  assert.equal(memory.allow, false, 'a broken memory still refuses');
+});

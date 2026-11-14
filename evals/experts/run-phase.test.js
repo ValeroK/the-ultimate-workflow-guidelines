@@ -36,15 +36,17 @@ function responder(o = {}) {
     if (role === 'write-tests') return { filesWritten: [`test/${who}.test.js`], testsFailAsExpected: true, summary: 'red' };
     if (/^attempt-/.test(role)) return (o.red || []).includes(who) ? { green: false, filesChanged: [`src/${who}/x.js`], failureOutput: `fail ${role}`, summary: role } : { green: true, fullSuiteGreen: true, filesChanged: [`src/${who}/x.js`], summary: 'done' };
     if (/^diagnose-/.test(role)) return { cause: 'wrong', signature: `sig-${role}`, suggestedFix: 'fix', confidence: 'medium' };
-    if (role === 'prepare' || role === 'prepare-fix') return steps({ card: who, outOfScope: [] }, { ok: true });
+    if (role === 'scope') return steps({ card: who, outOfScope: [] });
+    if (role === 'prepare') return steps({ ok: true }); // the review's prepare of a range
     if (role === 'fix-round') return (o.fixRound && o.fixRound[who]) || { green: true, fullSuiteGreen: true, filesChanged: [`test/${who}.test.js`], testFiles: [`test/${who}.test.js`], newTests: [{ name: 'b guard', failedFirst: false, why: 'the code was right' }], summary: 'wrote the missing test' };
     if (role === 'recheck') return { experts: [] };
-    if (role === 'quality' && who !== 'review') return { lensVerdict: 'ok', findings: (o.findings && o.findings[who]) || [], stillPresent: (o.stillPresent && o.stillPresent[who]) || [] };
-    if (role === 'refute' && who !== 'review') return { verdicts: [] };
     if (role === 'commit') {
-      const lane = JSON.parse(/<<<CONTENT\n([\s\S]*?)\nCONTENT>>>/.exec(call.prompt)[1]).expertLane;
       const reason = o.commitFails && o.commitFails[who];
-      return steps({ stage: 'review', recorded: lane.ran, findings: lane.findings.length, open: [] }, reason ? { ok: false, reason } : { ok: true, card: who, commit: `c-${who}`, files: 1, handoff: 'h', missingClaims: [] });
+      return steps(reason ? { ok: false, reason } : { ok: true, card: who, commit: `c-${who}`, files: 1, handoff: 'h', missingClaims: [] });
+    }
+    if (role === 'record' && who !== 'settle') {
+      const lane = JSON.parse(/<<<CONTENT\n([\s\S]*?)\nCONTENT>>>/.exec(call.prompt)[1]).expertLane;
+      return steps({ stage: 'review', recorded: lane.ran, findings: lane.findings.length, open: [] });
     }
     if (role === 'park') return steps({ ok: true, card: who, branch: `uw/parked/f/${who}` }, { ok: true, desktop: 'sent' });
     if (role === 'notify') return steps({ ok: true, desktop: 'sent' });
@@ -55,10 +57,10 @@ function responder(o = {}) {
     if (role === 'setup') return steps({ ok: true }, { ok: true, contextFile: `.ultimate-workflow/run/f/cards/${who}/context.md` });
     if (role === 'pack') return steps({ ok: true, contextFile: `.ultimate-workflow/run/f/cards/${who}/context.md` });
     if (who === 'settle' && role === 'state') return steps({ ok: true, head: 'head1', reviewedHead: '', harvestBranch: '', ...(o.state || {}) });
-    if (who === 'settle' && role === 'record') return steps({ ok: true });
-    if (who === 'settle' && role === 'findings') return steps({ ok: true });
-    if (who === 'review' && role === 'refute') return { verdicts: (o.reviewFindings || []).map((_, index) => ({ index, verdict: 'confirmed', reason: 'yes' })) };
-    if (who === 'review') return { lensVerdict: 'ok', findings: role === 'correctness' ? o.reviewFindings || [] : [] };
+    if (who === 'settle' && role === 'head') return steps({ ok: true, head: 'head1', ...(o.head || {}) });
+    if (who === 'settle' && role === 'record') return steps({ ok: true, head: 'head2', reviewed: { head: 'head2', at: 'now', open: 0 } });
+    if (/^review/.test(who) && role === 'refute') return { verdicts: (o.reviewFindings || []).map((_, index) => ({ index, verdict: 'confirmed', reason: 'yes' })) };
+    if (/^review/.test(who)) return { lensVerdict: 'ok', findings: role === 'correctness' ? o.reviewFindings || [] : role === 'quality' ? (o.expertFindings || []) : [] };
     if (call.label === 'harvest') return { proposals: [{ destination: 'gotcha', path: 'AGENTS.md', text: '- Beware x.', source: 'card 1', rationale: 'r' }], discarded: [] };
     if (role === 'branch') return steps({ ok: true, branch: 'uw/harvest/f', commits: ['h1'] });
     throw new Error(`unexpected agent ${call.label}`);
@@ -144,58 +146,6 @@ test('a fix-up card that could not be added is not started, is not parked, and t
   assert.ok(seen.includes('harvest'), 'the harvest still ran');
 });
 
-test('a non-blocking finding goes to the later card that covers its file; unfixed there, and one no card covers, both go to the findings card before review', async () => {
-  const cards = [card('1'), card('2'), card('3')];
-  const r = responder({
-    findings: {
-      1: [
-        { file: 'src/3/a.js', line: 1, what: 'missing guard', howItFails: 'null', confidence: 'medium' },
-        { file: 'docs/x.md', line: 2, what: 'stale doc', howItFails: 'misleads', confidence: 'low' },
-      ],
-    },
-    stillPresent: { 3: [0] },
-  });
-  const calls = []
-  const wrapped = async (c) => {
-    calls.push(c);
-    return r(c);
-  };
-  const { result } = await run(baseArgs(cards), wrapped);
-  const by = Object.fromEntries(result.cards.map((c) => [c.card, c]));
-  assert.deepStrictEqual(by['1'].experts.carriedOn, ['3'], 'the src/3 finding went to card 3, not card 2');
-  const build3 = calls.find((c) => c.label === '3:write-tests');
-  assert.match(build3.prompt, /CARRIED to this card[\s\S]*src\/3\/a\.js:1: missing guard/);
-  assert.ok(!calls.find((c) => c.label === '2:write-tests').prompt.includes('missing guard'));
-  const expert3 = calls.find((c) => c.label === '3:quality');
-  assert.match(expert3.prompt, /CARRIED findings[\s\S]*"index": 0/);
-  assert.ok(calls.some((c) => c.label === '1:carry' && /card-field .*--card 3/.test(c.prompt)), 'the carry is written to the plan');
-  assert.equal(result.findingsCard.status, 'committed');
-  const setup = calls.find((c) => c.label === 'findings:setup');
-  assert.match(setup.prompt, /card-add .*--name findings/);
-  assert.match(setup.prompt, /src\/3\/a\.js.*docs\/x\.md|docs\/x\.md.*src\/3\/a\.js/);
-  const order = r.seen;
-  assert.ok(order.indexOf('3:commit') < order.indexOf('findings:setup') && order.indexOf('findings:setup') < order.indexOf('review:correctness'));
-  assert.match(calls.find((c) => c.label === 'findings:write-tests').prompt, /items carried to this card/);
-});
-
-// The in-card fix round (2026-11-09): three real runs of four parked a card on a missing test in its
-// own test file. A blocking finding in the card's files now gets one more round in the card and a
-// fresh experts check; only what is still blocking after it, or a finding outside the card, parks it.
-test('a blocking finding in the card\'s own files is fixed in one more round, re-checked, and the card commits', async () => {
-  const blocking = { file: 'C:/proj/src/1/x.js', line: 3, what: 'b guard untested', howItFails: 'delete it, all green', confidence: 'high' };
-  const r = responder({ findings: { 1: [blocking], '1-fix': [] } });
-  const { result } = await run(baseArgs([card('1')]), r);
-  const c = result.cards[0];
-  assert.equal(c.status, 'committed', JSON.stringify(c));
-  assert.equal(c.fixRound.outcome, 'fixed');
-  assert.equal(c.fixRound.round, 2, 'one build round, then the fix round');
-  assert.deepStrictEqual(c.fixRound.findings.map((f) => f.what), ['b guard untested']);
-  assert.ok(r.seen.indexOf('1:fix-round') < r.seen.indexOf('1-fix:quality') && r.seen.indexOf('1-fix:quality') < r.seen.indexOf('1:commit'), 'fix, re-check, then commit');
-  assert.ok(!r.seen.includes('1:park'));
-  assert.equal(result.expertLanes.filter((l) => l.card === '1').length, 2, 'both checks are in the lanes, the second marked');
-  assert.ok(result.expertLanes.some((l) => l.card === '1' && l.fixRound === true));
-});
-
 // The plan's own status for every card (2026-11-09): written by commands the run issues, never by an
 // agent's edit. These hold which command the script issues at each transition.
 const statusOf = (calls, label) => {
@@ -203,14 +153,14 @@ const statusOf = (calls, label) => {
   return c ? (/card-status [^\n]*--status "([^"]+)"/.exec(c.prompt) || [])[1] : undefined;
 };
 
-test('the plan shows each card running before any work, then committed, fixed in round, parked or blocked', async () => {
+test('the plan shows each card running before any work, then committed, parked or blocked', async () => {
   const calls = [];
-  const base = responder({ red: ['2'], findings: { 1: [{ file: 'src/1/x.js', line: 3, what: 'w', howItFails: 'h', confidence: 'high' }], '1-fix': [] } });
+  const base = responder({ red: ['2'] });
   const r = async (c) => { calls.push(c); return base(c); };
   const { result } = await run(baseArgs([card('1'), card('2'), card('3', { depends: ['2'] })]), r);
   assert.equal(statusOf(calls, '1:start'), 'running');
   assert.ok(base.seen.indexOf('1:start') < base.seen.indexOf('1:write-tests'), 'running is written before the tests');
-  assert.match(calls.find((c) => c.label === '1:commit').prompt, /card-commit [^\n]*--fixed-round/, 'a card fixed in its fix round commits as fixed-in-round');
+  assert.doesNotMatch(calls.find((c) => c.label === '1:commit').prompt, /--fixed-round/, 'there is no fix round any more');
   assert.equal(result.cards.find((c) => c.card === '2').status, 'parked');
   assert.match(calls.find((c) => c.label === '2:park').prompt, /experts\.js" park /, 'parked is written by the park command');
   assert.equal(statusOf(calls, 'blocked:status'), 'blocked by 2');
@@ -332,38 +282,6 @@ test('a held card run again that needs the same decision is held again, notified
   assert.equal(result.cards.find((c) => c.card === '2').status, 'blocked');
 });
 
-test('a finding still blocking after the fix round parks the card, with the round on record', async () => {
-  const blocking = { file: 'src/1/x.js', line: 3, what: 'b guard untested', howItFails: 'h', confidence: 'high' };
-  const r = responder({ findings: { 1: [blocking], '1-fix': [{ ...blocking, what: 'still no b test' }] } });
-  const { result } = await run(baseArgs([card('1'), card('2')]), r);
-  assert.equal(result.cards[0].status, 'parked');
-  assert.match(result.cards[0].reason, /not fixed by the fix round \(still blocking\).*still no b test/);
-  assert.equal(result.cards[0].fixRound.outcome, 'still blocking');
-  assert.ok(!r.seen.includes('1:commit'));
-  assert.equal(result.cards[1].status, 'committed', 'the next card still runs');
-});
-
-test('a fix round that does not go green parks the card without a second experts check', async () => {
-  const r = responder({ findings: { 1: [{ file: 'src/1/x.js', line: 3, what: 'w', howItFails: 'h', confidence: 'high' }] }, fixRound: { 1: { green: false, fullSuiteGreen: false, filesChanged: [], summary: 'red', failureOutput: 'x' } } });
-  const { result } = await run(baseArgs([card('1')]), r);
-  assert.equal(result.cards[0].status, 'parked');
-  assert.equal(result.cards[0].fixRound.outcome, 'not green');
-  assert.ok(!r.seen.includes('1-fix:quality'));
-});
-
-test('a blocking finding outside the card\'s paths parks it with no fix round; the next card still runs', async () => {
-  const r = responder({ findings: { 1: [{ file: 'src/other/x.js', line: 9, what: 'secret logged', howItFails: 'log', confidence: 'high' }] } });
-  const { result } = await run(baseArgs([card('1'), card('2')]), r);
-  assert.equal(result.cards[0].status, 'parked');
-  assert.match(result.cards[0].reason, /outside this card's paths so no fix round/);
-  assert.ok(!r.seen.includes('1:fix-round'));
-  // 2026-11-08: the reason was cut at its first line, so the report said only "blocking finding from the experts check:".
-  assert.match(result.cards[0].reason, /src\/other\/x\.js:9 secret logged/, 'the report row names the finding, not just its heading');
-  assert.doesNotMatch(result.cards[0].reason, /\n/, 'one line, for the report table');
-  assert.ok(!r.seen.includes('1:commit'));
-  assert.equal(result.cards[1].status, 'committed');
-});
-
 test('a card whose preflight failed is parked without building, and two parks in a row for the same reason stop the run', async () => {
   const cards = [card('1', { preflight: { ok: false, reason: 'missing input: the plan cites docs/a.md, which does not exist' } }), card('2', { preflight: { ok: false, reason: 'missing input: the plan cites docs/a.md, which does not exist' } }), card('3')];
   const r = responder();
@@ -386,13 +304,6 @@ test('a refused commit parks the card with the gate\'s reason; earlier committed
   assert.ok(!r.seen.some((l) => l.startsWith('0:') || l.startsWith('p:')));
 });
 
-test('a lane the agent retyped wrong is caught: the record count must match what the script built', async () => {
-  const r = responder({ findings: { 1: [{ file: 'src/1/x.js', line: 1, what: 'w', howItFails: 'h', confidence: 'low' }] } });
-  const wrong = async (c) => (c.label === '1:commit' ? steps({ recorded: ['quality'], findings: 0 }, { ok: false, reason: 'Gate G6: no review from quality covers these changes' }) : r(c));
-  const { result } = await run(baseArgs([card('1')]), wrong);
-  assert.match(result.cards[0].reason, /evidence was not recorded as built/);
-});
-
 test('resume continues the parked card at the implementation with its tests, and runs nothing for committed cards', async () => {
   const cards = [card('1', { committed: 'c1' }), card('2', { parked: { branch: 'uw/parked/f/2', reason: 'red' } })];
   const r = responder();
@@ -406,15 +317,15 @@ test('every command a run agent is given carries the user\'s authority and the o
   const calls = [];
   const r = responder();
   const skillTexts = { 'test-craft': 'TEST CRAFT BODY' };
-  await run(baseArgs([card('1', { reviewSkills: { quality: ['test-craft'] }, briefs: [{ name: 'quality', text: 'BRIEF', skills: ['test-craft'] }] })], { skillTexts }), async (c) => {
+  await run(baseArgs([card('1', { reviewSkills: { quality: ['test-craft'] }, briefs: [{ name: 'quality', text: 'BRIEF', skills: ['test-craft'] }] })], { skillTexts, planExperts: ['quality'] }), async (c) => {
     calls.push(c);
     return r(c);
   });
-  for (const c of calls.filter((x) => /:(prepare|commit|park|journal)$/.test(x.label))) {
+  for (const c of calls.filter((x) => /:(scope|commit|park|journal)$/.test(x.label))) {
     assert.match(c.prompt, /the user started \/ultimate-workflow:feature for PLAN-f\.md/, c.label);
   }
   assert.match(calls.find((c) => c.label === '1:commit').prompt, /card-commit --plan "PLAN-f\.md" --card 1 --feature f/);
-  assert.match(calls.find((c) => c.label === '1:quality').prompt, /SKILLS for this card \(test-craft\)[\s\S]*TEST CRAFT BODY/);
+  assert.match(calls.find((c) => c.label === 'review:quality').prompt, /SKILLS for this change \(test-craft\)[\s\S]*TEST CRAFT BODY/);
   assert.match(calls.find((c) => c.label === '1:attempt-1').prompt, /STANDING BRIEF[\s\S]*TEST CRAFT BODY/);
   assert.match(calls.find((c) => c.label === '1:attempt-1').prompt, /context pack \.ultimate-workflow\/run\/f\/cards\/1\/context\.md/);
 });
@@ -465,28 +376,6 @@ test('a fix-up card for a real defect whose tests pass first is still parked', a
   assert.match(result.fixupCard.reason, /tests did not fail first/);
 });
 
-test('an expert a recheck adds on one card is held to on every later card, unless a card names its own', async () => {
-  const AV = [...AVAILABLE, { name: 'developer', agent: 'uw-expert-developer', description: 'code', stages: ['plan', 'review'] }];
-  const base = responder();
-  const calls = [];
-  const r = async (c) => {
-    calls.push(c);
-    if (c.label === 'a:recheck') return { experts: [{ name: 'developer', why: 'code' }] };
-    if (/:developer$/.test(c.label)) return { lensVerdict: 'ok', findings: [] };
-    if (/:commit$/.test(c.label)) {
-      const lane = JSON.parse(/<<<CONTENT\n([\s\S]*?)\nCONTENT>>>/.exec(c.prompt)[1]).expertLane;
-      return steps({ recorded: lane.ran, findings: lane.findings.length, open: [], plan: { experts: lane.selected } }, { ok: true, commit: 'x', files: 1 });
-    }
-    return base(c);
-  };
-  await run(baseArgs([card('a'), card('b'), card('c', { ownExperts: true, experts: ['quality'] })], { available: AV }), r);
-  const lane = (n) => JSON.parse(/<<<CONTENT\n([\s\S]*?)\nCONTENT>>>/.exec(calls.find((c) => c.label === `${n}:commit`).prompt)[1]).expertLane;
-  assert.deepStrictEqual(lane('a').selected, ['quality', 'developer']);
-  assert.deepStrictEqual(lane('b').planned, ['quality', 'developer'], 'card b starts from the grown plan line');
-  assert.ok(calls.some((c) => c.label === 'b:developer'));
-  assert.deepStrictEqual(lane('c').planned, ['quality'], 'a card with its own experts keeps them');
-});
-
 // ---- 4.7.1: what the first memory-index runs hit ----
 
 test('bare --resume runs a parked card again from its tests, and the cards behind it; committed cards are left alone', async () => {
@@ -512,13 +401,12 @@ test('a refused commit whose output is not a JSON line still gives its text as t
   const r = responder();
   const said = async (c) => {
     if (c.label !== '1:commit') return r(c);
-    const lane = JSON.parse(/<<<CONTENT\n([\s\S]*?)\nCONTENT>>>/.exec(c.prompt)[1]).expertLane;
-    return steps({ stage: 'review', recorded: lane.ran, findings: lane.findings.length, open: [] }, 'Gate G6: the domain experts have not been re-checked against these changes');
+    return steps('Gate G7: no passing full test suite run covers these changes');
   };
   const { result } = await run(baseArgs([card('1')]), said);
   const got = result.cards.find((c) => c.card === '1');
   assert.equal(got.status, 'parked');
-  assert.match(got.reason, /commit was refused: card-commit printed no JSON line; it printed: Gate G6: the domain experts have not been re-checked/);
+  assert.match(got.reason, /commit was refused: card-commit printed no JSON line; it printed: Gate G7: no passing full test suite run covers these changes/);
 });
 
 test('the commit step asks for the JSON line of each command, not just its last line', async () => {
@@ -553,15 +441,15 @@ test('20: adhocCard passes --experts only with names already in the plan\'s line
   ];
   for (const t of table) {
     const calls = [];
-    const base = responder({ findings: { 1: [{ file: 'docs/x.md', line: 2, what: 'stale doc', howItFails: 'misleads', confidence: 'low' }] } });
+    // The review finds one medium defect in card 1's files: the run adds a fix-up card for it.
+    const base = responder({ reviewFindings: [{ file: 'src/1/y.js', line: 2, what: 'old note', howItFails: 'misleads', confidence: 'medium' }] });
     const respond = async (c) => {
       calls.push(c);
-      if (c.label === '1:ghost') return { lensVerdict: 'ok', findings: [{ file: 'docs/y.md', line: 1, what: 'old note', howItFails: 'misleads', confidence: 'low' }], stillPresent: [] };
       return base(c);
     };
     await run(baseArgs([card('1', { experts: ['quality', 'ghost'] })], { available: GHOST, planExperts: t.planExperts }), respond);
-    const line = cardAddLine(calls, 'findings:setup');
-    assert.match(line, /--name findings/, t.name);
+    const line = cardAddLine(calls, 'fixup:setup');
+    assert.match(line, /--name fixup/, t.name);
     const given = /--experts (\S+)/.exec(line);
     assert.equal(given && given[1], t.want, t.name);
   }
@@ -653,30 +541,6 @@ test('33: findings in a file no plan card covers, or with no file, make one more
   assert.equal(result.review.leftInReport, 2, 'the two without a file stay in the report');
 });
 
-test('34: a fix-up on a file covered by two cards gets past the gate: the lane is the union, and the commit check passes', async () => {
-  const rules = require(path.join(PLUGIN, 'lib', 'run-rules.js'));
-  const cards = [card('a', { paths: ['src/a/**', 'src/s/**'], experts: ['quality'] }), card('b', { paths: ['src/b/**', 'src/s/**'], experts: ['security'] })];
-  const r = withFreeNames(responder({ reviewFindings: [finding('src/s/x.js')] }));
-  const required = [];
-  const gated = async (c) => {
-    if (c.label === 'fixup:commit') {
-      // The real G6 rule (lib/run-rules.js) on the plan as card-add wrote it: the run-added card has the lane's line.
-      const lane = JSON.parse(/<<<CONTENT\n([\s\S]*?)\nCONTENT>>>/.exec(c.prompt)[1]).expertLane;
-      const add = r.calls.find((x) => x.label === 'fixup:setup').prompt.split('\n').find((l) => / card-add /.test(l));
-      const written = /--experts (\S+)/.exec(add)[1].split(',');
-      const planCards = [{ name: 'a', paths: ['src/a/**', 'src/s/**'], experts: ['quality'] }, { name: 'b', paths: ['src/b/**', 'src/s/**'], experts: ['security'] }, { name: 'fixup', paths: ['src/s/x.js'], experts: written }];
-      const need = rules.narrowedExperts({ cards: planCards, name: 'fixup', changed: ['src/s/x.js'], accepted: [], covers: (paths, f) => paths.some((p) => f.startsWith(p.replace('**', ''))), valid: () => true });
-      required.push(...need.experts);
-      assert.deepStrictEqual(need.experts.filter((n) => !lane.ran.includes(n)), [], 'every expert G6 asks for ran on the fix-up');
-    }
-    return r(c);
-  };
-  const { result } = await run(baseArgs(cards, { available: TWO_EXPERTS, planExperts: ['quality', 'security'] }), gated);
-  assert.deepStrictEqual([...required].sort(), ['quality', 'security']);
-  assert.equal(result.fixupCard.status, 'committed', JSON.stringify(result.fixupCard));
-  assert.ok(labelsOf(r.calls).includes('fixup:security'), 'the security lane ran on the fix-up');
-});
-
 test('35: one fix-up card that parks does not stop the others', async () => {
   const cards = [card('a', { experts: ['quality'] }), card('b', { experts: ['security'] })];
   const r = withFreeNames(responder({ reviewFindings: [finding('src/a/x.js'), finding('src/b/y.js')], red: ['fixup'] }));
@@ -699,19 +563,6 @@ test('36: at most four fix-up cards per run; the findings of the rest stay in th
   const added = adds.map(addOf);
   names.slice(0, 4).forEach((n, i) => assert.ok(added[i].includes(`src/${n}/x.js`), `card ${i + 1} holds ${n}: ${added[i]}`));
   assert.ok(!added.some((l) => l.includes('src/c5/x.js')), 'no card holds the fifth group');
-});
-
-test('48: the findings card is held to the experts of every plan card covering its files, not only the experts that raised the findings', async () => {
-  // Card b (security) commits first; card a's quality expert then finds a non-blocking defect in b's file.
-  // No later card covers it, so it goes to the findings card; G6 asks for security there too.
-  const cards = [card('b', { experts: ['security'] }), card('a', { experts: ['quality'] })];
-  const low = { file: 'src/b/y.js', line: 3, what: 'old note', howItFails: 'misleads', confidence: 'low' };
-  const r = withFreeNames(responder({ findings: { a: [low] } }));
-  const { result } = await run(baseArgs(cards, { available: TWO_EXPERTS, planExperts: ['quality', 'security'] }), r);
-  assert.equal(result.findingsCard.status, 'committed', JSON.stringify(result.findingsCard));
-  const given = /--experts (\S+)/.exec(cardAddLine(r.calls, 'findings:setup'))[1].split(',').sort();
-  assert.deepStrictEqual(given, ['quality', 'security']);
-  assert.ok(labelsOf(r.calls).includes('findings:security'), 'the security lane ran on the findings card');
 });
 
 test('49: agent text never reaches a card-add command line; it reaches the step through a file', async () => {
@@ -769,127 +620,6 @@ function nullThen(base, nulls) {
   fn.retries = () => calls.filter((c) => /:retry$/.test(c.label)).map((c) => c.label);
   return fn;
 }
-
-test('38: an expert that returns null once is retried and the card commits', async () => {
-  const r = nullThen(responder(), { '1:quality': 1 });
-  const { result } = await run(baseArgs([card('1')]), r);
-  assert.equal(result.cards[0].status, 'committed', JSON.stringify(result.cards[0]));
-  assert.equal(r.count('1:quality') + r.count('1:quality:retry'), 2, 'one first call and one retry');
-  assert.equal(r.count('1:quality:retry'), 1);
-  assert.equal(r.count('1:commit'), 1);
-});
-
-test('39: experts that return null twice park the card with every failed name; card-commit and record are not called', async () => {
-  const r = nullThen(responder(), { '1:quality': 2, '1:security': 2 });
-  const { result } = await run(baseArgs([card('1', { experts: ['quality', 'security'] })], { available: TWO_EXPERTS }), r);
-  const got = result.cards[0];
-  assert.equal(got.status, 'parked', JSON.stringify(got));
-  assert.match(got.reason, /quality/);
-  assert.match(got.reason, /security/);
-  assert.match(got.reason, /first check/);
-  assert.equal(r.count('1:commit'), 0, 'no commit step');
-  assert.ok(!r.calls.some((c) => /card-commit|experts\.js" record /.test(String(c.prompt))), 'neither card-commit nor record was issued');
-});
-
-test('40: a valid empty result is a success and is not retried', async () => {
-  const r = nullThen(responder(), {});
-  const { result } = await run(baseArgs([card('1')]), r);
-  assert.equal(result.cards[0].status, 'committed');
-  assert.equal(r.count('1:quality'), 1);
-  assert.deepStrictEqual(r.retries(), []);
-});
-
-test('41: only the failed expert is retried', async () => {
-  const r = nullThen(responder(), { '1:quality': 1 });
-  const { result } = await run(baseArgs([card('1', { experts: ['quality', 'security'] })], { available: TWO_EXPERTS }), r);
-  assert.equal(result.cards[0].status, 'committed', JSON.stringify(result.cards[0]));
-  assert.equal(r.count('1:security'), 1);
-  assert.equal(r.count('1:security:retry'), 0);
-  assert.deepStrictEqual(r.retries(), ['1:quality:retry'], 'as many retries as experts that failed');
-});
-
-test('42b: the same retry and park rule applies after a fix round (-fix tag)', async () => {
-  const blocking = { file: 'src/1/x.js', line: 3, what: 'b guard untested', howItFails: 'delete it, all green', confidence: 'high' };
-  const once = nullThen(responder({ findings: { 1: [blocking], '1-fix': [] } }), { '1-fix:quality': 1 });
-  const ok = await run(baseArgs([card('1')]), once);
-  assert.equal(ok.result.cards[0].status, 'committed', JSON.stringify(ok.result.cards[0]));
-  assert.deepStrictEqual(once.retries(), ['1-fix:quality:retry']);
-  assert.equal(once.count('1:commit'), 1);
-
-  const twice = nullThen(responder({ findings: { 1: [blocking], '1-fix': [] } }), { '1-fix:quality': 2 });
-  const bad = await run(baseArgs([card('1')]), twice);
-  const got = bad.result.cards[0];
-  assert.equal(got.status, 'parked', JSON.stringify(got));
-  assert.match(got.reason, /after the fix round failed: quality/);
-  assert.equal(twice.count('1:commit'), 0);
-});
-
-test('43: a refute agent null twice parks the card; no fix round is paid', async () => {
-  const blocking = { file: 'src/1/x.js', line: 3, what: 'b guard untested', howItFails: 'delete it, all green', confidence: 'high' };
-  const r = nullThen(responder({ findings: { 1: [blocking] } }), { '1:refute': 2 });
-  const { result } = await run(baseArgs([card('1')]), r);
-  const got = result.cards[0];
-  assert.equal(got.status, 'parked', JSON.stringify(got));
-  assert.match(got.reason, /refute/);
-  assert.equal(r.count('1:refute'), 1);
-  assert.equal(r.count('1:refute:retry'), 1);
-  assert.equal(r.count('1:fix-round'), 0);
-  assert.equal(r.count('1:commit'), 0);
-});
-
-test('43b: a refute agent null once is retried and the card goes on', async () => {
-  const blocking = { file: 'src/1/x.js', line: 3, what: 'b guard untested', howItFails: 'delete it, all green', confidence: 'high' };
-  const r = nullThen(responder({ findings: { 1: [blocking], '1-fix': [] } }), { '1:refute': 1 });
-  const { result } = await run(baseArgs([card('1')]), r);
-  assert.equal(result.cards[0].status, 'committed', JSON.stringify(result.cards[0]));
-  assert.equal(r.count('1:refute:retry'), 1);
-});
-
-test('43c: the verdicts of a refute retry are used, not discarded', async () => {
-  const blocking = { file: 'src/1/x.js', line: 3, what: 'b guard untested', howItFails: 'delete it, all green', confidence: 'high' };
-  for (const verdict of ['refuted', 'confirmed']) {
-    const base = nullThen(responder({ findings: { 1: [blocking], '1-fix': [] } }), { '1:refute': 1 });
-    const r = async (c) => (c.label === '1:refute:retry' ? { verdicts: [{ index: 0, verdict, reason: 'from the retry' }] } : base(c));
-    const { result } = await run(baseArgs([card('1')]), r);
-    assert.equal(result.cards[0].status, 'committed', `${verdict}: ${JSON.stringify(result.cards[0])}`);
-    // A refuted finding pays no fix round; a confirmed one does. A discarded retry would look like neither.
-    assert.equal(base.count('1:fix-round'), verdict === 'confirmed' ? 1 : 0, verdict);
-  }
-});
-
-test('43d: a retried expert that returns findings has them acted on: a blocking one gets the fix round, a non-blocking one reaches the findings card', async () => {
-  const blocking = { file: 'src/1/x.js', line: 3, what: 'b guard untested', howItFails: 'delete it, all green', confidence: 'high' };
-  const fixed = nullThen(responder({ findings: { 1: [blocking], '1-fix': [] } }), { '1:quality': 1 });
-  const a = await run(baseArgs([card('1')]), fixed);
-  assert.equal(fixed.count('1:quality:retry'), 1);
-  assert.equal(fixed.count('1:fix-round'), 1, 'the retry\'s blocking finding drove a fix round');
-  assert.equal(a.result.cards[0].status, 'committed', JSON.stringify(a.result.cards[0]));
-
-  const low = { file: 'docs/x.md', line: 2, what: 'stale doc', howItFails: 'misleads', confidence: 'low' };
-  const queued = nullThen(responder({ findings: { 1: [low] } }), { '1:quality': 1 });
-  const b = await run(baseArgs([card('1')]), queued);
-  assert.equal(queued.count('1:quality:retry'), 1);
-  assert.ok(b.result.findingsCard && b.result.findingsCard.status === 'committed', 'the retry\'s non-blocking finding reached the findings card');
-  assert.ok(queued.calls.find((c) => c.label === 'findings:setup').prompt.includes('docs/x.md'));
-});
-
-test('44: a recheck agent null is retried once', async () => {
-  const r = nullThen(responder(), { '1:recheck': 1 });
-  const { result } = await run(baseArgs([card('1')]), r);
-  assert.equal(result.cards[0].status, 'committed', JSON.stringify(result.cards[0]));
-  assert.equal(r.count('1:recheck'), 1);
-  assert.equal(r.count('1:recheck:retry'), 1);
-  const twice = nullThen(responder(), { '1:recheck': 2 });
-  const second = await run(baseArgs([card('1')]), twice);
-  assert.equal(twice.count('1:recheck:retry'), 1, 'at most one retry');
-  // What the run does next: the card is not parked, and the lane it commits records that no recheck happened.
-  assert.equal(second.result.cards[0].status, 'committed', JSON.stringify(second.result.cards[0]));
-  const commit = twice.calls.find((c) => c.label === '1:commit');
-  const lane = JSON.parse(/<<<CONTENT\n([\s\S]*?)\nCONTENT>>>/.exec(commit.prompt)[1]).expertLane;
-  assert.equal(lane.recheck, true, 'a failed recheck does not refuse the commit (owner decision, 2026-11-13)');
-  assert.equal(lane.recheckFailed, true, 'and it is named');
-  assert.deepStrictEqual(lane.added, []);
-});
 
 // Carried from card-add: a refused card-add for the second fix-up card was recorded under 'fixup'.
 test('42: a refused card-add for fixup-2 is recorded under fixup-2, not under fixup', async () => {
@@ -970,11 +700,10 @@ const waitingLabels = (labels) => labels.filter((l) => /^(review:|harvest|fixup|
 const recordCalls = (calls) => calls.filter((c) => c.label === 'settle:record');
 const LENS_LABEL = /^review:(correctness|simplicity|surgical-scope|test-coverage)$/;
 
-test('46: with one card parked there is no review, no fix-up card, no findings card and no harvest', async () => {
+test('46: with one card parked there is no review, no fix-up card and no harvest', async () => {
   const calls = [];
   const base = responder({
     red: ['1'],
-    findings: { 2: [{ file: 'docs/x.md', line: 2, what: 'stale doc', howItFails: 'misleads', confidence: 'low' }] },
     reviewFindings: [{ file: 'src/2/x.js', line: 3, what: 'off by one', howItFails: 'n=0', confidence: 'high' }],
   });
   const r = async (c) => { calls.push(c); return base(c); };
@@ -989,7 +718,9 @@ test('46: with one card parked there is no review, no fix-up card, no findings c
   const text = JSON.stringify(result);
   assert.ok(text.includes('/ultimate-workflow:review') && text.includes('/ultimate-workflow:harvest'), 'the commands to run them by hand');
   assert.equal(recordCalls(calls).length, 0, 'nothing ran, so run.json records no review and no harvest branch');
-  assert.equal(result.pendingFindings.length, 1, 'the finding stays in the report');
+  assert.equal(result.reviewed, null, 'a parked card means the branch was not reviewed');
+  assert.match(result.reviewedText, /^NOT REVIEWED: waiting for 1(?![\w-])/);
+  assert.match(result.summary, /NOT REVIEWED/);
 });
 
 test('47: a card that is blocked, needs a decision, was not started, or is a parked fix-up card holds the review or the harvest back', async () => {
@@ -1041,7 +772,7 @@ test('49: the review range starts at the base the run was given, never at the re
   assert.equal(result.review.range, 'feedbee0123..HEAD');
 });
 
-test('50: a later settling resume reviews only what is new since the recorded head', async () => {
+test('50: a later settling resume reviews the whole branch again only when a card was committed since the recorded head', async () => {
   // (a) nothing was committed since the review and the harvest
   const a = responder({ state: { head: 'h2', reviewedHead: 'h2', harvestedHead: 'h2', harvestBranch: 'uw/harvest/f' } });
   const callsA = [];
@@ -1057,14 +788,14 @@ test('50: a later settling resume reviews only what is new since the recorded he
   const lenses = callsB.filter((c) => LENS_LABEL.test(c.label));
   assert.equal(lenses.length, 4, 'one review per lens');
   for (const c of lenses) {
-    assert.ok(c.prompt.includes('r1..HEAD'), c.label);
-    assert.ok(!c.prompt.includes('abc1234..HEAD'), `${c.label} does not start again at the base`);
+    assert.ok(c.prompt.includes('abc1234..HEAD'), `${c.label} reviews the whole branch from the base`);
+    assert.ok(!c.prompt.includes('r1..HEAD'), `${c.label} does not start at the earlier review`);
   }
   assert.equal(labelsOf(callsB).filter((l) => l === 'harvest').length, 1);
   const rec = recordCalls(callsB);
   assert.equal(rec.length, 1);
   assert.match(rec[0].prompt, /run-state [^\n]*--record/);
-  assert.equal(outB.result.review.range, 'r1..HEAD');
+  assert.equal(outB.result.review.range, 'abc1234..HEAD');
 });
 
 test('55: a review that ran is recorded even when its fix-up card parks and the harvest waits', async () => {
@@ -1077,29 +808,6 @@ test('55: a review that ran is recorded even when its fix-up card parks and the 
   assert.equal(rec.length, 1, 'the review is on record');
   assert.match(rec[0].prompt, /run-state [^\n]*--record/);
   assert.ok(!/--harvest-branch/.test(rec[0].prompt), 'no harvest branch was made');
-});
-
-test('56: findings no card fixed outlive a run that waits, and the settling resume fixes them', async () => {
-  const stuck = { file: 'docs/x.md', line: 2, what: 'stale doc', howItFails: 'misleads', confidence: 'low', expert: 'quality' };
-  // (a) card 1 parks: the findings are written to run.json by the run-state step
-  const a = responder({ red: ['1'], findings: { 2: [stuck] } });
-  const callsA = [];
-  await run(baseArgs([card('1'), card('2')]), async (c) => { callsA.push(c); return a(c); });
-  const saved = callsA.filter((c) => c.label === 'settle:findings');
-  assert.equal(saved.length, 1);
-  assert.match(saved[0].prompt, /run-state [^\n]*--findings/);
-  assert.ok(saved[0].prompt.includes('stale doc'), 'the finding is in the file');
-  // (b) the settling resume: nothing new in memory, the recorded finding is fixed by the findings card
-  // The review and the harvest both covered this HEAD: only the findings card's commit makes them run.
-  const b = responder({ state: { head: 'h2', reviewedHead: 'h2', harvestedHead: 'h2', pendingFindings: [stuck] } });
-  const callsB = [];
-  const outB = await run(baseArgs([card('1', { committed: true }), card('2', { committed: true })]), async (c) => { callsB.push(c); return b(c); });
-  assert.equal(outB.result.findingsCard.status, 'committed', JSON.stringify(outB.result.findingsCard));
-  assert.ok(labelsOf(callsB).includes('findings:write-tests'));
-  assert.equal(callsB.filter((c) => c.label === 'settle:findings').length, 1, 'the file is cleared');
-  assert.ok(callsB.find((c) => c.label === 'settle:findings').prompt.includes('[]'), 'cleared to an empty list');
-  assert.equal(outB.result.review.ran, true, 'the findings card commit is reviewed');
-  assert.equal(outB.result.harvest.ran, true, 'and harvested');
 });
 
 test('57: the review and the harvest are recorded apart, so the half that failed is run again and the other is not', async () => {
@@ -1131,7 +839,7 @@ test('57: the review and the harvest are recorded apart, so the half that failed
   const outC = await run(baseArgs([card('1', { committed: true })]), async (c) => { callsC.push(c); return c3(c); });
   assert.equal(callsC.filter((c) => LENS_LABEL.test(c.label)).length, 4, 'the review is run again');
   assert.equal(labelsOf(callsC).filter((l) => l === 'harvest').length, 0, 'no second harvest');
-  assert.equal(outC.result.review.range, 'r1..HEAD');
+  assert.equal(outC.result.review.range, 'abc1234..HEAD');
   const recC = recordCalls(callsC);
   assert.equal(recC.length, 1);
   assert.match(recC[0].prompt, /--review/);
@@ -1182,8 +890,11 @@ test('58: a fix-up card committed by this run\'s review is harvested, though the
 test('59: a review with a lens that returned nothing is not recorded as covering the head, so the next resume reviews the range again', async () => {
   const base = responder();
   const calls = [];
-  const { result } = await run(baseArgs([card('1')]), async (c) => { calls.push(c); return c.label === 'review:simplicity' ? null : base(c); });
-  assert.deepStrictEqual(result.review.failedLenses, ['simplicity']);
+  const { result } = await run(baseArgs([card('1')]), async (c) => { calls.push(c); return c.label.startsWith('review:simplicity') ? null : base(c); });
+  assert.deepStrictEqual(result.review.failedLenses, ['simplicity'], 'asked once more, and still nothing');
+  assert.ok(calls.some((c) => c.label === 'review:simplicity:retry'));
+  assert.equal(result.reviewed, null);
+  assert.match(result.reviewedText, /^NOT REVIEWED: simplicity returned nothing, also on the retry/);
   assert.equal(result.harvest.ran, true);
   const rec = recordCalls(calls);
   assert.equal(rec.length, 1, 'the harvest is still recorded');
@@ -1218,7 +929,7 @@ test('reasons 58: a held card run again within the plan keeps the whole detail o
 
 test('reasons 58: a refused commit that printed text and no JSON keeps all of that text', async () => {
   const base = responder();
-  const { result } = await run(baseArgs([card('1')]), async (c) => (c.label === '1:commit' ? steps({ stage: 'review', recorded: ['quality'], findings: 0, open: [] }, `refused ${LONG}`) : base(c)));
+  const { result } = await run(baseArgs([card('1')]), async (c) => (c.label === '1:commit' ? steps(`refused ${LONG}`) : base(c)));
   const entry = result.cards.find((c) => c.card === '1');
   assert.equal(entry.status, 'parked');
   assert.ok(entry.reason.includes('THE-END'), `...${entry.reason.slice(-80)}`);
@@ -1278,36 +989,6 @@ test('a run-state read that fails stops the settle step: no findings card, revie
   }
 });
 
-test('21 (carry): a finding carried to a later card reaches card-field through a file, and running the line in a shell leaves no PWNED file', async (t) => {
-  const hostile = { file: 'src/2/$(touch PWNED).js', line: '1`touch PWNED`', what: '$(touch PWNED) and `touch PWNED` and $HOME', howItFails: 'x', confidence: 'low' };
-  const calls = [];
-  const base = responder({ findings: { 1: [hostile] } });
-  await run(baseArgs([card('1'), card('2')]), async (c) => { calls.push(c); return base(c); });
-  const carry = calls.find((c) => c.label === '1:carry');
-  assert.ok(carry, `the finding is carried to card 2: ${labelsOf(calls).join(' ')}`);
-  const lines = commandLinesOf([carry]);
-  assert.equal(lines.length, 1);
-  assert.ok(!/PWNED|\$\(|`|\$HOME/.test(lines[0]), lines[0]);
-  assert.match(lines[0], /card-field [^\n]*--card 2 [^\n]*--carried-file /);
-  assert.ok(!/--carried /.test(lines[0]), lines[0]);
-  assert.ok(carry.prompt.includes('$(touch PWNED) and `touch PWNED` and $HOME'), 'the text is not lost: it is in the file the step writes');
-  const bash = spawnSync('bash', ['-c', 'echo ok'], { encoding: 'utf8' });
-  if (bash.status !== 0) return t.skip('no bash on this machine: the command line was checked as text only');
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'uw-pwned-'));
-  spawnSync('bash', ['-c', lines[0].replace(/^\d+\. /, '')], { cwd: dir, encoding: 'utf8' });
-  assert.deepStrictEqual(fs.readdirSync(dir), [], 'running the card-field line wrote nothing');
-});
-
-test('card-field --carried-file takes the carried text from the file, as written', () => {
-  const dir = tmpPlan('---\nplan_confirmed: true\n---\n\n# PLAN: x\n\n## Cards\n\n- a: first\n  paths: src/a/**\n');
-  fs.writeFileSync(path.join(dir, 'carry.txt'), 'quality at src/a/x.js:1: $(touch PWNED) and `x`\n');
-  const r = spawnSync(process.execPath, [path.join(PLUGIN, 'experts', 'experts.js'), 'card-field', '--plan', 'PLAN-x.md', '--card', 'a', '--carried-file', 'carry.txt'], { cwd: dir, encoding: 'utf8' });
-  const out = JSON.parse(r.stdout.trim().split('\n').pop());
-  assert.equal(out.ok, true, r.stdout + r.stderr);
-  assert.deepStrictEqual(out.carried, ['quality at src/a/x.js:1: $(touch PWNED) and `x`']);
-  assert.ok(!fs.existsSync(path.join(dir, 'PWNED')));
-});
-
 // ---- PLAN-simplify, card one-resume: a resume repeats no step that is already recorded as done ----
 
 test('resume: a run stopped after the review was recorded and before the harvest makes no lens or expert call on resume, and the harvest runs once', async () => {
@@ -1340,4 +1021,111 @@ test('resume: a parked 4.8.0 run resumes from its fixture run.json, and the old 
   assert.equal(out.result.harvest.ran, false);
   const rules = require(path.join(PLUGIN, 'lib', 'run-rules.js'));
   assert.deepStrictEqual(rules.resumeObject({ flag: { card: '1', reason: 'resumed by the user', accept: false }, held: { name: '1', parked: { branch: 'uw/parked/calc/1' } }, back: { testFiles: [] }, feature: 'calc' }), { card: '1', reason: 'resumed by the user', testFiles: [] });
+});
+
+// ---- the run reviews once (owner choice C, 2026-11-14) ----
+
+test('one review: a card makes no recheck, expert, refute or record call; its steps end with scope, decisions and the commit', async () => {
+  const r = responder();
+  const { result } = await run(baseArgs([card('1'), card('2')], { planExperts: ['quality'] }), r);
+  const perCard = r.seen.filter((l) => /^[12]:/.test(l));
+  for (const l of perCard) assert.ok(!/:(recheck|quality|refute|record|prepare|fix-round|carry)/.test(l), `no per-card experts step: ${l}`);
+  assert.deepStrictEqual(perCard.filter((l) => /^1:/.test(l)), ['1:start', '1:write-tests', '1:attempt-1', '1:scope', '1:decisions', '1:commit', '1:journal']);
+  assert.equal(result.counts.committed, 2);
+});
+
+test('one review: after the last card the whole branch is reviewed once, experts included, then harvested', async () => {
+  const r = responder();
+  const { result } = await run(baseArgs([card('1'), card('2')], { planExperts: ['quality'] }), r);
+  const seen = r.seen;
+  const lenses = ['review:correctness', 'review:simplicity', 'review:surgical-scope', 'review:test-coverage'];
+  for (const l of [...lenses, 'review:recheck', 'review:quality']) assert.equal(seen.filter((x) => x === l).length, 1, l);
+  assert.ok(seen.indexOf('2:commit') < seen.indexOf('review:prepare') && seen.indexOf('review:prepare') < seen.indexOf('review:recheck'));
+  assert.ok(seen.indexOf('review:quality') < seen.indexOf('review:record') && seen.indexOf('review:record') < seen.indexOf('harvest'));
+  assert.equal(result.review.range, 'abc1234..HEAD');
+  assert.equal(result.expertLanes.length, 1, "one lane, the review's, for the ledger");
+  assert.deepStrictEqual(result.expertLanes[0].lane.ran, ['quality']);
+});
+
+test('one review: the review is recorded with run.json, and the result, the notice and the report line say reviewed with the open count', async () => {
+  const calls = [];
+  const base = responder({ reviewFindings: [{ file: 'src/1/y.js', line: 1, what: 'style', howItFails: 'n/a', confidence: 'low' }] });
+  const { result } = await run(baseArgs([card('1')]), async (c) => { calls.push(c); return base(c); });
+  assert.match(calls.find((c) => c.label === 'settle:record').prompt, /run-state [^\n]*--record --review --open 1/, 'one low finding is open');
+  assert.deepStrictEqual(result.reviewed, { head: 'head2', open: 1, ranges: ['abc1234..head1'] });
+  assert.equal(result.reviewedText, 'Reviewed by the experts at head2: 1 finding open');
+  assert.match(result.summary, /Reviewed by the experts at head2: 1 finding open/);
+  const finished = calls.find((c) => c.label === 'finished:notify');
+  assert.match(finished.prompt, /Reviewed by the experts at head2: 1 finding open/);
+  assert.match(finished.prompt, /--action "read the report \(1 finding open\), then merge uw\/run\/f; before merging: experts\.js check --range abc1234\.\.head1"/);
+});
+
+test('one review: fix-up cards take the confirmed high and medium findings, then ONE experts-only check covers them, with no second fix round', async () => {
+  const calls = [];
+  const base = responder({ reviewFindings: [{ file: 'src/1/x.js', line: 3, what: 'off by one', howItFails: 'n=0', confidence: 'high' }] });
+  const { result } = await run(baseArgs([card('1')], { planExperts: ['quality'] }), async (c) => { calls.push(c); return base(c); });
+  const seen = labelsOf(calls);
+  assert.equal(result.fixupCard.status, 'committed');
+  assert.equal(seen.filter((l) => l === 'fixup:setup').length, 1, 'one fix-up card');
+  assert.ok(seen.indexOf('fixup:commit') < seen.indexOf('review-fixups:prepare'), 'the check of the fix-up cards comes after them');
+  assert.ok(seen.includes('review-fixups:quality'));
+  assert.ok(!seen.includes('review-fixups:recheck'), 'the check of the fix-up cards asks no recheck');
+  assert.ok(!seen.some((l) => /^review-fixups:(correctness|simplicity|surgical-scope|test-coverage)$/.test(l)), 'only the experts');
+  assert.equal(seen.filter((l) => /^fixup[^:]*:write-tests$/.test(l)).length, 1, 'no second fix round');
+  assert.equal(result.fixupReview.ran, true);
+  assert.equal(result.fixupReview.range, 'head1..HEAD');
+  assert.deepStrictEqual(result.reviewed, { head: 'head2', open: 0, ranges: ['abc1234..head2'] }, 'the one finding was fixed by a committed fix-up card; one range covers the whole branch');
+  assert.ok(seen.indexOf('review-fixups:record') < seen.indexOf('review-final:prepare') && seen.indexOf('review-final:prepare') < seen.indexOf('review-final:record'), 'then one record of the whole branch');
+  assert.deepStrictEqual(result.expertLanes.map((l) => l.card), ['review', 'review-fixups']);
+});
+
+test('one review: an expert that returns nothing is asked once more; after two nothings the run says NOT REVIEWED and never says to merge', async () => {
+  const once = responder();
+  let n = 0;
+  const calls1 = [];
+  const a = await run(baseArgs([card('1')], { planExperts: ['quality'] }), async (c) => { calls1.push(c); return c.label === 'review:quality' && n++ === 0 ? null : once(c); });
+  assert.ok(labelsOf(calls1).includes('review:quality:retry'));
+  assert.equal(a.result.reviewedText, 'Reviewed by the experts at head2: 0 findings open');
+  const twice = responder();
+  const calls2 = [];
+  const b = await run(baseArgs([card('1')], { planExperts: ['quality'] }), async (c) => { calls2.push(c); return c.label.startsWith('review:quality') ? null : twice(c); });
+  assert.equal(b.result.reviewed, null);
+  assert.match(b.result.reviewedText, /^NOT REVIEWED: quality returned nothing, also on the retry/);
+  assert.equal(recordCalls(calls2).filter((c) => /--review/.test(c.prompt)).length, 0, 'an incomplete review does not move the reviewed head');
+  const finished = calls2.find((c) => c.label === 'finished:notify');
+  assert.match(finished.prompt, /--action "do not merge yet: NOT REVIEWED/);
+  assert.doesNotMatch(finished.prompt, /then merge uw\/run/);
+});
+
+test('one review: a parked card means NOT REVIEWED with its reason and the card as the action; a settling resume runs the review then', async () => {
+  const calls = [];
+  const base = responder({ red: ['1'] });
+  const { result } = await run(baseArgs([card('1'), card('2')]), async (c) => { calls.push(c); return base(c); });
+  assert.equal(result.review.ran, false);
+  assert.match(result.reviewedText, /^NOT REVIEWED: waiting for 1/);
+  assert.match(calls.find((c) => c.label === 'finished:notify').prompt, /--action "settle 1: the report lists the command for each"/, 'a held card is the action; no merge advice');
+  const b2 = responder();
+  const out = await run(baseArgs([card('1', { committed: true }), card('2', { committed: true })]), b2);
+  assert.equal(out.result.reviewed.head, 'head2');
+  assert.ok(b2.seen.includes('review:correctness'), 'the review runs on the resume that settles the cards');
+});
+
+test('one review: a review already recorded for this head is not run again, and its recorded line is shown', async () => {
+  const base = responder({ state: { head: 'h2', reviewedHead: 'h2', harvestedHead: 'h2', harvestBranch: 'uw/harvest/f', reviewed: { head: 'h2', at: 'x', open: 2 } } });
+  const { result } = await run(baseArgs([card('1', { committed: true })]), base);
+  assert.equal(result.review.ran, false);
+  assert.deepStrictEqual(result.reviewed, { head: 'h2', open: 2 });
+  assert.equal(result.reviewedText, 'Reviewed by the experts at h2: 2 findings open');
+});
+
+test('one review: a finding the verifier returned no verdict for counts as open, and a review that could not be recorded is NOT REVIEWED', async () => {
+  const high = { file: 'src/9/z.js', line: 1, what: 'unchecked', howItFails: 'x', confidence: 'low' };
+  const base = responder({ reviewFindings: [high] });
+  const a = await run(baseArgs([card('1')]), async (c) => (c.label.startsWith('review:refute') ? null : base(c)));
+  assert.equal(a.result.reviewed.open, 1, 'one finding, not ruled on, is open');
+  assert.equal(a.result.review.unverified.length, 1);
+  const base2 = responder();
+  const b = await run(baseArgs([card('1')]), async (c) => (c.label === 'review:record' ? steps('no JSON here') : base2(c)));
+  assert.equal(b.result.reviewed, null);
+  assert.match(b.result.reviewedText, /^NOT REVIEWED: the review was not recorded as evidence/);
 });

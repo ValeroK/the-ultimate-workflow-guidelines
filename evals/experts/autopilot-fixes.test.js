@@ -532,25 +532,6 @@ test('settle-first 53: --harvest-branch is recorded, and a later --record withou
   assert.equal(readRunFile(g).base, 'abc123456789');
 });
 
-test('settle-first 55: --findings stores the findings no card fixed in run.json, run-state reads them back, and an empty list clears them', () => {
-  const g = gateRepo();
-  writeRunFile(g);
-  assert.deepStrictEqual(runState(g).pendingFindings, []);
-  const file = path.join(g.dir, 'findings.json');
-  const kept = [{ file: 'docs/x.md', line: 2, what: 'stale doc', howItFails: 'misleads', confidence: 'low' }];
-  fs.writeFileSync(file, JSON.stringify(kept));
-  const set = runState(g, '--findings', file);
-  assert.equal(set.ok, true, JSON.stringify(set));
-  assert.deepStrictEqual(runState(g).pendingFindings, kept);
-  assert.equal(readRunFile(g).base, 'abc123456789', 'base is kept');
-  assert.equal(readRunFile(g).reviewedHead, undefined, 'storing findings records no review');
-  runState(g, '--record');
-  assert.deepStrictEqual(runState(g).pendingFindings, kept, 'a record keeps them');
-  fs.writeFileSync(file, '[]');
-  runState(g, '--findings', file);
-  assert.deepStrictEqual(runState(g).pendingFindings, []);
-});
-
 test('settle-first 54:run-state without a feature is refused with one JSON line', () => {
   const g = gateRepo();
   const r = gateCli(g, 'run-state');
@@ -877,4 +858,33 @@ test('the report lists every open harvest branch of the feature, and none of ano
   assert.ok(line.includes('`uw/harvest/f`') && line.includes('`uw/harvest/f-2`'), line);
   assert.ok(!line.includes('fother') && !line.includes('uw/harvest/g'), line);
   assert.match(line, /merge or delete each/i);
+});
+
+// ---- the run reviews once: run.json records `reviewed`, and the report says it plainly ----
+
+test('one review: --record --review --open N writes reviewed { head, at, open } to run.json, and a harvest-only record keeps it', () => {
+  const g = gateRepo();
+  writeRunFile(g);
+  const rec = runState(g, '--record', '--review', '--open', '3');
+  assert.equal(rec.ok, true, JSON.stringify(rec));
+  const file = readRunFile(g);
+  assert.ok(headOf(g).startsWith(file.reviewed.head), JSON.stringify(file.reviewed));
+  assert.equal(file.reviewed.open, 3);
+  assert.ok(file.reviewed.at);
+  assert.deepStrictEqual(runState(g).reviewed, file.reviewed, 'run-state reads it back');
+  const harvestOnly = runState(g, '--record', '--harvest');
+  assert.deepStrictEqual(harvestOnly.reviewed, file.reviewed, 'a harvest record does not touch the review');
+  assert.equal(runState(g, '--record', '--review').reviewed.open, 0, 'no --open means none open');
+});
+
+test('one review: run.json files of 4.8.0 and 5.0.0 are read as they are: pendingFindings is ignored, nothing else changes', () => {
+  const g = gateRepo();
+  writeRunFile(g);
+  const old = readRunFile(g);
+  fs.writeFileSync(runFileOf(g), `${JSON.stringify({ ...old, pendingFindings: [{ expert: 'quality', file: 'a.js', line: 1, what: 'x' }], reviewedHead: 'abc' }, null, 2)}\n`);
+  const r = runState(g);
+  assert.equal(r.ok, true);
+  assert.equal(r.reviewedHead, 'abc');
+  assert.equal(r.reviewed, null, 'no reviewed record in an old file');
+  assert.equal(r.pendingFindings, undefined, 'the field is not carried to the run any more');
 });

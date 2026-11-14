@@ -13,6 +13,7 @@ This rule is an index, deliberately thin. Always-loaded text is paid for on ever
 - **Simplicity first.** The minimum that solves the problem. Nothing speculative.
 - **Surgical changes.** Every changed line traces directly to the request.
 - **Goal-driven execution.** Define what "done" looks like in verifiable terms, then loop until it is. **Never fake success** -- no silent fallback, swallowed error, or skipped assertion to make something look finished. If it cannot be done, stop and say so.
+- **Talk in Simplified Technical English (ASD-STE100).** Short sentences, active voice, one idea in each sentence, the same word for the same thing. When you ask the user a question, give five parts: the concern, the options, the pros and cons of each option, your recommendation, and the effect of each answer.
 
 Full text, with the reasoning behind each: `skills/the-ultimate-workflow-guidelines/SKILL.md`.
 
@@ -83,7 +84,6 @@ Each row below also ships as an on-demand rule (`rules/uw-*.mdc`, `alwaysApply: 
 ## Gotchas
 
 > Defensive one-liners with no topical cue. Subsystem warnings live in the `memory/` topicals above.
-
 - **Don't do backslash string surgery through `node -e` or a heredoc.** The pipeline collapses a doubled backslash before Node sees it, so a replacement meant to emit `C:\\Users` emits `C:\Users` — invalid inside a JSON string. It has corrupted a test file, a regex, and a directory of fixtures, each time silently until something downstream failed to parse.
 - **Don't assert on `stderr` from `execFileSync`.** It returns stdout alone and forwards the child's stderr to the parent's, so `result.stderr` is `undefined` and every stderr assertion passes vacuously. Use `spawnSync`, which captures both.
 - **Don't run `node --test <dir>`.** Node resolves a directory argument as a module path, not a search root. Use the quoted glob above.

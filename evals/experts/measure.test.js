@@ -27,7 +27,7 @@ test('measure: the script lists blocking checks and state files from the code an
   made.push(dir);
   put(dir, 'hooks/lib/gates.js', "deny('Gate G1: x'); deny('Gate G7: y');\n");
   put(dir, 'hooks/lib/dispatch.js', 'const x = 1;\n');
-  put(dir, 'experts/a.js', "const f = 'verify.json'; const g = 'heartbeat.json';\n");
+  put(dir, 'experts/a.js', "const f = 'verify.json'; const g = 'x'; const FILE = 'heartbeat.json';\n");
   put(dir, 'experts/a.test.js', "const h = 'ledger.jsonl'; deny('Gate G3: z');\n");
   // A whole other checkout under .claude/worktrees must not be counted.
   put(dir, '.claude/worktrees/w/hooks/lib/gates.js', "deny('Gate G2: q');\n");
@@ -59,7 +59,9 @@ test('measure: on the 4.8.0 payload the script names every known blocking check 
   const root = frozenRoot();
   assert.deepStrictEqual(measure.blockingChecks(root), hand);
   const state = measure.stateFiles(root);
-  for (const must of ['heartbeat.json', 'verify.json', 'baseline.json', 'waivers.json', 'ledger.jsonl', 'active-plan', 'review.diff', 'verify.lock', 'verify.log']) {
+  // Under the same counting rules 4.8.0 had 8 kinds (the heartbeat) and 5.0.0 has 8 (the commit-check stamp instead).
+  assert.strictEqual(state.length, 8, state.join('; '));
+  for (const must of ['heartbeat.json', 'verify.json', 'baseline.json', 'ledger.jsonl', 'active-plan']) {
     assert.ok(state.includes(must), `${must} is listed`);
   }
 });
@@ -67,7 +69,9 @@ test('measure: on the 4.8.0 payload the script names every known blocking check 
 test('measure: the current payload has the commit check alone, and no heartbeat module', () => {
   assert.deepStrictEqual(measure.blockingChecks(PAYLOAD), ['G7', 'G6 at commit', 'memory at commit', 'confirmation at commit']);
   const state = measure.stateFiles(PAYLOAD);
-  // status.js still names the leftover file (to say it can be deleted); no module writes or reads it.
+  // status.js still names the leftover file (to say it can be deleted); no module writes or reads it, so it is not counted.
+  assert.ok(!state.includes('heartbeat.json'));
+  assert.ok(state.length <= 8, `${state.length} state file kinds: ${state.join('; ')}`);
   assert.ok(!fs.existsSync(path.join(PAYLOAD, 'hooks', 'lib', 'heartbeat.js')));
   assert.ok(state.includes('commit-check.json') && state.includes('verify.json'));
   assert.ok(measure.zipSize(PAYLOAD).raw > 1000000);

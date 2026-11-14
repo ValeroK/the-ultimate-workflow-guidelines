@@ -280,18 +280,26 @@ test('contract G6 hand: expert records made before a later edit do not allow the
   assert.match(r.reason, /Gate G6/);
 });
 
-test("contract G6 run: card-commit with one of the card's experts missing is refused with gate G6 and names the card", () => {
+test("contract G6 run: card-commit with one of the card's experts missing commits the card and says the experts part is deferred to the run's review", () => {
   const dir = runProject({ plan: CARD_EXPERT_PLAN });
   editSource(dir);
   assert.strictEqual(fullRun(dir).status, 0);
   reviewRecord(dir); // fact: the lane records no security expert
   const tip = git(dir, 'rev-parse', 'HEAD');
   const r = commitCard(dir);
-  assert.strictEqual(r.ok, false, JSON.stringify(r));
-  assert.strictEqual(r.gate, 'G6');
-  assert.match(r.reason, /card 1/);
-  assert.match(r.reason, /security/);
-  assert.strictEqual(git(dir, 'rev-parse', 'HEAD'), tip);
+  assert.strictEqual(r.ok, true, JSON.stringify(r));
+  assert.strictEqual(r.check.outcome, 'deferred');
+  assert.match(r.check.why, /experts: deferred to the run's review/);
+  assert.notStrictEqual(git(dir, 'rev-parse', 'HEAD'), tip);
+  assert.strictEqual(stampOf(dir).outcome, 'deferred', 'the stamp says so');
+  // The same missing experts by hand (the hook) are still refused: only the run's card commit defers.
+  const byHand = project({ plan: CARD_EXPERT_PLAN });
+  editSource(byHand);
+  assert.strictEqual(fullRun(byHand).status, 0);
+  reviewRecord(byHand);
+  const h = hook(byHand, COMMIT);
+  assert.strictEqual(h.decision, 'deny', h.stdout);
+  assert.ok(kindsOf(byHand).includes('experts'));
 });
 
 test("contract G6 run: card-commit with exactly the card's experts recorded commits the card", () => {
@@ -727,8 +735,10 @@ test('contract outcome: evidence that cannot be read as a record is a missing it
       } else {
         const tip = git(dir, 'rev-parse', 'HEAD');
         const r = commitCard(dir);
-        assert.strictEqual(r.ok, false, `${name}: ${JSON.stringify(r)}`);
-        assert.strictEqual(git(dir, 'rev-parse', 'HEAD'), tip);
+        // The run's card commit does not read the experts evidence (the review at the run's end does), so only the
+        // tests and memory records can refuse it.
+        assert.strictEqual(r.ok, kind === 'experts', `${name}: ${JSON.stringify(r)}`);
+        if (kind !== 'experts') assert.strictEqual(git(dir, 'rev-parse', 'HEAD'), tip);
       }
     }
   }
@@ -965,4 +975,35 @@ test('contract tests: a plan with an empty or missing test_command refuses the c
   const docs = project({ plan: PLAN.replace('test_command: node --test "test/**/*.test.js"', 'test_command:') });
   write(docs, 'README.md', '# calc\n\nmore\n');
   assert.strictEqual(hook(docs, COMMIT).decision, 'allow');
+});
+
+test('contract confirmation: the notice names the cards added after the confirmation and the cards whose experts or paths changed', () => {
+  const dir = project({ plan: userConfirmed(), stamp: false });
+  checked(dir);
+  rewritePlan(dir, (t) => t.replace('- 2: docs', '- 3: sneaky\n  paths: src/**\n- 2: docs')); // fact: a card an agent added
+  let r = hook(dir, COMMIT);
+  assert.strictEqual(r.decision, 'allow', r.stdout);
+  assert.match(contextOf(r), /cards added after the confirmation: 3/);
+  rewritePlan(dir, (t) => t.replace('  paths: src/add.js\n', '  paths: src/add.js, src/other.js\n')); // fact: card 1's paths
+  r = hook(dir, COMMIT);
+  assert.strictEqual(r.decision, 'allow', r.stdout);
+  assert.match(contextOf(r), /cards whose experts or paths changed: 1/);
+  // A run-added card (findings, fixup) is outside the hash and is never named.
+  const quiet = project({ plan: userConfirmed(), stamp: false });
+  checked(quiet);
+  // The plan text also changes, so the hash differs and the card comparison really runs.
+  rewritePlan(quiet, (t) => t.replace('- 2: docs', '- findings: x\n  paths: src/add.js\n- 2: docs') + '\nOne more sentence.\n');
+  const q = contextOf(hook(quiet, COMMIT));
+  assert.match(q, /plan changed after you confirmed/, 'the comparison ran');
+  assert.doesNotMatch(q, /cards added|findings/);
+});
+
+test('contract confirmation: cardsChanged names a card whose experts changed, one added, and nothing for a plan with no card record', () => {
+  const confirmed = userConfirmed(PLAN.replace('  paths: src/add.js\n', '  paths: src/add.js\n  experts: [quality]\n'));
+  assert.deepStrictEqual(expertsLib.cardsChanged(confirmed), { added: [], changed: [] });
+  const narrowed = confirmed.replace('experts: [quality]', 'experts: [security]');
+  assert.deepStrictEqual(expertsLib.cardsChanged(narrowed), { added: [], changed: ['1'] });
+  assert.deepStrictEqual(expertsLib.cardsChanged(confirmed.replace('- 2: docs', '- 3: new\n  paths: x/**\n- 2: docs')).added, ['3']);
+  const noRecord = confirmed.replace(/^confirmed_settings:.*$/m, '');
+  assert.deepStrictEqual(expertsLib.cardsChanged(noRecord.replace('experts: [quality]', 'experts: [security]')), { added: [], changed: [] });
 });

@@ -10,6 +10,7 @@ The **shippable plugin** lives at `.cursor-plugin/ultimate-workflow/` (so Cursor
 - **Simplicity first.** The minimum that solves the problem. Nothing speculative.
 - **Surgical changes.** Every changed line traces directly to the request.
 - **Goal-driven execution.** Define what "done" looks like in verifiable terms, then loop until it is. **Never fake success** — no silent fallback, swallowed error, or skipped assertion to make something look finished. If it cannot be done, stop and say so through the host's ask-user tool.
+- **Talk in Simplified Technical English (ASD-STE100).** Short sentences, active voice, one idea in each sentence, the same word for the same thing. When you ask the user a question, give five parts: the concern, the options, the pros and cons of each option, your recommendation, and the effect of each answer.
 
 Full text, with the reasoning behind each: `.cursor-plugin/ultimate-workflow/skills/the-ultimate-workflow-guidelines/SKILL.md`.
 

@@ -63,7 +63,7 @@ test('plan.js: the protocol entry is not offered as an expert\'s skills', async 
 test('the expert prompts no longer carry the rules the protocol holds; the plain lenses keep theirs', () => {
   const plan = read('phases', 'plan.js');
   assert.ok(!plan.includes('Stay inside your domain'), 'plan.js contradicted the lane rule');
-  const review = read('phases', 'review.js');
+  const review = read('lib', 'phase-shared.js');
   assert.match(review, /through the \$\{lens\} lens ONLY/, 'the plain reviewer lenses, the baseline arm, are unchanged');
   assert.match(review, /as the \$\{lens\} expert/);
 });

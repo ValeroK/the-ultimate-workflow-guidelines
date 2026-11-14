@@ -149,3 +149,31 @@ test('one experts check: the by-hand review and the run call the same recheck, c
   }
   assert.ok(!/addOnly\(/.test(fs.readFileSync(path.join(PLUGIN, 'phases', 'run.js'), 'utf8')), 'run.js does not merge the recheck answer itself');
 });
+
+// ---- reviewRange: the one review of a range, used by the by-hand review and by the run ----
+
+test('one review: reviewRange is declared once in the shared file and review.js holds no lens, verify or lane code of its own', () => {
+  const exp = require(path.join(PLUGIN, 'experts', 'experts.js'));
+  const raw = fs.readFileSync(path.join(PLUGIN, 'phases', 'review.js'), 'utf8');
+  const staged = exp.assemblePhase(PLUGIN, 'review');
+  assert.strictEqual(staged.split('async function reviewRange(').length - 1, 1);
+  assert.ok(!raw.includes('async function reviewRange(') && raw.includes('reviewRange({'), 'review.js calls it');
+  for (const own of ['Try to REFUTE', 'through the ${lens} lens ONLY', 'const lane = (', 'recheckPrompt(']) assert.ok(!raw.includes(own), `review.js does not hold: ${own}`);
+});
+
+test('one review: with retry, an agent that returns nothing is asked once more under the same label; without it, not at all', async () => {
+  const withRetry = (src) => src.replace('return await reviewRange({', 'return await reviewRange({ retry: true,');
+  const run = async (transform) => {
+    const seen = [];
+    let nulls = 0;
+    await loadWorkflow(path.join(PLUGIN, 'phases', 'review.js'), { transform })(reviewArgs({ expertsOnly: false }), (c) => {
+      seen.push(c.label);
+      if (c.label === 'recheck') return { experts: [] };
+      if (c.label === 'correctness' && nulls++ === 0) return null; // fact: the first ask returns nothing
+      return { findings: [], lensVerdict: 'clean' };
+    });
+    return seen;
+  };
+  assert.deepStrictEqual((await run(withRetry)).filter((l) => l.startsWith('correctness')), ['correctness', 'correctness:retry']);
+  assert.deepStrictEqual((await run(undefined)).filter((l) => l.startsWith('correctness')), ['correctness']);
+});

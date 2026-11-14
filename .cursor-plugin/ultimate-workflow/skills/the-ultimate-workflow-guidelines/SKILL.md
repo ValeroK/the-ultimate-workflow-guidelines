@@ -73,6 +73,23 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 **Don't fake success.** If the task can't actually be accomplished — missing dependency, blocked API, conflicting requirement, environment off — **stop** and surface it via the host's ask-user tool (see [*How to stop and ask*](#how-to-stop-and-ask)). Do not improvise silent fallback paths, swallow errors, or skip the assertion that would have caught the failure. A clean, loud failure is more useful than an invisible one — the next session has to be able to trust that "green" means green.
 
+### 5. Talk in Simplified Technical English
+
+**Write to the user in ASD-STE100 Simplified Technical English. Every message, every time.**
+
+The user reads many messages and makes decisions from them. Plain, exact text is faster to read and harder to misread. These rules apply to all text you write to the user: answers, status reports, questions, plans and summaries.
+
+- **Short sentences.** At most 20 words in an instruction. At most 25 words in a description.
+- **One idea in each sentence.** One instruction in each sentence. Put steps in a numbered list.
+- **Active voice.** Say who does the action: "The run parks the card", not "The card is parked".
+- **Simple verb forms.** Use the present, the past or the future. Do not use long verb chains.
+- **One word for one thing.** Use the same word each time for the same thing. Do not use a second word for variety.
+- **Simple, common words.** Use the short word. Do not use idioms, slang or figures of speech.
+- **Technical names stay as they are.** File names, commands, code, error text and the names of things in the project are technical names. Do not change them.
+- **Short paragraphs.** At most 6 sentences. One topic in each paragraph.
+
+These rules are for the text you write to the user. They do not change code, commit messages that follow a project convention, quoted text, or the files of the project.
+
 ## Workflow
 
 **Plan first. Anchor in existing design. Confirm. Test-first. Confirm. Implement. Consult on blockers. Update project docs. Hand off.**
@@ -90,6 +107,16 @@ Several steps below say "stop and ask", "confirm with the user", or "raise quest
 - **Claude Code:** the `AskUserQuestion` tool.
 - **Cursor:** the `AskQuestion` tool (the "ask question tool", available in any agent mode and explicitly designed to be invoked from subagents/skills).
 - **Other hosts:** the equivalent user-question tool, or — only if none exists — a clearly-numbered question block in chat.
+
+**Every question has five parts.** The user must be able to decide from the question alone.
+
+1. **The concern.** What the problem is, and why you cannot decide it yourself.
+2. **The options.** Two to four real choices.
+3. **The pros and cons.** For each option, what is good and what is bad.
+4. **Your recommendation.** Which option you would take, and why. Put it first in the list of options.
+5. **The effect.** What changes for the user and for the work with each answer: cost, time, risk, and what you do next.
+
+Ask one question at a time. Use the same five parts when you ask in chat.
 
 The tool produces a structured prompt the user can answer in one pass. Provide options when the choice is bounded; use a free-form question when the answer is open-ended (e.g. PRD problem statement). Wait for the response before proceeding — never continue on assumptions.
 

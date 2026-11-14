@@ -7,6 +7,13 @@
 // testable row by row, and it keeps the vendor adapters trivial: they translate
 // wire formats, these decide.
 
+/**
+ * The command that runs the plugin's experts.js, with its full path (5.0.2). A hint that gave the path
+ * from the plugin folder ran only in this repository: in a project the shell resolves it from the
+ * project folder, where the file is not. Computed from this file's place (hooks/lib) with string work
+ * alone: this module requires nothing and reads nothing from disk.
+ */
+const EXPERTS_CLI = `node "${__dirname.replace(/\\/g, '/').replace(/\/hooks\/lib\/?$/, '')}/experts/experts.js"`;
 
 const DOC_EXTENSIONS = new Set(['.md', '.txt']);
 
@@ -175,9 +182,9 @@ function expertsGate(ev) {
   const open = ev.open || [];
   if (open.length > 0) {
     const shown = open.slice(0, 5).map((f) => `  - [${f.id}] ${f.expert}: ${f.file}${f.line ? `:${f.line}` : ''} ${f.what}`);
-    const more = open.length > shown.length ? `\n  ...and ${open.length - shown.length} more (node experts/experts.js findings lists them all)` : '';
+    const more = open.length > shown.length ? `\n  ...and ${open.length - shown.length} more (${EXPERTS_CLI} findings lists them all)` : '';
     return deny(
-      `Gate G6: ${open.length} high-confidence finding${open.length === 1 ? ' is' : 's are'} still open:\n${shown.join('\n')}${more}\nTell the user what each one is. Fix it and run /ultimate-workflow:experts again, or, only if the user says to, dismiss it with: node experts/experts.js resolve --id <id> --reason "<the user's words>". Do not dismiss one on your own authority.`
+      `Gate G6: ${open.length} high-confidence finding${open.length === 1 ? ' is' : 's are'} still open:\n${shown.join('\n')}${more}\nTell the user what each one is. Fix it and run /ultimate-workflow:experts again, or, only if the user says to, dismiss it with: ${EXPERTS_CLI} resolve --id <id> --reason "<the user's words>". Do not dismiss one on your own authority.`
     );
   }
   return ALLOW;
@@ -232,8 +239,8 @@ function commitGate(ev) {
   }
   if (added.length > 0) {
     const stale = added.some((p) => p.kind === 'index');
-    const hint = stale ? '\nFix the index with: node experts/experts.js memory index' : '';
-    missing.push({ kind: 'memory', text: `Memory check: this commit leaves memory broken:\n${added.map((p) => `  - ${p.text}`).join('\n')}${hint}`, fix: stale ? 'node experts/experts.js memory index' : 'fix the files named above' });
+    const hint = stale ? `\nFix the index with: ${EXPERTS_CLI} memory index` : '';
+    missing.push({ kind: 'memory', text: `Memory check: this commit leaves memory broken:\n${added.map((p) => `  - ${p.text}`).join('\n')}${hint}`, fix: stale ? `${EXPERTS_CLI} memory index` : 'fix the files named above' });
   }
   const changed = (ev && ev.confirmation && ev.confirmation.settingsChanged) || [];
   const planChanged = Boolean(ev && ev.confirmation && ev.confirmation.changedSince);
@@ -258,7 +265,7 @@ function checkRecord(verdict) {
 }
 
 /** Where a user confirms: the same command for both flags, named per flag. */
-const confirmFix = (flag) => `node experts/experts.js present --confirm ${flag}`;
+const confirmFix = (flag) => `${EXPERTS_CLI} present --confirm ${flag}`;
 
 /** The confirmation part of commitGate: both confirmations given, and the plan text unchanged since. */
 function confirmationItem(ev) {
@@ -329,7 +336,7 @@ function reminders(state, input = {}) {
     return out;
   }
   if (!state.file) {
-    if (state.several && state.several.length > 1) out.push('Several plans are open and none is chosen, so commits are not checked: pick one with node experts/experts.js use --plan <file>.');
+    if (state.several && state.several.length > 1) out.push(`Several plans are open and none is chosen, so commits are not checked: pick one with ${EXPERTS_CLI} use --plan <file>.`);
     return out;
   }
   if (data.plan_confirmed !== true) out.push(`The plan is not confirmed yet. When the user agrees: ${confirmFix('plan_confirmed')}`);
@@ -339,6 +346,7 @@ function reminders(state, input = {}) {
 }
 
 module.exports = {
+  EXPERTS_CLI,
   toProjectPath,
   isDocPath,
   isDiagramPath,

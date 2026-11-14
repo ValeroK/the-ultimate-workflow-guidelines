@@ -58,7 +58,7 @@ function dispatch(ev, state, opts = {}) {
   // through, says so, and names the command that picks one (owner decision, 2026-11-13).
   if (isCommit && state.stage === 'feature' && !state.file) {
     const why = 'several plans and no active plan chosen';
-    return { kind: 'allow', say: `Commit check: this commit was not checked (exempt: ${why}). Pick the plan with: node experts/experts.js use --plan <file>`, check: { outcome: 'exempt', why, missing: [] } };
+    return { kind: 'allow', say: `Commit check: this commit was not checked (exempt: ${why}). Pick the plan with: ${gates.EXPERTS_CLI} use --plan <file>`, check: { outcome: 'exempt', why, missing: [] } };
   }
 
   // --- the one commit check: confirmation, a full run, the experts, memory -----------------------

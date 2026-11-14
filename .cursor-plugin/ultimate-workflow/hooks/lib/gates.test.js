@@ -273,7 +273,7 @@ test('commitGate denies a commit that adds a stale index, and the reason names t
   const r = gates.commitGate({ skip: 'only documentation changed', memory: { added: [staleIndex], existing: [] } });
   assert.equal(r.allow, false);
   assert.match(r.reason, /memory\/new\.md is missing from the index in memory\.md/);
-  assert.match(r.reason, /node experts\/experts\.js memory index/);
+  assert.ok(r.reason.includes(`${gates.EXPERTS_CLI} memory index`), r.reason);
 });
 
 test('commitGate denies a new broken link naming file, line and target, and does not offer the index command for it', () => {
@@ -388,7 +388,7 @@ test('reminders: bootstrap with PRD or design unconfirmed reminds and does not d
 test('reminders: several plans and none chosen names the use command; stage none says nothing', () => {
   const lines = gates.reminders({ stage: 'feature', file: null, data: {}, several: ['a', 'b'] });
   assert.strictEqual(lines.length, 1);
-  assert.match(lines[0], /experts\.js use --plan/);
+  assert.match(lines[0], /experts\.js" use --plan/);
   assert.deepStrictEqual(gates.reminders({ stage: 'none', file: null, data: {} }), []);
 });
 
@@ -409,4 +409,34 @@ test('gates: expertsDeferred leaves the experts part to the run review, as an ou
   assert.deepStrictEqual(refused.missing.map((m) => m.kind), ['confirmation']);
   const memory = gates.commitGate({ ...ev, expertsDeferred: true, memory: { added: [{ kind: 'index', text: 'memory.md is stale' }], existing: [] } });
   assert.equal(memory.allow, false, 'a broken memory still refuses');
+});
+
+// ---- 5.0.2: a hint names experts.js by its full path ----
+// A path from the plugin folder resolves from the project folder, where the file is not. Only in this repository did it run.
+
+test('EXPERTS_CLI is a node command with the full path of the experts.js that ships with the plugin', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const m = /^node "([^"]+)"$/.exec(gates.EXPERTS_CLI);
+  assert.ok(m, gates.EXPERTS_CLI);
+  assert.ok(path.isAbsolute(m[1]), m[1]);
+  assert.ok(!m[1].includes(path.win32.sep), 'forward slashes, so the command is the same text in every shell');
+  assert.ok(fs.existsSync(m[1]), `${m[1]} exists`);
+  assert.strictEqual(path.basename(m[1]), 'experts.js');
+});
+
+test('the hints of the reminders and of the commit check use EXPERTS_CLI', () => {
+  const several = gates.reminders({ stage: 'feature', file: null, data: {}, several: ['a', 'b'] });
+  assert.ok(several[0].includes(`${gates.EXPERTS_CLI} use --plan`), several[0]);
+  const unconfirmed = gates.reminders(featureState({}), {});
+  assert.ok(unconfirmed.some((l) => l.includes(`${gates.EXPERTS_CLI} present --confirm plan_confirmed`)), unconfirmed.join('\n'));
+});
+
+test('no shipped hint names experts.js by a path relative to the plugin folder', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  for (const rel of ['gates.js', 'dispatch.js', '../status.js']) {
+    const text = fs.readFileSync(path.join(__dirname, rel), 'utf8');
+    assert.ok(!text.includes(['node', 'experts/experts.js'].join(' ')),`${rel} prints a command that does not run from a project folder`);
+  }
 });

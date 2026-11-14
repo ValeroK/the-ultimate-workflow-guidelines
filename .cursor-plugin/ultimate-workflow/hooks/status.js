@@ -138,7 +138,7 @@ function render(r) {
       say(`         card ${e.effective.cards.join(', ')}: [${e.effective.experts.join(', ')}] (plan: ${e.effective.planExperts.length}) -- the commit is held to these`);
     }
     say(`         available: ${e.available.join(', ') || 'none'}`);
-    if (e.openFindings > 0) say(`         open high-confidence findings: ${e.openFindings} (node experts/experts.js findings)`);
+    if (e.openFindings > 0) say(`         open high-confidence findings: ${e.openFindings} (${gates.EXPERTS_CLI} findings)`);
     say(`         commit: ${e.commit.allowed ? 'allowed now' : `BLOCKED -- ${e.commit.reason}`}`);
     if (e.commit.outcome) say(`         this commit would not be checked: ${e.commit.outcome}${e.commit.why ? ` (${e.commit.why})` : ''}`);
   }

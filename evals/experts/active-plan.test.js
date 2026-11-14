@@ -125,5 +125,10 @@ test('active plan: the exempt message names the use command', () => {
   assert.strictEqual(r.status, 0);
   const text = JSON.parse(r.stdout).hookSpecificOutput.additionalContext;
   assert.match(text, /several plans and no active plan chosen/);
-  assert.match(text, /experts\.js use --plan/);
+  // 5.0.2: the command is given with its full path, so it runs from the project folder as printed.
+  const named = /node "([^"]+experts\.js)" use --plan/.exec(text);
+  assert.ok(named, text);
+  const used = spawnSync(process.execPath, [named[1], 'use', '--plan', 'PLAN-a.md'], { cwd: dir, encoding: 'utf8', env: env() });
+  assert.strictEqual(used.status, 0, used.stderr);
+  assert.match(fs.readFileSync(path.join(dir, '.ultimate-workflow', 'active-plan'), 'utf8'), /PLAN-a\.md/);
 });

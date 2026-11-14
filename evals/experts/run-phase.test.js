@@ -655,6 +655,9 @@ test('33: findings in a file no plan card covers, or with no file, make one more
 
 test('34: a fix-up on a file covered by two cards gets past the gate: the lane is the union, and the commit check passes', async () => {
   const rules = require(path.join(PLUGIN, 'lib', 'run-rules.js'));
+  // The real cover rule and the real glob function, the ones the commit check uses.
+  const cardsLib = require(path.join(PLUGIN, 'experts', 'cards.js'));
+  const expertsLib = require(path.join(PLUGIN, 'experts', 'experts.js'));
   const cards = [card('a', { paths: ['src/a/**', 'src/s/**'], experts: ['quality'] }), card('b', { paths: ['src/b/**', 'src/s/**'], experts: ['security'] })];
   const r = withFreeNames(responder({ reviewFindings: [finding('src/s/x.js')] }));
   const required = [];
@@ -665,7 +668,7 @@ test('34: a fix-up on a file covered by two cards gets past the gate: the lane i
       const add = r.calls.find((x) => x.label === 'fixup:setup').prompt.split('\n').find((l) => / card-add /.test(l));
       const written = /--experts (\S+)/.exec(add)[1].split(',');
       const planCards = [{ name: 'a', paths: ['src/a/**', 'src/s/**'], experts: ['quality'] }, { name: 'b', paths: ['src/b/**', 'src/s/**'], experts: ['security'] }, { name: 'fixup', paths: ['src/s/x.js'], experts: written }];
-      const need = rules.narrowedExperts({ cards: planCards, name: 'fixup', changed: ['src/s/x.js'], accepted: [], covers: (paths, f) => paths.some((p) => f.startsWith(p.replace('**', ''))), valid: () => true });
+      const need = rules.narrowedExperts({ cards: planCards, name: 'fixup', changed: ['src/s/x.js'], accepted: [], covers: (paths, f) => cardsLib.covers(paths, f, expertsLib.globToRegExp), valid: () => true });
       required.push(...need.experts);
       assert.deepStrictEqual(need.experts.filter((n) => !lane.ran.includes(n)), [], 'every expert G6 asks for ran on the fix-up');
     }

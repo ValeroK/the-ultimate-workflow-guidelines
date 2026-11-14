@@ -1,5 +1,5 @@
 ---
-phase: build
+phase: done
 plan_confirmed: true
 tests_confirmed: true
 test_command: node --test ".cursor-plugin/ultimate-workflow/hooks/**/*.test.js" "evals/**/*.test.js" mirrors.test.js

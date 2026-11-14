@@ -68,11 +68,12 @@ test('range review: a range is fingerprinted by the range, not by the working tr
 test('range review: its high finding is not open for the working tree, also on a clean tree and on a dirty one', () => {
   const { dir, range } = repoWithRange();
   reviewRange(dir, range, [HIGH]);
-  const listed = JSON.parse(cli(dir, ['findings']).stdout).findings;
-  assert.strictEqual(listed.length, 1);
-  assert.strictEqual(listed[0].current, false, 'a clean tree: the range finding is not current');
+  // A range review keeps its records apart from the working tree's evidence: nothing of it is listed or open there.
+  assert.deepStrictEqual(JSON.parse(cli(dir, ['findings']).stdout).findings, [], 'a clean tree');
   write(dir, 'src/b.js', 'module.exports = 3;\n');
-  assert.strictEqual(JSON.parse(cli(dir, ['findings']).stdout).findings.every((f) => f.current === false), true, 'a dirty tree too');
+  assert.deepStrictEqual(JSON.parse(cli(dir, ['findings']).stdout).findings, [], 'a dirty tree too');
+  assert.ok(fs.existsSync(path.join(dir, '.ultimate-workflow', 'experts', 'ranges')), 'the record is under ranges');
+  assert.ok(!fs.existsSync(path.join(dir, '.ultimate-workflow', 'experts', 'review', 'security.json')), 'and not where the working tree reads');
 });
 
 test('range review: a record of an empty tree is never open (the old stale finding)', () => {

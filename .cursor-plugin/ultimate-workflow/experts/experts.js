@@ -1054,6 +1054,8 @@ function computeDelta(cwd, changes) {
 // ---- evidence ----
 
 const evidenceFile = (cwd, stage, name) => path.join(cwd, EVIDENCE, stage, `${name}.json`);
+/** A range review's record of one expert, under the range's own fingerprint, apart from the working tree's evidence. */
+const rangeEvidenceFile = (cwd, hash, name) => path.join(cwd, EVIDENCE, 'ranges', String(hash).slice(0, 16), `${name}.json`);
 
 function readJson(file) {
   try {
@@ -1110,22 +1112,11 @@ function allFindings(cwd, hash, names) {
 function rangeCheck(cwd, range, pluginRoot = PLUGIN_ROOT) {
   const hash = rangeHash(git(cwd, ['diff', ...DIFF_FORMAT, range]));
   const names = list(pluginRoot).experts.map((e) => e.name);
-  const records = names.map((n) => readJson(evidenceFile(cwd, 'review', n))).filter((r) => r && r.hash === hash);
-  const open = allFindingsOfHash(cwd, hash, names).filter((f) => blocking(f) && !f.waived);
+  const records = names.map((n) => readJson(rangeEvidenceFile(cwd, hash, n))).filter((r) => r && r.hash === hash);
+  const waivers = readWaivers(cwd);
+  const open = records.flatMap((r) => (Array.isArray(r.findings) ? r.findings : []).map((f) => ({ ...f, waived: Boolean(waivers[f.id]) }))).filter((f) => blocking(f) && !f.waived);
   if (records.length === 0) return { ok: false, range, reviewed: false, open: [], reason: `the range ${range} was not reviewed by the experts (no review of exactly this range is on record)` };
   return open.length === 0 ? { ok: true, range, reviewed: true, open: [], experts: records.map((r) => r.name) } : { ok: false, range, reviewed: true, open, reason: `${open.length} high-confidence finding(s) of the review of ${range} are open` };
-}
-
-/** Every finding of the records made under one fingerprint, whatever they reviewed. */
-function allFindingsOfHash(cwd, hash, names) {
-  const waivers = readWaivers(cwd);
-  const out = [];
-  for (const name of names) {
-    const r = readJson(evidenceFile(cwd, 'review', name));
-    if (!r || r.hash !== hash || !Array.isArray(r.findings)) continue;
-    for (const f of r.findings) out.push({ ...f, waived: Boolean(waivers[f.id]) });
-  }
-  return out;
 }
 
 /** Dismiss one finding. The reason is the user's, kept as given, and shows up wherever findings do. */
@@ -1310,7 +1301,7 @@ function record(cwd, stage, result, { planFile = '', pluginRoot = PLUGIN_ROOT } 
   for (const name of lane.ran || []) {
     const mine = found.filter((f) => f.expert === name).concat(carried[name] || []);
     const narrowed = delta && delta.experts.includes(name);
-    writeJson(evidenceFile(cwd, stage, name), {
+    writeJson(reviewedRange ? rangeEvidenceFile(cwd, hash, name) : evidenceFile(cwd, stage, name), {
       stage,
       name,
       at,
@@ -1322,8 +1313,9 @@ function record(cwd, stage, result, { planFile = '', pluginRoot = PLUGIN_ROOT } 
       ...(narrowed ? { delta: { base: delta.base, files: delta.files || [], removed: delta.removed || [], chain: Number(delta.chain) || 1 } } : {}),
     });
   }
-  if (stage === 'review' && lane.recheck === true) {
-    writeJson(evidenceFile(cwd, 'review', '_recheck'), { hash, ...(reviewedRange ? { range: reviewedRange } : {}), final: lane.selected || [], added: lane.added || [], at, ...(lane.recheckFailed === true ? { recheckFailed: true } : {}) });
+  // The recheck marker is the working tree's (a changed-only check narrows from it); a range review leaves it alone.
+  if (stage === 'review' && lane.recheck === true && !reviewedRange) {
+    writeJson(evidenceFile(cwd, 'review', '_recheck'), { hash, final: lane.selected || [], added: lane.added || [], at, ...(lane.recheckFailed === true ? { recheckFailed: true } : {}) });
   }
   const all = found.concat(...Object.values(carried));
   const open = all.filter((f) => blocking(f) && !readWaivers(cwd)[f.id]);

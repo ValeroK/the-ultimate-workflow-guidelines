@@ -177,6 +177,24 @@ test('--baseline is allowed when only documents and the plan changed', () => {
   assert.strictEqual(run(dir, ['--baseline']).status, 0);
 });
 
+test('--baseline is allowed when only the local files of the host app changed', () => {
+  const dir = repo({ fails: ['x'] });
+  fs.mkdirSync(path.join(dir, '.claude', 'worktrees', 'w'), { recursive: true });
+  fs.writeFileSync(path.join(dir, '.claude', 'launch.json'), '{"version":"0.0.1","configurations":[]}\n');
+  fs.writeFileSync(path.join(dir, '.claude', 'settings.local.json'), '{}\n');
+  fs.writeFileSync(path.join(dir, '.claude', 'worktrees', 'w', 'a.js'), 'x\n');
+  assert.strictEqual(run(dir, ['--baseline']).status, 0);
+});
+
+test('--baseline is still refused for a shared file under .claude, such as a hook', () => {
+  const dir = repo({ fails: ['x'] });
+  fs.mkdirSync(path.join(dir, '.claude', 'hooks'), { recursive: true });
+  fs.writeFileSync(path.join(dir, '.claude', 'hooks', 'check.js'), 'process.exit(0)\n');
+  const r = run(dir, ['--baseline']);
+  assert.strictEqual(r.status, 2);
+  assert.match(r.stderr, /\.claude\/hooks\/check\.js/);
+});
+
 test('--baseline on a failed run that names no test says so and asks for the list', () => {
   const dir = repo({ quiet: true });
   const r = run(dir, ['--baseline']);

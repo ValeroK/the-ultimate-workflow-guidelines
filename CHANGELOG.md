@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.1] - 2026-11-14
+
+### Fixed
+
+- **A local file of the host app no longer stops the baseline.** `verify.js --baseline` refused to run when any source file had changed, and an untracked `.claude/launch.json` (written by the Claude desktop app for its preview) counted as one, so an unattended run stopped at its start and asked the user. The baseline now leaves out `.claude/launch.json`, `.claude/*.local.*` and `.claude/worktrees/`. Shared files under `.claude` (hooks, agents, commands) still count.
+
 ## [5.0.0] - 2026-11-13
 
 A smaller plugin: one blocking check, at commit, with reminders everywhere else, and one copy of each thing that used to exist two to four times. It includes the 4.8.0 work below, which was never released on its own. The plan is `internal/plans/PLAN-simplify.md`.

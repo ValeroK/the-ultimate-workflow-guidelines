@@ -215,10 +215,17 @@ function runShell(command, data, opts) {
   return sh ? spawnSync(sh.file, sh.args, opts) : spawnSync(command, { ...opts, shell: true });
 }
 
-/** Source changes (documents and the plan do not count): a baseline must be taken before any. */
+/**
+ * Files the host app writes for this machine only: the preview launch file, local settings, its worktrees.
+ * They are not the project's source and no test reads them, so they do not stop a baseline (5.0.1: an
+ * untracked .claude/launch.json parked a run at its start). Shared files under .claude (hooks, agents) still count.
+ */
+const HOST_LOCAL = /^\.claude\/(launch\.json$|[^/]+\.local\.[^/]+$|worktrees\/)/;
+
+/** Source changes (documents, the plan and the host app's local files do not count): a baseline must be taken before any. */
 function sourceChanges(cwd) {
   const changes = experts.workingChanges(cwd);
-  return changes.files.filter((f) => !(isDocPath(f) && !ALWAYS_FULL.some((re) => re.test(f))));
+  return changes.files.filter((f) => !HOST_LOCAL.test(f) && !(isDocPath(f) && !ALWAYS_FULL.some((re) => re.test(f))));
 }
 
 /** --baseline: run the full suite on the tree as it is, before any test or code is written. */

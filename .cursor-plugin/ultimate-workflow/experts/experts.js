@@ -1456,7 +1456,7 @@ function commitEvidence(cwd, planFile, pluginRoot = PLUGIN_ROOT, options = {}) {
     }
     const tests = testsPart(cwd, planFile, changes, options);
     const confirmation = confirmationPart(cwd, planFile, options);
-    const wrap = (ev) => ({ ...ev, ...(memory ? { memory } : {}), ...(tests ? { tests } : {}), ...(confirmation ? { confirmation } : {}), ...(staleIndex ? { staleIndex } : {}) });
+    const wrap = (ev) => ({ ...ev, ...(options.deferExperts ? { expertsDeferred: true } : {}), ...(memory ? { memory } : {}), ...(tests ? { tests } : {}), ...(confirmation ? { confirmation } : {}), ...(staleIndex ? { staleIndex } : {}) });
     if (available.length === 0) return wrap({ skip: 'no experts are installed' });
     if (changes.files.length === 0) return wrap({ skip: changes.merge ? 'a merge that adds nothing beyond its parents' : 'nothing to commit' });
     if (changes.files.every((f) => gates.isDocPath(f))) return wrap({ skip: 'only documentation changed' });

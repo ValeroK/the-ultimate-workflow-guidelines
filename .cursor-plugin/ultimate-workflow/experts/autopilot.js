@@ -747,7 +747,7 @@ function cardCommit(cwd, { plan, card: name, feature, claimed = [], fixedRound =
   let check = { outcome: 'exempt', why: 'gates off (ULTIMATE_WORKFLOW_GATES)', missing: [] };
   if (stateLib.gatesEnabled(process.env)) {
     // A stale memory index is no reason to refuse: it is regenerated below and committed with the card.
-    const ev = expertsLib.commitEvidence(cwd, path.resolve(cwd, plan), undefined, { card: card.name, stage: 'feature', script: 'verify.js', staleIndexOk: true });
+    const ev = expertsLib.commitEvidence(cwd, path.resolve(cwd, plan), undefined, { card: card.name, stage: 'feature', script: 'verify.js', staleIndexOk: true, deferExperts: true });
     const g = gates.commitGate(ev);
     check = gates.checkRecord(g);
     stateLib.writeCommitStamp(cwd, check);

@@ -707,18 +707,16 @@ test('card-commit refuses off the run branch and without a passing full run, the
   assert.equal(noRun.gate, 'G7');
   const v = spawnSync(process.execPath, [VERIFY, '--full', '--plan', 'PLAN-calc.md'], { cwd: dir, encoding: 'utf8', env });
   assert.equal(v.status, 0, v.stdout + v.stderr);
-  const noExperts = json(cli(dir, 'card-commit', '--plan', 'PLAN-calc.md', '--card', '1', '--feature', 'calc'));
-  assert.equal(noExperts.ok, false);
-  assert.equal(noExperts.gate, 'G6');
-  cli(dir, 'prepare', '--range', 'working');
-  write(dir, '.ultimate-workflow/run/lane.json', LANE);
-  assert.equal(cli(dir, 'record', '--stage', 'review', '--plan', 'PLAN-calc.md', '--result', '.ultimate-workflow/run/lane.json').status, 0);
+  // The experts part is deferred to the run's review: no experts evidence is no reason to refuse the card.
   write(dir, 'src/new.js', 'module.exports = 1;\n');
   const moved = json(cli(dir, 'card-commit', '--plan', 'PLAN-calc.md', '--card', '1', '--feature', 'calc'));
-  assert.equal(moved.ok, false, 'a file added after the checks moves the fingerprint');
+  assert.equal(moved.ok, false, 'a file added after the full run moves the fingerprint, and the tests part still refuses');
+  assert.equal(moved.gate, 'G7');
   fs.rmSync(path.join(dir, 'src/new.js'));
   const r = json(cli(dir, 'card-commit', '--plan', 'PLAN-calc.md', '--card', '1', '--feature', 'calc', '--claimed', 'test/add.test.js'));
   assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.check.outcome, 'deferred');
+  assert.match(r.check.why, /experts: deferred to the run's review/);
   // 2026-11-09: the plan goes into the card's own commit, with the card's status, so the plan on
   // the run branch matches git. A commit cannot hold its own sha: that is written after it.
   assert.deepStrictEqual(git(dir, 'show', '--name-only', '--format=', 'HEAD').split('\n').sort(), ['PLAN-calc.md', 'src/add.js']);

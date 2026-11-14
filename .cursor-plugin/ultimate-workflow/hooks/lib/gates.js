@@ -193,6 +193,8 @@ function expertsGate(ev) {
  * `reason` and no `missing` (the 4.8.0 shape, pinned by gates.test.js); it carries `outcome` only when
  * the commit was not checked:
  *   outcome 'exempt'          -- nothing to check, with `why` (documentation only, nothing to commit, ...);
+ *   outcome 'deferred'        -- the run's card commit: confirmation, tests and memory passed and the experts part is left to
+ *                                the run's one review (evidence flag `expertsDeferred`, set only by card-commit);
  *   outcome 'could-not-check' -- the working tree could not be inspected, with `why`. By hand this lets
  *                                the commit through and says so; the unattended run parks the card.
  * `reason` is the item texts joined, so with one item it is exactly that item's wording. `notices` lists
@@ -219,7 +221,11 @@ function commitGate(ev) {
   if (confirmation) missing.push(confirmation);
   const tests = testsItem(ev);
   if (tests) missing.push(tests);
-  if (ev && ev.expertsError && !ev.skip) missing.push({ kind: 'experts', text: `Gate G6: ${ev.expertsError}. Run /ultimate-workflow:experts, then commit again.`, fix: '/ultimate-workflow:experts' });
+  // The unattended run reviews once, at its end: the card commit on the run branch leaves the experts part to that review.
+  const deferExperts = Boolean(ev && ev.expertsDeferred && !exemptAll);
+  if (deferExperts) {
+    // nothing: reported as the deferred outcome below
+  } else if (ev && ev.expertsError && !ev.skip) missing.push({ kind: 'experts', text: `Gate G6: ${ev.expertsError}. Run /ultimate-workflow:experts, then commit again.`, fix: '/ultimate-workflow:experts' });
   else {
     const verdict = expertsGate(ev);
     if (!verdict.allow) missing.push({ kind: 'experts', text: verdict.reason, fix: '/ultimate-workflow:experts' });
@@ -237,6 +243,7 @@ function commitGate(ev) {
   const notices = noticeList.length > 0 ? { notices: noticeList } : {};
   if (missing.length > 0) return { allow: false, reason: missing.map((m) => m.text).join('\n'), missing, ...notices, ...warnings };
   if (exemptAll) return { allow: true, outcome: 'exempt', why: ev.skip, ...notices, ...warnings };
+  if (deferExperts) return { allow: true, outcome: 'deferred', why: "experts: deferred to the run's review", ...notices, ...warnings };
   return { allow: true, ...notices, ...warnings };
 }
 

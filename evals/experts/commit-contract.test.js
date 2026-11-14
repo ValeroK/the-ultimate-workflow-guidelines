@@ -280,18 +280,26 @@ test('contract G6 hand: expert records made before a later edit do not allow the
   assert.match(r.reason, /Gate G6/);
 });
 
-test("contract G6 run: card-commit with one of the card's experts missing is refused with gate G6 and names the card", () => {
+test("contract G6 run: card-commit with one of the card's experts missing commits the card and says the experts part is deferred to the run's review", () => {
   const dir = runProject({ plan: CARD_EXPERT_PLAN });
   editSource(dir);
   assert.strictEqual(fullRun(dir).status, 0);
   reviewRecord(dir); // fact: the lane records no security expert
   const tip = git(dir, 'rev-parse', 'HEAD');
   const r = commitCard(dir);
-  assert.strictEqual(r.ok, false, JSON.stringify(r));
-  assert.strictEqual(r.gate, 'G6');
-  assert.match(r.reason, /card 1/);
-  assert.match(r.reason, /security/);
-  assert.strictEqual(git(dir, 'rev-parse', 'HEAD'), tip);
+  assert.strictEqual(r.ok, true, JSON.stringify(r));
+  assert.strictEqual(r.check.outcome, 'deferred');
+  assert.match(r.check.why, /experts: deferred to the run's review/);
+  assert.notStrictEqual(git(dir, 'rev-parse', 'HEAD'), tip);
+  assert.strictEqual(stampOf(dir).outcome, 'deferred', 'the stamp says so');
+  // The same missing experts by hand (the hook) are still refused: only the run's card commit defers.
+  const byHand = project({ plan: CARD_EXPERT_PLAN });
+  editSource(byHand);
+  assert.strictEqual(fullRun(byHand).status, 0);
+  reviewRecord(byHand);
+  const h = hook(byHand, COMMIT);
+  assert.strictEqual(h.decision, 'deny', h.stdout);
+  assert.ok(kindsOf(byHand).includes('experts'));
 });
 
 test("contract G6 run: card-commit with exactly the card's experts recorded commits the card", () => {
@@ -727,8 +735,10 @@ test('contract outcome: evidence that cannot be read as a record is a missing it
       } else {
         const tip = git(dir, 'rev-parse', 'HEAD');
         const r = commitCard(dir);
-        assert.strictEqual(r.ok, false, `${name}: ${JSON.stringify(r)}`);
-        assert.strictEqual(git(dir, 'rev-parse', 'HEAD'), tip);
+        // The run's card commit does not read the experts evidence (the review at the run's end does), so only the
+        // tests and memory records can refuse it.
+        assert.strictEqual(r.ok, kind === 'experts', `${name}: ${JSON.stringify(r)}`);
+        if (kind !== 'experts') assert.strictEqual(git(dir, 'rev-parse', 'HEAD'), tip);
       }
     }
   }

@@ -91,8 +91,10 @@ test('review model: the by-hand review passes no model, and the run passes its m
 
 test('review bounds: the run asks an empty recheck once more and an empty expert once more, and no more than that', () => {
   const shared = experts.sharedSections(PLUGIN)['cards-experts-check'];
-  assert.strictEqual((shared.match(/:recheck:retry/g) || []).length, 1);
-  assert.strictEqual((shared.match(/:retry`/g) || []).length, 3, 'recheck, expert and refute each get exactly one retry label');
+  const lane = experts.sharedSections(PLUGIN)['experts-check'];
+  assert.strictEqual((lane.match(/:retry`/g) || []).length, 1, 'the one shared recheck function holds the one retry label');
+  assert.ok(shared.includes(':recheck`, selected, AVAILABLE, true)'), 'the run asks for the retry');
+  assert.strictEqual((shared.match(/:retry`/g) || []).length, 2, 'expert and refute each get exactly one retry label');
   assert.match(shared, /if \(!v\) failed\.push\('refute'\)/, 'a refute that answers nothing twice is a failed check, so no fix round is paid on unchecked findings');
 });
 
@@ -127,4 +129,23 @@ test('review-core: the shared findings schema keeps stillPresent, which the run\
   assert.match(core, /stillPresent: \{ type: 'array', items: \{ type: 'integer' \}/);
   const check = experts.sharedSections(PLUGIN)['cards-experts-check'];
   assert.ok(check.includes('stillPresent'));
+});
+
+// ---- the experts check: one set of functions the by-hand review and the run's card check both call ----
+
+test('one experts check: the by-hand review and the run call the same recheck, concern and lane-finding functions, and neither writes its own', () => {
+  const experts = require(path.join(PLUGIN, 'experts', 'experts.js'));
+  const raw = (name) => fs.readFileSync(path.join(PLUGIN, 'phases', `${name}.js`), 'utf8');
+  for (const name of ['review', 'run']) {
+    const staged = experts.assemblePhase(PLUGIN, name);
+    for (const fn of ['recheckAdd', 'collectConcerns', 'laneFinding']) {
+      assert.strictEqual(staged.split(`function ${fn}(`).length - 1 + staged.split(`const ${fn} = `).length - 1, 1, `${name}: ${fn} is declared once (the shared one)`);
+      assert.ok(staged.includes(`${fn}(`), `${name} calls ${fn}`);
+      assert.ok(!raw(name).includes(`function ${fn}(`) && !raw(name).includes(`const ${fn} = `), `${name}.js declares no ${fn} of its own`);
+    }
+    // The pieces those functions replace are gone from the scripts themselves.
+    assert.ok(!/basisQuote: f\.basisQuote/.test(raw(name)), `${name}.js does not map a finding into the lane itself`);
+    assert.ok(!/\.slice\(0, 3\)|CONCERN_CAP/.test(raw(name)), `${name}.js does not cap concerns itself`);
+  }
+  assert.ok(!/addOnly\(/.test(fs.readFileSync(path.join(PLUGIN, 'phases', 'run.js'), 'utf8')), 'run.js does not merge the recheck answer itself');
 });

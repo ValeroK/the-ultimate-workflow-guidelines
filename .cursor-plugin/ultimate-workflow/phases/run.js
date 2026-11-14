@@ -120,7 +120,9 @@ const cliCmd = (sub, ...rest) => `${CLI} ${sub} ${rest.join(' ')}`.trim()
 
 // ---- the experts check on one card's diff ----
 
+// @shared lane-helpers
 // @shared selection
+// @shared experts-check
 // @shared review-core
 
 // Skills arrive by name, with their text once in args.skillTexts, so a skill several cards use is

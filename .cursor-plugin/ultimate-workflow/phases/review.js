@@ -94,23 +94,21 @@ let recheckFailed = false
 const notInstalled = []
 if (!noExperts && available.length > 0 && args.recheck !== false) {
   phase('Recheck')
-  const answer = await agent(
-    recheckPrompt(args.diffFile, available, experts),
-    { agentType: agentName('uw-explorer'), label: 'recheck', phase: 'Recheck', schema: RECHECK_ANSWER }
+  const asked = await recheckAdd(
+    (label) => agent(recheckPrompt(args.diffFile, available, experts), { agentType: agentName('uw-explorer'), label, phase: 'Recheck', schema: RECHECK_ANSWER }),
+    'recheck', experts, available, false
   )
-  if (!answer) {
+  recheck = true
+  if (asked.failed) {
     // Decided 2026-11-13: a recheck that answers nothing does not refuse the commit. The planned experts review, and the
     // lane says the recheck failed, so it is named in the report and never read as "no areas touched".
     recheckFailed = true
-    recheck = true
     log('recheck failed; continuing with the planned experts only, and the report names the failed recheck')
   } else {
-    const merged = addOnly(experts, answer.experts, available)
-    experts = merged.experts
-    added = merged.added
-    notInstalled.push(...merged.rejected)
-    recheck = true
-    log(`recheck: ${added.length ? 'added ' + added.join(', ') : 'nothing to add'}${merged.rejected.length ? '; ignored unknown ' + merged.rejected.join(', ') : ''}`)
+    experts = asked.selected
+    added = asked.added
+    notInstalled.push(...asked.rejected)
+    log(`recheck: ${added.length ? 'added ' + added.join(', ') : 'nothing to add'}${asked.rejected.length ? '; ignored unknown ' + asked.rejected.join(', ') : ''}`)
   }
 }
 // An expert with `review-when-skills` joins whenever the diff selected one of those review skills
@@ -138,6 +136,7 @@ const lenses = [
   ...reviewingNames,
 ]
 
+// @shared experts-check
 // @shared review-core
 
 phase('Lenses')
@@ -228,32 +227,11 @@ const failedLenses = lenses.filter((_, i) => !lensResults[i])
 // What an expert found is carried in the lane, because the lane is what gets recorded as
 // evidence and what the commit gate reads. Only findings from an expert's own lens, and only
 // those the skeptic confirmed or never ruled on: a refuted finding is not an open finding.
-const expertFindings = (list, status) =>
-  list
-    .filter((f) => reviewingNames.includes(f.lens))
-    .map((f) => ({ expert: f.lens, file: f.file, line: f.line, what: f.what, confidence: f.confidence, ...(f.severity ? { severity: f.severity } : {}), ...(typeof f.basis === 'string' ? { basis: f.basis } : {}), ...(typeof f.basisQuote === 'string' ? { basisQuote: f.basisQuote } : {}), status }))
-// W4: what an expert worried about without being able to call it a finding. The schema marks each
-// item's text and reason as required, but the check that counts is here, where it is tested: an
-// item without both is dropped and counted, an expert keeps three, and a core lens's are ignored.
-const CONCERN_CAP = 3
-let laneConcernsDropped = 0
-const laneConcerns = []
-lenses.forEach((lens, i) => {
-  const r = lensResults[i]
-  if (!r || !reviewingNames.includes(lens)) return
-  const valid = []
-  for (const c of Array.isArray(r.concerns) ? r.concerns : []) {
-    const text = c && typeof c.text === 'string' ? c.text.trim() : ''
-    const reason = c && typeof c.reason === 'string' ? c.reason.trim() : ''
-    if (!text || !reason) {
-      laneConcernsDropped += 1
-      continue
-    }
-    valid.push({ expert: lens, text, reason, ...(typeof c.file === 'string' && c.file ? { file: c.file } : {}), ...(Number.isInteger(c.line) ? { line: c.line } : {}) })
-  }
-  laneConcerns.push(...valid.slice(0, CONCERN_CAP))
-  laneConcernsDropped += Math.max(0, valid.length - CONCERN_CAP)
-})
+const expertFindings = (list, status) => list.filter((f) => reviewingNames.includes(f.lens)).map((f) => laneFinding(f, f.lens, status))
+// W4: what an expert worried about without being able to call it a finding (a core lens's are ignored).
+const gathered = collectConcerns(lenses.map((lens, i) => [lens, reviewingNames.includes(lens) ? lensResults[i] : null]))
+const laneConcerns = gathered.list
+const laneConcernsDropped = gathered.dropped
 const lane = (found = []) => ({
   stage: 'review',
   available: available.map((e) => e.name),

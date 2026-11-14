@@ -472,6 +472,50 @@ const SELECTION = {
 }
 // @@end selection
 
+// @@section experts-check
+// The steps of an experts check that the by-hand review (phases/review.js) and every card of the run (the
+// cards-experts-check section) take the same way: the recheck that can only add, an expert's finding as the lane
+// records it, and the concerns an expert raised. Uses addOnly from lane-helpers.
+const CONCERN_CAP = 3
+
+// Ask which more experts apply: `ask(label)` returns the answer or null. With `retry`, a null is asked once more
+// under the same label with a retry mark. Code adds a name from the list and nothing else, so an answer can add and never remove.
+// Two nulls (or one without a retry) come back as `failed`, never as "no areas touched".
+async function recheckAdd(ask, label, selected, available, retry) {
+  let answer = await ask(label)
+  if (!answer && retry) answer = await ask(`${label}:retry`)
+  if (!answer) return { failed: true, selected, added: [], rejected: [] }
+  const merged = addOnly(selected, answer.experts, available)
+  return { failed: false, selected: merged.experts, added: merged.added, rejected: merged.rejected }
+}
+
+// One finding of an expert, in the form the lane records and the commit check reads.
+const laneFinding = (f, expert, status) => ({ expert, file: f.file, line: f.line, what: f.what, confidence: f.confidence, ...(f.severity ? { severity: f.severity } : {}), ...(typeof f.basis === 'string' ? { basis: f.basis } : {}), ...(typeof f.basisQuote === 'string' ? { basisQuote: f.basisQuote } : {}), status })
+
+// What experts worried about without being able to call it a finding. `pairs` is [[expert name, result or null]].
+// An item without text and reason is dropped and counted, an expert keeps CONCERN_CAP, a failed expert has none.
+function collectConcerns(pairs) {
+  let dropped = 0
+  const list = []
+  for (const [expert, r] of pairs) {
+    if (!r) continue
+    const valid = []
+    for (const c of Array.isArray(r.concerns) ? r.concerns : []) {
+      const text = c && typeof c.text === 'string' ? c.text.trim() : ''
+      const reason = c && typeof c.reason === 'string' ? c.reason.trim() : ''
+      if (!text || !reason) {
+        dropped += 1
+        continue
+      }
+      valid.push({ expert, text, reason, ...(typeof c.file === 'string' && c.file ? { file: c.file } : {}), ...(Number.isInteger(c.line) ? { line: c.line } : {}) })
+    }
+    list.push(...valid.slice(0, CONCERN_CAP))
+    dropped += Math.max(0, valid.length - CONCERN_CAP)
+  }
+  return { list, dropped }
+}
+// @@end experts-check
+
 
 // @@section cards-experts-check
 // The experts check of one card of the run: the planned experts plus those that raised a carried finding, the recheck
@@ -494,18 +538,13 @@ async function expertsCheck(card, carried, tag = '') {
       recheckPrompt('.ultimate-workflow/review.diff', AVAILABLE, selected),
       { agentType: agentName('uw-explorer'), label, phase: currentPhase, schema: SELECTION, ...modelOpt(IMPLEMENTER_MODEL) }
     )
-    // Asked once more when it returns nothing, with a label built from card and tag only.
-    const answer = (await askRecheck(`${card.name}${tag}:recheck`)) || (await askRecheck(`${card.name}${tag}:recheck:retry`))
-    if (answer) {
-      recheck = true
-      const names = (answer.experts || []).map((x) => String((x && x.name) || '').trim()).filter((n) => AVAILABLE.some((e) => e.name === n) && !selected.includes(n))
-      added = [...new Set(names)]
-      selected = [...selected, ...added]
-    } else {
-      // Two empty answers: named as failed in the lane, never read as "no areas touched", and it does not refuse the commit.
-      recheck = true
-      recheckFailed = true
-    }
+    // Asked once more when it returns nothing, with a label built from card and tag only. Two empty answers are named as
+    // failed in the lane, never read as "no areas touched", and do not refuse the commit.
+    const r = await recheckAdd(askRecheck, `${card.name}${tag}:recheck`, selected, AVAILABLE, true)
+    recheck = true
+    recheckFailed = r.failed
+    added = r.added
+    selected = r.selected
   } else recheck = true
   const reviewing = selected.map((n) => AVAILABLE.find((e) => e.name === n)).filter((e) => e && e.stages.includes('review'))
   const skillsFor = (name) => skillsOf(card.reviewSkills && card.reviewSkills[name])
@@ -544,12 +583,7 @@ Every finding needs a file, a line, one sentence on the defect and a concrete fa
     for (const f of r.findings || []) all.push({ ...f, expert: e.name })
     for (const idx of Array.isArray(r.stillPresent) ? r.stillPresent : []) if (carried[idx] && carried[idx].expert === e.name) stillPresent.push(carried[idx])
   })
-  const concerns = []
-  reviewing.forEach((e, i) => {
-    const r = results[i]
-    if (!r) return
-    for (const c of (Array.isArray(r.concerns) ? r.concerns : []).slice(0, 3)) if (c && c.text && c.reason) concerns.push({ expert: e.name, text: String(c.text), reason: String(c.reason) })
-  })
+  const concerns = collectConcerns(reviewing.map((e, i) => [e.name, results[i]])).list
   let verdicts = new Map()
   if (all.length > 0) {
     const askRefute = (label) => agent(
@@ -573,7 +607,7 @@ For each: read the code around it, check whether the failure path is reachable, 
     if (v && v.verdict === 'refuted') refuted.push({ ...f, refutedBecause: v.reason })
     else kept.push({ ...f, status: v ? 'confirmed' : 'unverified' })
   })
-  const laneFindings = kept.map((f) => ({ expert: f.expert, file: f.file, line: f.line, what: f.what, confidence: f.confidence, ...(f.severity ? { severity: f.severity } : {}), ...(typeof f.basis === 'string' ? { basis: f.basis } : {}), ...(typeof f.basisQuote === 'string' ? { basisQuote: f.basisQuote } : {}), status: f.status }))
+  const laneFindings = kept.map((f) => laneFinding(f, f.expert, f.status))
   const lane = {
     stage: 'review',
     available: AVAILABLE.map((e) => e.name),

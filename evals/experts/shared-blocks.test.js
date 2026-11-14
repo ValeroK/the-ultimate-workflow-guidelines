@@ -38,7 +38,7 @@ const countOf = (text, needle) => text.split(needle).length - 1;
 const sections = experts.sharedSections(PLUGIN);
 
 test('shared block: lib/phase-shared.js is read by experts.js and holds every section the phases name', () => {
-  assert.deepStrictEqual(Object.keys(sections).sort(), ['agent-names', 'build-loop', 'build-model', 'cards-experts-check', 'core-lenses', 'cover-rule', 'harvest-proposals', 'lane-helpers', 'measure-parser', 'read-first', 'reader-model', 'recheck', 'review-core', 'selection']);
+  assert.deepStrictEqual(Object.keys(sections).sort(), ['agent-names', 'build-loop', 'build-model', 'cards-experts-check', 'core-lenses', 'cover-rule', 'experts-check', 'harvest-proposals', 'lane-helpers', 'measure-parser', 'read-first', 'reader-model', 'recheck', 'review-core', 'selection']);
   for (const f of fs.readdirSync(path.join(PLUGIN, 'phases')).filter((x) => x.endsWith('.js'))) {
     const text = fs.readFileSync(path.join(PLUGIN, 'phases', f), 'utf8');
     for (const m of text.matchAll(/^[ \t]*\/\/ @shared ([a-z-]+)/gm)) assert.ok(m[1] in sections, `${f} names ${m[1]}`);

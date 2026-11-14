@@ -332,14 +332,11 @@ function agent(calls) {
     const [who, role] = String(call.label).includes(':') ? call.label.split(':') : [call.label, ''];
     if (role === 'write-tests') return { filesWritten: [`test/${who}.test.js`], testsFailAsExpected: true, summary: 'red' };
     if (/^attempt-/.test(role)) return { green: true, fullSuiteGreen: true, filesChanged: [`src/${who}/x.js`], summary: 'done' };
-    if (role === 'prepare') return steps({ card: who, outOfScope: [] }, { ok: true });
+    if (role === 'scope') return steps({ card: who, outOfScope: [] });
+    if (role === 'prepare') return steps({ ok: true });
+    if (role === 'record' && who !== 'settle') return steps({ stage: 'review', recorded: [], findings: 0, open: [] });
     if (role === 'recheck') return { experts: [] };
-    if (role === 'quality' && who !== 'review') return { lensVerdict: 'ok', findings: [], stillPresent: [] };
-    if (role === 'refute' && who !== 'review') return { verdicts: [] };
-    if (role === 'commit') {
-      const lane = JSON.parse(/<<<CONTENT\n([\s\S]*?)\nCONTENT>>>/.exec(call.prompt)[1]).expertLane;
-      return steps({ stage: 'review', recorded: lane.ran, findings: lane.findings.length, open: [] }, { ok: true, card: who, commit: `c-${who}`, files: 1, handoff: 'h', missingClaims: [] });
-    }
+    if (role === 'commit') return steps({ ok: true, card: who, commit: `c-${who}`, files: 1, handoff: 'h', missingClaims: [] });
     if (role === 'decisions') return steps({ ok: true, card: who, major: [], minor: [] });
     if (role === 'start') return steps(...String(call.prompt).split('\n').filter((l) => /card-status/.test(l)).map(() => ({ ok: true })));
     if (role === 'journal' || role === 'carry') return steps({ ok: true });

@@ -835,7 +835,7 @@ test('gate integrity: every test file is reached by the verify command', () => {
 const SKIPS = {
   '.cursor-plugin/ultimate-workflow/hooks/lib/adapters.test.js': 4,
   'evals/experts/autopilot-fixes.test.js': 1,
-  'evals/experts/run-phase.test.js': 2,
+  'evals/experts/run-phase.test.js': 1,
 };
 
 test('skips: the set of skip and todo sites in the test files equals the committed allowlist, and no test uses only', () => {
@@ -991,5 +991,5 @@ test('one review: phases/run.js declares no experts check, no findings or verdic
   for (const name of ['expertsCheck', 'FINDINGS', 'VERDICTS', 'NO_QUOTA', 'BASIS_RULE', 'SELECTION', 'REVIEW_LENSES_LIST']) {
     assert.ok(!new RegExp(String.raw`^\s*(?:async\s+)?(?:function\s+${name}\b|const\s+${name}\s*=)`, 'm').test(run.text), `${name} is declared in run.js`);
   }
-  assert.ok(/^\/\/ @shared cards-experts-check/m.test(run.text) && /^\/\/ @shared review-core/m.test(run.text));
+  assert.ok(/^\/\/ @shared review-range/m.test(run.text) && /^\/\/ @shared review-core/m.test(run.text));
 });

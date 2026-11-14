@@ -416,17 +416,6 @@ test('run-start marks every open card pending and reports a card a run died insi
   assert.deepStrictEqual(again.interrupted, ['1'], 'a card left at running is one the run died inside');
 });
 
-test('card-commit --fixed-round records fixed-in-round in the commit and its sha after it', () => {
-  const dir = repo();
-  json(cli(dir, 'run-branch', '--feature', 'calc'));
-  write(dir, 'src/add.js', 'module.exports = (a, b) => a + b; // fixed\n');
-  const env2 = { ...env, ULTIMATE_WORKFLOW_GATES: 'off' };
-  const r = JSON.parse(spawnSync(process.execPath, [CLI, 'card-commit', '--plan', 'PLAN-calc.md', '--card', '1', '--feature', 'calc', '--fixed-round'], { cwd: dir, encoding: 'utf8', env: env2 }).stdout.trim().split('\n').pop());
-  assert.equal(r.ok, true, JSON.stringify(r));
-  assert.equal(cards.findCard(git(dir, 'show', 'HEAD:PLAN-calc.md'), '1').status, 'fixed-in-round');
-  assert.equal(cards.findCard(read(dir, 'PLAN-calc.md'), '1').status, `fixed-in-round ${r.commit}`);
-});
-
 test('a card reads its depends, parked and committed fields', () => {
   const text = PLAN.replace('  depends: 1\n', '  depends: 1, 0a\n  parked: uw/parked/calc/2; verification failed 3 times\n  committed: abc123\n');
   const c = cards.findCard(text, '2');
@@ -893,26 +882,6 @@ test('run-finish keeps the output file, writes the report and the ledger row fro
   assert.equal(read(dir, '.ultimate-workflow/run/run.result.json'), JSON.stringify(wrapper));
 });
 
-test('a card\'s fix round is in the report (row note and its own section) and in the ledger row', () => {
-  const dir = repo();
-  const fixRound = { round: 2, outcome: 'fixed', summary: 'wrote the b test', findings: [{ expert: 'quality', file: 'test/add.test.js', line: 10, what: 'b guard untested' }] };
-  const result = {
-    ok: true, feature: 'calc', branch: 'uw/run/calc', base: 'abc', plan: 'PLAN-calc.md', summary: '1 committed.',
-    counts: { committed: 1 }, cards: [{ card: 'add', title: 'adder', status: 'committed', commit: 'c1', build: { rounds: 1 }, fixRound, missingClaims: [], outOfScope: [] }],
-    expertLanes: [], review: { ran: true, range: 'abc..HEAD', findings: [], refuted: [], unverified: [] }, harvest: { ran: true, proposals: 0, branch: null },
-  };
-  write(dir, 'out/wf_fix-1.output', JSON.stringify({ agentCount: 3, totalTokens: 10, result: JSON.stringify(result) }));
-  const r = json(cli(dir, 'run-finish', '--output', 'out/wf_fix-1.output'));
-  assert.equal(r.ok, true, JSON.stringify(r));
-  const report = read(dir, r.report);
-  // PLAN-run-fixes.md, card report-cost: three cost columns sit before the note (no cost data in this result).
-  assert.match(report, /\| add \| adder \| committed \| c1 \| unknown \| unknown \| unknown \| 1 round\(s\) and a fix round \(fixed\) \|/);
-  assert.match(report, /## Fix rounds\n\n- add: round 2, fixed \(wrote the b test\)\n  - quality: test\/add\.test\.js:10 b guard untested/);
-  const rows = read(dir, '.ultimate-workflow/ledger.jsonl').trim().split('\n').map((l) => JSON.parse(l));
-  const run = rows.find((x) => x.run);
-  assert.deepStrictEqual(run.run.cards[0].fixRound, { round: 2, outcome: 'fixed', findings: ['quality: test/add.test.js:10 b guard untested'] });
-});
-
 test('run-finish writes a Run status block into the plan and commits the plan on the run branch', () => {
   const dir = repo();
   json(cli(dir, 'run-branch', '--feature', 'calc'));
@@ -1148,4 +1117,24 @@ test('--accept writes the accepted files to the card\'s accepted: field, which p
   json(cli(other, 'park', '--plan', 'PLAN-calc.md', '--card', '1', '--feature', 'calc', '--reason', 'red three times'));
   json(cli(other, 'run-start', '--plan', 'PLAN-calc.md', '--feature', 'calc', '--resume-card', '1'));
   assert.equal(cards.findCard(read(other, 'PLAN-calc.md'), '1').accepted, undefined);
+});
+
+test('one review: the report says "Reviewed by the experts at <head>: N findings open" or "NOT REVIEWED: <why>", and never invites a merge when not reviewed', () => {
+  const dir = tmp();
+  const base = { ok: true, feature: 'f', branch: 'uw/run/f', base: 'abc1234abcd', summary: '1 committed', counts: { committed: 1 }, cards: [{ card: '1', title: 'first', status: 'committed', commit: 'c1' }], harvest: { ran: false } };
+  const show = (extra) => {
+    write(dir, 'result.json', JSON.stringify({ ...base, ...extra }));
+    const r = json(cli(dir, 'run-report', '--result', 'result.json'));
+    assert.equal(r.ok, true, JSON.stringify(r));
+    return fs.readFileSync(path.join(dir, r.report), 'utf8');
+  };
+  const yes = show({ review: { ran: true, range: 'abc1234abcd..HEAD', findings: [], refuted: [], unverified: [] }, reviewed: { head: 'h9', open: 2 }, reviewedText: 'Reviewed by the experts at h9: 2 findings open' });
+  assert.match(yes, /\*\*Reviewed by the experts at h9: 2 findings open\.\*\*/);
+  assert.match(yes, /check --range abc1234abcd\.\.<head>/);
+  const no = show({ review: { ran: false, reason: 'waiting for 1' }, reviewed: null, reviewedText: 'NOT REVIEWED: waiting for 1' });
+  assert.match(no, /\*\*NOT REVIEWED: waiting for 1\.\*\*/);
+  assert.match(no, /Do not merge this branch until it is reviewed/);
+  assert.doesNotMatch(no, /Before merging/);
+  const fixups = show({ review: { ran: true, range: 'a..HEAD', findings: [], refuted: [], unverified: [] }, reviewed: { head: 'h9', open: 1 }, reviewedText: 'Reviewed by the experts at h9: 1 finding open', fixupReview: { ran: true, range: 'h1..HEAD', findings: [{ confidence: 'high', lens: 'quality', file: 'a.js', line: 1, what: 'still wrong' }] } });
+  assert.match(fixups, /experts check of the fix-up cards \(h1\.\.HEAD\): 1 confirmed, left open and not fixed again/);
 });

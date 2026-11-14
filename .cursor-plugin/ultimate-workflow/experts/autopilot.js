@@ -12,9 +12,8 @@
 //   experts.js unpark     --plan P --card C --feature F               bring a parked card's work back onto the tip
 //   experts.js journal    add --feature F --card C --from FILE [--status committed|parked]
 //   experts.js journal    compact --feature F --card C --from FILE    replace the oldest entries' text with a summary
-//   experts.js card-commit --plan P --card C --feature F [--fixed-round]   the gates' own checks, then the commit
+//   experts.js card-commit --plan P --card C --feature F              the commit check without the experts part (left to the run's review), then the commit
 //   experts.js card-status --plan P --card C --status S               a card's status in the plan (running, blocked by C)
-//   experts.js card-field --plan P --card C --carried "x; y"          add carried work to a card that has not run
 //   experts.js run-branch --feature F                                 create and check out uw/run/F from the current tip
 //   experts.js harvest-branch --feature F --from FILE                 harvest proposals as commits on uw/harvest/F
 //   experts.js claims --plan P [--feature F]                          each card's pack size against the budget, and each `measure:` line of the plan measured
@@ -732,7 +731,7 @@ function journalCompact(cwd, { feature, card, from }) {
  * judged on. Then every change except the plugin's folder and the plans is committed, the plan's
  * card entry gets `committed:`, and the handoff is written from the commit.
  */
-function cardCommit(cwd, { plan, card: name, feature, claimed = [], fixedRound = false }) {
+function cardCommit(cwd, { plan, card: name, feature, claimed = [] }) {
   if (!plan) throw new Error('card-commit needs --plan');
   const gates = require('../hooks/lib/gates.js');
   const stateLib = require('../hooks/lib/state.js');
@@ -766,7 +765,7 @@ function cardCommit(cwd, { plan, card: name, feature, claimed = [], fixedRound =
   // The plan goes into the card's own commit with the card's new status (and every earlier card's
   // sha, written after their commits), so the plan on the run branch matches git. A commit cannot
   // hold its own sha, so this card's sha is written after it and lands with the next commit.
-  const done = fixedRound ? 'fixed-in-round' : 'committed';
+  const done = 'committed';
   setStatus(cwd, plan, card.name, done);
   if (card.parked) writePlanField(cwd, plan, card.name, 'parked', null);
   // A card held for a decision and then done within the plan: the decision was not taken.
@@ -774,7 +773,7 @@ function cardCommit(cwd, { plan, card: name, feature, claimed = [], fixedRound =
   stage(cwd, files);
   const planRel = fwd(path.relative(cwd, path.resolve(cwd, plan)));
   if (git(cwd, ['check-ignore', '-q', '--', planRel], { allowFail: true }).status !== 0) git(cwd, ['add', '--', planRel], { allowFail: true });
-  const msg = `card ${card.name}: ${card.title}${fixedRound ? ' (fixed in a fix round)' : ''}\n\nPlan: ${fwd(plan)}\nRun: uw/run/${feature}`;
+  const msg = `card ${card.name}: ${card.title}\n\nPlan: ${fwd(plan)}\nRun: uw/run/${feature}`;
   const commit = spawnSync('git', ['commit', '-q', '-F', '-'], { cwd, input: msg, encoding: 'utf8' });
   if (commit.status !== 0) return { ok: false, card: card.name, reason: `git commit failed: ${(commit.stderr || commit.stdout || '').trim().split(/\r?\n/)[0]}` };
   const after = git(cwd, ['rev-parse', 'HEAD']).stdout.trim();
@@ -810,7 +809,7 @@ function openHarvestBranches(cwd, feature) {
   return git(cwd, ['for-each-ref', '--format=%(refname:short)', 'refs/heads/uw/harvest/'], { allowFail: true }).stdout.split(/\r?\n/).filter((b) => mine.test(b)).sort();
 }
 
-function runState(cwd, { feature, record, review, harvest, harvestBranch: branch, findingsFrom, intend }) {
+function runState(cwd, { feature, record, review, harvest, harvestBranch: branch, open, intend }) {
   const file = path.join(runDir(cwd, feature), 'run.json');
   const saved = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : {};
   const head = git(cwd, ['rev-parse', 'HEAD']).stdout.trim().slice(0, 12);
@@ -818,28 +817,24 @@ function runState(cwd, { feature, record, review, harvest, harvestBranch: branch
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, `${JSON.stringify({ ...saved, feature, ...next }, null, 2)}\n`);
   };
-  if (findingsFrom) {
-    const pendingFindings = JSON.parse(fs.readFileSync(path.resolve(cwd, findingsFrom), 'utf8').replace(/^﻿/, ''));
-    if (!Array.isArray(pendingFindings)) throw new Error(`${findingsFrom} must hold a JSON array of findings`);
-    write({ pendingFindings });
-    return { ok: true, head, pendingFindings };
-  }
   // The name of the harvest branch is written BEFORE the branch is made, so a crash between the two leaves the name to be reused
   // and never a second branch (-2). Every other key is kept.
   if (intend) {
     write({ harvestBranch: intend });
     return { ok: true, head, harvestBranch: intend };
   }
-  const pendingFindings = saved.pendingFindings || [];
   // The harvest branches of this feature still open (not merged away or deleted): a later harvest is told them.
   const openHarvests = openHarvestBranches(cwd, feature);
   if (record) {
     const both = !review && !harvest;
-    const next = { ...(review || both ? { reviewedHead: head } : {}), ...(harvest || both ? { harvestedHead: head } : {}), harvestBranch: branch || saved.harvestBranch || '' };
+    // `reviewed` is what the report and the notice say about the run's one review: the head it covered, when, and how many
+    // findings were still open. An old run.json that holds `pendingFindings` keeps the field; nothing reads it any more.
+    const reviewed = review || both ? { head, at: new Date().toISOString(), open: Number.isInteger(Number(open)) && open !== undefined && open !== '' ? Number(open) : 0 } : saved.reviewed;
+    const next = { ...(review || both ? { reviewedHead: head, reviewed } : {}), ...(harvest || both ? { harvestedHead: head } : {}), harvestBranch: branch || saved.harvestBranch || '' };
     write(next);
-    return { ok: true, head, reviewedHead: next.reviewedHead || saved.reviewedHead || '', harvestedHead: next.harvestedHead || saved.harvestedHead || '', harvestBranch: next.harvestBranch, pendingFindings, openHarvests };
+    return { ok: true, head, reviewedHead: next.reviewedHead || saved.reviewedHead || '', reviewed: next.reviewed || saved.reviewed || null, harvestedHead: next.harvestedHead || saved.harvestedHead || '', harvestBranch: next.harvestBranch, openHarvests };
   }
-  return { ok: true, head, reviewedHead: saved.reviewedHead || '', harvestedHead: saved.harvestedHead || '', harvestBranch: saved.harvestBranch || '', pendingFindings, openHarvests };
+  return { ok: true, head, reviewedHead: saved.reviewedHead || '', harvestedHead: saved.harvestedHead || '', harvestBranch: saved.harvestBranch || '', reviewed: saved.reviewed || null, openHarvests };
 }
 
 /**
@@ -979,19 +974,21 @@ function runReport(cwd, { result: resultFile, out = '' }) {
     // the phase result alone, with no wrapper around it: no cost data
   }
   const agentRows = Array.isArray(wrapper.workflowProgress) ? wrapper.workflowProgress.filter((x) => x && x.type === 'workflow_agent') : [];
-  const cost = runRules.cardTokens([...(r.cards || []), r.findingsCard, r.fixupCard].filter(Boolean).map((c) => c.card), agentRows);
+  const cost = runRules.cardTokens([...(r.cards || []), r.fixupCard].filter(Boolean).map((c) => c.card), agentRows);
   const runTotal = typeof wrapper.totalTokens === 'number' && wrapper.totalTokens > 0 ? wrapper.totalTokens : null;
   const cell = (v) => (typeof v === 'number' && v > 0 ? String(v) : 'unknown');
-  const row = (c) => `| ${c.card} | ${c.title || ''} | ${c.status} | ${c.commit || c.branch || ''} | ${cell(c.pack && c.pack.tokens)} | ${cell(cost[c.card] && cost[c.card].tokens)} | ${cell(cost[c.card] && cost[c.card].cacheRead)} | ${String(c.reason || (c.build ? `${c.build.rounds} round(s)${c.fixRound ? ` and a fix round (${c.fixRound.outcome})` : ''}${c.superseded ? `; ran again within the plan, the held work on ${c.superseded} is superseded (kept for reference, delete it when done)` : ''}` : '')).replace(/\|/g, '/').replace(/\s*\r?\n\s*/g, ' ')} |`;
+  const row = (c) => `| ${c.card} | ${c.title || ''} | ${c.status} | ${c.commit || c.branch || ''} | ${cell(c.pack && c.pack.tokens)} | ${cell(cost[c.card] && cost[c.card].tokens)} | ${cell(cost[c.card] && cost[c.card].cacheRead)} | ${String(c.reason || (c.build ? `${c.build.rounds} round(s)${c.superseded ? `; ran again within the plan, the held work on ${c.superseded} is superseded (kept for reference, delete it when done)` : ''}` : '')).replace(/\|/g, '/').replace(/\s*\r?\n\s*/g, ' ')} |`;
   const warningsFile = path.join(runDir(cwd, r.feature), 'memory-warnings.json');
   const memoryWarnings = fs.existsSync(warningsFile) ? JSON.parse(fs.readFileSync(warningsFile, 'utf8')) : [];
-  const all = [...(r.cards || []), ...(r.findingsCard ? [r.findingsCard] : []), ...(r.fixupCard ? [r.fixupCard] : [])];
+  const all = [...(r.cards || []), ...(r.fixupCard ? [r.fixupCard] : [])];
   const unique = all.filter((c, i) => all.findIndex((x) => x.card === c.card && x.status === c.status) === i);
   const lines2 = [
     `# Run report: ${r.feature}`,
     '',
     `Branch \`${r.branch}\` from ${String(r.base || '').slice(0, 12)}. ${r.summary || ''}`,
     ...(r.stopped ? ['', `**The run stopped:** ${r.stopped}`] : []),
+    '',
+    `**${r.reviewedText || (r.reviewed ? `Reviewed by the experts at ${r.reviewed.head}: ${r.reviewed.open} findings open` : 'NOT REVIEWED: the run result says nothing about a review')}.**${r.reviewed ? ` Before merging: \`node experts/experts.js check --range ${String(r.base || '').slice(0, 12)}..<head>\` (the head is ${r.reviewed.head || 'the run branch tip'}; the experts check of the fix-up cards covers the commits after the review: \`check --range <review head>..<head>\`).` : ' Do not merge this branch until it is reviewed: `/ultimate-workflow:feature --resume`, or `/ultimate-workflow:review`.'}`,
     '',
     '| Card | Title | Outcome | Commit or branch | Pack (est.) | Tokens | Cache read | Note |',
     '|---|---|---|---|---|---|---|---|',
@@ -1002,7 +999,6 @@ function runReport(cwd, { result: resultFile, out = '' }) {
     ...((r.earlier || []).length ? ['', `Before this run: ${r.earlier.map((e) => `${e.card} ${e.status}`).join(', ')}.`] : []),
     // What needs the user, with the command for each: a held card is never only a row in the table.
     ...(unique.some((c) => c.action) ? ['', '## Needs you', '', ...unique.filter((c) => c.action).flatMap((c) => [`- ${c.card} (${c.status}): ${String(c.reason || '').replace(/\r?\n/g, ' ')}`, `  Run: \`${c.action}\``])] : []),
-    ...(unique.some((c) => c.fixRound) ? ['', '## Fix rounds', '', ...unique.filter((c) => c.fixRound).flatMap((c) => [`- ${c.card}: round ${c.fixRound.round}, ${c.fixRound.outcome || 'unknown'}${c.fixRound.summary ? ` (${String(c.fixRound.summary).replace(/\r?\n/g, ' ')})` : ''}`, ...(c.fixRound.findings || []).map((f) => `  - ${f.expert}: ${f.file}:${f.line} ${f.what}`)])] : []),
     '',
     '## Out of scope and claims',
     '',
@@ -1011,15 +1007,15 @@ function runReport(cwd, { result: resultFile, out = '' }) {
     '',
     '## Review',
     '',
-    r.review && r.review.ran ? `${(r.review.findings || []).length} confirmed, ${(r.review.refuted || []).length} refuted, ${(r.review.unverified || []).length} unverified (${r.review.range}).` : `Not run: ${(r.review && r.review.reason) || 'the run stopped'}.`,
+    r.review && r.review.ran ? `${(r.review.findings || []).length} confirmed, ${(r.review.refuted || []).length} refuted, ${(r.review.unverified || []).length} unverified (${r.review.range}). Low findings, and findings outside the run's files, are listed here and not fixed.` : `Not run: ${(r.review && r.review.reason) || 'the run stopped'}.`,
     ...((r.review && r.review.findings) || []).map((f) => `- [${f.confidence}] ${f.lens}: ${f.file}:${f.line} ${f.what}`),
+    ...(r.fixupReview ? ['', r.fixupReview.ran ? `The experts check of the fix-up cards (${r.fixupReview.range}): ${(r.fixupReview.findings || []).length} confirmed, left open and not fixed again.` : `The experts check of the fix-up cards did not run: ${r.fixupReview.reason || 'no reason given'}.`, ...((r.fixupReview && r.fixupReview.findings) || []).map((f) => `- [${f.confidence}] ${f.lens}: ${f.file}:${f.line} ${f.what}`)] : []),
     '',
     '## Harvest',
     '',
     r.harvest && r.harvest.ran ? (r.harvest.branch ? `${r.harvest.proposals} proposal(s) on \`${r.harvest.branch}\`, one commit per file: ${(r.harvest.commits || []).map((c) => `${c.file} (${c.commit})`).join(', ')}. Merge it to keep them, or delete it.` : `${r.harvest.proposals || 0} proposals${r.harvest.error ? `; not committed: ${r.harvest.error}` : ''}.`) : `Not run: ${(r.harvest && r.harvest.reason) || 'unknown'}.`,
     // Every harvest branch of the feature still open: two can hold the same lesson, so the user sees them all.
     ...(openHarvestBranches(cwd, r.feature).length ? ['', `Open harvest branches of this feature: ${openHarvestBranches(cwd, r.feature).map((b) => `\`${b}\``).join(', ')}. Merge or delete each.`] : []),
-    ...((r.pendingFindings || []).length ? ['', '## Findings not fixed', '', ...r.pendingFindings.map((f) => `- ${f.expert}: ${f.file}:${f.line} ${f.what}`)] : []),
     ...(memoryWarnings.length ? ['', '## Memory', '', ...memoryWarnings.map((w) => `- ${w}`)] : []),
     '',
     'Parked cards resume with `/ultimate-workflow:feature --resume <card>`. Nothing was pushed.',
@@ -1226,7 +1222,7 @@ function cli(argv, cwd, out, fail) {
   if (sub === 'journal') action = rest.shift();
   for (let i = 0; i < rest.length; i++) {
     const a = rest[i];
-    if (a === '--resume' || a === '--adhoc' || a === '--fixed-round' || a === '--accept' || a === '--needs-decision' || a === '--record' || a === '--review' || a === '--harvest') {
+    if (a === '--resume' || a === '--adhoc' || a === '--accept' || a === '--needs-decision' || a === '--record' || a === '--review' || a === '--harvest') {
       o[a.slice(2)] = true;
       continue;
     }
@@ -1254,12 +1250,12 @@ function cli(argv, cwd, out, fail) {
   if (sub === 'notify') return run(() => notify(cwd, { feature: o.feature, kind: o.kind, card: o.card || '', reason: o.reason || '', reasonFile: o['reason-file'] || '', action: o.action || '' }));
   if (sub === 'decisions') return run(() => detectDecisions(cwd, { plan: o.plan, card: o.card, feature: o.feature || '', declaredFile: o.declared || '' }));
   if (sub === 'unpark') return run(() => unpark(cwd, { plan: o.plan, card: o.card, feature: o.feature }));
-  if (sub === 'card-commit') return run(() => cardCommit(cwd, { plan: o.plan, card: o.card, feature: o.feature, claimed, fixedRound: Boolean(o['fixed-round']) }));
+  if (sub === 'card-commit') return run(() => cardCommit(cwd, { plan: o.plan, card: o.card, feature: o.feature, claimed }));
   if (sub === 'card-status') return run(() => cardStatus(cwd, { plan: o.plan, card: o.card, status: o.status }));
   if (sub === 'run-branch') return run(() => runBranch(cwd, { feature: o.feature }));
   if (sub === 'ensure-ignored') return run(() => ensureIgnored(cwd));
   if (sub === 'claims') return run(() => claimsCheck(cwd, { plan: o.plan, feature: o.feature }));
-  if (sub === 'run-state') return run(() => runState(cwd, { feature: o.feature, record: Boolean(o.record), review: Boolean(o.review), harvest: Boolean(o.harvest), harvestBranch: o['harvest-branch'] || '', findingsFrom: o.findings }));
+  if (sub === 'run-state') return run(() => runState(cwd, { feature: o.feature, record: Boolean(o.record), review: Boolean(o.review), harvest: Boolean(o.harvest), harvestBranch: o['harvest-branch'] || '', open: o.open }));
   if (sub === 'harvest-branch') return run(() => harvestBranch(cwd, { feature: o.feature, from: o.from }));
   if (sub === 'run-report') return run(() => runReport(cwd, { result: o.result, out: o.out || '' }));
   if (sub === 'run-start') {
@@ -1271,15 +1267,6 @@ function cli(argv, cwd, out, fail) {
     });
   }
   if (sub === 'run-finish') return run(() => runFinish(cwd, { output: o.output, runId: o['run-id'] || '', plan: o.plan || '' }));
-  if (sub === 'card-field') {
-    return run(() => {
-      // --carried-file: text an agent wrote comes in through a file, never the command line.
-      const carried = o['carried-file'] ? fs.readFileSync(path.resolve(cwd, o['carried-file']), 'utf8').trim() : o.carried;
-      if (!o.plan || !o.card || typeof carried !== 'string') throw new Error('card-field needs --plan, --card and --carried "<item; item>" (or --carried-file <file>)');
-      writePlanField(cwd, o.plan, o.card, 'carried', carried);
-      return { ok: true, card: o.card, carried: cardsLib.findCard(fs.readFileSync(path.resolve(cwd, o.plan), 'utf8'), o.card).carried };
-    });
-  }
   if (sub === 'journal') {
     if (action === 'add') return run(() => journalAdd(cwd, { feature: o.feature, card: o.card, from: o.from, status: o.status || '' }));
     if (action === 'compact') return run(() => journalCompact(cwd, { feature: o.feature, card: o.card, from: o.from }));
@@ -1288,6 +1275,6 @@ function cli(argv, cwd, out, fail) {
   return fail(`unknown autopilot command ${sub}`);
 }
 
-const COMMANDS = ['pack', 'handoff', 'park', 'unpark', 'journal', 'card-commit', 'card-status', 'notify', 'decisions', 'card-field', 'run-branch', 'ensure-ignored', 'run-state', 'claims', 'harvest-branch', 'run-report', 'run-start', 'run-finish'];
+const COMMANDS = ['pack', 'handoff', 'park', 'unpark', 'journal', 'card-commit', 'card-status', 'notify', 'decisions', 'run-branch', 'ensure-ignored', 'run-state', 'claims', 'harvest-branch', 'run-report', 'run-start', 'run-finish'];
 
 module.exports = { pluginIsAnotherCheckout, COMMANDS, NOTIFY_KINDS, cardStatus, notify, detectDecisions, acceptDecision, writeRunStatus, commitPlan, pack, handoff, park, unpark, journalAdd, journalCompact, cardCommit, runBranch, ensureIgnored, harvestBranch, withAddition: memoryLib.withAddition, matchingTopicals, testSection, sections, cli, JOURNAL_CARD_LINES, JOURNAL_MAX_LINES };

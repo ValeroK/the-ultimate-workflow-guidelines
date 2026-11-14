@@ -530,5 +530,117 @@
  [
   "evals/experts/commit-contract.test.js",
   "contract G6 run: card-commit with one of the card's experts missing is refused with gate G6 and names the card"
+ ],
+ [
+  "evals/experts/autopilot-fixes.test.js",
+  "settle-first 55: --findings stores the findings no card fixed in run.json, run-state reads them back, and an empty list clears them"
+ ],
+ [
+  "evals/experts/autopilot.test.js",
+  "card-commit --fixed-round records fixed-in-round in the commit and its sha after it"
+ ],
+ [
+  "evals/experts/autopilot.test.js",
+  "a card\\"
+ ],
+ [
+  "evals/experts/run-phase.test.js",
+  "a non-blocking finding goes to the later card that covers its file; unfixed there, and one no card covers, both go to the findings card before review"
+ ],
+ [
+  "evals/experts/run-phase.test.js",
+  "a blocking finding in the card\\"
+ ],
+ [
+  "evals/experts/run-phase.test.js",
+  "the plan shows each card running before any work, then committed, fixed in round, parked or blocked"
+ ],
+ [
+  "evals/experts/run-phase.test.js",
+  "a finding still blocking after the fix round parks the card, with the round on record"
+ ],
+ [
+  "evals/experts/run-phase.test.js",
+  "a fix round that does not go green parks the card without a second experts check"
+ ],
+ [
+  "evals/experts/run-phase.test.js",
+  "a blocking finding outside the card\\"
+ ],
+ [
+  "evals/experts/run-phase.test.js",
+  "a lane the agent retyped wrong is caught: the record count must match what the script built"
+ ],
+ [
+  "evals/experts/run-phase.test.js",
+  "an expert a recheck adds on one card is held to on every later card, unless a card names its own"
+ ],
+ [
+  "evals/experts/run-phase.test.js",
+  "34: a fix-up on a file covered by two cards gets past the gate: the lane is the union, and the commit check passes"
+ ],
+ [
+  "evals/experts/run-phase.test.js",
+  "48: the findings card is held to the experts of every plan card covering its files, not only the experts that raised the findings"
+ ],
+ [
+  "evals/experts/run-phase.test.js",
+  "38: an expert that returns null once is retried and the card commits"
+ ],
+ [
+  "evals/experts/run-phase.test.js",
+  "39: experts that return null twice park the card with every failed name; card-commit and record are not called"
+ ],
+ [
+  "evals/experts/run-phase.test.js",
+  "40: a valid empty result is a success and is not retried"
+ ],
+ [
+  "evals/experts/run-phase.test.js",
+  "41: only the failed expert is retried"
+ ],
+ [
+  "evals/experts/run-phase.test.js",
+  "42b: the same retry and park rule applies after a fix round (-fix tag)"
+ ],
+ [
+  "evals/experts/run-phase.test.js",
+  "43: a refute agent null twice parks the card; no fix round is paid"
+ ],
+ [
+  "evals/experts/run-phase.test.js",
+  "43b: a refute agent null once is retried and the card goes on"
+ ],
+ [
+  "evals/experts/run-phase.test.js",
+  "43c: the verdicts of a refute retry are used, not discarded"
+ ],
+ [
+  "evals/experts/run-phase.test.js",
+  "43d: a retried expert that returns findings has them acted on: a blocking one gets the fix round, a non-blocking one reaches the findings card"
+ ],
+ [
+  "evals/experts/run-phase.test.js",
+  "44: a recheck agent null is retried once"
+ ],
+ [
+  "evals/experts/run-phase.test.js",
+  "46: with one card parked there is no review, no fix-up card, no findings card and no harvest"
+ ],
+ [
+  "evals/experts/run-phase.test.js",
+  "50: a later settling resume reviews only what is new since the recorded head"
+ ],
+ [
+  "evals/experts/run-phase.test.js",
+  "56: findings no card fixed outlive a run that waits, and the settling resume fixes them"
+ ],
+ [
+  "evals/experts/run-phase.test.js",
+  "21 (carry): a finding carried to a later card reaches card-field through a file, and running the line in a shell leaves no PWNED file"
+ ],
+ [
+  "evals/experts/run-phase.test.js",
+  "card-field --carried-file takes the carried text from the file, as written"
  ]
 ]

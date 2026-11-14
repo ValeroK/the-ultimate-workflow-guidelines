@@ -46,10 +46,11 @@ test('fault 20: prepare --range lists files from the saved diff, not the working
 
 test('one review: the by-hand review and the run use one list of core lenses', () => {
   const experts = require(path.join(PLUGIN, 'experts', 'experts.js'));
-  const review = experts.assemblePhase(PLUGIN, 'review');
-  const run = experts.assemblePhase(PLUGIN, 'run');
-  assert.ok(review.includes('const CORE = CORE_LENSES') && run.includes('const REVIEW_LENSES = CORE_LENSES'));
-  for (const text of [review, run]) assert.strictEqual(text.split("const CORE_LENSES = ['correctness', 'simplicity', 'surgical-scope', 'test-coverage']").length - 1, 1);
+  for (const name of ['review', 'run']) {
+    const text = experts.assemblePhase(PLUGIN, name);
+    assert.ok(text.includes('const CORE = CORE_LENSES'), name);
+    assert.strictEqual(text.split("const CORE_LENSES = ['correctness', 'simplicity', 'surgical-scope', 'test-coverage']").length - 1, 1, name);
+  }
 });
 
 // ---- review bounds, cost and labels (the run's per-card experts check, which is the shared section) ----
@@ -89,19 +90,19 @@ test('review model: the by-hand review passes no model, and the run passes its m
   assert.match(run, /\.\.\.modelOpt\(IMPLEMENTER_MODEL\)/, 'the run pins its model setting on the experts check');
 });
 
-test('review bounds: the run asks an empty recheck once more and an empty expert once more, and no more than that', () => {
-  const shared = experts.sharedSections(PLUGIN)['cards-experts-check'];
+test('review bounds: the run asks an empty recheck, lens, expert and verifier once more, and no more than that', () => {
   const lane = experts.sharedSections(PLUGIN)['experts-check'];
+  const range = experts.sharedSections(PLUGIN)['review-range'];
   assert.strictEqual((lane.match(/:retry`/g) || []).length, 1, 'the one shared recheck function holds the one retry label');
-  assert.ok(shared.includes(':recheck`, selected, AVAILABLE, true)'), 'the run asks for the retry');
-  assert.strictEqual((shared.match(/:retry`/g) || []).length, 2, 'expert and refute each get exactly one retry label');
-  assert.match(shared, /if \(!v\) failed\.push\('refute'\)/, 'a refute that answers nothing twice is a failed check, so no fix round is paid on unchecked findings');
+  assert.strictEqual((range.match(/:retry`/g) || []).length, 1, 'and reviewRange holds the one retry label of every other agent');
+  assert.match(fs.readFileSync(path.join(PLUGIN, 'phases', 'run.js'), 'utf8'), /retry: true/, 'the run asks for the retry; the by-hand review does not');
+  assert.ok(!/retry: true/.test(fs.readFileSync(path.join(PLUGIN, 'phases', 'review.js'), 'utf8')));
 });
 
-test('review labels: the labels of the run\'s experts check are built from the card, the tag and the role only', () => {
-  const shared = experts.sharedSections(PLUGIN)['cards-experts-check'];
-  for (const m of shared.matchAll(/label: ?`?([^,}]*)/g)) assert.ok(!/Date|random|Math/.test(m[1]), m[1]);
-  assert.ok(/\$\{card\.name\}\$\{tag\}:\$\{e\.name\}/.test(shared));
+test('review labels: the labels of the one review are built from the prefix, the lens and the role only', () => {
+  const range = experts.sharedSections(PLUGIN)['review-range'];
+  for (const m of range.matchAll(/label: ?`?([^,}]*)/g)) assert.ok(!/Date|random|Math/.test(m[1]), m[1]);
+  assert.ok(range.includes('label: label(lens)') && range.includes("label('recheck')") && range.includes("label('refute')"));
 });
 
 test('concern 11: a finding the refuter could not rule on is named unverified, never confirmed', async () => {
@@ -118,17 +119,14 @@ test('concern 11: a finding the refuter could not rule on is named unverified, n
 
 test('saved diff: one location is written and read: prepare names .ultimate-workflow/review.diff and the run reads that same path', () => {
   const run = experts.assemblePhase(PLUGIN, 'run');
-  const shared = experts.sharedSections(PLUGIN)['cards-experts-check'];
-  assert.ok(shared.includes('.ultimate-workflow/review.diff'));
-  assert.ok(!/delta\.diff|review\.[a-z]+\.diff/.test(shared));
-  assert.ok(run.includes('.ultimate-workflow/review.diff') || shared.includes('.ultimate-workflow/review.diff'));
+  assert.ok(run.includes("diffFile: '.ultimate-workflow/review.diff'"));
+  assert.ok(!/delta.diff|review.[a-z]+.diff/.test(run));
 });
 
-test('review-core: the shared findings schema keeps stillPresent, which the run\'s experts check reads to carry unfixed findings forward', () => {
+test('review-core: the shared findings schema has no carried-finding field any more, since nothing is carried to a later card', () => {
   const core = experts.sharedSections(PLUGIN)['review-core'];
-  assert.match(core, /stillPresent: \{ type: 'array', items: \{ type: 'integer' \}/);
-  const check = experts.sharedSections(PLUGIN)['cards-experts-check'];
-  assert.ok(check.includes('stillPresent'));
+  assert.ok(!core.includes('stillPresent'));
+  assert.match(core, /lensVerdict/);
 });
 
 // ---- the experts check: one set of functions the by-hand review and the run's card check both call ----
@@ -159,6 +157,12 @@ test('one review: reviewRange is declared once in the shared file and review.js 
   assert.strictEqual(staged.split('async function reviewRange(').length - 1, 1);
   assert.ok(!raw.includes('async function reviewRange(') && raw.includes('reviewRange({'), 'review.js calls it');
   for (const own of ['Try to REFUTE', 'through the ${lens} lens ONLY', 'const lane = (', 'recheckPrompt(']) assert.ok(!raw.includes(own), `review.js does not hold: ${own}`);
+  // The run calls the same function, for its one review and for the check of its fix-up cards, and holds no copy.
+  const runRaw = fs.readFileSync(path.join(PLUGIN, 'phases', 'run.js'), 'utf8');
+  const runStaged = exp.assemblePhase(PLUGIN, 'run');
+  assert.strictEqual(runStaged.split('async function reviewRange(').length - 1, 1);
+  assert.ok(!runRaw.includes('async function reviewRange(') && runRaw.includes('reviewRange({'));
+  for (const own of ['Try to REFUTE', 'lens ONLY', 'recheckPrompt(', 'expertsCheck', 'fixFindings']) assert.ok(!runRaw.includes(own), `run.js does not hold: ${own}`);
 });
 
 test('one review: with retry, an agent that returns nothing is asked once more under the same label; without it, not at all', async () => {

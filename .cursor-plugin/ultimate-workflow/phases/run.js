@@ -1,22 +1,20 @@
 export const meta = {
   name: 'run',
-  description: 'Build every card of a confirmed plan unattended: test, implement, verify, expert-check and commit each, park what cannot be finished, then review and harvest',
+  description: 'Build every card of a confirmed plan unattended: test, implement, verify and commit each, park what cannot be finished, then review the whole branch once with the experts, fix what is confirmed, and harvest',
   whenToUse:
     'After the plan and the test plan are confirmed, from the Full tier of /ultimate-workflow:feature. Commits each finished card to uw/run/<feature>; never pushes.',
   phases: [
-    { title: 'Cards', detail: 'per card: context pack, tests, implementation, experts check, commit or park' },
-    { title: 'Findings', detail: 'the non-blocking expert findings no card fixed' },
-    { title: 'Review', detail: 'the whole run diff through the core lenses, and one fix-up card' },
+    { title: 'Cards', detail: 'per card: context pack, tests, implementation, commit or park' },
+    { title: 'Review', detail: 'the whole run diff once, through the lenses and the experts, then fix-up cards and one experts check of them' },
     { title: 'Harvest', detail: 'lessons from the journal and the diff, committed to uw/harvest/<feature>' },
   ],
 }
 
 // @shared agent-names
-// @shared recheck
 
 // The autopilot run (PLAN-autopilot.md). After the user's two confirmations nothing stops for them:
-// every card is built, verified, expert-checked and committed, or parked on a branch with its
-// diagnosis; the run goes on with the cards that do not depend on a parked one. One result comes back.
+// every card is built, verified and committed, or parked on a branch with its
+// diagnosis, and the whole branch is reviewed once at the end (the experts included); the run goes on with the cards that do not depend on a parked one. One result comes back.
 //
 // The script decides; agents only do. Everything that touches git or a file the script cannot read is
 // one `experts.js` command (pack, park, card-commit, journal, harvest-branch), which an agent runs and
@@ -118,13 +116,19 @@ ${commands.map((c, i) => `${i + 1}. ${c}`).join('\n')}`,
 const q = (s) => `"${String(s).replace(/"/g, "'")}"`
 const cliCmd = (sub, ...rest) => `${CLI} ${sub} ${rest.join(' ')}`.trim()
 
-// ---- the experts check on one card's diff ----
+// ---- the one review (the same code as the by-hand review, phases/review.js) ----
 
+// @shared recheck
 // @shared lane-helpers
 // @shared selection
 // @shared experts-check
 // @shared review-core
+// @shared core-lenses
+// @shared read-first
+// @shared review-range
 
+// The rules every expert follows are pasted into each expert's prompt (the workflow cannot read files).
+const protocolText = PROTOCOL
 // Skills arrive by name, with their text once in args.skillTexts, so a skill several cards use is
 // not written into the script once per card. A { name, text } object is taken as it is.
 const SKILL_TEXTS = args && args.skillTexts && typeof args.skillTexts === 'object' ? args.skillTexts : {}
@@ -132,24 +136,16 @@ const skillsOf = (list) =>
   (Array.isArray(list) ? list : [])
     .map((s) => (typeof s === 'string' ? { name: s, text: SKILL_TEXTS[s] } : s))
     .filter((s) => s && typeof s.name === 'string' && typeof s.text === 'string' && s.text.trim() !== '')
-
-/**
- * Recheck (can only add), each expert on the diff, one skeptic. Returns the lane `experts.js record`
- * takes and the findings by status. `carried` are findings handed to this card: their experts join,
- * and each says which of them this diff did not fix.
- */
-// @shared cards-experts-check
+// The review skills of an expert for the whole branch: those chosen for any card, once each.
+const reviewSkillsFor = (name) => skillsOf(CARDS.flatMap((c) => (c.reviewSkills && c.reviewSkills[name]) || [])).filter((s, i, all) => all.findIndex((x) => x.name === s.name) === i)
 
 // ---- one card, start to end ----
 
 const status = {}
-const grownExperts = new Set()
 const report = []
 const packs = {}
 const warned = new Set()
 const lanes = []
-const handed = {}
-const findingsQueue = []
 let lastParkKey = ''
 let stoppedBecause = ''
 
@@ -202,38 +198,6 @@ At most 10 short lines: what tripped it up, conventions found in the code, decis
 /** Where a non-blocking finding goes: the first later card whose paths cover its file, else the findings card. */
 // @shared cover-rule
 
-const FIXED = {
-  type: 'object',
-  required: ['green', 'fullSuiteGreen', 'filesChanged', 'summary'],
-  properties: {
-    green: { type: 'boolean' },
-    fullSuiteGreen: { type: 'boolean', description: 'True only if the full run (verify --full) was run after the last change and passed' },
-    filesChanged: { type: 'array', items: { type: 'string' } },
-    testFiles: { type: 'array', items: { type: 'string' }, description: 'Test files written or changed in this round' },
-    decisions: { type: 'array', items: { type: 'object', required: ['what', 'major'], properties: { what: { type: 'string' }, why: { type: 'string' }, major: { type: 'boolean' } } } },
-    newTests: { type: 'array', items: { type: 'object', required: ['name', 'failedFirst'], properties: { name: { type: 'string' }, failedFirst: { type: 'boolean' }, why: { type: 'string' } } } },
-    failureOutput: { type: 'string' },
-    summary: { type: 'string' },
-  },
-}
-
-/** One more build round in the card, for the blocking findings the experts check made in its own files. */
-async function fixFindings(card, locate, brief, findings) {
-  return agent(
-    `${locate} ${EXPERT_NOTE}${brief}
-
-The card's tests and implementation are written and green, but the experts check on its diff found ${findings.length > 1 ? 'these blocking findings' : 'this blocking finding'}, in this card's own files:
-${findings.map((f) => `- ${f.expert} at ${f.file}:${f.line}: ${f.what}${f.howItFails ? ` (fails when: ${f.howItFails})` : ''}${f.fix ? ` (fix: ${f.fix})` : ''}`).join('\n')}
-
-Fix each one, in this card's files only. A missing test: write it. It may pass at once against code that already does the right thing, which is the fix; list it in newTests with failedFirst false and say why. Wrong or missing behaviour: first write a test that shows it, run it and confirm it FAILS (failedFirst true), then change the code. ${
-      VERIFY ? `After each change run \`${VERIFY}\`; when it passes, run \`${VERIFY} --full\` once. Report green and fullSuiteGreen only if that full run passed after your last change.` : `Run \`${COMMAND}\` and report whether it is green; set fullSuiteGreen to the same.`
-    }
-
-Never stage or commit: the run commits the card after a fresh experts check. Never make a finding go away by weakening or deleting a test. Nothing beyond the findings. List in decisions any choice you made that the plan does not state, with major true for a dependency, schema, external service, environment variable, public interface, security configuration or a file outside the card.`,
-    { agentType: agentName('uw-implementer'), label: `${card.name}:fix-round`, phase: currentPhase, schema: FIXED, ...modelOpt(IMPLEMENTER_MODEL) }
-  )
-}
-
 async function runCard(card, { adhoc = false } = {}) {
   log(`card ${card.name}: ${card.title}`)
   const pre = card.preflight || { ok: false, reason: 'no context pack was written for this card' }
@@ -249,7 +213,6 @@ async function runCard(card, { adhoc = false } = {}) {
   if (pre.overBudget) await runSteps(`${card.name}:budget`, [cliCmd('notify', '--feature', FEATURE, '--kind', 'over-budget', '--card', card.name, '--reason', q(`the context pack is about ${pre.tokens} tokens, over its budget of ${pre.budget}: the required entries alone are too large`))])
   // The plan shows the card as running before any work, so a run that dies inside it leaves it there.
   await runSteps(`${card.name}:start`, [cliCmd('card-status', '--plan', q(PLAN), '--card', card.name, '--status', q(RESUME && RESUME.card === card.name ? 'running (resumed)' : 'running'))])
-  const carried = handed[card.name] || []
   // --resume <card> without --accept on a card held for a decision runs it again from its tests,
   // told what it did last time; with --accept (or for a parked card) it continues where it stopped.
   const rerun = RESUME && RESUME.card === card.name && RESUME.rerun ? RESUME : null
@@ -257,7 +220,7 @@ async function runCard(card, { adhoc = false } = {}) {
   const briefs = (Array.isArray(card.briefs) ? card.briefs : []).filter((b) => b && typeof b.name === 'string' && typeof b.text === 'string' && b.text.trim())
   const skills = briefs.flatMap((b) => skillsOf(b.skills)).filter((s, i, all) => all.findIndex((x) => x.name === s.name) === i)
   const brief = briefs.length === 0 ? '' : `\n\nSTANDING BRIEF, from ${briefs.map((b) => b.name).join(', ')}. It applies to every line you write, and it adds no work: do nothing the plan did not ask for.\n\n${briefs.map((b) => b.text.trim()).join('\n\n')}\n${skills.length ? `\nSKILLS for this card (${skills.map((s) => s.name).join(', ')}), chosen from its planned files and text. Write the code so that none of them would find anything. They add no work.\n\n${skills.map((s) => s.text.trim()).join('\n\n')}\n` : ''}`
-  const carriedText = [...(rerun ? [`The last attempt at this card was stopped for a decision the plan does not state, and the user did not accept it: ${rerun.avoid}. Stay within the plan: do not take that decision again. If the card cannot be done without it, say so and stop.`] : []), ...(RESUME && RESUME.card === card.name && RESUME.accepted ? [`The user accepted this decision, which is now in the plan's Decisions: ${RESUME.accepted}`] : []), ...(card.carried || []), ...carried.map((f) => `${f.expert} found at ${f.file}:${f.line}: ${f.what}${f.fix ? ` (fix: ${f.fix})` : ''}`)]
+  const carriedText = [...(rerun ? [`The last attempt at this card was stopped for a decision the plan does not state, and the user did not accept it: ${rerun.avoid}. Stay within the plan: do not take that decision again. If the card cannot be done without it, say so and stop.`] : []), ...(RESUME && RESUME.card === card.name && RESUME.accepted ? [`The user accepted this decision, which is now in the plan's Decisions: ${RESUME.accepted}`] : []), ...(card.carried || [])]
   const locate = `This is card ${card.name} (${card.title}) of the plan ${PLAN}. Read its context pack ${pre.contextFile} and every file it lists before you write anything; the run journal in it holds what earlier cards learned. Change only files under this card's paths (${(card.paths || []).join(', ')}) and the tests for it.${carriedText.length ? `\n\nCARRIED to this card, part of its work:\n${carriedText.map((c) => `- ${c}`).join('\n')}` : ''}`
   const loopOpts = {
     locate,
@@ -269,8 +232,8 @@ async function runCard(card, { adhoc = false } = {}) {
     phases: { tests: currentPhase, implement: currentPhase, verify: currentPhase },
     setPhase: false,
     testsWhere: adhoc ? 'the items carried to this card: one test for each that can have one' : `this card's section of the plan's Tests (the context pack names its lines)`,
-    testsCommitRule: 'Never stage or commit: the run commits the card itself after the experts check.',
-    implementCommitRule: 'Never stage or commit, not even part of the work: the run commits the card itself after the experts check, through the commit gates.',
+    testsCommitRule: 'Never stage or commit: the run commits the card itself.',
+    implementCommitRule: 'Never stage or commit, not even part of the work: the run commits the card itself, through the commit gates.',
     implementerModel: IMPLEMENTER_MODEL,
     diagnoserModel: DIAGNOSER_MODEL,
     briefsLoaded: briefs.map((b) => b.name),
@@ -294,59 +257,14 @@ async function runCard(card, { adhoc = false } = {}) {
     return parkCard(card, `${build.stoppedAt === 'Tests' ? 'tests did not fail first' : 'not green'}: ${why || 'the build stopped'}`, { build: buildSummary })
   }
 
-  const [scope, prepared] = await runSteps(`${card.name}:prepare`, [
-    cliCmd('scope', '--plan', q(PLAN), '--card', card.name),
-    `${cliCmd('prepare', '--range', 'working')} > ${q(`${cardDir(card.name)}/prepare.json`)} && node -e "console.log(JSON.stringify({ok:true}))"`,
-  ])
+  const [scope] = await runSteps(`${card.name}:scope`, [cliCmd('scope', '--plan', q(PLAN), '--card', card.name)])
   const outOfScope = scope && Array.isArray(scope.outOfScope) ? scope.outOfScope : null
-  if (!prepared || prepared.ok !== true) return parkCard(card, 'the experts check could not start: experts.js prepare did not report success', { build: buildSummary })
-
-  let check = await expertsCheck(card, carried)
-  lanes.push({ card: card.name, lane: check.lane, refuted: check.refuted.length })
-  if (check.failed.length > 0) {
-    return parkCard(card, `the experts check failed (first check): ${check.failed.join(', ')} returned nothing, also on the retry`, { build: buildSummary })
-  }
-  // A blocking finding in this card's own files gets one fix round in the card, then a fresh
-  // experts check on the new diff. Only what is still blocking after it, or a blocking finding in a
-  // file the card may not touch, parks the card. Three real runs of four parked a card on a missing
-  // test in its own test file that one more round would have written.
-  let fixRound = null
-  if (check.blocking.length > 0) {
-    const outside = check.blocking.filter((f) => !inCard(card, f.file, buildSummary.testFiles))
-    if (outside.length === 0) {
-      const fixed = await fixFindings(card, locate, brief, check.blocking)
-      fixRound = { round: buildSummary.rounds + 1, findings: check.blocking.map((f) => ({ expert: f.expert, file: f.file, line: f.line, what: f.what })), green: Boolean(fixed && fixed.green === true && fixed.fullSuiteGreen === true), summary: (fixed && fixed.summary) || 'the fix round returned nothing', decisions: (fixed && Array.isArray(fixed.decisions) && fixed.decisions) || [] }
-      if (fixRound.green) {
-        buildSummary.testFiles = [...new Set([...buildSummary.testFiles, ...((fixed && fixed.testFiles) || [])])]
-        const [, again] = await runSteps(`${card.name}:prepare-fix`, [
-          cliCmd('scope', '--plan', q(PLAN), '--card', card.name),
-          `${cliCmd('prepare', '--range', 'working')} > ${q(`${cardDir(card.name)}/prepare.json`)} && node -e "console.log(JSON.stringify({ok:true}))"`,
-        ])
-        if (!again || again.ok !== true) fixRound.outcome = 'the experts check could not start again after the fix round'
-        else {
-          const recheck = await expertsCheck(card, carried, '-fix')
-          lanes.push({ card: card.name, lane: recheck.lane, refuted: recheck.refuted.length, fixRound: true })
-          if (recheck.failed.length > 0) fixRound.outcome = `the experts check after the fix round failed: ${recheck.failed.join(', ')} returned nothing, also on the retry`
-          else {
-            fixRound.outcome = recheck.blocking.length === 0 ? 'fixed' : 'still blocking'
-            check = recheck
-          }
-        }
-      } else fixRound.outcome = 'not green'
-      if (fixRound.outcome !== 'fixed') {
-        const still = fixRound.outcome === 'still blocking' ? check.blocking : fixRound.findings
-        return parkCard(card, `blocking finding${still.length > 1 ? 's' : ''} from the experts check, not fixed by the fix round (${fixRound.outcome}):\n${still.map((f) => `- ${f.expert}: ${f.file}:${f.line} ${f.what}`).join('\n')}`, { build: buildSummary, findings: still, fixRound })
-      }
-    } else {
-      return parkCard(card, `blocking finding${check.blocking.length > 1 ? 's' : ''} from the experts check, outside this card's paths so no fix round:\n${check.blocking.map((f) => `- ${f.expert}: ${f.file}:${f.line} ${f.what}`).join('\n')}`, { build: buildSummary, findings: check.blocking })
-    }
-  }
 
   // Decisions the plan does not state (2026-11-09): the implementer's own list, and what code finds
   // in the diff. A major one is not committed: the card is held as needs-decision, its work kept on
   // the branch and the user told now; the cards that do not depend on it go on. Minor ones go into
   // the handoff and the report.
-  const declared = [...((build && build.decisions) || []), ...((fixRound && fixRound.decisions) || [])]
+  const declared = (build && build.decisions) || []
   const declaredFile = `${cardDir(card.name)}/declared-decisions.json`
   const [decided] = await runSteps(`${card.name}:decisions`, [cliCmd('decisions', '--plan', q(PLAN), '--card', card.name, '--feature', FEATURE, '--declared', q(declaredFile))], [{ path: declaredFile, text: JSON.stringify(declared) }])
   if (!decided || decided.ok !== true) return parkCard(card, 'the check for decisions the plan does not state could not run: experts.js decisions did not report success', { build: buildSummary })
@@ -355,51 +273,19 @@ async function runCard(card, { adhoc = false } = {}) {
   }
   const minorDecisions = decided.minor || []
 
-  // Carried findings this card did not fix, from the last check only, so a fix round does not add them twice.
-  for (const f of check.stillPresent) findingsQueue.push({ ...f, from: f.from || card.name, notFixedBy: card.name })
-
-  const laneFile = `${cardDir(card.name)}/lane.json`
-  const commitCmd = cliCmd('card-commit', '--plan', q(PLAN), '--card', card.name, '--feature', FEATURE, ...(buildSummary.testFiles.length ? ['--claimed', q(buildSummary.testFiles.join(','))] : []), ...(fixRound && fixRound.outcome === 'fixed' ? ['--fixed-round'] : []))
-  const [recorded, committed] = await runSteps(
-    `${card.name}:commit`,
-    [
-      cliCmd('record', '--stage', 'review', '--plan', q(PLAN), '--result', q(laneFile)),
-      commitCmd,
-    ],
-    [{ path: laneFile, text: JSON.stringify({ ok: true, expertLane: check.lane }) }]
-  )
-  // The record is checked against the lane the script built, so a lane retyped wrong is caught here.
-  const recordOk = recorded && Array.isArray(recorded.recorded) && recorded.recorded.length === check.lane.ran.length && recorded.findings === check.lane.findings.length
-  // `record --plan` has now written this lane's selection into the plan's experts line.
-  if (recorded && recorded.plan) for (const n of check.lane.selected) grownExperts.add(n)
+  // The commit check runs its confirmation, full-suite and memory parts here; the experts part is left to the one review
+  // at the end of the run (card-commit says so: outcome deferred).
+  const commitCmd = cliCmd('card-commit', '--plan', q(PLAN), '--card', card.name, '--feature', FEATURE, ...(buildSummary.testFiles.length ? ['--claimed', q(buildSummary.testFiles.join(','))] : []))
+  const [committed] = await runSteps(`${card.name}:commit`, [commitCmd])
   if (!committed || committed.ok !== true) {
-    const why = !recordOk ? `the experts' evidence was not recorded as built (record printed ${JSON.stringify(recorded)})` : `the commit was refused: ${(committed && (committed.reason || committed.gate)) || (rawOutputs.get(commitCmd) ? `card-commit printed no JSON line; it printed: ${rawOutputs.get(commitCmd).replace(/\s*\r?\n\s*/g, ' ')}` : 'card-commit printed nothing')}`
+    const why = `the commit was refused: ${(committed && (committed.reason || committed.gate)) || (rawOutputs.get(commitCmd) ? `card-commit printed no JSON line; it printed: ${rawOutputs.get(commitCmd).replace(/\s*\r?\n\s*/g, ' ')}` : 'card-commit printed nothing')}`
     return parkCard(card, why, { build: buildSummary })
   }
   status[card.name] = 'committed'
   lastParkKey = ''
-  // Decision 2: a non-blocking finding goes to the first later card that can touch its file, else to the findings card.
-  const later = CARDS.filter((c) => status[c.name] === undefined && c.name !== card.name)
-  const carriedOn = []
-  for (const f of check.nonBlocking) {
-    const to = later.find((c) => covers(c.paths, f.file))
-    if (to) {
-      ;(handed[to.name] = handed[to.name] || []).push({ ...f, from: card.name })
-      carriedOn.push({ to: to.name, finding: f })
-    } else findingsQueue.push({ ...f, from: card.name })
-  }
-  if (carriedOn.length) {
-    // An expert wrote the file, the line and the words: they go in a file the step writes, never on the command line.
-    const carryFile = (i) => `${cardDir(card.name)}/carry-${i + 1}.txt`
-    await runSteps(
-      `${card.name}:carry`,
-      carriedOn.map((c, i) => cliCmd('card-field', '--plan', q(PLAN), '--card', c.to, '--carried-file', q(carryFile(i)))),
-      carriedOn.map((c, i) => ({ path: carryFile(i), text: `${c.finding.expert} at ${c.finding.file}:${c.finding.line}: ${c.finding.what}`.replace(/;/g, ',') }))
-    )
-  }
-  const entry = { card: card.name, title: card.title, status: 'committed', commit: committed.commit, handoff: committed.handoff, missingClaims: committed.missingClaims || [], outOfScope, build: buildSummary, ...(rerun && rerun.heldBranch ? { superseded: rerun.heldBranch } : {}), experts: { ran: check.lane.ran, added: check.lane.added, findings: check.lane.findings.length, refuted: check.refuted.length, carriedOn: carriedOn.map((c) => c.to) }, ...(fixRound ? { fixRound } : {}), ...(minorDecisions.length ? { decisions: { major: [], minor: minorDecisions } } : {}), ...(recordOk ? {} : { recordMismatch: recorded }) }
+  const entry = { card: card.name, title: card.title, status: 'committed', commit: committed.commit, handoff: committed.handoff, missingClaims: committed.missingClaims || [], outOfScope, build: buildSummary, ...(rerun && rerun.heldBranch ? { superseded: rerun.heldBranch } : {}), ...(minorDecisions.length ? { decisions: { major: [], minor: minorDecisions } } : {}) }
   report.push(entry)
-  await journal(card, 'committed', `rounds: ${buildSummary.rounds}; files: ${committed.files}; findings: ${check.lane.findings.length}`)
+  await journal(card, 'committed', `rounds: ${buildSummary.rounds}; files: ${committed.files}`)
   return entry
 }
 
@@ -455,7 +341,7 @@ if (blockedSteps.length) await runSteps('blocked:status', blockedSteps)
 // The stop text holds a park reason an agent wrote: it goes in a file, whole, never on the command line.
 if (stoppedBecause) await runSteps('stopped:notify', [cliCmd('notify', '--feature', FEATURE, '--kind', 'stopped', '--reason-file', q(`${RUN_DIR}/stop-reason.txt`), '--action', q('read the report, then /ultimate-workflow:feature --resume'))], [{ path: `${RUN_DIR}/stop-reason.txt`, text: stoppedBecause }])
 
-// ---- the findings card, the review and its fix-up card ----
+// ---- the review and its fix-up cards ----
 
 const MAX_FIXUP_CARDS = 4
 const adhocPaths = []
@@ -487,114 +373,113 @@ async function adhocCard(name, title, items, experts, label = name) {
   return runCard(card, { adhoc: true })
 }
 
-// The review, the fix-up cards, the findings card and the harvest wait for every card to be settled.
+// The review, the fix-up cards and the harvest wait for every card to be settled.
 const waitingFor = () => Object.keys(status).filter((n) => status[n] !== 'committed' && (names.has(n) || status[n] !== 'not started'))
 const waitingReason = (w) => `waiting for ${w.join(', ')}; they run once, on the resume that settles them. To run them by hand: /ultimate-workflow:review, then /ultimate-workflow:harvest`
 let waiting = waitingFor()
 
 const anyCommitted = Object.values(status).includes('committed')
-// What run.json recorded of the last review and harvest: a later settling resume reviews only what is new.
-// It also holds the findings no card fixed, which a run that waited could not hand to the findings card.
-let state = { head: '', reviewedHead: '', harvestedHead: '', harvestBranch: '', pendingFindings: [] }
+// What run.json recorded of the last review and harvest: a later settling resume reviews only if something is new.
+let state = { head: '', reviewedHead: '', harvestedHead: '', harvestBranch: '' }
 let stateError = ''
 if (anyCommitted) {
   const [read] = await runSteps('settle:state', [cliCmd('run-state', '--feature', FEATURE)])
   if (read && read.ok) state = read
-  // A read that failed is not "nothing recorded": going on would review everything again and overwrite
-  // the findings saved in run.json. The settle step stops, and the result and the report say why.
-  else stateError = `the run state could not be read (${(read && read.reason) || 'the run-state step returned nothing'}), so the findings card, the review, the fix-up cards and the harvest did not run. Run /ultimate-workflow:feature --resume to try again`
-}
-findingsQueue.push(...(state.pendingFindings || []))
-
-let findingsCard = null
-if (!stoppedBecause && !stateError && waiting.length === 0 && findingsQueue.length > 0) {
-  setPhase('Findings')
-  // G6 asks a run-added card for the experts of every plan card covering its files as well: the raisers
-  // alone can fall short.
-  const covering = CARDS.filter((c) => findingsQueue.some((f) => inCard(c, f.file)))
-  const coverers = covering.flatMap((c) => c.experts || [])
-  findingsCard = await adhocCard('findings', 'non-blocking expert findings no card fixed', findingsQueue, [...new Set([...findingsQueue.map((f) => f.expert), ...coverers].filter(Boolean))])
-}
-// The findings still unfixed are written to run.json, so the resume that settles the waiting cards fixes them.
-const unfixed = findingsCard && findingsCard.status !== 'not started' ? [] : findingsQueue
-if (!stateError && (unfixed.length > 0 || (state.pendingFindings || []).length > 0)) {
-  const file = `${RUN_DIR}/findings.json`
-  await runSteps('settle:findings', [cliCmd('run-state', '--feature', FEATURE, '--findings', q(file))], [{ path: file, text: JSON.stringify(unfixed) }])
+  // A read that failed is not "nothing recorded": going on would review everything again.
+  // The settle step stops, and the result and the report say why.
+  else stateError = `the run state could not be read (${(read && read.reason) || 'the run-state step returned nothing'}), so the review, the fix-up cards and the harvest did not run. Run /ultimate-workflow:feature --resume to try again`
 }
 
 waiting = waitingFor()
 setPhase('Review')
-// @shared core-lenses
-const REVIEW_LENSES = CORE_LENSES
-// A findings card that ran added a commit the recorded head does not cover.
-const nothingNew = !findingsCard && Boolean(state.reviewedHead) && state.reviewedHead === state.head
-// The harvest has its own recorded head: a harvest that failed is run again though the review is on record.
-const covered = (head) => !findingsCard && Boolean(head) && head === state.head
-const FROM = state.reviewedHead || BASE
+const nothingNew = Boolean(state.reviewedHead) && state.reviewedHead === state.head
+const covered = (head) => Boolean(head) && head === state.head
+const RANGE = `${BASE}..HEAD`
+const planned = PLAN_EXPERTS.filter((n) => AVAILABLE.some((e) => e.name === n))
+// What differs from the by-hand review: the labels, an agent that returns nothing is asked once more, the skills come
+// from the cards' planned files, and the agents run under the run's model setting.
+const reviewOpts = {
+  available: AVAILABLE,
+  diffFile: '.ultimate-workflow/review.diff',
+  expertsDir: EXPERTS_DIR,
+  plan: PLAN,
+  retry: true,
+  labelPrefix: 'review:',
+  phases: {},
+  agentOpts: { phase: 'Review', ...modelOpt(IMPLEMENTER_MODEL) },
+  skillsFor: reviewSkillsFor,
+  droppedFor: () => [],
+  skillNames: (n) => reviewSkillsFor(n).map((s) => s.name),
+}
+/** Prepare a range (saves the diff the experts read, fingerprints the range), review it, and record the lane. */
+async function reviewAndRecord(range, tag, over) {
+  const [prep] = await runSteps(`${tag}:prepare`, [`${cliCmd('prepare', '--range', q(range))} > ${q(`${RUN_DIR}/${tag}-prepare.json`)} && node -e "console.log(JSON.stringify({ok:true}))"`])
+  if (!prep || prep.ok !== true) return { ran: false, reason: 'the review could not start: experts.js prepare did not report success' }
+  const rv = await reviewRange({ ...reviewOpts, ...over, range, ...(over.labelPrefix ? {} : { labelPrefix: `${tag}:` }) })
+  if (!rv.ok) return { ran: false, reason: rv.error || 'the review returned no result', failedLenses: rv.failedLenses || [] }
+  const laneFile = `${RUN_DIR}/${tag}-lane.json`
+  const [rec] = await runSteps(`${tag}:record`, [cliCmd('record', '--stage', 'review', '--result', q(laneFile))], [{ path: laneFile, text: JSON.stringify({ ok: true, expertLane: rv.expertLane }) }])
+  lanes.push({ card: tag, lane: rv.expertLane })
+  return { ran: true, range, failedLenses: rv.failedLenses || [], findings: rv.findings, refuted: rv.refuted, unverified: rv.unverified, experts: rv.experts, recorded: Boolean(rec && Array.isArray(rec.recorded)), ...(rec && Array.isArray(rec.recorded) ? {} : { recordProblem: 'the review was not recorded as evidence (experts.js record printed nothing usable); check --range will say not reviewed' }) }
+}
+
 let review = { ran: false, reason: stateError ? stateError : waiting.length > 0 ? waitingReason(waiting) : !anyCommitted ? 'no card was committed, so there is nothing to review' : nothingNew ? 'no card was committed since the last review' : '' }
 let fixupCard = null
 // A fix-up card committed by this run's review is newer than the head read before it.
 let fixupCommitted = false
+let fixupReview = null
+let fixedCount = 0
 if (anyCommitted && !stoppedBecause && !stateError && waiting.length === 0 && !nothingNew) {
-  const lensResults = await parallel(
-    REVIEW_LENSES.map((lens) => () =>
-      agent(
-        `Review the diff \`git diff ${FROM}..HEAD\` (every card committed since the last review) through the ${lens} lens ONLY. Another reviewer has each of the other lenses. Read the plan ${PLAN} first, then the diff, then the surrounding code.${lens === 'surgical-scope' ? ' For each hunk ask whether it traces to the plan; flag what does not.' : ''}${lens === 'test-coverage' ? ' Ask whether the tests would FAIL if the code were wrong.' : ''}
-
-Every finding needs a file, a line, one sentence on the defect and a concrete failure scenario. Set lensVerdict whether or not you find anything. ${NO_QUOTA}`,
-        { agentType: agentName('uw-reviewer'), label: `review:${lens}`, phase: 'Review', schema: FINDINGS }
-      )
-    )
-  )
-  const all = []
-  REVIEW_LENSES.forEach((lens, i) => {
-    for (const f of (lensResults[i] && lensResults[i].findings) || []) all.push({ ...f, lens })
-  })
-  const failedLenses = REVIEW_LENSES.filter((_, i) => !lensResults[i])
-  let confirmed = []
-  let refuted = []
-  let unverified = []
-  if (all.length > 0) {
-    const v = await agent(
-      `Try to REFUTE each finding below. Your job is not to agree.
-
-${JSON.stringify(all.map((f, index) => ({ index, ...f })), null, 2)}
-
-For each: read the code, check the failure path is reachable, look for the guard the reviewer missed. Default to refuted when uncertain. One verdict per finding, by index.`,
-      { agentType: agentName('uw-reviewer'), label: 'review:refute', phase: 'Review', schema: VERDICTS }
-    )
-    const byIndex = new Map(((v && v.verdicts) || []).map((x) => [x.index, x]))
-    all.forEach((f, i) => {
-      const x = byIndex.get(i)
-      if (!x) unverified.push(f)
-      else if (x.verdict === 'confirmed') confirmed.push({ ...f, verifiedBecause: x.reason })
-      else refuted.push({ ...f, refutedBecause: x.reason })
-    })
-  }
-  review = { ran: failedLenses.length < REVIEW_LENSES.length, range: `${FROM}..HEAD`, failedLenses, findings: confirmed, refuted, unverified }
-  // Decision 2 applied to the review (2026-11-09): a confirmed finding is fixed, not only reported.
-  // High and medium ones in a file some card of this run could change go to fix-up cards; low ones,
-  // and any outside the run's files, stay in the report. One card per plan card whose paths cover the
-  // file (the first in plan order), lane = the experts of every plan card covering the group's files,
-  // so G6 finds the evidence it asks for; files no plan card covers make one more card with the plan's
-  // line. At most MAX_FIXUP_CARDS cards: the findings of the groups past that stay in the report.
-  const runCards = [...CARDS, { paths: adhocPaths }]
-  const runTests = report.flatMap((e) => (e.build && e.build.testFiles) || [])
-  const inRun = (f) => runCards.some((c) => inCard(c, f.file, runTests))
-  const toFix = confirmed.filter((f) => (f.confidence === 'high' || f.confidence === 'medium') && inRun(f))
-  const owners = [...CARDS.map((c) => c.name), '']
-  const ownerOf = (f) => (CARDS.find((c) => inCard(c, f.file)) || { name: '' }).name
-  const groups = owners.map((owner) => toFix.filter((f) => ownerOf(f) === owner)).filter((g) => g.length > 0).slice(0, MAX_FIXUP_CARDS)
-  review.leftInReport = confirmed.length - groups.reduce((n, g) => n + g.length, 0)
-  for (const [i, group] of groups.entries()) {
-    const covering = CARDS.filter((c) => group.some((f) => inCard(c, f.file)))
-    const lane = covering.length > 0 ? [...new Set(covering.flatMap((c) => c.experts || []))] : PLAN_EXPERTS
-    const entry = await adhocCard('fixup', 'confirmed review findings', group, lane, i === 0 ? 'fixup' : `fixup-${i + 1}`)
-    if (i === 0) fixupCard = entry
-    if (entry && entry.status === 'committed') fixupCommitted = true
-    if (stoppedBecause) break
+  review = await reviewAndRecord(RANGE, 'review', { planned })
+  if (review.ran) {
+    const confirmed = review.findings
+    // Decision 2 applied to the review (2026-11-09): a confirmed finding is fixed, not only reported.
+    // High and medium ones in a file some card of this run could change go to fix-up cards; low ones,
+    // and any outside the run's files, stay in the report. One card per plan card whose paths cover the
+    // file (the first in plan order), lane = the experts of every plan card covering the group's files;
+    // files no plan card covers make one more card with the plan's line. At most MAX_FIXUP_CARDS cards:
+    // the findings of the groups past that stay in the report.
+    const runCards = [...CARDS, { paths: adhocPaths }]
+    const runTests = report.flatMap((e) => (e.build && e.build.testFiles) || [])
+    const inRun = (f) => runCards.some((c) => inCard(c, f.file, runTests))
+    const toFix = confirmed.filter((f) => (f.confidence === 'high' || f.confidence === 'medium') && inRun(f))
+    const owners = [...CARDS.map((c) => c.name), '']
+    const ownerOf = (f) => (CARDS.find((c) => inCard(c, f.file)) || { name: '' }).name
+    const groups = owners.map((owner) => toFix.filter((f) => ownerOf(f) === owner)).filter((g) => g.length > 0).slice(0, MAX_FIXUP_CARDS)
+    review.leftInReport = confirmed.length - groups.reduce((n, g) => n + g.length, 0)
+    // The head the review covered: the experts check of the fix-up cards reads what came after it.
+    let reviewedHead = ''
+    if (groups.length > 0) {
+      const [h] = await runSteps('settle:head', [cliCmd('run-state', '--feature', FEATURE)])
+      reviewedHead = h && h.ok ? String(h.head || '') : ''
+    }
+    for (const [i, group] of groups.entries()) {
+      const covering = CARDS.filter((c) => group.some((f) => inCard(c, f.file)))
+      const lane = covering.length > 0 ? [...new Set(covering.flatMap((c) => c.experts || []))] : PLAN_EXPERTS
+      const entry = await adhocCard('fixup', 'confirmed review findings', group, lane, i === 0 ? 'fixup' : `fixup-${i + 1}`)
+      if (i === 0) fixupCard = entry
+      if (entry && entry.status === 'committed') {
+        fixupCommitted = true
+        fixedCount += group.length
+      }
+      if (stoppedBecause) break
+    }
+    // After the fix-up cards, ONE experts-only check of what they changed. Whatever it finds, or the review left, goes in the
+    // report: there is no second fix round.
+    if (fixupCommitted) {
+      fixupReview = reviewedHead
+        ? await reviewAndRecord(`${reviewedHead}..HEAD`, 'review-fixups', { expertsOnly: true, recheck: false, planned: review.experts || planned })
+        : { ran: false, reason: 'the head the review covered could not be read, so the fix-up cards were not checked' }
+    }
   }
 }
+
+// A review with a lens or an expert that returned nothing, also on the retry, did not cover the range: it is run again on the
+// resume. The same holds for the experts check of the fix-up cards.
+const fixupCheckFailed = fixupCommitted && (!fixupReview || !fixupReview.ran || (fixupReview.failedLenses || []).length > 0)
+const reviewDone = Boolean(review.ran) && (review.failedLenses || []).length === 0 && !fixupCheckFailed
+// What is still open: the confirmed findings of the review that no committed fix-up card took, and what the check of the fix-up cards found.
+const openCount = reviewDone ? review.findings.length - fixedCount + (fixupReview && fixupReview.ran ? fixupReview.findings.length : 0) : 0
 
 // ---- harvest to a branch ----
 
@@ -621,22 +506,38 @@ Route each lesson worth keeping: "Beware / Don't / Note that" is a Gotcha (path 
 }
 // What ran is on record, each half apart: the next settling resume runs again only the half that is missing.
 const harvestDone = harvest.ran && !harvest.error
-// A review with a lens that returned nothing did not cover the range: it is run again.
-const reviewDone = review.ran && (review.failedLenses || []).length === 0
+let recState = null
 if (reviewDone || harvestDone) {
   const branch = /^uw\/harvest\/[A-Za-z0-9._-]+$/.test(harvest.branch || '') ? harvest.branch : ''
-  await runSteps('settle:record', [cliCmd('run-state', '--feature', FEATURE, '--record', ...(reviewDone ? ['--review'] : []), ...(harvestDone ? ['--harvest'] : []), ...(branch ? ['--harvest-branch', branch] : []))])
+  ;[recState] = await runSteps('settle:record', [cliCmd('run-state', '--feature', FEATURE, '--record', ...(reviewDone ? ['--review', '--open', String(openCount)] : []), ...(harvestDone ? ['--harvest'] : []), ...(branch ? ['--harvest-branch', branch] : []))])
 }
 
 const counts = report.reduce((n, r) => ({ ...n, [r.status]: (n[r.status] || 0) + 1 }), {})
+// Whether the branch was reviewed by the experts, said plainly: the report, the notice and the summary use these words.
+// A run that waited, stopped or could not review never reads as ready to merge.
+const savedReview = nothingNew && state.reviewed && state.reviewed.head ? state.reviewed : null
+const reviewed = reviewDone ? { head: (recState && recState.ok && recState.reviewed && recState.reviewed.head) || '', open: openCount } : savedReview ? { head: savedReview.head, open: Number(savedReview.open) || 0 } : null
+const notReviewedWhy = reviewed
+  ? ''
+  : review.ran
+    ? fixupCheckFailed
+      ? `the experts check of the fix-up cards did not run to the end (${(fixupReview && fixupReview.reason) || ((fixupReview && fixupReview.failedLenses) || []).join(', ') + ' returned nothing'})`
+      : `${(review.failedLenses || []).join(', ')} returned nothing, also on the retry`
+    : review.reason || 'the review did not run'
+const reviewedText = reviewed ? `Reviewed by the experts at ${reviewed.head || 'the run head'}: ${reviewed.open} finding${reviewed.open === 1 ? '' : 's'} open` : `NOT REVIEWED: ${notReviewedWhy}`
 // One notice when the run ends, with the counts, whatever the outcome.
 const held = report.filter((e) => e.status === 'parked' || e.status === 'needs-decision').map((e) => e.card)
 // It is the one notice that reaches the desktop, so it names every blocker: each card held and each card blocked.
 const namesOf = (...kinds) => report.filter((e) => kinds.includes(e.status)).map((e) => e.card)
 const blockers = [['parked', namesOf('parked')], ['needs a decision', namesOf('needs-decision')], ['blocked', namesOf('blocked')]].filter(([, list]) => list.length > 0).map(([what, list]) => `${what}: ${list.join(', ')}`)
-const finishedText = [Object.entries(counts).map(([k, n]) => `${n} ${k}`).join(', ') || 'no cards', ...blockers, ...(stoppedBecause ? ['stopped'] : [])].join('; ')
+const finishedText = [Object.entries(counts).map(([k, n]) => `${n} ${k}`).join(', ') || 'no cards', ...blockers, ...(stoppedBecause ? ['stopped'] : []), reviewedText].join('; ')
 const finishedFile = `${RUN_DIR}/finished-reason.txt`
-await runSteps('finished:notify', [cliCmd('notify', '--feature', FEATURE, '--kind', 'finished', '--reason-file', q(finishedFile), '--action', q(held.length ? `settle ${held.join(', ')}: the report lists the command for each` : `review and merge uw/run/${FEATURE}`))], [{ path: finishedFile, text: finishedText }])
+const finishedAction = held.length
+  ? `settle ${held.join(', ')}: the report lists the command for each`
+  : reviewed
+    ? `read the report (${reviewed.open} finding${reviewed.open === 1 ? '' : 's'} open), then merge uw/run/${FEATURE}; before merging: experts.js check --range ${BASE}..HEAD`
+    : `do not merge yet: ${reviewedText}. Run /ultimate-workflow:feature --resume, or /ultimate-workflow:review`
+await runSteps('finished:notify', [cliCmd('notify', '--feature', FEATURE, '--kind', 'finished', '--reason-file', q(finishedFile), '--action', q(finishedAction))], [{ path: finishedFile, text: finishedText }])
 return {
   ok: true,
   feature: FEATURE,
@@ -646,13 +547,14 @@ return {
   cards: report.map((e) => (packs[e.card] ? { ...e, pack: packs[e.card] } : e)),
   earlier,
   counts,
-  findingsCard,
   review,
+  reviewed,
+  reviewedText,
   fixupCard,
+  fixupReview,
   harvest,
   expertLanes: lanes,
-  pendingFindings: unfixed,
   ...(stateError ? { stateError } : {}),
   ...(stoppedBecause ? { stopped: stoppedBecause } : {}),
-  summary: `${counts.committed || 0} committed, ${counts.parked || 0} parked, ${counts.blocked || 0} blocked${counts['not started'] ? `, ${counts['not started']} not started` : ''}${stoppedBecause ? `; stopped: ${stoppedBecause}` : ''}. Review: ${review.ran ? `${(review.findings || []).length} confirmed` : review.reason || 'not run'}. Harvest: ${harvest.ran ? `${harvest.proposals || 0} proposals${harvest.branch ? ` on ${harvest.branch}` : ''}` : harvest.reason || 'not run'}.`,
+  summary: `${counts.committed || 0} committed, ${counts.parked || 0} parked, ${counts.blocked || 0} blocked${counts['not started'] ? `, ${counts['not started']} not started` : ''}${stoppedBecause ? `; stopped: ${stoppedBecause}` : ''}. ${reviewedText}. ${review.ran ? `Review: ${(review.findings || []).length} confirmed.` : ''} Harvest: ${harvest.ran ? `${harvest.proposals || 0} proposals${harvest.branch ? ` on ${harvest.branch}` : ''}` : harvest.reason || 'not run'}.`,
 }

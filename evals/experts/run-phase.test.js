@@ -1074,7 +1074,8 @@ test('one review: fix-up cards take the confirmed high and medium findings, then
   assert.equal(seen.filter((l) => /^fixup[^:]*:write-tests$/.test(l)).length, 1, 'no second fix round');
   assert.equal(result.fixupReview.ran, true);
   assert.equal(result.fixupReview.range, 'head1..HEAD');
-  assert.deepStrictEqual(result.reviewed, { head: 'head2', open: 0, ranges: ['abc1234..head1', 'head1..head2'] }, 'the one finding was fixed by a committed fix-up card');
+  assert.deepStrictEqual(result.reviewed, { head: 'head2', open: 0, ranges: ['abc1234..head2'] }, 'the one finding was fixed by a committed fix-up card; one range covers the whole branch');
+  assert.ok(seen.indexOf('review-fixups:record') < seen.indexOf('review-final:prepare') && seen.indexOf('review-final:prepare') < seen.indexOf('review-final:record'), 'then one record of the whole branch');
   assert.deepStrictEqual(result.expertLanes.map((l) => l.card), ['review', 'review-fixups']);
 });
 
@@ -1115,4 +1116,16 @@ test('one review: a review already recorded for this head is not run again, and 
   assert.equal(result.review.ran, false);
   assert.deepStrictEqual(result.reviewed, { head: 'h2', open: 2 });
   assert.equal(result.reviewedText, 'Reviewed by the experts at h2: 2 findings open');
+});
+
+test('one review: a finding the verifier returned no verdict for counts as open, and a review that could not be recorded is NOT REVIEWED', async () => {
+  const high = { file: 'src/9/z.js', line: 1, what: 'unchecked', howItFails: 'x', confidence: 'low' };
+  const base = responder({ reviewFindings: [high] });
+  const a = await run(baseArgs([card('1')]), async (c) => (c.label.startsWith('review:refute') ? null : base(c)));
+  assert.equal(a.result.reviewed.open, 1, 'one finding, not ruled on, is open');
+  assert.equal(a.result.review.unverified.length, 1);
+  const base2 = responder();
+  const b = await run(baseArgs([card('1')]), async (c) => (c.label === 'review:record' ? steps('no JSON here') : base2(c)));
+  assert.equal(b.result.reviewed, null);
+  assert.match(b.result.reviewedText, /^NOT REVIEWED: the review was not recorded as evidence/);
 });

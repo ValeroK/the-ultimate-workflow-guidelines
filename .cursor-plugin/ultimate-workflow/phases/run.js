@@ -420,7 +420,16 @@ async function reviewAndRecord(range, tag, over) {
   const laneFile = `${RUN_DIR}/${tag}-lane.json`
   const [rec] = await runSteps(`${tag}:record`, [cliCmd('record', '--stage', 'review', '--result', q(laneFile))], [{ path: laneFile, text: JSON.stringify({ ok: true, expertLane: rv.expertLane }) }])
   lanes.push({ card: tag, lane: rv.expertLane })
-  return { ran: true, range, failedLenses: rv.failedLenses || [], findings: rv.findings, refuted: rv.refuted, unverified: rv.unverified, experts: rv.experts, recorded: Boolean(rec && Array.isArray(rec.recorded)), ...(rec && Array.isArray(rec.recorded) ? {} : { recordProblem: 'the review was not recorded as evidence (experts.js record printed nothing usable); check --range will say not reviewed' }) }
+  return { ran: true, range, lane: rv.expertLane, failedLenses: rv.failedLenses || [], findings: rv.findings, refuted: rv.refuted, unverified: rv.unverified, experts: rv.experts, recorded: Boolean(rec && Array.isArray(rec.recorded)), ...(rec && Array.isArray(rec.recorded) ? {} : { recordProblem: 'the review was not recorded as evidence (experts.js record printed nothing usable); check --range will say not reviewed' }) }
+}
+
+/** Prepare a range and record a lane built from earlier reviews under it. True when experts.js record printed what it recorded. */
+async function recordWhole(range, tag, lane) {
+  const [prep] = await runSteps(`${tag}:prepare`, [`${cliCmd('prepare', '--range', q(range))} > ${q(`${RUN_DIR}/${tag}-prepare.json`)} && node -e "console.log(JSON.stringify({ok:true}))"`])
+  if (!prep || prep.ok !== true) return false
+  const laneFile = `${RUN_DIR}/${tag}-lane.json`
+  const [rec] = await runSteps(`${tag}:record`, [cliCmd('record', '--stage', 'review', '--result', q(laneFile))], [{ path: laneFile, text: JSON.stringify({ ok: true, expertLane: lane }) }])
+  return Boolean(rec && Array.isArray(rec.recorded))
 }
 
 let review = { ran: false, reason: stateError ? stateError : waiting.length > 0 ? waitingReason(waiting) : !anyCommitted ? 'no card was committed, so there is nothing to review' : nothingNew ? 'no card was committed since the last review' : '' }
@@ -429,6 +438,8 @@ let fixupCard = null
 let fixupCommitted = false
 let fixupReview = null
 let fixedCount = 0
+const fixedGroups = []
+let wholeRecorded = false
 if (anyCommitted && !stoppedBecause && !stateError && waiting.length === 0 && !nothingNew) {
   review = await reviewAndRecord(RANGE, 'review', { planned })
   if (review.ran) {
@@ -458,6 +469,7 @@ if (anyCommitted && !stoppedBecause && !stateError && waiting.length === 0 && !n
       if (entry && entry.status === 'committed') {
         fixupCommitted = true
         fixedCount += group.length
+        fixedGroups.push(group)
       }
       if (stoppedBecause) break
     }
@@ -467,16 +479,25 @@ if (anyCommitted && !stoppedBecause && !stateError && waiting.length === 0 && !n
       fixupReview = reviewedHead
         ? await reviewAndRecord(`${reviewedHead}..HEAD`, 'review-fixups', { expertsOnly: true, recheck: false, planned: review.experts || planned })
         : { ran: false, reason: 'the head the review covered could not be read, so the fix-up cards were not checked' }
+      // One record for the whole branch, so `experts.js check --range <base>..<head>` is one command: the review's findings that no
+      // committed fix-up card took, and what the check of the fix-up cards found.
+      if (fixupReview.ran && fixupReview.recorded && (fixupReview.failedLenses || []).length === 0) {
+        const key = (x) => `${x.file}|${x.line}|${x.what}`
+        const fixedKeys = new Set(fixedGroups.flat().map(key))
+        const whole = { ...review.lane, ran: [...new Set([...(review.lane.ran || []), ...(fixupReview.lane.ran || [])])], findings: [...(review.lane.findings || []).filter((x) => !fixedKeys.has(key(x))), ...(fixupReview.lane.findings || [])] }
+        wholeRecorded = await recordWhole(RANGE, 'review-final', whole)
+      }
     }
   }
 }
 
 // A review with a lens or an expert that returned nothing, also on the retry, did not cover the range: it is run again on the
 // resume. The same holds for the experts check of the fix-up cards.
-const fixupCheckFailed = fixupCommitted && (!fixupReview || !fixupReview.ran || (fixupReview.failedLenses || []).length > 0)
-const reviewDone = Boolean(review.ran) && (review.failedLenses || []).length === 0 && !fixupCheckFailed
+const fixupCheckFailed = fixupCommitted && (!fixupReview || !fixupReview.ran || (fixupReview.failedLenses || []).length > 0 || !fixupReview.recorded || !wholeRecorded)
+const reviewDone = Boolean(review.ran) && (review.failedLenses || []).length === 0 && review.recorded === true && !fixupCheckFailed
 // What is still open: the confirmed findings of the review that no committed fix-up card took, and what the check of the fix-up cards found.
-const openCount = reviewDone ? review.findings.length - fixedCount + (fixupReview && fixupReview.ran ? fixupReview.findings.length : 0) : 0
+// A finding the verifier returned no verdict for is open too: it was neither confirmed nor refuted.
+const openCount = reviewDone ? review.findings.length + (review.unverified || []).length - fixedCount + (fixupReview && fixupReview.ran ? fixupReview.findings.length + (fixupReview.unverified || []).length : 0) : 0
 
 // ---- harvest to a branch ----
 
@@ -515,14 +536,17 @@ const counts = report.reduce((n, r) => ({ ...n, [r.status]: (n[r.status] || 0) +
 const savedReview = nothingNew && state.reviewed && state.reviewed.head ? state.reviewed : null
 const finalHead = (recState && recState.ok && recState.reviewed && recState.reviewed.head) || ''
 // The concrete ranges a user can ask `experts.js check --range` about: the review's, and the fix-up cards' when there were any.
-const reviewedRanges = reviewDone ? [`${BASE}..${state.head || 'HEAD'}`, ...(fixupCommitted ? [`${state.head || 'HEAD'}..${finalHead || 'HEAD'}`] : [])] : []
+// The review's range, or the whole branch when fix-up cards were made (that is the range of the one record made after them).
+const reviewedRanges = reviewDone ? [`${BASE}..${fixupCommitted ? finalHead || 'HEAD' : state.head || 'HEAD'}`] : []
 const reviewed = reviewDone ? { head: finalHead, open: openCount, ranges: reviewedRanges } : savedReview ? { head: savedReview.head, open: Number(savedReview.open) || 0 } : null
 const notReviewedWhy = reviewed
   ? ''
   : review.ran
     ? fixupCheckFailed
-      ? `the experts check of the fix-up cards did not run to the end (${(fixupReview && fixupReview.reason) || ((fixupReview && fixupReview.failedLenses) || []).join(', ') + ' returned nothing'})`
-      : `${(review.failedLenses || []).join(', ')} returned nothing, also on the retry`
+      ? `the experts check of the fix-up cards did not run to the end or was not recorded (${(fixupReview && fixupReview.reason) || ((fixupReview && fixupReview.failedLenses) || []).join(', ') + ' returned nothing'})`
+      : (review.failedLenses || []).length > 0
+        ? `${review.failedLenses.join(', ')} returned nothing, also on the retry`
+        : `the review was not recorded as evidence (${review.recordProblem || 'experts.js record printed nothing usable'}), so experts.js check --range cannot vouch for it`
     : review.reason || 'the review did not run'
 const reviewedText = reviewed ? `Reviewed by the experts at ${reviewed.head || 'the run head'}: ${reviewed.open} finding${reviewed.open === 1 ? '' : 's'} open` : `NOT REVIEWED: ${notReviewedWhy}`
 // One notice when the run ends, with the counts, whatever the outcome.

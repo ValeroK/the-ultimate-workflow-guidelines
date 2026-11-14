@@ -65,7 +65,7 @@ Then show the user the report file (a link to open, or the file printed whole; n
 
 Say the review line of the report in your own words first: "Reviewed by the experts at <head>: N findings open" or "NOT REVIEWED: <why>". Never call the branch ready to merge when it says NOT REVIEWED; the way to get it reviewed is `/ultimate-workflow:feature --resume` (the resume that settles the cards runs the review), or `/ultimate-workflow:review`.
 
-Nothing is pushed or merged. Before merging, the user asks whether the branch was reviewed with nothing high open, with the commands the report names: `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" check --range <base>..<review head>`, and `<review head>..<final head>` when fix-up cards were made (the experts check of those). The user merges `uw/run/<feature>` when they are satisfied; set `phase: done` in the plan only after that.
+Nothing is pushed or merged. Before merging, the user asks whether the branch was reviewed with nothing high open, with the commands the report names: `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" check --range <base>..<head>` (one range: when fix-up cards were made, a second record of the whole branch holds the findings no fix-up took and what the experts check of the fix-up cards found). The user merges `uw/run/<feature>` when they are satisfied; set `phase: done` in the plan only after that.
 
 ## Resume
 

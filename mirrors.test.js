@@ -834,7 +834,6 @@ test('gate integrity: every test file is reached by the verify command', () => {
 // Today's conditional skips: symlinks, bash missing, the Cursor recordings. A new one fails here.
 const SKIPS = {
   '.cursor-plugin/ultimate-workflow/hooks/lib/adapters.test.js': 4,
-  '.cursor-plugin/ultimate-workflow/hooks/status.test.js': 1,
   'evals/experts/autopilot-fixes.test.js': 1,
   'evals/experts/run-phase.test.js': 2,
 };

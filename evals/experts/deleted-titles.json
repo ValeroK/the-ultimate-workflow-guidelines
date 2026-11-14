@@ -522,5 +522,9 @@
  [
   "evals/experts/experts.test.js",
   "a review without a successful recheck leaves no recheck record"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/status.test.js",
+  "--json degrades inside the contract when the report itself throws"
  ]
 ]

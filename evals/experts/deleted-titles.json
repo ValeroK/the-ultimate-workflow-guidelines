@@ -517,7 +517,8 @@
  ],
  [
   "mirrors.test.js",
-  "plugin manifests and the CHANGELOG say 4.8.0"
+  "plugin manifests and the CHANGELOG say 4.8.0",
+  "plugin manifests and the CHANGELOG say 5.0.0"
  ],
  [
   "evals/experts/experts.test.js",

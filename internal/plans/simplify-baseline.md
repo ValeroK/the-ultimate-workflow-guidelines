@@ -142,3 +142,23 @@ Plan targets, plainly:
 - **8 or fewer state-file kinds: NOT met.** The script lists 16 names. About 12 are real for the by-hand flow: plan front matter, active-plan, verify.json, baseline.json, expert records (with waivers, prepared.json and _recheck.json), ledger.jsonl, review.diff and snapshots, verify.lock and verify.log, and commit-check.json. The plan's own section 5.3 keeps all of them except the heartbeat, so the "8 or fewer" target in its section 10 contradicts its table; folding baseline into verify.json, and snapshots into one saved diff, would be the next step, and was not asked for. What is gone: heartbeat.json is no longer written or read, and no hook writes the plan file or any of dirty, verify_rounds, last_verify, escalated, gate_violation.
 - **run.js with no review, harvest or experts-check code of its own: met for the declarations** (expertsCheck, the findings and verdict schemas, the selection shape, the lens list, the cover rule and the harvest schema all come from lib/phase-shared.js, and a scan holds that). **Not met in the sense of one function used by both flows:** the by-hand review keeps its own lens pool and the run keeps its own card loop and its one harvest agent; they share rules, schemas and the per-card check, not an orchestrator.
 - One front-matter parser, writer, Cards reader, measure-line parser, cover rule: met. One add-only merge: `mergeAdd` in experts.js and `addOnly` in the shared lane section remain two functions of the same rule (code and script cannot import each other).
+
+## After, third pass (branch uw/5.0.0-rest)
+
+| Measure | Before (4.8.0) | After (5.0.0, third pass) |
+|---|---|---|
+| State file kinds, counted by the same rules | 8 (the script's old rules listed 16 names) | 8 (the commit-check stamp replaces the heartbeat) |
+| Blocking checks | 11 (13 on the owner's map) | 1 check, 4 parts: confirmation, G7, G6, memory |
+| `phases/run.js` lines | 1154 | 658 |
+| `experts/experts.js` lines | 1812 | 2030 |
+| `lib` bytes / lines | 48833 / 981 | 88860 / 1718 |
+| hooks lines / bytes | 6588 / 284428 | 5073 / 233494 |
+| phases lines / bytes | 3209 / 194909 | 2133 / 135877 |
+| Test titles reached | 1395 | 1400 |
+| Runner count (tests / pass / fail / skipped) | 1434 / 1430 / 0 / 4 | 1472 / 1469 / 0 / 3 |
+| Release ZIP contents, raw | 1746173 | 1689501 (under the 2 MB ceiling) |
+
+Plan targets, as they stand after this pass:
+
+- **8 or fewer state-file kinds: met by the same counting rules, with no real reduction.** The earlier "16" counted the plan's own front matter, `verify.lock` and `verify.log` (a lock and a log; the plan's section 5.3 says "not state"), each file of the experts folder as its own kind, `memory-warnings.json` apart from the run folder it sits in, and `heartbeat.json` where only a note about a leftover file names it. Counted one row per kind, 4.8.0 had 8 and 5.0.0 has 8. Going below 8 means a decision the plan took the other way or did not take: fold `baseline.json` into `verify.json` (the plan says not), or the commit-check stamp into `verify.json`, or make the saved diffs one location (review.diff and snapshots are still two places under one row). Not done.
+- **One orchestrator for the by-hand review and the run's check: partly met.** Both call one `recheckAdd`, one `collectConcerns` and one `laneFinding` (section `experts-check` of `lib/phase-shared.js`), and `phases/run.js` declares none of them or any experts-check code of its own. The by-hand review still runs the core lenses beside the experts and verifies all findings in one pass, with a changed-only mode and a range; the run checks one card at a time with carried findings and a retry on every empty answer. Merging those two into one function would change the call order and labels that the tests pin, so it was not done.

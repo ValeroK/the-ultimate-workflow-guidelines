@@ -966,3 +966,21 @@ test('contract tests: a plan with an empty or missing test_command refuses the c
   write(docs, 'README.md', '# calc\n\nmore\n');
   assert.strictEqual(hook(docs, COMMIT).decision, 'allow');
 });
+
+test('contract confirmation: the notice names the cards added after the confirmation and the cards whose experts or paths changed', () => {
+  const dir = project({ plan: userConfirmed(), stamp: false });
+  checked(dir);
+  rewritePlan(dir, (t) => t.replace('- 2: docs', '- 3: sneaky\n  paths: src/**\n- 2: docs')); // fact: a card an agent added
+  let r = hook(dir, COMMIT);
+  assert.strictEqual(r.decision, 'allow', r.stdout);
+  assert.match(contextOf(r), /cards added after the confirmation: 3/);
+  rewritePlan(dir, (t) => t.replace('  paths: src/add.js\n', '  paths: src/add.js, src/other.js\n')); // fact: card 1's paths
+  r = hook(dir, COMMIT);
+  assert.strictEqual(r.decision, 'allow', r.stdout);
+  assert.match(contextOf(r), /cards whose experts or paths changed: 1/);
+  // A run-added card (findings, fixup) is outside the hash and is never named.
+  const quiet = project({ plan: userConfirmed(), stamp: false });
+  checked(quiet);
+  rewritePlan(quiet, (t) => t.replace('- 2: docs', '- findings: x\n  paths: src/add.js\n- 2: docs'));
+  assert.doesNotMatch(contextOf(hook(quiet, COMMIT)), /cards added/);
+});

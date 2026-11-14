@@ -524,7 +524,35 @@ function settingsNow(text) {
   for (const k of SETTING_KEYS) out[k] = sha8(data[k]);
   const parsed = readExperts(text);
   out.experts = (parsed.error ? [] : parsed.experts).slice().sort().join(',');
+  out.cards = cardsNow(text);
   return out;
+}
+
+/** Each plan card (not the ones a run adds) with a short hash of its paths and experts, so a later change can be named. */
+function cardsNow(text) {
+  const out = {};
+  for (const c of require('./cards.js').parseCards(text)) {
+    if (runRules.RUN_ADDED.test(c.name)) continue;
+    out[c.name] = sha8(`${(c.paths || []).join(',')}|${(c.experts || []).join(',')}`);
+  }
+  return out;
+}
+
+/** The cards added since the confirmation and the cards whose paths or experts changed. A plan with no card record names none. */
+function cardsChanged(text) {
+  const data = stateLib.parseFrontMatter(text).data || {};
+  let was;
+  try {
+    was = JSON.parse(String(data.confirmed_settings || ''));
+  } catch {
+    return { added: [], changed: [] };
+  }
+  if (!was || typeof was !== 'object' || !was.cards || typeof was.cards !== 'object') return { added: [], changed: [] };
+  const now = cardsNow(text);
+  return {
+    added: Object.keys(now).filter((n) => !(n in was.cards)),
+    changed: Object.keys(now).filter((n) => n in was.cards && was.cards[n] !== now[n]),
+  };
 }
 
 /** Which recorded settings differ from now. A plan with no record (confirmed before this) names none. */
@@ -562,7 +590,7 @@ function checkConfirmed(text, { atCommit = false } = {}) {
     if (atCommit) return { ok: false, missing: 'hash', reason: 'the plan has no confirmed_hash, so nothing shows it went through the confirm step: confirm the plan and tests with the confirm step (present --confirm), then commit' };
     return { ok: false, missing: 'hash', reason: 'the plan has no confirmed_hash: it was confirmed by hand, not through experts.js present --confirm tests_confirmed, so nothing shows it is the plan the user saw. Show the user the plan and confirm it again' };
   }
-  if (have !== want && atCommit) return { ok: true, hash: have, changedSince: true, settingsChanged: settingsChanged(text) };
+  if (have !== want && atCommit) return { ok: true, hash: have, changedSince: true, settingsChanged: settingsChanged(text), cards: cardsChanged(text) };
   if (have !== want) return { ok: false, missing: 'unchanged', reason: `the plan changed after the user confirmed it (confirmed_hash ${want}, now ${have}): show the user what changed and confirm again` };
   return { ok: true, hash: have, settingsChanged: settingsChanged(text) };
 }
@@ -1357,7 +1385,7 @@ function confirmationPart(cwd, planFile, options) {
   if (options.stage !== 'feature' || !planFile) return undefined;
   try {
     const c = checkConfirmed(fs.readFileSync(path.resolve(cwd, planFile), 'utf8'), { atCommit: true });
-    return c.ok ? { ok: true, settingsChanged: c.settingsChanged || [], ...(c.changedSince ? { changedSince: true } : {}) } : { ok: false, missing: c.missing, reason: c.reason };
+    return c.ok ? { ok: true, settingsChanged: c.settingsChanged || [], ...(c.changedSince ? { changedSince: true, cards: c.cards } : {}) } : { ok: false, missing: c.missing, reason: c.reason };
   } catch (err) {
     return { error: `the plan could not be read (${err.code || err.message})` };
   }
@@ -1943,6 +1971,7 @@ module.exports = {
   checkConfirmed,
   setConfirmed,
   settingsChanged,
+  cardsChanged,
   SETTING_KEYS,
   setFrontLine,
   STAGES,

@@ -231,7 +231,9 @@ function commitGate(ev) {
   }
   const changed = (ev && ev.confirmation && ev.confirmation.settingsChanged) || [];
   const planChanged = Boolean(ev && ev.confirmation && ev.confirmation.changedSince);
-  const noticeList = [...(planChanged ? ['the plan changed after you confirmed it; re-confirm when convenient'] : []), ...(changed.length > 0 ? [`${changed.join(', ')} changed since the plan was confirmed`] : [])];
+  const cardNotes = (ev && ev.confirmation && ev.confirmation.cards) || {};
+  const cardLines = [...((cardNotes.added || []).length > 0 ? [`cards added after the confirmation: ${cardNotes.added.join(', ')}`] : []), ...((cardNotes.changed || []).length > 0 ? [`cards whose experts or paths changed: ${cardNotes.changed.join(', ')}`] : [])];
+  const noticeList = [...(planChanged ? ['the plan changed after you confirmed it; re-confirm when convenient'] : []), ...cardLines, ...(changed.length > 0 ? [`${changed.join(', ')} changed since the plan was confirmed`] : [])];
   const notices = noticeList.length > 0 ? { notices: noticeList } : {};
   if (missing.length > 0) return { allow: false, reason: missing.map((m) => m.text).join('\n'), missing, ...notices, ...warnings };
   if (exemptAll) return { allow: true, outcome: 'exempt', why: ev.skip, ...notices, ...warnings };

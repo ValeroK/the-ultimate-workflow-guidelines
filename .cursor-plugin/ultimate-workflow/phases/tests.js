@@ -11,13 +11,7 @@ export const meta = {
   ],
 }
 
-// --- agent names (identical in every workflow; a test holds them equal) ---
-// An installed plugin registers its agents as "<plugin>:<agent>", so a bare "uw-explorer"
-// is "agent type not found". Every agentType goes through agentName(). A local run against
-// agents copied to .claude/agents/ passes args.agentNamespace: "".
-const AGENT_NAMESPACE = args && typeof args.agentNamespace === 'string' ? args.agentNamespace : 'ultimate-workflow:'
-const agentName = (name) => (String(name).includes(':') ? name : AGENT_NAMESPACE + name)
-// --- end agent names ---
+// @shared agent-names
 
 // Draft, attack, merge.
 //
@@ -40,38 +34,8 @@ const extraAngles = ((args && args.angles) || '')
 const CORE_ANGLES = ['coverage', 'edge-cases', 'oracle-quality', 'runnability']
 const angles = [...CORE_ANGLES, ...extraAngles.filter((a) => !CORE_ANGLES.includes(a))]
 
-// --- expert lane helpers (identical in plan.js, tests.js and review.js; a test holds them equal) ---
-// The expert list is discovered by experts/experts.js from the agents folder and passed in
-// as args.available, because a workflow script cannot read the folder itself.
-const asList = (v) => (Array.isArray(v) ? v : String(v || '').split(',')).map((e) => String(e).trim()).filter(Boolean)
-const wellFormedAvailable = (a) =>
-  Array.isArray(a) && a.every((e) => e && typeof e.name === 'string' && typeof e.agent === 'string' && Array.isArray(e.stages))
-const describeExperts = (a) => a.map((e) => `- ${e.name}: ${e.description}`).join('\n')
-const SELECTION = {
-  type: 'object',
-  required: ['experts'],
-  properties: {
-    experts: {
-      type: 'array',
-      items: {
-        type: 'object',
-        required: ['name', 'why'],
-        properties: { name: { type: 'string' }, why: { type: 'string', description: 'One sentence tying this expert to something in the material' } },
-      },
-    },
-  },
-}
-// A model answer is merged into the current set by code: it can add a name from the list and
-// nothing else. A name that is not on the list is returned, never applied, and nothing is removed.
-const addOnly = (current, answered, available) => {
-  const known = available.map((e) => e.name)
-  const names = [...new Set((answered || []).map((x) => String((x && x.name) || '').trim()).filter(Boolean))]
-  const merged = [...new Set([...current, ...names.filter((n) => known.includes(n))])]
-  return { experts: merged, added: merged.filter((n) => !current.includes(n)), rejected: names.filter((n) => !known.includes(n)) }
-}
-const takingPart = (available, selected, stage) =>
-  selected.map((n) => available.find((e) => e.name === n)).filter((e) => e && e.stages.includes(stage))
-// --- end expert lane helpers ---
+// @shared selection
+// @shared lane-helpers
 
 const TESTS_INPUT = {
   type: 'object',
@@ -148,6 +112,21 @@ const MERGED = {
 
 phase('Draft')
 
+// The plan's size claims (4.8.0): the section states each size or count a test relies on as a
+// `measure:` line, and `experts.js claims` measures them before the user confirms. This script has no
+// file access, so it only reads the lines out of the final section and says which it cannot read; the
+// rule is the one in lib/claims.js (a test holds the two equal).
+// @shared measure-parser
+function claimsOf(text) {
+  const lines = parseMeasures(text).map((m) => ({ line: m.line, understood: m.understood }))
+  return {
+    lines,
+    stop: lines.some((l) => !l.understood),
+    command: `node "${(args && args.expertsDir) || '<plugin>/experts'}/experts.js" claims --plan <the file the section was written to>`,
+    note: 'Run the command after the section is written and before the confirmation. When its `stop` is true, or `stop` here is true, ask the user before confirming: a line not understood is never shown as passing.',
+  }
+}
+
 const locate = planFile
   ? `Read ${planFile}.`
   : 'Find the active PLAN-*.md in this repository -- the most recently modified one if there are several -- and read it.'
@@ -162,6 +141,8 @@ Ground every test in a stated goal or success criterion from the plan. A criteri
 Also determine the project's real verification command by looking at how tests are actually run here -- CI config, scripts, existing test files -- not by guessing a convention.
 
 Name the specific tests that must exist and pass. That turns "is this done" from a judgement into something anyone can check.
+
+For each size or count a test relies on (a byte budget, a file that must stay under a limit), also write one list line in the section, exactly in this form, so code can measure it before the tests are confirmed: \`- measure: bytes <glob> <= <number>\` (the glob is relative to the project root; \`*\` stays in one folder, \`**\` crosses folders).
 
 If the plan splits the work into cards, put the cases that need the running system (a browser capture, an integration or end-to-end harness) in the first card's harness and list them before the source-level checks, so every later card is verified against them.`,
   { agentType: agentName('uw-critic'), label: 'draft', phase: 'Draft', schema: DRAFT }
@@ -203,10 +184,7 @@ if (!args || args.available === undefined || args.available === null) {
   // the skills, under `_protocol`, and they are pasted into each expert's prompt. Telling an expert
   // to open a file did not get it opened, which is why skills are pasted too.
   const protocolText = args && args.skills && typeof args.skills === 'object' && typeof args.skills._protocol === 'string' ? args.skills._protocol.trim() : ''
-  const readFirst = (dir, name, stage) =>
-    protocolText
-      ? `Read ${dir}/${name}/references/${stage}.md.\n\nTHE PROTOCOL every expert follows:\n${protocolText}`
-      : `Read ${dir}/protocol.md first (the rules every expert follows), then ${dir}/${name}/references/${stage}.md.`
+  // @shared read-first
   // Skills were chosen in code from the plan (`experts.js skills --stage tests --plan`) and arrive
   // as { <expert>: { skills: [{ name, text }], dropped } }; the text is pasted into the prompt.
   const skillsFor = (name) => {
@@ -310,6 +288,7 @@ if (gaps.length === 0) {
   return {
     ok: true,
     testsMarkdown: draft.testsMarkdown + expertCases,
+    claims: claimsOf(draft.testsMarkdown + expertCases),
     expertLane,
     testCommand: draft.testCommand,
     expectedTestNames: draft.expectedTestNames || [],
@@ -357,6 +336,7 @@ if (!merged) {
 return {
   ok: true,
   testsMarkdown: merged.testsMarkdown + expertCases,
+  claims: claimsOf(merged.testsMarkdown + expertCases),
   expertLane,
   testCommand: merged.testCommand,
   expectedTestNames: merged.expectedTestNames,

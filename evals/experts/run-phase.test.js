@@ -53,6 +53,10 @@ function responder(o = {}) {
     if (role === 'carry') return steps({ ok: true });
     if (role === 'start' || (who === 'blocked' && role === 'status')) return steps(...String(call.prompt).split('\n').filter((l) => /card-status/.test(l)).map(() => ({ ok: true })));
     if (role === 'setup') return steps({ ok: true }, { ok: true, contextFile: `.ultimate-workflow/run/f/cards/${who}/context.md` });
+    if (role === 'pack') return steps({ ok: true, contextFile: `.ultimate-workflow/run/f/cards/${who}/context.md` });
+    if (who === 'settle' && role === 'state') return steps({ ok: true, head: 'head1', reviewedHead: '', harvestBranch: '', ...(o.state || {}) });
+    if (who === 'settle' && role === 'record') return steps({ ok: true });
+    if (who === 'settle' && role === 'findings') return steps({ ok: true });
     if (who === 'review' && role === 'refute') return { verdicts: (o.reviewFindings || []).map((_, index) => ({ index, verdict: 'confirmed', reason: 'yes' })) };
     if (who === 'review') return { lensVerdict: 'ok', findings: role === 'correctness' ? o.reviewFindings || [] : [] };
     if (call.label === 'harvest') return { proposals: [{ destination: 'gotcha', path: 'AGENTS.md', text: '- Beware x.', source: 'card 1', rationale: 'r' }], discarded: [] };
@@ -436,14 +440,6 @@ const block = (file, start, end) => {
   return a === -1 || b === -1 ? null : s.slice(a, b);
 };
 
-test('run.js carries the build loop and the build model exactly as build.js has them', () => {
-  for (const [a, b] of [['// --- build loop', '// --- end build loop ---'], ['// --- build model', '// --- end build model ---']]) {
-    const inBuild = block(BUILD, a, b);
-    assert.ok(inBuild, `build.js lacks ${a}`);
-    assert.strictEqual(block(RUN, a, b), inBuild, `${a} differs between build.js and run.js`);
-  }
-});
-
 test('a fix-up card for a missing test goes on when its tests pass against code that is already right, and says so', async () => {
   const finding = { file: 'test/1.test.js', line: 4, what: 'the b argument check has no test', howItFails: 'a regression goes unseen', confidence: 'high' };
   const base = responder({ reviewFindings: [finding] });
@@ -542,4 +538,806 @@ test('the cards blocked behind one parked card make one notice, not one each', a
   assert.equal(prompt.split('\n').filter((l) => / notify /.test(l)).length, 1);
   assert.equal(prompt.split('\n').filter((l) => / card-status /.test(l)).length, 3, 'each card still gets its status line in the plan');
   assert.match(prompt, /--kind blocked --reason "3 cards are blocked: 2, 3 behind 1; 4 behind 2" --action "settle 1 first: [^\n"]*--resume 1"/);
+});
+
+// --- card-add (PLAN-run-fixes.md, card card-add, tests 20 and 30 to 33) ---------------------------
+
+const cardAddLine = (calls, label) => String(calls.find((c) => c.label === label).prompt).split('\n').find((l) => / card-add /.test(l));
+
+test('20: adhocCard passes --experts only with names already in the plan\'s line', async () => {
+  const GHOST = [...AVAILABLE, { name: 'ghost', agent: 'uw-expert-ghost', description: 'g', stages: ['review'] }];
+  const table = [
+    { name: 'one name in the line, one outside it', planExperts: ['quality'], want: 'quality' },
+    { name: 'the line is empty: no --experts at all', planExperts: [], want: null },
+    { name: 'no lane name in the line: none', planExperts: ['security'], want: 'none' },
+  ];
+  for (const t of table) {
+    const calls = [];
+    const base = responder({ findings: { 1: [{ file: 'docs/x.md', line: 2, what: 'stale doc', howItFails: 'misleads', confidence: 'low' }] } });
+    const respond = async (c) => {
+      calls.push(c);
+      if (c.label === '1:ghost') return { lensVerdict: 'ok', findings: [{ file: 'docs/y.md', line: 1, what: 'old note', howItFails: 'misleads', confidence: 'low' }], stillPresent: [] };
+      return base(c);
+    };
+    await run(baseArgs([card('1', { experts: ['quality', 'ghost'] })], { available: GHOST, planExperts: t.planExperts }), respond);
+    const line = cardAddLine(calls, 'findings:setup');
+    assert.match(line, /--name findings/, t.name);
+    const given = /--experts (\S+)/.exec(line);
+    assert.equal(given && given[1], t.want, t.name);
+  }
+});
+
+// The stub plays card-add: it prints the next free name, as the real one does with --free-name.
+function withFreeNames(base) {
+  const calls = [];
+  const given = [];
+  const fn = async (c) => {
+    calls.push(c);
+    if (/^fixup(-\d+)?:setup$/.test(c.label)) {
+      // The paths reach card-add through a file the step writes (plan test 21), not the command line.
+      const paths = /-paths\.txt [^\n]*\n<<<CONTENT\n([^\n]*)\nCONTENT>>>/.exec(c.prompt) || /--paths "([^"]*)"/.exec(c.prompt);
+      const name = given.length === 0 ? 'fixup' : `fixup-${given.length + 1}`;
+      given.push(name);
+      return steps({ ok: true, card: { name, paths: paths ? paths[1].split(',') : [] } }, { ok: true, contextFile: `.ultimate-workflow/run/f/cards/${name}/context.md` });
+    }
+    if (/:pack$/.test(c.label)) return steps({ ok: true, contextFile: `.ultimate-workflow/run/f/cards/${c.label.split(':')[0]}/context.md` });
+    if (/:security$/.test(c.label)) return { lensVerdict: 'ok', findings: [], stillPresent: [] };
+    return base(c);
+  };
+  fn.calls = calls;
+  return fn;
+}
+const labelsOf = (calls) => calls.map((c) => c.label);
+const TWO_EXPERTS = [...AVAILABLE, { name: 'security', agent: 'uw-expert-security', description: 's', stages: ['plan', 'tests', 'review'] }];
+// The card-add line of a setup step, followed by the paths it reads from the file the step writes
+// (plan test 21: a finding's file is agent text, so it is not on the command line).
+const addOf = (c) => `${c.prompt.split('\n').find((l) => / card-add /.test(l))} paths: ${(/-paths\.txt [^\n]*\n<<<CONTENT\n([^\n]*)\nCONTENT>>>/.exec(c.prompt) || ['', ''])[1]}`;
+const finding = (file, confidence = 'high') => ({ file, line: 3, what: `defect in ${file}`, howItFails: 'n=0', confidence });
+
+test('30: a refused card-add\'s reason reaches the report, not "printed nothing"', async () => {
+  const table = [
+    { name: 'a JSON refusal', out: steps({ ok: false, reason: 'card fixup is already in the plan (STUB-REASON)' }), want: 'card fixup is already in the plan (STUB-REASON)' },
+    { name: 'a refusal that printed text and no JSON', out: steps('experts.js: no card "x" in PLAN-f.md (RAW-REASON)'), want: 'RAW-REASON' },
+  ];
+  for (const t of table) {
+    const base = responder({ reviewFindings: [finding('src/1/x.js')] });
+    const { result } = await run(baseArgs([card('1')]), async (c) => (c.label === 'fixup:setup' ? t.out : base(c)));
+    assert.equal(result.fixupCard.status, 'not started', t.name);
+    assert.ok(result.fixupCard.reason.includes(t.want), `${t.name}: ${result.fixupCard.reason}`);
+    assert.doesNotMatch(result.fixupCard.reason, /printed nothing/, t.name);
+  }
+});
+
+test('31: every later step of a run-added card keys on the name card-add printed', async () => {
+  // card-add prints fixup-2 where the script asked for fixup; the card is red, so it is parked too.
+  const second = withFreeNames(responder({ reviewFindings: [finding('src/1/x.js')], red: ['fixup-2'] }));
+  const printed = async (c) => (c.label === 'fixup:setup' ? steps({ ok: true, card: { name: 'fixup-2', paths: ['src/1/x.js'] } }) : second(c));
+  const out = await run(baseArgs([card('1')]), printed);
+  assert.equal(out.result.fixupCard.card, 'fixup-2');
+  assert.equal(out.result.fixupCard.status, 'parked');
+  const labels = labelsOf(second.calls);
+  assert.ok(labels.includes('fixup-2:write-tests'), labels.join(' '));
+  assert.ok(labels.includes('fixup-2:park'), 'parkCard uses the printed name');
+  assert.deepStrictEqual(labels.filter((l) => /^fixup:/.test(l) && l !== 'fixup:setup'), [], 'no label keeps the literal name after setup');
+  const pack = second.calls.map((c) => c.prompt).filter((p) => /experts\.js" pack /.test(p)).join('\n');
+  assert.match(pack, /--card fixup-2(?!\w)/);
+  assert.doesNotMatch(pack, /--card fixup(?![-\w])/);
+});
+
+test('32: findings in files of two plan cards make two fix-up cards, each with its own findings and its card\'s experts', async () => {
+  const cards = [card('a', { experts: ['quality'] }), card('b', { experts: ['security'] })];
+  const r = withFreeNames(responder({ reviewFindings: [finding('src/a/x.js'), finding('src/b/y.js', 'medium')] }));
+  await run(baseArgs(cards, { available: TWO_EXPERTS, planExperts: ['quality', 'security'] }), r);
+  const adds = r.calls.filter((c) => /^fixup(-\d+)?:setup$/.test(c.label)).map(addOf);
+  assert.equal(adds.length, 2, 'two card-add calls');
+  const forA = adds.find((l) => l.includes('src/a/x.js'));
+  const forB = adds.find((l) => l.includes('src/b/y.js'));
+  assert.ok(forA && forB && forA !== forB, adds.join('\n'));
+  assert.match(forA, /--experts quality(?![,\w])/);
+  assert.match(forB, /--experts security(?![,\w])/);
+  assert.ok(!forA.includes('src/b/y.js') && !forB.includes('src/a/x.js'), 'nothing of the other group');
+  const labels = labelsOf(r.calls);
+  for (const name of ['fixup', 'fixup-2']) assert.ok(labels.includes(`${name}:commit`), `${name} was built and committed: ${labels.join(' ')}`);
+});
+
+test('33: findings in a file no plan card covers, or with no file, make one more card with the plan\'s line and none is dropped', async () => {
+  const cards = [card('a', { experts: ['quality'] }), card('b', { experts: ['security'] })];
+  const loose = [finding('test/a.test.js'), { ...finding(''), file: '' }, (({ file, ...rest }) => rest)(finding('x'))];
+  const r = withFreeNames(responder({ reviewFindings: loose }));
+  const { result } = await run(baseArgs(cards, { available: TWO_EXPERTS, planExperts: ['quality', 'security'] }), r);
+  const adds = r.calls.filter((c) => /^fixup(-\d+)?:setup$/.test(c.label)).map(addOf);
+  assert.equal(adds.length, 1, adds.join('\n'));
+  assert.match(adds[0], /--experts quality,security(?![,\w])/);
+  assert.match(adds[0], /test\/a\.test\.js/);
+  assert.equal(result.review.findings.length, 3);
+  assert.equal(result.review.leftInReport, 2, 'the two without a file stay in the report');
+});
+
+test('34: a fix-up on a file covered by two cards gets past the gate: the lane is the union, and the commit check passes', async () => {
+  const rules = require(path.join(PLUGIN, 'lib', 'run-rules.js'));
+  const cards = [card('a', { paths: ['src/a/**', 'src/s/**'], experts: ['quality'] }), card('b', { paths: ['src/b/**', 'src/s/**'], experts: ['security'] })];
+  const r = withFreeNames(responder({ reviewFindings: [finding('src/s/x.js')] }));
+  const required = [];
+  const gated = async (c) => {
+    if (c.label === 'fixup:commit') {
+      // The real G6 rule (lib/run-rules.js) on the plan as card-add wrote it: the run-added card has the lane's line.
+      const lane = JSON.parse(/<<<CONTENT\n([\s\S]*?)\nCONTENT>>>/.exec(c.prompt)[1]).expertLane;
+      const add = r.calls.find((x) => x.label === 'fixup:setup').prompt.split('\n').find((l) => / card-add /.test(l));
+      const written = /--experts (\S+)/.exec(add)[1].split(',');
+      const planCards = [{ name: 'a', paths: ['src/a/**', 'src/s/**'], experts: ['quality'] }, { name: 'b', paths: ['src/b/**', 'src/s/**'], experts: ['security'] }, { name: 'fixup', paths: ['src/s/x.js'], experts: written }];
+      const need = rules.narrowedExperts({ cards: planCards, name: 'fixup', changed: ['src/s/x.js'], accepted: [], covers: (paths, f) => paths.some((p) => f.startsWith(p.replace('**', ''))), valid: () => true });
+      required.push(...need.experts);
+      assert.deepStrictEqual(need.experts.filter((n) => !lane.ran.includes(n)), [], 'every expert G6 asks for ran on the fix-up');
+    }
+    return r(c);
+  };
+  const { result } = await run(baseArgs(cards, { available: TWO_EXPERTS, planExperts: ['quality', 'security'] }), gated);
+  assert.deepStrictEqual([...required].sort(), ['quality', 'security']);
+  assert.equal(result.fixupCard.status, 'committed', JSON.stringify(result.fixupCard));
+  assert.ok(labelsOf(r.calls).includes('fixup:security'), 'the security lane ran on the fix-up');
+});
+
+test('35: one fix-up card that parks does not stop the others', async () => {
+  const cards = [card('a', { experts: ['quality'] }), card('b', { experts: ['security'] })];
+  const r = withFreeNames(responder({ reviewFindings: [finding('src/a/x.js'), finding('src/b/y.js')], red: ['fixup'] }));
+  const { result } = await run(baseArgs(cards, { available: TWO_EXPERTS, planExperts: ['quality', 'security'] }), r);
+  const labels = labelsOf(r.calls);
+  assert.equal(result.fixupCard.status, 'parked');
+  assert.ok(labels.includes('fixup:park'), 'card 1 of 2 parked');
+  assert.ok(labels.includes('fixup-2:commit'), 'card 2 reached commit: ' + labels.join(' '));
+});
+
+test('36: at most four fix-up cards per run; the findings of the rest stay in the report', async () => {
+  const names = ['c1', 'c2', 'c3', 'c4', 'c5'];
+  const r = withFreeNames(responder({ reviewFindings: names.map((n) => finding(`src/${n}/x.js`)) }));
+  const { result } = await run(baseArgs(names.map((n) => card(n))), r);
+  const adds = r.calls.filter((c) => /^fixup(-\d+)?:setup$/.test(c.label));
+  assert.equal(adds.length, 4);
+  assert.equal(result.review.findings.length, 5);
+  assert.equal(result.review.leftInReport, 1, 'the fifth group stays in the report');
+  // Which four: the first four groups in plan order; the fifth is the one dropped.
+  const added = adds.map(addOf);
+  names.slice(0, 4).forEach((n, i) => assert.ok(added[i].includes(`src/${n}/x.js`), `card ${i + 1} holds ${n}: ${added[i]}`));
+  assert.ok(!added.some((l) => l.includes('src/c5/x.js')), 'no card holds the fifth group');
+});
+
+test('48: the findings card is held to the experts of every plan card covering its files, not only the experts that raised the findings', async () => {
+  // Card b (security) commits first; card a's quality expert then finds a non-blocking defect in b's file.
+  // No later card covers it, so it goes to the findings card; G6 asks for security there too.
+  const cards = [card('b', { experts: ['security'] }), card('a', { experts: ['quality'] })];
+  const low = { file: 'src/b/y.js', line: 3, what: 'old note', howItFails: 'misleads', confidence: 'low' };
+  const r = withFreeNames(responder({ findings: { a: [low] } }));
+  const { result } = await run(baseArgs(cards, { available: TWO_EXPERTS, planExperts: ['quality', 'security'] }), r);
+  assert.equal(result.findingsCard.status, 'committed', JSON.stringify(result.findingsCard));
+  const given = /--experts (\S+)/.exec(cardAddLine(r.calls, 'findings:setup'))[1].split(',').sort();
+  assert.deepStrictEqual(given, ['quality', 'security']);
+  assert.ok(labelsOf(r.calls).includes('findings:security'), 'the security lane ran on the findings card');
+});
+
+test('49: agent text never reaches a card-add command line; it reaches the step through a file', async () => {
+  const hostile = { ...finding('src/1/x.js'), what: '$(touch PWNED)' };
+  const r = withFreeNames(responder({ reviewFindings: [hostile] }));
+  await run(baseArgs([card('1')]), r);
+  const setup = r.calls.find((c) => c.label === 'fixup:setup').prompt;
+  const commandLines = setup.split('\n').filter((l) => / card-add /.test(l));
+  assert.ok(commandLines.length > 0, 'a card-add line exists');
+  assert.ok(!commandLines.some((l) => l.includes('PWNED')), commandLines.join('\n'));
+  assert.ok(setup.includes('PWNED'), 'the text is not lost: it is in the step as a file to write');
+});
+
+test('21: a finding\'s file, line and text never reach a card-add command line, and running that line in a shell leaves no PWNED file', async (t) => {
+  const hostile = { ...finding('src/1/$(touch PWNED).js'), line: '1`touch PWNED`', what: '$(touch PWNED) and `touch PWNED` and $HOME' };
+  const r = withFreeNames(responder({ reviewFindings: [hostile] }));
+  await run(baseArgs([card('1')]), r);
+  const setup = r.calls.find((c) => c.label === 'fixup:setup').prompt;
+  const commandLines = setup.split('\n').filter((l) => / card-add /.test(l)).map((l) => l.replace(/^\d+\. /, ''));
+  assert.equal(commandLines.length, 1, 'one card-add line');
+  const line = commandLines[0];
+  assert.ok(!/PWNED|\$\(|`|\$HOME/.test(line), line);
+  for (const flag of ['--title-file', '--paths-file', '--carried-file']) assert.ok(line.includes(flag), `${flag} is on the line: ${line}`);
+  assert.ok(!/--(title|paths|carried) /.test(line), `no text flag is left on the line: ${line}`);
+  assert.ok(setup.includes('src/1/$(touch PWNED).js'), 'the path is not lost: it is in a file the step writes');
+  // The real thing: a shell that runs the line must not run the planted command.
+  const bash = spawnSync('bash', ['-c', 'echo ok'], { encoding: 'utf8' });
+  if (bash.status !== 0) return t.skip('no bash on this machine: the command line was checked as text only');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'uw-pwned-'));
+  spawnSync('bash', ['-c', line], { cwd: dir, encoding: 'utf8' });
+  assert.deepStrictEqual(fs.readdirSync(dir), [], 'running the card-add line wrote nothing');
+});
+
+// --- expert-retry (PLAN-run-fixes.md, card expert-retry, tests 38 to 41) -----------------------------
+// A responder keyed by call count: the shared responder splits a label on ':' and keeps two parts, so
+// '<card>:<expert>:retry' would look like a first call. This one counts the calls per full label.
+
+function nullThen(base, nulls) {
+  const calls = [];
+  const count = {};
+  const asked = {};
+  const fn = async (c) => {
+    calls.push(c);
+    count[c.label] = (count[c.label] || 0) + 1;
+    // 'nulls' counts the calls of one expert across its first call and its retry: {x: 2} fails both.
+    const family = c.label.replace(/:retry$/, '');
+    asked[family] = (asked[family] || 0) + 1;
+    const wanted = nulls[family];
+    if (wanted !== undefined && asked[family] <= wanted) return null;
+    if (/:security$|:security:retry$/.test(c.label)) return { lensVerdict: 'ok', findings: [], stillPresent: [] };
+    return base(c);
+  };
+  fn.calls = calls;
+  fn.count = (label) => count[label] || 0;
+  fn.retries = () => calls.filter((c) => /:retry$/.test(c.label)).map((c) => c.label);
+  return fn;
+}
+
+test('38: an expert that returns null once is retried and the card commits', async () => {
+  const r = nullThen(responder(), { '1:quality': 1 });
+  const { result } = await run(baseArgs([card('1')]), r);
+  assert.equal(result.cards[0].status, 'committed', JSON.stringify(result.cards[0]));
+  assert.equal(r.count('1:quality') + r.count('1:quality:retry'), 2, 'one first call and one retry');
+  assert.equal(r.count('1:quality:retry'), 1);
+  assert.equal(r.count('1:commit'), 1);
+});
+
+test('39: experts that return null twice park the card with every failed name; card-commit and record are not called', async () => {
+  const r = nullThen(responder(), { '1:quality': 2, '1:security': 2 });
+  const { result } = await run(baseArgs([card('1', { experts: ['quality', 'security'] })], { available: TWO_EXPERTS }), r);
+  const got = result.cards[0];
+  assert.equal(got.status, 'parked', JSON.stringify(got));
+  assert.match(got.reason, /quality/);
+  assert.match(got.reason, /security/);
+  assert.match(got.reason, /first check/);
+  assert.equal(r.count('1:commit'), 0, 'no commit step');
+  assert.ok(!r.calls.some((c) => /card-commit|experts\.js" record /.test(String(c.prompt))), 'neither card-commit nor record was issued');
+});
+
+test('40: a valid empty result is a success and is not retried', async () => {
+  const r = nullThen(responder(), {});
+  const { result } = await run(baseArgs([card('1')]), r);
+  assert.equal(result.cards[0].status, 'committed');
+  assert.equal(r.count('1:quality'), 1);
+  assert.deepStrictEqual(r.retries(), []);
+});
+
+test('41: only the failed expert is retried', async () => {
+  const r = nullThen(responder(), { '1:quality': 1 });
+  const { result } = await run(baseArgs([card('1', { experts: ['quality', 'security'] })], { available: TWO_EXPERTS }), r);
+  assert.equal(result.cards[0].status, 'committed', JSON.stringify(result.cards[0]));
+  assert.equal(r.count('1:security'), 1);
+  assert.equal(r.count('1:security:retry'), 0);
+  assert.deepStrictEqual(r.retries(), ['1:quality:retry'], 'as many retries as experts that failed');
+});
+
+test('42b: the same retry and park rule applies after a fix round (-fix tag)', async () => {
+  const blocking = { file: 'src/1/x.js', line: 3, what: 'b guard untested', howItFails: 'delete it, all green', confidence: 'high' };
+  const once = nullThen(responder({ findings: { 1: [blocking], '1-fix': [] } }), { '1-fix:quality': 1 });
+  const ok = await run(baseArgs([card('1')]), once);
+  assert.equal(ok.result.cards[0].status, 'committed', JSON.stringify(ok.result.cards[0]));
+  assert.deepStrictEqual(once.retries(), ['1-fix:quality:retry']);
+  assert.equal(once.count('1:commit'), 1);
+
+  const twice = nullThen(responder({ findings: { 1: [blocking], '1-fix': [] } }), { '1-fix:quality': 2 });
+  const bad = await run(baseArgs([card('1')]), twice);
+  const got = bad.result.cards[0];
+  assert.equal(got.status, 'parked', JSON.stringify(got));
+  assert.match(got.reason, /after the fix round failed: quality/);
+  assert.equal(twice.count('1:commit'), 0);
+});
+
+test('43: a refute agent null twice parks the card; no fix round is paid', async () => {
+  const blocking = { file: 'src/1/x.js', line: 3, what: 'b guard untested', howItFails: 'delete it, all green', confidence: 'high' };
+  const r = nullThen(responder({ findings: { 1: [blocking] } }), { '1:refute': 2 });
+  const { result } = await run(baseArgs([card('1')]), r);
+  const got = result.cards[0];
+  assert.equal(got.status, 'parked', JSON.stringify(got));
+  assert.match(got.reason, /refute/);
+  assert.equal(r.count('1:refute'), 1);
+  assert.equal(r.count('1:refute:retry'), 1);
+  assert.equal(r.count('1:fix-round'), 0);
+  assert.equal(r.count('1:commit'), 0);
+});
+
+test('43b: a refute agent null once is retried and the card goes on', async () => {
+  const blocking = { file: 'src/1/x.js', line: 3, what: 'b guard untested', howItFails: 'delete it, all green', confidence: 'high' };
+  const r = nullThen(responder({ findings: { 1: [blocking], '1-fix': [] } }), { '1:refute': 1 });
+  const { result } = await run(baseArgs([card('1')]), r);
+  assert.equal(result.cards[0].status, 'committed', JSON.stringify(result.cards[0]));
+  assert.equal(r.count('1:refute:retry'), 1);
+});
+
+test('43c: the verdicts of a refute retry are used, not discarded', async () => {
+  const blocking = { file: 'src/1/x.js', line: 3, what: 'b guard untested', howItFails: 'delete it, all green', confidence: 'high' };
+  for (const verdict of ['refuted', 'confirmed']) {
+    const base = nullThen(responder({ findings: { 1: [blocking], '1-fix': [] } }), { '1:refute': 1 });
+    const r = async (c) => (c.label === '1:refute:retry' ? { verdicts: [{ index: 0, verdict, reason: 'from the retry' }] } : base(c));
+    const { result } = await run(baseArgs([card('1')]), r);
+    assert.equal(result.cards[0].status, 'committed', `${verdict}: ${JSON.stringify(result.cards[0])}`);
+    // A refuted finding pays no fix round; a confirmed one does. A discarded retry would look like neither.
+    assert.equal(base.count('1:fix-round'), verdict === 'confirmed' ? 1 : 0, verdict);
+  }
+});
+
+test('43d: a retried expert that returns findings has them acted on: a blocking one gets the fix round, a non-blocking one reaches the findings card', async () => {
+  const blocking = { file: 'src/1/x.js', line: 3, what: 'b guard untested', howItFails: 'delete it, all green', confidence: 'high' };
+  const fixed = nullThen(responder({ findings: { 1: [blocking], '1-fix': [] } }), { '1:quality': 1 });
+  const a = await run(baseArgs([card('1')]), fixed);
+  assert.equal(fixed.count('1:quality:retry'), 1);
+  assert.equal(fixed.count('1:fix-round'), 1, 'the retry\'s blocking finding drove a fix round');
+  assert.equal(a.result.cards[0].status, 'committed', JSON.stringify(a.result.cards[0]));
+
+  const low = { file: 'docs/x.md', line: 2, what: 'stale doc', howItFails: 'misleads', confidence: 'low' };
+  const queued = nullThen(responder({ findings: { 1: [low] } }), { '1:quality': 1 });
+  const b = await run(baseArgs([card('1')]), queued);
+  assert.equal(queued.count('1:quality:retry'), 1);
+  assert.ok(b.result.findingsCard && b.result.findingsCard.status === 'committed', 'the retry\'s non-blocking finding reached the findings card');
+  assert.ok(queued.calls.find((c) => c.label === 'findings:setup').prompt.includes('docs/x.md'));
+});
+
+test('44: a recheck agent null is retried once', async () => {
+  const r = nullThen(responder(), { '1:recheck': 1 });
+  const { result } = await run(baseArgs([card('1')]), r);
+  assert.equal(result.cards[0].status, 'committed', JSON.stringify(result.cards[0]));
+  assert.equal(r.count('1:recheck'), 1);
+  assert.equal(r.count('1:recheck:retry'), 1);
+  const twice = nullThen(responder(), { '1:recheck': 2 });
+  const second = await run(baseArgs([card('1')]), twice);
+  assert.equal(twice.count('1:recheck:retry'), 1, 'at most one retry');
+  // What the run does next: the card is not parked, and the lane it commits records that no recheck happened.
+  assert.equal(second.result.cards[0].status, 'committed', JSON.stringify(second.result.cards[0]));
+  const commit = twice.calls.find((c) => c.label === '1:commit');
+  const lane = JSON.parse(/<<<CONTENT\n([\s\S]*?)\nCONTENT>>>/.exec(commit.prompt)[1]).expertLane;
+  assert.equal(lane.recheck, true, 'a failed recheck does not refuse the commit (owner decision, 2026-11-13)');
+  assert.equal(lane.recheckFailed, true, 'and it is named');
+  assert.deepStrictEqual(lane.added, []);
+});
+
+// Carried from card-add: a refused card-add for the second fix-up card was recorded under 'fixup'.
+test('42: a refused card-add for fixup-2 is recorded under fixup-2, not under fixup', async () => {
+  const cards = [card('a', { experts: ['quality'] }), card('b', { experts: ['security'] })];
+  const r = withFreeNames(responder({ reviewFindings: [finding('src/a/x.js'), finding('src/b/y.js')] }));
+  const refuse = async (c) => (c.label === 'fixup-2:setup' ? steps({ ok: false, reason: 'REFUSED-FOR-2' }) : r(c));
+  const { result } = await run(baseArgs(cards, { available: TWO_EXPERTS, planExperts: ['quality', 'security'] }), refuse);
+  const notStarted = result.cards.filter((c) => c.status === 'not started');
+  assert.deepStrictEqual(notStarted.map((c) => c.card), ['fixup-2']);
+  assert.match(notStarted[0].reason, /fixup-2 card could not be added/);
+  assert.match(notStarted[0].reason, /REFUSED-FOR-2/);
+  assert.equal(result.cards.find((c) => c.card === 'fixup').status, 'committed', 'the first fix-up card is untouched');
+});
+
+// --- fixup card (PLAN-run-fixes.md, confirmed review findings) --------------------------------------
+
+const os = require('node:os');
+const { spawnSync } = require('node:child_process');
+const experts = require(path.join(PLUGIN, 'experts', 'experts.js'));
+
+const tmpPlan = (text) => {
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'uw-fixup-')));
+  process.on('exit', () => fs.rmSync(dir, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(dir, 'PLAN-x.md'), text);
+  return dir;
+};
+
+test('50: card-add --carried-file takes the carried text from the file, as written', () => {
+  const dir = tmpPlan('---\nplan_confirmed: true\n---\n\n# PLAN: x\n\nBody.\n');
+  fs.writeFileSync(path.join(dir, 'carried.txt'), 'quality at a.js:1: $(touch PWNED); second item');
+  const r = spawnSync(process.execPath, [path.join(PLUGIN, 'experts', 'experts.js'), 'card-add', '--plan', 'PLAN-x.md', '--name', 'findings', '--title', 'x', '--paths', 'a.js', '--carried-file', 'carried.txt'], { cwd: dir, encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  const added = JSON.parse(r.stdout.trim().split('\n').pop());
+  assert.deepStrictEqual(added.card.carried, ['quality at a.js:1: $(touch PWNED)', 'second item']);
+});
+
+test('50b: card-add --title-file and --paths-file take the title and the paths from the files', () => {
+  const dir = tmpPlan('---\nplan_confirmed: true\n---\n\n# PLAN: x\n\nBody.\n');
+  fs.writeFileSync(path.join(dir, 'title.txt'), 'confirmed review findings\n');
+  fs.writeFileSync(path.join(dir, 'paths.txt'), 'src/a/x.js,src/b/y.js\n');
+  const r = spawnSync(process.execPath, [path.join(PLUGIN, 'experts', 'experts.js'), 'card-add', '--plan', 'PLAN-x.md', '--name', 'fixup', '--title-file', 'title.txt', '--paths-file', 'paths.txt'], { cwd: dir, encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  const added = JSON.parse(r.stdout.trim().split('\n').pop());
+  assert.equal(added.card.title, 'confirmed review findings');
+  assert.deepStrictEqual(added.card.paths, ['src/a/x.js', 'src/b/y.js']);
+});
+
+test('51: a card-commit whose diff holds only test files is still judged by the named card\'s experts', () => {
+  const dir = tmpPlan(`---
+experts: [quality, security]
+---
+
+# PLAN: x
+
+## Cards
+
+- A: first
+  paths: src/a/**
+  experts: quality
+- B: second
+  paths: src/b/**
+  experts: security
+`);
+  const got = experts.effectiveExperts(dir, path.join(dir, 'PLAN-x.md'), PLUGIN, ['test/a.test.js'], { card: 'A' });
+  assert.equal(got.source, 'card', JSON.stringify(got));
+  assert.deepStrictEqual(got.experts, ['quality']);
+  const byHand = experts.effectiveExperts(dir, path.join(dir, 'PLAN-x.md'), PLUGIN, ['test/a.test.js']);
+  assert.deepStrictEqual(byHand.experts, ['quality', 'security'], 'no card named: the plan\'s line, as before');
+});
+
+// --- settle-first (PLAN-run-fixes.md, card settle-first, tests 46 to 50) -----------------------------
+// The review, the fix-up cards, the findings card and the harvest wait until no card is parked,
+// needs-decision, blocked or not started. The recorded state of the run (the HEAD the review covered
+// and the harvest branch) is read by the step settle:state and written by settle:record.
+
+const WAITING = /waiting for [^;]*; they run once, on the resume that settles them/;
+const waitingLabels = (labels) => labels.filter((l) => /^(review:|harvest|fixup|findings)/.test(l));
+const recordCalls = (calls) => calls.filter((c) => c.label === 'settle:record');
+const LENS_LABEL = /^review:(correctness|simplicity|surgical-scope|test-coverage)$/;
+
+test('46: with one card parked there is no review, no fix-up card, no findings card and no harvest', async () => {
+  const calls = [];
+  const base = responder({
+    red: ['1'],
+    findings: { 2: [{ file: 'docs/x.md', line: 2, what: 'stale doc', howItFails: 'misleads', confidence: 'low' }] },
+    reviewFindings: [{ file: 'src/2/x.js', line: 3, what: 'off by one', howItFails: 'n=0', confidence: 'high' }],
+  });
+  const r = async (c) => { calls.push(c); return base(c); };
+  const { result } = await run(baseArgs([card('1'), card('2')]), r);
+  assert.equal(result.cards.find((c) => c.card === '1').status, 'parked');
+  assert.equal(result.cards.find((c) => c.card === '2').status, 'committed');
+  assert.deepStrictEqual(waitingLabels(labelsOf(calls)), [], labelsOf(calls).join(' '));
+  assert.equal(result.review.ran, false);
+  assert.match(result.review.reason, WAITING);
+  assert.match(result.review.reason, /waiting for 1(?![\w-])/);
+  assert.match(result.harvest.reason, /waiting for 1(?![\w-])/);
+  const text = JSON.stringify(result);
+  assert.ok(text.includes('/ultimate-workflow:review') && text.includes('/ultimate-workflow:harvest'), 'the commands to run them by hand');
+  assert.equal(recordCalls(calls).length, 0, 'nothing ran, so run.json records no review and no harvest branch');
+  assert.equal(result.pendingFindings.length, 1, 'the finding stays in the report');
+});
+
+test('47: a card that is blocked, needs a decision, was not started, or is a parked fix-up card holds the review or the harvest back', async () => {
+  const major = { ok: true, card: '1', major: [{ kind: 'dependency', what: 'added dependency left-pad@1.3.0 in package.json' }], minor: [] };
+  const two = [card('a', { experts: ['quality'] }), card('b', { experts: ['security'] })];
+  const table = [
+    { name: 'blocked on a card the plan does not have', cards: [card('1'), card('2', { depends: ['ghost'] })], o: {}, waits: ['2'], harvestOnly: false },
+    { name: 'needs-decision', cards: [card('1'), card('2')], o: { decisions: { 1: major } }, waits: ['1'], harvestOnly: false },
+    { name: 'not started because the run stopped', cards: [card('0'), card('1'), card('2'), card('3')], o: { red: ['1', '2'] }, waits: ['3'], harvestOnly: false },
+    { name: 'every plan card committed, fix-up card 1 of 2 parks', cards: two, args: { available: TWO_EXPERTS, planExperts: ['quality', 'security'] }, o: { reviewFindings: [finding('src/a/x.js'), finding('src/b/y.js')], red: ['fixup'] }, waits: ['fixup'], harvestOnly: true },
+  ];
+  for (const t of table) {
+    const r = withFreeNames(responder(t.o));
+    const { result } = await run(baseArgs(t.cards, t.args || {}), r);
+    const labels = labelsOf(r.calls);
+    assert.ok(!labels.some((l) => /^harvest/.test(l)), `${t.name}: no harvest: ${labels.join(' ')}`);
+    assert.equal(result.harvest.ran, false, t.name);
+    for (const w of t.waits) assert.match(result.harvest.reason, new RegExp(`waiting for [^;]*(?<![\\w-])${w}(?![\\w-])`), `${t.name}: ${result.harvest.reason}`);
+    assert.ok(recordCalls(r.calls).every((c) => !/--harvest-branch/.test(c.prompt)), `${t.name}: run.json records no harvest branch`);
+    if (!t.harvestOnly) assert.deepStrictEqual(waitingLabels(labels), [], t.name);
+    else assert.ok(labels.includes('fixup-2:commit'), `${t.name}: the second fix-up card still ran`);
+  }
+});
+
+test('48: with every card committed each review lens and the harvest run exactly once, and run.json records both', async () => {
+  const r = responder();
+  const calls = [];
+  const { result } = await run(baseArgs([card('1'), card('2')]), async (c) => { calls.push(c); return r(c); });
+  const labels = labelsOf(calls);
+  for (const lens of ['correctness', 'simplicity', 'surgical-scope', 'test-coverage']) assert.equal(labels.filter((l) => l === `review:${lens}`).length, 1, lens);
+  assert.equal(labels.filter((l) => l === 'harvest').length, 1);
+  assert.equal(labels.filter((l) => l === 'settle:state').length, 1);
+  const rec = recordCalls(calls);
+  assert.equal(rec.length, 1, 'one record step');
+  assert.match(rec[0].prompt, /run-state [^\n]*--record/);
+  assert.match(rec[0].prompt, /--harvest-branch uw\/harvest\/f/);
+  assert.ok(labels.indexOf('harvest:branch') < labels.indexOf('settle:record'), 'recorded after the harvest branch was made');
+  assert.equal(result.harvest.ran, true);
+});
+
+test('49: the review range starts at the base the run was given, never at the resume HEAD', async () => {
+  const calls = [];
+  const r = responder();
+  const { result } = await run(baseArgs([card('1')], { base: 'feedbee0123', resume: { all: true } }), async (c) => { calls.push(c); return r(c); });
+  const lenses = calls.filter((c) => LENS_LABEL.test(c.label));
+  assert.equal(lenses.length, 4);
+  for (const c of lenses) assert.ok(c.prompt.includes('feedbee0123..HEAD'), c.label);
+  assert.ok(!calls.some((c) => /run-branch/.test(c.prompt)), 'the script never asks runBranch for a base');
+  assert.equal(result.review.range, 'feedbee0123..HEAD');
+});
+
+test('50: a later settling resume reviews only what is new since the recorded head', async () => {
+  // (a) nothing was committed since the review and the harvest
+  const a = responder({ state: { head: 'h2', reviewedHead: 'h2', harvestedHead: 'h2', harvestBranch: 'uw/harvest/f' } });
+  const callsA = [];
+  const outA = await run(baseArgs([card('1', { committed: true })]), async (c) => { callsA.push(c); return a(c); });
+  assert.deepStrictEqual(waitingLabels(labelsOf(callsA)), [], 'no review, no harvest: ' + labelsOf(callsA).join(' '));
+  assert.equal(recordCalls(callsA).length, 0);
+  assert.equal(outA.result.review.ran, false);
+  assert.equal(outA.result.harvest.ran, false);
+  // (b) a card was committed on this resume
+  const b = responder({ state: { head: 'h3', reviewedHead: 'r1', harvestedHead: 'r1', harvestBranch: 'uw/harvest/f' } });
+  const callsB = [];
+  const outB = await run(baseArgs([card('1', { committed: true }), card('2')]), async (c) => { callsB.push(c); return b(c); });
+  const lenses = callsB.filter((c) => LENS_LABEL.test(c.label));
+  assert.equal(lenses.length, 4, 'one review per lens');
+  for (const c of lenses) {
+    assert.ok(c.prompt.includes('r1..HEAD'), c.label);
+    assert.ok(!c.prompt.includes('abc1234..HEAD'), `${c.label} does not start again at the base`);
+  }
+  assert.equal(labelsOf(callsB).filter((l) => l === 'harvest').length, 1);
+  const rec = recordCalls(callsB);
+  assert.equal(rec.length, 1);
+  assert.match(rec[0].prompt, /run-state [^\n]*--record/);
+  assert.equal(outB.result.review.range, 'r1..HEAD');
+});
+
+test('55: a review that ran is recorded even when its fix-up card parks and the harvest waits', async () => {
+  const two = [card('a', { experts: ['quality'] }), card('b', { experts: ['security'] })];
+  const r = withFreeNames(responder({ reviewFindings: [finding('src/a/x.js'), finding('src/b/y.js')], red: ['fixup'] }));
+  const { result } = await run(baseArgs(two, { available: TWO_EXPERTS, planExperts: ['quality', 'security'] }), r);
+  assert.equal(result.review.ran, true);
+  assert.equal(result.harvest.ran, false);
+  const rec = recordCalls(r.calls);
+  assert.equal(rec.length, 1, 'the review is on record');
+  assert.match(rec[0].prompt, /run-state [^\n]*--record/);
+  assert.ok(!/--harvest-branch/.test(rec[0].prompt), 'no harvest branch was made');
+});
+
+test('56: findings no card fixed outlive a run that waits, and the settling resume fixes them', async () => {
+  const stuck = { file: 'docs/x.md', line: 2, what: 'stale doc', howItFails: 'misleads', confidence: 'low', expert: 'quality' };
+  // (a) card 1 parks: the findings are written to run.json by the run-state step
+  const a = responder({ red: ['1'], findings: { 2: [stuck] } });
+  const callsA = [];
+  await run(baseArgs([card('1'), card('2')]), async (c) => { callsA.push(c); return a(c); });
+  const saved = callsA.filter((c) => c.label === 'settle:findings');
+  assert.equal(saved.length, 1);
+  assert.match(saved[0].prompt, /run-state [^\n]*--findings/);
+  assert.ok(saved[0].prompt.includes('stale doc'), 'the finding is in the file');
+  // (b) the settling resume: nothing new in memory, the recorded finding is fixed by the findings card
+  // The review and the harvest both covered this HEAD: only the findings card's commit makes them run.
+  const b = responder({ state: { head: 'h2', reviewedHead: 'h2', harvestedHead: 'h2', pendingFindings: [stuck] } });
+  const callsB = [];
+  const outB = await run(baseArgs([card('1', { committed: true }), card('2', { committed: true })]), async (c) => { callsB.push(c); return b(c); });
+  assert.equal(outB.result.findingsCard.status, 'committed', JSON.stringify(outB.result.findingsCard));
+  assert.ok(labelsOf(callsB).includes('findings:write-tests'));
+  assert.equal(callsB.filter((c) => c.label === 'settle:findings').length, 1, 'the file is cleared');
+  assert.ok(callsB.find((c) => c.label === 'settle:findings').prompt.includes('[]'), 'cleared to an empty list');
+  assert.equal(outB.result.review.ran, true, 'the findings card commit is reviewed');
+  assert.equal(outB.result.harvest.ran, true, 'and harvested');
+});
+
+test('57: the review and the harvest are recorded apart, so the half that failed is run again and the other is not', async () => {
+  // (a) the review ran, the harvest agent returned nothing: only the review is recorded
+  const a = responder();
+  const callsA = [];
+  const outA = await run(baseArgs([card('1')]), async (c) => { callsA.push(c); return c.label === 'harvest' ? null : a(c); });
+  assert.equal(outA.result.review.ran, true);
+  assert.equal(outA.result.harvest.ran, false);
+  const recA = recordCalls(callsA);
+  assert.equal(recA.length, 1);
+  assert.match(recA[0].prompt, /run-state [^\n]*--record[^\n]*--review/);
+  assert.ok(!/--harvest(?!-branch)/.test(recA[0].prompt), 'a harvest that did not run is not recorded: ' + recA[0].prompt);
+  // (b) the resume after it: the review covered this HEAD, the harvest did not
+  const b = responder({ state: { head: 'h2', reviewedHead: 'h2', harvestedHead: '' } });
+  const callsB = [];
+  const outB = await run(baseArgs([card('1', { committed: true })]), async (c) => { callsB.push(c); return b(c); });
+  assert.equal(callsB.filter((c) => LENS_LABEL.test(c.label)).length, 0, 'no second review');
+  assert.equal(labelsOf(callsB).filter((l) => l === 'harvest').length, 1, 'the harvest is run again');
+  assert.equal(outB.result.review.ran, false);
+  assert.equal(outB.result.harvest.ran, true);
+  const recB = recordCalls(callsB);
+  assert.equal(recB.length, 1);
+  assert.match(recB[0].prompt, /run-state [^\n]*--record[^\n]*--harvest(?!-branch)/);
+  assert.ok(!/--review/.test(recB[0].prompt), 'the review did not run, so its head is not moved: ' + recB[0].prompt);
+  // (c) the other way round: the harvest covered this HEAD, the review did not
+  const c3 = responder({ state: { head: 'h2', reviewedHead: 'r1', harvestedHead: 'h2' } });
+  const callsC = [];
+  const outC = await run(baseArgs([card('1', { committed: true })]), async (c) => { callsC.push(c); return c3(c); });
+  assert.equal(callsC.filter((c) => LENS_LABEL.test(c.label)).length, 4, 'the review is run again');
+  assert.equal(labelsOf(callsC).filter((l) => l === 'harvest').length, 0, 'no second harvest');
+  assert.equal(outC.result.review.range, 'r1..HEAD');
+  const recC = recordCalls(callsC);
+  assert.equal(recC.length, 1);
+  assert.match(recC[0].prompt, /--review/);
+  assert.ok(!/--harvest(?!-branch)/.test(recC[0].prompt), recC[0].prompt);
+});
+
+test('57b: a harvest whose branch step failed is not recorded as done', async () => {
+  const base = responder();
+  const calls = [];
+  const { result } = await run(baseArgs([card('1')]), async (c) => { calls.push(c); return c.label === 'harvest:branch' ? steps({ ok: false, reason: 'boom' }) : base(c); });
+  assert.equal(result.harvest.error, 'boom');
+  const rec = recordCalls(calls);
+  assert.equal(rec.length, 1, 'the review is still recorded');
+  assert.match(rec[0].prompt, /--review/);
+  assert.ok(!/--harvest(?!-branch)/.test(rec[0].prompt), rec[0].prompt);
+});
+
+test('harvest-name 53: a second harvest is told the open uw/harvest/<f>* branches and to drop what they hold', async () => {
+  const open = ['uw/harvest/f', 'uw/harvest/f-2'];
+  const second = responder({ state: { head: 'h3', reviewedHead: 'r1', harvestedHead: 'r1', openHarvests: open } });
+  const calls = [];
+  await run(baseArgs([card('1', { committed: true }), card('2')]), async (c) => { calls.push(c); return second(c); });
+  const prompt = calls.find((c) => c.label === 'harvest').prompt;
+  for (const b of open) assert.ok(prompt.includes(b), `${b} is named: ${prompt.slice(0, 400)}`);
+  assert.match(prompt, /drop what they already hold/);
+  // A first harvest has no open branch to read.
+  const first = responder();
+  const firstCalls = [];
+  await run(baseArgs([card('1')]), async (c) => { firstCalls.push(c); return first(c); });
+  assert.doesNotMatch(firstCalls.find((c) => c.label === 'harvest').prompt, /drop what they already hold/);
+});
+
+test('58: a fix-up card committed by this run\'s review is harvested, though the harvest covered the head read before it', async () => {
+  const two = [card('a', { experts: ['quality'], committed: true }), card('b', { experts: ['security'], committed: true })];
+  const state = { head: 'h2', reviewedHead: 'r1', harvestedHead: 'h2' };
+  const r = withFreeNames(responder({ state, reviewFindings: [finding('src/a/x.js'), finding('src/b/y.js')] }));
+  const { result } = await run(baseArgs(two, { available: TWO_EXPERTS, planExperts: ['quality', 'security'] }), r);
+  const fixups = result.cards.filter((c) => /^fixup/.test(c.card));
+  assert.deepStrictEqual(fixups.map((c) => `${c.card} ${c.status}`), ['fixup committed', 'fixup-2 committed']);
+  assert.equal(labelsOf(r.calls).filter((l) => l === 'harvest').length, 1, 'the fix-up commits are harvested');
+  assert.equal(result.harvest.ran, true);
+  const rec = recordCalls(r.calls);
+  assert.equal(rec.length, 1);
+  assert.match(rec[0].prompt, /--review/);
+  assert.match(rec[0].prompt, /--harvest(?!-branch)/);
+});
+
+test('59: a review with a lens that returned nothing is not recorded as covering the head, so the next resume reviews the range again', async () => {
+  const base = responder();
+  const calls = [];
+  const { result } = await run(baseArgs([card('1')]), async (c) => { calls.push(c); return c.label === 'review:simplicity' ? null : base(c); });
+  assert.deepStrictEqual(result.review.failedLenses, ['simplicity']);
+  assert.equal(result.harvest.ran, true);
+  const rec = recordCalls(calls);
+  assert.equal(rec.length, 1, 'the harvest is still recorded');
+  assert.match(rec[0].prompt, /--harvest(?!-branch)/);
+  assert.ok(!/--review/.test(rec[0].prompt), 'an incomplete review does not move the reviewed head: ' + rec[0].prompt);
+});
+
+// --- reasons (PLAN-run-fixes.md, card reasons, test 58 and the expert case) -------------------------
+
+const commandLinesOf = (calls) => calls.flatMap((c) => String(c.prompt).split('\n').filter((l) => /^\d+\. node "\/p\/experts\/experts\.js" /.test(l)));
+const LONG = `${Array.from({ length: 200 }, (_, i) => `part${i}`).join(' ')} THE-END`;
+
+test('reasons 58: a long park reason reaches the report whole', async () => {
+  assert.ok(LONG.length > 700);
+  const { result } = await run(baseArgs([card('1')]), responder({ commitFails: { 1: LONG } }));
+  const entry = result.cards.find((c) => c.card === '1');
+  assert.equal(entry.status, 'parked');
+  assert.ok(entry.reason.includes('THE-END'), `the reason is not cut: ...${entry.reason.slice(-60)}`);
+  assert.ok(!entry.reason.includes('\n'), 'one line');
+});
+
+test('reasons 58: a held card run again within the plan keeps the whole detail of why it failed', async () => {
+  const calls = [];
+  const base = responder({ commitFails: { 1: LONG } });
+  const args = baseArgs([card('1', { parked: { branch: 'uw/parked/f/1' } })], { resume: { card: '1', rerun: true, avoid: 'needs a decision the plan does not state: a new dependency' } });
+  const { result } = await run(args, async (c) => { calls.push(c); return base(c); });
+  const entry = result.cards.find((c) => c.card === '1');
+  assert.equal(entry.status, 'needs-decision', JSON.stringify(entry).slice(0, 300));
+  assert.ok(entry.reason.includes('THE-END'), `...${entry.reason.slice(-80)}`);
+  assert.ok(calls.find((c) => c.label === '1:park').prompt.includes('THE-END'), 'the park reason file holds it whole');
+});
+
+test('reasons 58: a refused commit that printed text and no JSON keeps all of that text', async () => {
+  const base = responder();
+  const { result } = await run(baseArgs([card('1')]), async (c) => (c.label === '1:commit' ? steps({ stage: 'review', recorded: ['quality'], findings: 0, open: [] }, `refused ${LONG}`) : base(c)));
+  const entry = result.cards.find((c) => c.card === '1');
+  assert.equal(entry.status, 'parked');
+  assert.ok(entry.reason.includes('THE-END'), `...${entry.reason.slice(-80)}`);
+});
+
+test('reasons 58 and the expert case: the stop text goes to the stopped notice through a file, whole, and never on a command line', async () => {
+  const hostile = `the same failure $(touch PWNED) and \`touch PWNED\` and $HOME ${LONG}`;
+  const calls = [];
+  const base = responder({ commitFails: { 1: hostile, 2: hostile } });
+  const { result } = await run(baseArgs([card('1'), card('2'), card('3')]), async (c) => { calls.push(c); return base(c); });
+  assert.match(result.stopped, /two cards in a row were parked for the same reason/);
+  assert.ok(result.stopped.includes('THE-END'), 'the stop text is whole');
+  const stop = calls.find((c) => c.label === 'stopped:notify');
+  assert.ok(stop, 'the stopped notice is sent');
+  assert.match(stop.prompt, /notify [^\n]*--kind stopped[^\n]*--reason-file/);
+  assert.ok(stop.prompt.includes('THE-END'), 'the whole stop text is in the file the step writes');
+  for (const line of commandLinesOf(calls)) assert.ok(!/PWNED|\$\(|`|\$HOME/.test(line), line.slice(0, 300));
+});
+
+// --- one-notice (PLAN-run-fixes.md, card one-notice, test 63) ---------------------------------------
+
+test('one-notice 63: a run with two parked cards, blocked cards and a stop sends one finished notice that names every blocker', async () => {
+  const calls = [];
+  const base = responder({ commitFails: { p1: 'the same failure', p2: 'the same failure' } });
+  const cards = [card('p1'), card('p2'), card('b1', { depends: ['p1'] }), card('b2', { depends: ['p2'] }), card('later')];
+  const { result } = await run(baseArgs(cards), async (c) => { calls.push(c); return base(c); });
+  assert.ok(result.stopped, 'the run stopped');
+  const finished = calls.filter((c) => /notify [^\n]*--kind finished/.test(c.prompt));
+  assert.equal(finished.length, 1, 'exactly one step sends the finished notice');
+  assert.equal(commandLinesOf(calls).filter((l) => /--kind finished/.test(l)).length, 1, 'exactly one command line');
+  const line = commandLinesOf(finished).find((l) => /--kind finished/.test(l));
+  assert.match(line, /--reason-file/);
+  const text = /<<<CONTENT\n([\s\S]*?)\nCONTENT>>>/.exec(finished[0].prompt)[1];
+  for (const name of ['p1', 'p2']) assert.match(text, new RegExp(`parked: [^;]*\\b${name}\\b`), `${name} is named as parked: ${text}`);
+  for (const name of ['b1', 'b2']) assert.match(text, new RegExp(`blocked: [^;]*\\b${name}\\b`), `${name} is named as blocked: ${text}`);
+  assert.match(text, /stopped/);
+});
+
+// --- review of the whole branch (2026-11-13) --------------------------------------------------------
+
+test('a run-state read that fails stops the settle step: no findings card, review or harvest, nothing written, and the result says why', async () => {
+  const stuck = { file: 'docs/x.md', line: 2, what: 'stale doc', howItFails: 'misleads', confidence: 'low' };
+  for (const [name, answer] of [['ok: false', steps({ ok: false, reason: 'run.json is not JSON' })], ['nothing', null]]) {
+    const calls = [];
+    const base = responder({ findings: { 1: [stuck] } });
+    const { result } = await run(baseArgs([card('1')]), async (c) => { calls.push(c); return c.label === 'settle:state' ? answer : base(c); });
+    const labels = labelsOf(calls);
+    assert.deepStrictEqual(waitingLabels(labels), [], `${name}: ${labels.join(' ')}`);
+    assert.ok(!labels.includes('settle:findings'), `${name}: the saved findings are not overwritten`);
+    assert.equal(recordCalls(calls).length, 0, `${name}: nothing is recorded`);
+    assert.equal(result.review.ran, false);
+    assert.match(result.review.reason, /the run state could not be read/, name);
+    assert.match(result.harvest.reason, /the run state could not be read/, name);
+    assert.match(result.stateError, /could not be read/, name);
+    assert.match(result.summary, /the run state could not be read/, name);
+    assert.equal(result.cards.find((c) => c.card === '1').status, 'committed', 'the card itself is not undone');
+  }
+});
+
+test('21 (carry): a finding carried to a later card reaches card-field through a file, and running the line in a shell leaves no PWNED file', async (t) => {
+  const hostile = { file: 'src/2/$(touch PWNED).js', line: '1`touch PWNED`', what: '$(touch PWNED) and `touch PWNED` and $HOME', howItFails: 'x', confidence: 'low' };
+  const calls = [];
+  const base = responder({ findings: { 1: [hostile] } });
+  await run(baseArgs([card('1'), card('2')]), async (c) => { calls.push(c); return base(c); });
+  const carry = calls.find((c) => c.label === '1:carry');
+  assert.ok(carry, `the finding is carried to card 2: ${labelsOf(calls).join(' ')}`);
+  const lines = commandLinesOf([carry]);
+  assert.equal(lines.length, 1);
+  assert.ok(!/PWNED|\$\(|`|\$HOME/.test(lines[0]), lines[0]);
+  assert.match(lines[0], /card-field [^\n]*--card 2 [^\n]*--carried-file /);
+  assert.ok(!/--carried /.test(lines[0]), lines[0]);
+  assert.ok(carry.prompt.includes('$(touch PWNED) and `touch PWNED` and $HOME'), 'the text is not lost: it is in the file the step writes');
+  const bash = spawnSync('bash', ['-c', 'echo ok'], { encoding: 'utf8' });
+  if (bash.status !== 0) return t.skip('no bash on this machine: the command line was checked as text only');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'uw-pwned-'));
+  spawnSync('bash', ['-c', lines[0].replace(/^\d+\. /, '')], { cwd: dir, encoding: 'utf8' });
+  assert.deepStrictEqual(fs.readdirSync(dir), [], 'running the card-field line wrote nothing');
+});
+
+test('card-field --carried-file takes the carried text from the file, as written', () => {
+  const dir = tmpPlan('---\nplan_confirmed: true\n---\n\n# PLAN: x\n\n## Cards\n\n- a: first\n  paths: src/a/**\n');
+  fs.writeFileSync(path.join(dir, 'carry.txt'), 'quality at src/a/x.js:1: $(touch PWNED) and `x`\n');
+  const r = spawnSync(process.execPath, [path.join(PLUGIN, 'experts', 'experts.js'), 'card-field', '--plan', 'PLAN-x.md', '--card', 'a', '--carried-file', 'carry.txt'], { cwd: dir, encoding: 'utf8' });
+  const out = JSON.parse(r.stdout.trim().split('\n').pop());
+  assert.equal(out.ok, true, r.stdout + r.stderr);
+  assert.deepStrictEqual(out.carried, ['quality at src/a/x.js:1: $(touch PWNED) and `x`']);
+  assert.ok(!fs.existsSync(path.join(dir, 'PWNED')));
+});
+
+// ---- PLAN-simplify, card one-resume: a resume repeats no step that is already recorded as done ----
+
+test('resume: a run stopped after the review was recorded and before the harvest makes no lens or expert call on resume, and the harvest runs once', async () => {
+  const r = responder({ state: { head: 'h2', reviewedHead: 'h2', harvestedHead: '', harvestBranch: '' } });
+  const calls = [];
+  await run(baseArgs([card('1', { committed: true })]), async (c) => { calls.push(c); return r(c); });
+  assert.equal(calls.filter((c) => LENS_LABEL.test(c.label)).length, 0, 'no lens: ' + labelsOf(calls).join(' '));
+  assert.equal(calls.filter((c) => /^[0-9a-z-]+:(recheck|refute)/.test(c.label)).length, 0, 'no experts check');
+  assert.equal(labelsOf(calls).filter((l) => l === 'harvest').length, 1);
+});
+
+test('resume: a committed card is never rebuilt, and the remaining card makes exactly the calls a fresh run of it makes', async () => {
+  const fresh = [];
+  const f = responder();
+  await run(baseArgs([card('2')]), async (c) => { fresh.push(c); return f(c); });
+  const resumed = [];
+  const g = responder({ state: { head: 'h3', reviewedHead: '', harvestedHead: '', harvestBranch: '' } });
+  await run(baseArgs([card('1', { committed: true }), card('2')]), async (c) => { resumed.push(c); return g(c); });
+  const mine = (calls) => labelsOf(calls).filter((l) => l.startsWith('2:'));
+  assert.deepStrictEqual(mine(resumed), mine(fresh), 'card 2 makes the calls of a fresh run, no more and no fewer');
+  assert.deepStrictEqual(labelsOf(resumed).filter((l) => l.startsWith('1:')), [], 'card 1 is not touched: ' + labelsOf(resumed).filter((l) => l.startsWith('1:')).join(' '));
+});
+
+test('resume: a parked 4.8.0 run resumes from its fixture run.json, and the old flags build the same object', async () => {
+  const fixture = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', '4.8.0', 'run', 'run-harvest-2.json'), 'utf8'));
+  const r = responder({ state: { head: fixture.reviewedHead, reviewedHead: fixture.reviewedHead, harvestedHead: fixture.harvestedHead, harvestBranch: fixture.harvestBranch } });
+  const calls = [];
+  const out = await run(baseArgs([card('1', { committed: true })]), async (c) => { calls.push(c); return r(c); });
+  assert.deepStrictEqual(waitingLabels(labelsOf(calls)), [], 'nothing recorded is repeated: ' + labelsOf(calls).join(' '));
+  assert.equal(out.result.harvest.ran, false);
+  const rules = require(path.join(PLUGIN, 'lib', 'run-rules.js'));
+  assert.deepStrictEqual(rules.resumeObject({ flag: { card: '1', reason: 'resumed by the user', accept: false }, held: { name: '1', parked: { branch: 'uw/parked/calc/1' } }, back: { testFiles: [] }, feature: 'calc' }), { card: '1', reason: 'resumed by the user', testFiles: [] });
 });

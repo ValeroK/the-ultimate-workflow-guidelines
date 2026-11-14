@@ -3,6 +3,7 @@
 // 4.2.1: a merge reviews only what is new in it, and a test run says which files it rewrote
 // (PLAN-merge-gates.md). Real git repositories in temp folders; the gate end to end through gate.js.
 
+const stampedPlan = (text) => { const x = require('../../.cursor-plugin/ultimate-workflow/experts/experts.js'); return x.setFrontLine(text, 'confirmed_hash', x.confirmHash(text)); };
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
@@ -93,7 +94,7 @@ function mergeRepo({ conflict = false, docsOnly = false, front = [] } = {}) {
   startMerge(dir, 'main');
   fs.writeFileSync(
     path.join(dir, 'PLAN-x.md'),
-    `---\n${['plan_confirmed: true', 'tests_confirmed: true', 'experts: []', 'test_command: node full.js', ...front].join('\n')}\n---\n`
+    stampedPlan(`---\n${['plan_confirmed: true', 'tests_confirmed: true', 'experts: []', 'test_command: node full.js', ...front].join('\n')}\n---\n`)
   );
   git(dir, 'config', '--unset', 'user.email');
   git(dir, 'config', '--unset', 'user.name');
@@ -239,8 +240,7 @@ test('T9 the stale-evidence refusals carry the volatile_paths hint; the never-ch
   assert.match(gates.commitGate(stale).reason, /volatile_paths/);
   assert.match(gates.commitGate(stale).reason, /have not been re-checked against these changes/);
   assert.doesNotMatch(gates.commitGate({ ...stale, recheck: null }).reason, /volatile_paths/);
-  const state = { stage: 'feature', file: 'PLAN-x.md', data: { test_command: 'node full.js' } };
-  const moved = gates.fullSuiteGate(state, { hash: 'h2', record: { mode: 'full', passed: true, fingerprint: 'h1' } }, null);
+  const moved = gates.commitGate({ skip: 'x', tests: { command: 'node full.js', script: '', hash: 'h2', record: { mode: 'full', passed: true, fingerprint: 'h1' } } });
   assert.match(moved.reason, /volatile_paths/);
 });
 

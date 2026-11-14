@@ -11,7 +11,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { lintChecklist, SECURITY_PROFILE, GENERIC_PROFILE } = require('../../security-expert/lib/checklist-lint.js');
-const { stripMeta } = require('../../security-expert/lib/run-workflow.js');
+const { stripMeta, readScript } = require('../../security-expert/lib/run-workflow.js');
 
 // Read-only by default. Widening an expert's tools is a decision about what an
 // untrusted diff can make it do, so it is declared here, in a reviewed edit, and
@@ -231,7 +231,7 @@ function workflowParseErrors(payloadDir) {
   const out = [];
   for (const f of fs.readdirSync(path.join(payloadDir, 'phases')).filter((x) => x.endsWith('.js'))) {
     try {
-      new AsyncFunction('args', 'agent', 'parallel', 'phase', 'log', stripMeta(fs.readFileSync(path.join(payloadDir, 'phases', f), 'utf8')));
+      new AsyncFunction('args', 'agent', 'parallel', 'phase', 'log', stripMeta(readScript(path.join(payloadDir, 'phases', f))));
     } catch (err) {
       out.push(`phases/${f} does not parse (${err.message})`);
     }
@@ -239,20 +239,13 @@ function workflowParseErrors(payloadDir) {
   return out;
 }
 
-// The scripts cannot import, so the lane helpers are copied into each. A copy that
-// drifts is a lane that behaves differently from its siblings, so they are held equal.
+// The scripts cannot import, so the lane helpers are one section of lib/phase-shared.js that each lane workflow
+// names with `// @shared lane-helpers`. A workflow without the line has no lane; one asking for a section that is
+// not in the shared file does not assemble (workflowParseErrors reports that).
 function laneHelperProblems(payloadDir) {
-  const block = (f) => {
-    const src = fs.readFileSync(path.join(payloadDir, 'phases', f), 'utf8');
-    const a = src.indexOf('// --- expert lane helpers');
-    const b = src.indexOf('// --- end expert lane helpers ---');
-    return a === -1 || b === -1 ? null : src.slice(a, b);
-  };
-  const blocks = LANE_WORKFLOWS.map((f) => [f, block(f)]);
-  const missing = blocks.filter(([, b]) => b === null).map(([f]) => f);
-  if (missing.length > 0) return [`phases/${missing.join(', ')} lack the expert lane helpers block`];
-  const first = blocks[0][1];
-  return blocks.filter(([, b]) => b !== first).map(([f]) => `phases/${f} has expert lane helpers that differ from phases/${blocks[0][0]}; they must be identical`);
+  const marker = new RegExp(String.raw`^// @shared lane-helpers[ \t]*\r?$`, 'm');
+  const missing = LANE_WORKFLOWS.filter((f) => !marker.test(fs.readFileSync(path.join(payloadDir, 'phases', f), 'utf8')));
+  return missing.length > 0 ? [`phases/${missing.join(', ')} lack the expert lane helpers block (// @shared lane-helpers)`] : [];
 }
 
 // Shared skills: knowledge code pastes into an expert's prompt. They live in

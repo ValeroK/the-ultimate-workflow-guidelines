@@ -4,6 +4,88 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.0] - 2026-11-13
+
+A smaller plugin: one blocking check, at commit, with reminders everywhere else, and one copy of each thing that used to exist two to four times. It includes the 4.8.0 work below, which was never released on its own. The plan is `internal/plans/PLAN-simplify.md`.
+
+### Changed (read this before updating)
+
+- **One blocking check, at `git commit`.** It asks four things and lists every missing one with one fix command each: the plan and the test plan are confirmed through the confirm step (a `confirmed_hash` exists); a full test run passed on exactly these changes; the domain experts reviewed exactly these changes with no high-confidence finding open; memory is not newly broken by the commit. The hook, the unattended run's `card-commit`, `status.js` and `experts.js check` all ask the same function.
+- **Nothing else blocks.** An edit is never refused and a turn can always end. The old checks for editing before the plan or tests are confirmed, for finishing a turn with unverified changes and for three failed verification rounds are reminders now (start and end of a turn), computed from the plan, so no hook writes your plan file. The plan keys `dirty`, `verify_rounds`, `last_verify`, `escalated` and `gate_violation` are no longer written; old ones are ignored.
+- **Three outcomes, always printed:** checked, exempt (documentation only, nothing to commit, no plan is open, several plans and none chosen) or could not check (a git error; by hand the commit goes through and says so, in the run the card parks).
+- **No plan is guessed by modification time.** One open plan is the plan. With several open plans and no pointer a commit goes through unchecked and says so, until you pick one with `node experts/experts.js use --plan <file>`. This is a behaviour change: a second unfinished plan switches the check off until a plan is picked.
+- **The heartbeat is gone.** `.ultimate-workflow/heartbeat.json` is no longer read or written (delete it). The sign that the hook is really loaded is `.ultimate-workflow/commit-check.json`, written only at a commit and shown by `status.js`. `status.js --json` has new keys (`gates`, `reminders`, `lastCheck`, `leftoverHeartbeat`).
+- **Restart the host after updating.** `hooks.json` now matches Bash only; a host that was not restarted still sends the old events and gets no block.
+- **A commit needs a plan confirmed through the confirm step** (a plan with no `confirmed_hash` is refused; a Known failures section does not move the hash). A card added to a confirmed plan, or changed plan text, is not refused at commit: it is a reminder to confirm again. Plan settings the hash leaves out (`test_command`, `volatile_paths`, `known_failures`, `full_suite_paths`, a shortened `experts` line) are recorded when the test plan is confirmed (`confirmed_settings`) and named when one changed; never a refusal.
+- **A recheck of the experts that answers nothing no longer refuses the commit.** It is named as failed in the report.
+- **A feature is harvested once:** `uw/harvest/<feature>`, no `-2`. The name is written to `run.json` before the branch is made; a second call returns it. A recorded name that is not that name is an error.
+- **One front-matter parser and one writer, one Cards-section reader, one shared file for the phase scripts** (`lib/phase-shared.js`, put in by `experts.js assemblePhase` both when a script is staged and when a test loads it). Expert selection is asked once, at plan; the review recheck only reports which experts' areas the diff touches and code adds them.
+
+### Fixed
+
+- A plan with a byte-order mark or a space after a fence was written as confirmed and read as unconfirmed.
+- `prepare --range` listed the files of the working tree, not of the range.
+- The preflight of a run parked a card for a backticked word with no folder that does not exist; it is a warning now. The run refuses to start when the plugin is another checkout of the same repository.
+
+### Added
+
+- The value report shows, per expert, runs, catches, confirmed catches and an estimated cost. No expert or skill was removed.
+
+### Differences the owner accepted (2026-11-13)
+
+These differ from what a reader of the plan would expect; each is on purpose.
+
+- **A plan with an empty or missing `test_command` is refused at commit** (owner decision 2026-11-13): the refusal says to set `test_command` in the plan's front matter and run the full suite. A documentation-only commit is still exempt.
+- **A memory that cannot be read at all lets the commit through, with a warning** that the memory check did not run.
+- **Bootstrap commits are still judged by the experts check** (no full-run check, as before); the PRD and design confirmations are reminders.
+- **A plan with no `confirmed_hash` is refused at commit** (it must go through the confirm step: `present --confirm`), and **a hash that no longer matches the plan is allowed with a reminder** to re-confirm when convenient (owner decision 2026-11-13). The unattended run still refuses either at its start.
+- **Harvest branches have no `-2` or `-3`:** a feature is harvested once; an open 4.8.0 `-N` branch is still recognised.
+- **A recheck that answers nothing does not refuse the commit;** it is named as failed and stored in the recheck record.
+- **The run's experts check is shared code, not one function used by both flows:** the schemas, rules, recheck prompt and the per-card check live in `lib/phase-shared.js`; the by-hand review keeps its own lens pool and the run keeps its own card loop.
+- **Journal entries over 15 lines are cut to their first 15 with a warning,** not refused.
+
+### Going back
+
+Going back to 4.8.0 after using this version: a plan made without the old keys reads fine (they were optional), and a `uw/harvest/<feature>` branch with no `-N` is a valid name there. Restart the host.
+
+## [4.8.0] - 2026-11-11
+
+Memory reaches the cards that need it, and cannot silently drift. Taken from the review of RinDig/icm-architect (MIT): generated index files, links that must resolve, a size budget for a step's context. Nothing is copied; the new code is Node only, in `lib/`.
+
+### Added
+
+- **A header on every topical.** `memory/<topic>.md` starts with front matter: `description`, `read_when.paths` (globs relative to the folder that holds `memory.md`), `read_when.keywords`, `updated`. A fixed subset, no YAML library.
+- **The list in `memory.md` is generated** from those headers, between `<!-- uw:memory-index:start ... -->` and `<!-- uw:memory-index:end -->`: `node experts/experts.js memory index`. Text outside the markers is never touched. `memory check` verifies the index and every relative link in `AGENTS.md`, `CLAUDE.md`, `memory.md` and `memory/**/*.md` (`links` checks the links alone); `memory migrate` writes the headers and markers for an existing project.
+- **Cards pick topicals from the headers** (path globs and whole-word keywords), not from the sentence in `memory.md`; a topical with no header still matches through its old line.
+- **Harvest writes the header of a new topical and regenerates the index in the same commit**, so a new topical cannot be orphaned. A proposal may add or remove cue paths and keywords. A project that is not migrated gets one commit of its own on its first harvest branch, "harvest: migrate memory to headers"; dropping the branch leaves the project as it was.
+- **A commit that newly leaves the index stale or breaks a link is refused**, with the command that fixes it; problems already at `HEAD` are only warnings. The autopilot regenerates a stale index itself. A commit from your own terminal is not seen by the hooks.
+- **A context pack states its size and stays within a budget** (`pack_budget:` in the plan, default 15,000 tokens; only topicals are dropped), lists a plan-cited document as a pointer unless the card's section, tests or paths name it, and ends with a do-not-load list. `phases/run.md` tells plan authors to name a card's documents in its own section.
+
+### Changed
+
+- `mirrors.test.js` runs `memory check --root .cursor-plugin/ultimate-workflow` in place of its two memory tests; this repo's own memory is migrated.
+- Merging two harvest branches can conflict in the generated block of `memory.md`: take either side, run `memory index`, commit.
+- A harvest refuses a new topical under a folder that has no tracked `memory.md` when the project keeps one elsewhere, naming the reason; a project with no `memory.md` at all still gets a plain file, as before.
+- A header with an empty list item (`-` alone) is invalid, so an empty cue cannot stand in for the required path or keyword.
+- With `memory_root:`, a link from a memory file to a file outside that folder is checked against `HEAD` like any other, so a commit that breaks it is refused.
+
+### Fixed (the unattended run)
+
+The first unattended run of a real plan met faults in the plugin itself. These are fixed here; the plan is `internal/plans/PLAN-run-fixes.md`.
+
+- **The commit check judges the card being committed.** When two cards share a file and name different experts, `card-commit --card A` asks for A's experts, not for those of every card that lists the file. A commit by hand still asks for all of them, and a card the run adds itself is held to the experts of the plan cards that cover its files.
+- **An expert that returns nothing is asked once more.** If it fails again, the card is parked with the expert's name and is never committed. The refute and recheck agents get the same single retry.
+- **A card the run adds goes inside the card list**, so the plan's confirmed hash holds when the plan has `### Card` subsections under `## Cards`. A refused `card-add` prints its reason as one JSON line.
+- **There can be more than one fix-up card**: one per plan card the confirmed review findings fall under, at most four per run, each with a free name (`fixup`, `fixup-2`, ...). One that parks does not stop the others. Text an agent wrote (a finding's file, a title, the carried items, a stop reason) reaches the commands through files, never on a command line.
+- **A second harvest gets its own branch**: `uw/harvest/<feature>-2`, `-3` and so on. A later harvest is told the open branches and to drop what they already hold.
+- **The review, the fix-up cards, the findings card and the harvest wait until no card is parked**, held for a decision or blocked. They run once, on the resume that settles the last one, and the review and the harvest are recorded apart, so only the half that failed is run again.
+- **A park reason is whole in the report.** The plan's `status:` and `parked:` lines are cut at a word end and name `parked.md`, which holds the whole text. `unpark` on a conflict names the files in conflict.
+- **One desktop notification per run**, at the end, naming every card parked, held or blocked. Every notice is still written to `notifications.md`. This replaces a notice per blocker as it happens: a card that needs a decision early in a long run is seen at the end.
+- **`phases/run.md` says what the code does**: a card can be parked after one round when the diagnosis says the test or the plan is wrong, and after two when the same failure comes back; the `.gitignore` line is committed only when the line was missing.
+- **The gates follow a plan in a subfolder.** The active-plan pointer may hold a relative path under the project root (`internal/plans/PLAN-x.md`); a path that leaves the root is ignored. There is no folder search.
+- **`experts.js claims` measures a plan's size claims before the tests are confirmed**: each card's context pack against the budget, and each `- measure: bytes <glob> <= <number>` line with the size now, the room left and the cards that write under it. A line it cannot read is reported as not understood, never as passing, and the tests command stops to ask.
+- **The run report shows what each card cost**: the columns Pack (est.), Tokens and Cache read. A card with no number shows "unknown", never 0. The host gives one number per agent today, so Cache read is "unknown" until it reports the split.
+
 ## [4.7.1] - 2026-11-11
 
 Four faults the first unattended run on a real plan met (the memory-index plan, kept in `internal/plans/`). Each has a test that fails without its fix.

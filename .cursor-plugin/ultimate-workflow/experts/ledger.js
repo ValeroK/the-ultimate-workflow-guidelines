@@ -233,9 +233,33 @@ function report(cwd) {
   const findings = Object.values(basis).reduce((a, b) => a + b, 0);
   const neverCited = Object.entries(skillUse).filter(([, u]) => u.uncited === u.loaded).map(([k, u]) => ({ skill: k, loaded: u.loaded }));
 
+  // Per expert (PLAN-simplify, card measure-experts): runs it took part in, its catches, and an estimated cost. A run's
+  // tokens are not recorded per agent, so a run's tokens are split evenly over the experts that ran in it; the estimate says so.
+  const perExpert = {};
+  const mine = (name) => (perExpert[name] = perExpert[name] || { runs: 0, catches: 0, confirmed: 0, uniqueConfirmed: 0, estimatedTokens: 0, tokensPerUniqueCatch: null });
+  for (const r of runs) {
+    const ran = r.experts && Array.isArray(r.experts.ran) ? r.experts.ran : [];
+    for (const name of ran) {
+      const e = mine(name);
+      e.runs += 1;
+      e.estimatedTokens += Math.round((r.tokens || 0) / ran.length);
+    }
+  }
+  for (const c of catches) {
+    if (!String(c.by).startsWith('expert:')) continue;
+    const e = mine(String(c.by).slice('expert:'.length));
+    e.catches += 1;
+    if (c.status === 'confirmed') {
+      e.confirmed += 1;
+      if (c.unique === 'yes') e.uniqueConfirmed += 1;
+    }
+  }
+  for (const e of Object.values(perExpert)) e.tokensPerUniqueCatch = e.uniqueConfirmed > 0 ? Math.round(e.estimatedTokens / e.uniqueConfirmed) : null;
+
   return {
     total,
     phases,
+    perExpert,
     catches: { total: catches.length, byStage, byOrigin, expertsUnique: { total: unique.length, confirmed: unique.filter((c) => c.status === 'confirmed').length, refuted: unique.filter((c) => c.status === 'refuted').length, precision }, list: catches },
     review: { runs: reviews.length, findings, byBasis: basis, skillShare: findings ? Math.round((basis.skill / findings) * 100) / 100 : null, neverCited },
     workarounds: runs.flatMap((r) => (r.workarounds || []).map((w) => ({ phase: r.phase, runId: r.runId, what: w }))),

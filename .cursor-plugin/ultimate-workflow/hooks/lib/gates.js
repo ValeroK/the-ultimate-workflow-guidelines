@@ -7,7 +7,6 @@
 // testable row by row, and it keeps the vendor adapters trivial: they translate
 // wire formats, these decide.
 
-const { ROUND_CAP } = require('./state.js');
 
 const DOC_EXTENSIONS = new Set(['.md', '.txt']);
 
@@ -117,119 +116,6 @@ function deny(reason) {
 const ALLOW = { allow: true };
 
 /**
- * G1, G2, B-G1, B-G2 -- the pre-edit gates.
- *
- * Documentation is always writable. That is not a loophole: the plan file, the
- * PRD, and the living docs are exactly what the blocked party is being told to
- * go and write.
- */
-function preEditGate(state, input) {
-  const { stage, data } = state;
-  if (stage === 'none') return ALLOW;
-
-  const raw = input && input.path;
-  if (!raw) return ALLOW;
-
-  // Files outside the project are never this project's business.
-  const target = input.cwd ? toProjectPath(input.cwd, raw) : raw;
-  if (target === null || target === '') return ALLOW;
-
-  if (isDocPath(target)) return ALLOW;
-  if (isDiagramPath(target)) return ALLOW;
-  if (isRunPath(target)) return ALLOW;
-
-  if (stage === 'bootstrap') {
-    if (data.prd_confirmed !== true) {
-      return deny(
-        'Gate B-G1: prd_confirmed is not true in PRD.md. Confirm the PRD with the user before writing any source.'
-      );
-    }
-    if (data.design_confirmed !== true) {
-      return deny(
-        'Gate B-G2: design_confirmed is not true in PRD.md. Confirm the system design and framework choices before scaffolding -- this is the decision that is hardest to reverse.'
-      );
-    }
-    return ALLOW;
-  }
-
-  if (stage === 'feature') {
-    if (data.plan_confirmed !== true) {
-      return deny(
-        `Gate G1: plan_confirmed is not true in ${state.file || 'the plan file'}. Write the plan and get it confirmed before editing source.`
-      );
-    }
-    // G6: which domain experts apply must be decided before source is written, so
-    // that their plan-stage input has had a chance to shape it. "None" is a decision
-    // (`experts: []`); only an absent line is a block, and the message says how to
-    // write one.
-    if (data.experts === undefined && !isTestPath(target)) {
-      return deny(
-        `Gate G6: no domain-experts decision is recorded in ${state.file || 'the plan file'}. Run the experts step of /ultimate-workflow:plan, or record that none apply with \`node experts/experts.js select --plan <plan file> --add ""\`.`
-      );
-    }
-    if (data.tests_confirmed !== true && !isTestPath(target)) {
-      return deny(
-        `Gate G2: tests_confirmed is not true in ${state.file || 'the plan file'}. Write the tests first -- test files are not blocked by this gate.`
-      );
-    }
-    return ALLOW;
-  }
-
-  return ALLOW;
-}
-
-/**
- * G3 -- coding must route through verification.
- *
- * Blocks turn completion while source has changed since the last green run.
- * Steps aside once the run has escalated, because at that point the human is
- * being asked to decide, not to run tests again.
- */
-function stopGate(state, opts = {}) {
-  const { stage, data } = state;
-  if (stage === 'none') return ALLOW;
-  if (data.escalated === true) return ALLOW;
-  if (data.dirty !== true) return ALLOW;
-
-  // With no verification command configured -- which is exactly what the
-  // shipped plan template defaults to -- nothing can ever clear `dirty`, so
-  // blocking here makes every turn end unsatisfiable until the host's
-  // consecutive-block override fires. A gate that cannot be satisfied is worse
-  // than no gate, so this one steps aside; `status.js` reports it as inactive.
-  const cmd = data.test_command || data.build_command;
-  if (!cmd) return ALLOW;
-
-  // The plugin's verify.js runs only the tests related to the change, or the full suite when the
-  // narrow run cannot be trusted; any passing run of it clears this gate (4.1.1).
-  const how = opts.verifyScript
-    ? `Run \`${opts.verifyScript}\` (the tests related to your changes, or the full suite when it must) and get it passing before ending the turn.`
-    : `Run \`${cmd}\` and get it passing before ending the turn.`;
-  return deny(`Gate G3: source changed since the last green verification. ${how}`);
-}
-
-/**
- * G7 -- no commit until a passing full test run covers these exact changes (4.1.1).
- *
- * While working, G3 accepts the related tests; the full suite runs once, here. `ev` is gathered
- * by verify.fullEvidence: the fingerprint of the uncommitted changes and the last full run's
- * record. Any edit after the run changes the fingerprint. Docs-only and empty commits come with
- * `skip`. No test_command: nothing to run, so it steps aside, like G3.
- */
-function fullSuiteGate(state, ev, script) {
-  // Feature work only, like G6's plan check: at bootstrap the gates write their state into PRD.md,
-  // which is part of the fingerprinted changes, so a record could never be current there.
-  if (!state || state.stage !== 'feature') return ALLOW;
-  const cmd = state.data && state.data.test_command;
-  if (!cmd || !ev || ev.skip) return ALLOW;
-  const run = script ? `\`${script} --full\`` : `\`${cmd}\``;
-  const r = ev.record;
-  const full = r && r.mode === 'full' && r.passed === true;
-  if (full && r.fingerprint === ev.hash) return ALLOW;
-  if (full) return deny(`Gate G7: the changes have changed since the last passing full test suite run. Run ${run} once, then commit again. ${VOLATILE_HINT}`);
-  return deny(`Gate G7: no passing full test suite run covers these changes (only related tests ran, or none, or the last full run failed). Run ${run} once, then commit again.`);
-}
-
-/**
  * Whether a shell command runs `git commit`. Looks at each simple command, skips
  * leading assignments and git's own options, and compares the subcommand exactly, so
  * `git log --grep=commit` and `git commit-tree` do not match. A commit hidden inside
@@ -263,7 +149,7 @@ function isCommitCommand(command) {
 // A fingerprint that moved with no code edit is usually a file the tests or the app rewrite (4.2.1).
 const VOLATILE_HINT = 'If you have not changed code since, a file your tests or app rewrite is moving it: list that file in the plan\'s `volatile_paths` (verify.js names the files a run rewrote).';
 
-function commitGate(ev) {
+function expertsGate(ev) {
   if (!ev || ev.skip) return ALLOW;
   const how = 'Run /ultimate-workflow:experts, which re-asks which domain experts apply (it can only add) and runs them, then commit again.';
 
@@ -298,36 +184,98 @@ function commitGate(ev) {
 }
 
 /**
- * G4 -- the round cap.
+ * The one commit decision (PLAN-simplify, card commit-check). The hook, the run's `card-commit`, the
+ * status report and `experts.js check` all ask this and nothing else. `ev` is gathered by experts.js
+ * commitEvidence. It lists everything missing, not just the first thing, each with one fix command,
+ * in the order confirmation, tests, experts, memory.
  *
- * Returns a patch rather than writing, so the caller owns I/O and this stays
- * testable. `alreadyEscalated` lets the caller avoid announcing an escalation
- * twice.
+ * Returns { allow, reason, warnings?, missing: [{ kind, text, fix }] } for a refusal. An allow carries no
+ * `reason` and no `missing` (the 4.8.0 shape, pinned by gates.test.js); it carries `outcome` only when
+ * the commit was not checked:
+ *   outcome 'exempt'          -- nothing to check, with `why` (documentation only, nothing to commit, ...);
+ *   outcome 'could-not-check' -- the working tree could not be inspected, with `why`. By hand this lets
+ *                                the commit through and says so; the unattended run parks the card.
+ * `reason` is the item texts joined, so with one item it is exactly that item's wording. `notices` lists
+ * plan settings changed since the confirmation (shown, never a refusal).
+ *
+ *   confirmation: plan and tests confirmed, and the plan unchanged since (feature work).
+ *   tests:        a passing full run on exactly these changes (G7).
+ *   experts:      the domain experts reviewed exactly these changes, no open high finding (G6).
+ *   memory:       this commit does not leave memory newly broken. Judged even for a documentation-only
+ *                 commit.
  */
-function roundCap(state, input) {
-  const data = state.data || {};
-  const rounds = Number(data.verify_rounds) || 0;
-  const alreadyEscalated = data.escalated === true;
-
-  if (input && input.passed) {
-    // gate_violation is cleared here too. It records an edit that a
-    // detect-only host let through; once verification is green that edit has
-    // been dealt with, and continuing to quote it in stop messages would
-    // accuse the user of a problem they already fixed.
-    return {
-      patch: { verify_rounds: 0, last_verify: 'green', dirty: false, escalated: false, gate_violation: '' },
-      escalated: false,
-      alreadyEscalated,
-    };
+function commitGate(ev) {
+  if (ev && ev.couldNotCheck) return { allow: true, outcome: 'could-not-check', why: ev.couldNotCheck };
+  const { added = [], existing = [], error: memoryError } = (ev && ev.memory) || {};
+  // A memory that cannot be read at all (a malformed index) lets the commit through, as in 4.8.0 (memory-gate.test.js
+  // pins it); the check says it did not run, as a warning.
+  const unread = memoryError ? [`the memory check did not run: the memory could not be read (${memoryError})`] : [];
+  const warned = [...existing.map((p) => p.text), ...unread];
+  const warnings = warned.length > 0 ? { warnings: warned } : {};
+  // A commit that is only documentation, or empty, is exempt from confirmation, tests and experts together.
+  const exemptAll = Boolean(ev && ev.skip && (!ev.tests || ev.tests.skip));
+  const missing = [];
+  const confirmation = exemptAll ? null : confirmationItem(ev);
+  if (confirmation) missing.push(confirmation);
+  const tests = testsItem(ev);
+  if (tests) missing.push(tests);
+  if (ev && ev.expertsError && !ev.skip) missing.push({ kind: 'experts', text: `Gate G6: ${ev.expertsError}. Run /ultimate-workflow:experts, then commit again.`, fix: '/ultimate-workflow:experts' });
+  else {
+    const verdict = expertsGate(ev);
+    if (!verdict.allow) missing.push({ kind: 'experts', text: verdict.reason, fix: '/ultimate-workflow:experts' });
   }
+  if (added.length > 0) {
+    const stale = added.some((p) => p.kind === 'index');
+    const hint = stale ? '\nFix the index with: node experts/experts.js memory index' : '';
+    missing.push({ kind: 'memory', text: `Memory check: this commit leaves memory broken:\n${added.map((p) => `  - ${p.text}`).join('\n')}${hint}`, fix: stale ? 'node experts/experts.js memory index' : 'fix the files named above' });
+  }
+  const changed = (ev && ev.confirmation && ev.confirmation.settingsChanged) || [];
+  const planChanged = Boolean(ev && ev.confirmation && ev.confirmation.changedSince);
+  const noticeList = [...(planChanged ? ['the plan changed after you confirmed it; re-confirm when convenient'] : []), ...(changed.length > 0 ? [`${changed.join(', ')} changed since the plan was confirmed`] : [])];
+  const notices = noticeList.length > 0 ? { notices: noticeList } : {};
+  if (missing.length > 0) return { allow: false, reason: missing.map((m) => m.text).join('\n'), missing, ...notices, ...warnings };
+  if (exemptAll) return { allow: true, outcome: 'exempt', why: ev.skip, ...notices, ...warnings };
+  return { allow: true, ...notices, ...warnings };
+}
 
-  const next = rounds + 1;
-  const escalated = alreadyEscalated || next >= ROUND_CAP;
+/** What a decision is recorded as (the stamp, status, card-commit): its outcome, why, and the kinds missing. */
+function checkRecord(verdict) {
   return {
-    patch: { verify_rounds: next, last_verify: 'red', escalated },
-    escalated,
-    alreadyEscalated,
+    outcome: verdict.outcome || (verdict.allow ? 'checked' : 'refused'),
+    ...(verdict.why ? { why: verdict.why } : {}),
+    missing: (verdict.missing || []).map((m) => m.kind),
+    ...(verdict.notices ? { notices: verdict.notices } : {}),
   };
+}
+
+/** Where a user confirms: the same command for both flags, named per flag. */
+const confirmFix = (flag) => `node experts/experts.js present --confirm ${flag}`;
+
+/** The confirmation part of commitGate: both confirmations given, and the plan text unchanged since. */
+function confirmationItem(ev) {
+  const c = ev && ev.confirmation;
+  if (!c) return null;
+  if (c.error) return { kind: 'confirmation', text: `Confirmation: ${c.error}, so it cannot be shown to be confirmed. Fix: ${confirmFix('tests_confirmed')}`, fix: confirmFix('tests_confirmed') };
+  if (c.ok) return null;
+  const fix = confirmFix(c.missing === 'plan' ? 'plan_confirmed' : 'tests_confirmed');
+  return { kind: 'confirmation', text: `Confirmation: ${c.reason}. Once the user agrees: ${fix}`, fix };
+}
+
+/** The full-suite part of commitGate (G7): feature work with a test_command, unless the evidence says to skip. */
+function testsItem(ev) {
+  const t = ev && ev.tests;
+  if (!t || t.skip) return null;
+  const run = t.script ? `\`${t.script} --full\`` : `\`${t.command}\``;
+  const fix = t.script ? `${t.script} --full` : t.command;
+  if (t.unreadable) return { kind: 'tests', text: `Gate G7: ${t.unreadable}, so the test command is unknown. Fix the plan, then run ${run}.`, fix };
+  if (t.noCommand) return { kind: 'tests', text: "Gate G7: the plan has no test_command, so no full test run can cover these changes. Fix: set test_command in the plan's front matter, then run the full suite with the verify script, then commit again.", fix: "set test_command in the plan's front matter, then run the full suite" };
+  if (!t.command) return null;
+  const r = t.record;
+  const full = r && r.mode === 'full' && r.passed === true;
+  if (full && typeof r.fingerprint === 'string' && r.fingerprint === t.hash) return null;
+  const why = t.problem ? ` (${t.problem})` : '';
+  if (full && typeof r.fingerprint === 'string') return { kind: 'tests', text: `Gate G7: the changes have changed since the last passing full test suite run. Run ${run} once, then commit again. ${VOLATILE_HINT}`, fix };
+  return { kind: 'tests', text: `Gate G7: no passing full test suite run covers these changes (only related tests ran, or none, or the last full run failed)${why}. Run ${run} once, then commit again.`, fix };
 }
 
 function nextAction(stage, data) {
@@ -339,26 +287,46 @@ function nextAction(stage, data) {
   }
   if (data.plan_confirmed !== true) return 'write and confirm the plan';
   if (data.tests_confirmed !== true) return 'write and confirm the test plan';
-  if (data.dirty === true) return 'run the tests';
   return 'proceed with the plan';
 }
 
 /**
- * G5 -- the phase pointer. One line of injected context per prompt, so the
- * current stage survives compaction.
+ * The phase pointer. One line of injected context per prompt, so the current stage survives
+ * compaction.
  */
 function phasePointer(state, input) {
   const { stage, data } = state;
   if (stage === 'none') return '';
-
   const availability = input && input.workflowsAvailable ? 'workflows available' : 'workflows unavailable';
-
-  if (data.escalated === true) {
-    const rounds = Number(data.verify_rounds) || 0;
-    return `[ultimate-workflow] stage: ${stage}; ESCALATED after ${rounds} verify rounds. Stop, state the problem, present 2-3 options with tradeoffs, and wait for the user. (${availability})`;
-  }
-
   return `[ultimate-workflow] stage: ${stage}; next: ${nextAction(stage, data)}. (${availability})`;
+}
+
+/**
+ * The reminders (PLAN-simplify, card reminders): short lines that say what is not done yet. They replace the
+ * edit and turn-end blocks, so they only ever remind: nothing here refuses, and nothing is written. The one
+ * place that refuses is the commit check (commitGate). Computed from the plan, the PRD and one fact the
+ * caller gathers, \`codeChanged\` (the changes differ from the last passing full run), so no flag has to be
+ * kept in the plan. Sent at the start of a turn and at its end, never on an edit.
+ *
+ * input: { codeChanged, script } -- script names the verify runner in the fix command.
+ */
+function reminders(state, input = {}) {
+  const out = [];
+  if (!state || state.stage === 'none') return out;
+  const data = state.data || {};
+  if (state.stage === 'bootstrap') {
+    if (data.prd_confirmed !== true) out.push('The PRD is not confirmed yet (prd_confirmed in PRD.md): confirm it with the user before writing source.');
+    else if (data.design_confirmed !== true) out.push('The system design is not confirmed yet (design_confirmed in PRD.md): confirm it with the user before scaffolding.');
+    return out;
+  }
+  if (!state.file) {
+    if (state.several && state.several.length > 1) out.push('Several plans are open and none is chosen, so commits are not checked: pick one with node experts/experts.js use --plan <file>.');
+    return out;
+  }
+  if (data.plan_confirmed !== true) out.push(`The plan is not confirmed yet. When the user agrees: ${confirmFix('plan_confirmed')}`);
+  if (data.tests_confirmed !== true) out.push(`The test plan is not confirmed yet. When the user agrees: ${confirmFix('tests_confirmed')}`);
+  if (input.codeChanged && data.test_command) out.push(`Code changed since the last full test run: run ${input.script ? `\`${input.script} --full\`` : `\`${data.test_command}\``} before committing.`);
+  return out;
 }
 
 module.exports = {
@@ -367,11 +335,9 @@ module.exports = {
   isDiagramPath,
   isRunPath,
   isTestPath,
-  preEditGate,
-  stopGate,
   isCommitCommand,
   commitGate,
-  fullSuiteGate,
-  roundCap,
+  checkRecord,
+  reminders,
   phasePointer,
 };

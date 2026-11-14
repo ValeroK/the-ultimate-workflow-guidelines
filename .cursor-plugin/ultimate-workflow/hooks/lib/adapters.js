@@ -178,7 +178,7 @@ function normalize(payload) {
 /**
  * Build a vendor-shaped response.
  *
- * kind: allow | deny | context | stopBlock
+ * kind: allow | deny | context | notice | stopBlock
  */
 function respond(vendor, kind, opts = {}) {
   const reason = opts.reason || '';
@@ -232,6 +232,13 @@ function respond(vendor, kind, opts = {}) {
       },
       exit: 0,
     };
+  }
+
+  // A line shown to the user at the end of a turn, blocking nothing. Only Claude Code has a field for it; Cursor's
+  // stop follow-up would be sent as a new message and Gemini's stop output is a decision, so those hosts get nothing.
+  if (kind === 'notice') {
+    if (vendor === 'cursor' || vendor === 'gemini') return { stdout: null, exit: 0 };
+    return { stdout: { systemMessage: text }, exit: 0 };
   }
 
   if (kind === 'stopBlock') {

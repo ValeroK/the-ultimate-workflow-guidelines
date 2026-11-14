@@ -54,24 +54,30 @@ function pluginCopy() {
   return { payload, examples };
 }
 
-function project(planBody = 'plan_confirmed: true\ntests_confirmed: true') {
+const stampedPlan = (text) => { const x = require('../../.cursor-plugin/ultimate-workflow/experts/experts.js'); return x.setFrontLine(text, 'confirmed_hash', x.confirmHash(text)); };
+function project(planBody = 'plan_confirmed: true\ntests_confirmed: true\ntest_command: node --test x') {
   const dir = tmp('proj');
   git(dir, 'init', '-q', '-b', 'main');
   git(dir, 'config', 'user.email', 't@example.com');
   git(dir, 'config', 'user.name', 't');
   write(path.join(dir, 'src', 'a.js'), 'module.exports = 1;\n');
-  write(path.join(dir, 'PLAN-x.md'), `---\n${planBody}\n---\nbody\n`);
+  write(path.join(dir, 'PLAN-x.md'), stampedPlan(`---\n${planBody}\n---\nbody\n`));
   git(dir, 'add', '-A');
   git(dir, 'commit', '-q', '-m', 'base');
   return { dir, plan: path.join(dir, 'PLAN-x.md') };
 }
 
-const gate = (payload, dir, event) =>
-  spawnSync(process.execPath, [path.join(payload, 'hooks', 'gate.js')], {
+// These tests are about the experts check (G6). A passing full run is recorded before each commit event so G7 holds;
+// the commit contract file is where G7 itself is tested.
+const passFull = (dir) => require(path.join(PAYLOAD, 'hooks', 'verify.js')).recordFull(dir, { passed: true, command: 'node --test x' });
+const gate = (payload, dir, event) => {
+  if (/git commit/.test(JSON.stringify(event)) && fs.existsSync(path.join(dir, 'PLAN-x.md')) && /test_command/.test(fs.readFileSync(path.join(dir, 'PLAN-x.md'), 'utf8'))) passFull(dir);
+  return spawnSync(process.execPath, [path.join(payload, 'hooks', 'gate.js')], {
     input: JSON.stringify({ cwd: dir, ...event }),
     encoding: 'utf8',
     env: { ...process.env, ULTIMATE_WORKFLOW_GATES: 'on' },
   });
+};
 
 const writeEdit = (dir, rel = 'src/a.js') => ({ hook_event_name: 'PreToolUse', tool_name: 'Write', tool_input: { file_path: path.join(dir, rel) } });
 const bash = (command) => ({ hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command } });
@@ -102,14 +108,13 @@ async function review(payload, dir, plan, { recheck = [], expertsArg } = {}) {
 
 // ---- the flow, with the shipped security expert ---------------------------------
 
-test('the flow end to end: a source edit waits for the experts decision, a commit waits for the experts, and any later change waits again', async () => {
+test('the flow end to end: a source edit is only reminded, a commit waits for the experts, and any later change waits again', async () => {
   const { payload } = pluginCopy();
   const { dir, plan } = project();
 
-  // 1. The plan is confirmed, but nobody has said which experts apply: no source edit.
+  // 1. The plan is confirmed, but nobody has said which experts apply: an edit is not refused (5.0.0); the commit waits.
   let r = gate(payload, dir, writeEdit(dir));
-  assert.strictEqual(decision(r), 'deny');
-  assert.match(reasonOf(r), /Gate G6: no domain-experts decision/);
+  assert.strictEqual(decision(r), 'allow');
 
   // 2. Planning records its selection (here: the model chose security).
   const planRec = experts(payload, dir, ['record', '--stage', 'plan', '--plan', plan], JSON.stringify({ ok: true, expertLane: { stage: 'plan', selected: ['security'], ran: ['security'], failed: [], added: ['security'] } }));
@@ -139,7 +144,7 @@ test('the flow end to end: a source edit waits for the experts decision, a commi
 
 test('a commit that touches only documentation needs no expert', () => {
   const { payload } = pluginCopy();
-  const { dir } = project('plan_confirmed: true\ntests_confirmed: true\nexperts: [security]');
+  const { dir } = project('plan_confirmed: true\ntests_confirmed: true\ntest_command: node --test x\nexperts: [security]');
   write(path.join(dir, 'README.md'), '# docs\n');
   assert.strictEqual(decision(gate(payload, dir, bash('git commit -am docs'))), 'allow');
 });
@@ -159,7 +164,7 @@ test('a hook payload that cannot be parsed fails open, commit command or not', (
 
 test('a changed test file brings quality into review even when nobody selected it; a source-only change does not', async () => {
   const { payload } = pluginCopy();
-  const { dir, plan } = project('plan_confirmed: true\ntests_confirmed: true\nexperts: [security]');
+  const { dir, plan } = project('plan_confirmed: true\ntests_confirmed: true\ntest_command: node --test x\nexperts: [security]');
   write(path.join(dir, 'src', 'a.js'), 'module.exports = 2;\n');
   let out = await review(payload, dir, plan);
   assert.ok(!out.result.expertLane.ran.includes('quality'), 'no test file changed, so quality stays out');
@@ -182,7 +187,7 @@ test('the recheck can add an expert at commit time, and the commit then waits fo
     domain: 'infrastructure',
     fill: { applies: ['Adds a pipeline step', 'Changes a deployment file', 'Edits the container build'], does_not_apply: ['Fixes a typo in the README', 'Renames a CSS class', 'Adds a unit test for a helper'] },
   });
-  const { dir, plan } = project('plan_confirmed: true\ntests_confirmed: true\nexperts: [security]');
+  const { dir, plan } = project('plan_confirmed: true\ntests_confirmed: true\ntest_command: node --test x\nexperts: [security]');
   write(path.join(dir, 'src', 'a.js'), 'module.exports = 2;\n');
 
   // The recheck finds that infra also applies. Both experts must review.
@@ -242,7 +247,7 @@ test('a brand-new expert is picked up by every part of the flow with no edit bey
   assert.ok(!testsOut.calls.some((c) => c.label === 'tests:uiux'));
 
   // the commit gate waits for it
-  const { dir, plan } = project('plan_confirmed: true\ntests_confirmed: true\nexperts: [uiux]');
+  const { dir, plan } = project('plan_confirmed: true\ntests_confirmed: true\ntest_command: node --test x\nexperts: [uiux]');
   write(path.join(dir, 'src', 'a.js'), 'module.exports = 2;\n');
   assert.strictEqual(decision(gate(payload, dir, bash('git commit -am x'))), 'deny');
   const out = await review(payload, dir, plan);
@@ -253,7 +258,7 @@ test('a brand-new expert is picked up by every part of the flow with no edit bey
 
 test('a failed expert review leaves the commit blocked', async () => {
   const { payload } = pluginCopy();
-  const { dir, plan } = project('plan_confirmed: true\ntests_confirmed: true\nexperts: [security]');
+  const { dir, plan } = project('plan_confirmed: true\ntests_confirmed: true\ntest_command: node --test x\nexperts: [security]');
   write(path.join(dir, 'src', 'a.js'), 'module.exports = 2;\n');
   const prep = JSON.parse(experts(payload, dir, ['prepare']).stdout);
   const run = loadWorkflow(path.join(payload, 'phases', 'review.js'));
@@ -275,15 +280,15 @@ test('a failed expert review leaves the commit blocked', async () => {
   assert.match(reasonOf(r), /Gate G6/);
 });
 
-test('every gate invocation leaves a heartbeat, and status.js reports the experts state', () => {
+test('a refused commit leaves a stamp, and status.js reports the experts state', () => {
   const { payload } = pluginCopy();
   const { dir } = project();
   write(path.join(dir, 'src', 'a.js'), 'module.exports = 2;\n');
   gate(payload, dir, bash('git commit -m x'));
-  assert.ok(fs.existsSync(path.join(dir, '.ultimate-workflow', 'heartbeat.json')));
+  assert.strictEqual(JSON.parse(fs.readFileSync(path.join(dir, '.ultimate-workflow', 'commit-check.json'), 'utf8')).outcome, 'refused');
   const s = spawnSync(process.execPath, [path.join(payload, 'hooks', 'status.js'), '--json'], { cwd: dir, encoding: 'utf8', env: { ...process.env, ULTIMATE_WORKFLOW_GATES: 'on' } });
   const j = JSON.parse(s.stdout);
-  assert.strictEqual(j.liveness.state, 'live');
+  assert.strictEqual(j.lastCheck.outcome, 'refused');
   assert.strictEqual(j.experts.decided, false);
   assert.deepStrictEqual([...j.experts.available].sort(), JSON.parse(experts(payload, dir, ['list']).stdout).map((e) => e.name).sort());
   assert.strictEqual(j.experts.commit.allowed, false);
@@ -310,7 +315,7 @@ async function reviewWith(payload, dir, plan, findings) {
 
 test('an open high finding blocks the commit through the real gate, a fix resolves it, and the gate says why until then', async () => {
   const { payload } = pluginCopy();
-  const { dir, plan } = project('plan_confirmed: true\ntests_confirmed: true\nexperts: [security]');
+  const { dir, plan } = project('plan_confirmed: true\ntests_confirmed: true\ntest_command: node --test x\nexperts: [security]');
   write(path.join(dir, 'src', 'a.js'), 'module.exports = 2; // admin bypass\n');
 
   const first = await reviewWith(payload, dir, plan, [HIGH]);
@@ -334,7 +339,7 @@ test('an open high finding blocks the commit through the real gate, a fix resolv
 
 test('a finding the user dismisses stops blocking, with their reason kept', async () => {
   const { payload } = pluginCopy();
-  const { dir, plan } = project('plan_confirmed: true\ntests_confirmed: true\nexperts: [security]');
+  const { dir, plan } = project('plan_confirmed: true\ntests_confirmed: true\ntest_command: node --test x\nexperts: [security]');
   write(path.join(dir, 'src', 'a.js'), 'module.exports = 2; // admin bypass\n');
   const first = await reviewWith(payload, dir, plan, [HIGH]);
   const id = JSON.parse(first.rec.stdout).open[0].id;
@@ -352,7 +357,7 @@ test('a finding the user dismisses stops blocking, with their reason kept', asyn
 
 test('a medium finding is reported but does not block the commit', async () => {
   const { payload } = pluginCopy();
-  const { dir, plan } = project('plan_confirmed: true\ntests_confirmed: true\nexperts: [security]');
+  const { dir, plan } = project('plan_confirmed: true\ntests_confirmed: true\ntest_command: node --test x\nexperts: [security]');
   write(path.join(dir, 'src', 'a.js'), 'module.exports = 2;\n');
   await reviewWith(payload, dir, plan, [{ ...HIGH, confidence: 'medium' }]);
   assert.strictEqual(decision(gate(payload, dir, bash('git commit -am feat'))), 'allow');
@@ -360,9 +365,28 @@ test('a medium finding is reported but does not block the commit', async () => {
 
 test('status shows how many high findings are open', async () => {
   const { payload } = pluginCopy();
-  const { dir, plan } = project('plan_confirmed: true\ntests_confirmed: true\nexperts: [security]');
+  const { dir, plan } = project('plan_confirmed: true\ntests_confirmed: true\ntest_command: node --test x\nexperts: [security]');
   write(path.join(dir, 'src', 'a.js'), 'module.exports = 2;\n');
   await reviewWith(payload, dir, plan, [HIGH]);
   const s = spawnSync(process.execPath, [path.join(payload, 'hooks', 'status.js')], { cwd: dir, encoding: 'utf8', env: { ...process.env, ULTIMATE_WORKFLOW_GATES: 'on' } });
   assert.match(s.stdout, /open high-confidence findings: 1/);
+});
+
+// The memory check of a commit through the real entry point (hooks/gate.js reads the hook payload,
+// gathers the evidence and dispatches), not through commitEvidence and commitGate called by hand.
+test('the real gate refuses a commit that leaves the memory index stale, and allows it once the index is regenerated', () => {
+  const memoryLib = require(path.join(PAYLOAD, 'lib', 'memory.js'));
+  const topic = (desc) => `---\ndescription: ${desc}\nread_when:\n  paths:\n    - src/**\n---\n\n# ${desc}\n`;
+  const { dir } = project('plan_confirmed: true\ntests_confirmed: true\ntest_command: node --test x\nexperts: []');
+  write(path.join(dir, 'memory', 'a.md'), topic('Topic A.'));
+  write(path.join(dir, 'memory.md'), memoryLib.renderIndex('# Memory\n', { 'memory/a.md': topic('Topic A.') }));
+  git(dir, 'add', '-A');
+  git(dir, 'commit', '-q', '-m', 'memory');
+  write(path.join(dir, 'memory', 'b.md'), topic('Topic B.'));
+  const refused = gate(PAYLOAD, dir, bash('git commit -am topical'));
+  assert.strictEqual(decision(refused), 'deny', refused.stdout + refused.stderr);
+  assert.match(reasonOf(refused) || refused.stderr, /memory\/b\.md/);
+  assert.match(reasonOf(refused) || refused.stderr, /memory index/);
+  write(path.join(dir, 'memory.md'), memoryLib.renderIndex('# Memory\n', { 'memory/a.md': topic('Topic A.'), 'memory/b.md': topic('Topic B.') }));
+  assert.strictEqual(decision(gate(PAYLOAD, dir, bash('git commit -am topical'))), 'allow');
 });

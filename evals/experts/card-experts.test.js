@@ -173,12 +173,12 @@ test('card-add --experts writes the field; a name outside the plan\'s line or no
 
   const outside = cli(dir, 'card-add', '--plan', 'PLAN-x.md', '--name', '13', '--title', 't', '--paths', 'src/n2/**', '--experts', 'devops');
   assert.equal(outside.status, 2);
-  assert.match(outside.stderr, /devops/);
-  assert.match(outside.stderr, /plan/);
+  assert.match(outside.stdout, /devops/);
+  assert.match(outside.stdout, /plan/);
 
   const unknown = cli(dir, 'card-add', '--plan', 'PLAN-x.md', '--name', '14', '--title', 't', '--paths', 'src/n3/**', '--experts', 'bogus');
   assert.equal(unknown.status, 2);
-  assert.match(unknown.stderr, /bogus/);
+  assert.match(unknown.stdout, /bogus/);
 });
 
 test('card-add --experts none writes the empty list, and with no flag writes no field', () => {
@@ -195,7 +195,7 @@ test('card-add --experts needs the plan to record its experts first', () => {
   const dir = project(noLine);
   const r = cli(dir, 'card-add', '--plan', 'PLAN-x.md', '--name', '12', '--title', 't', '--paths', 'a/**', '--experts', 'frontend');
   assert.equal(r.status, 2);
-  assert.match(r.stderr, /select/);
+  assert.match(r.stdout, /select/);
 });
 
 // --- the commit gate and the command line use the same set -------------------------------------

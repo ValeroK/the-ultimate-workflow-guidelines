@@ -17,7 +17,6 @@ const path = require('node:path');
 const adapters = require('./lib/adapters.js');
 const stateLib = require('./lib/state.js');
 const { dispatch } = require('./lib/dispatch.js');
-const heartbeat = require('./lib/heartbeat.js');
 const gatesLib = require('./lib/gates.js');
 const experts = require('../experts/experts.js');
 const verify = require('./verify.js');
@@ -105,28 +104,32 @@ async function main() {
 
   if (stateLib.gatesDisabled(process.env)) return { stdout: null, exit: 0 };
 
-  // Everything below -- the plan, the evidence, the heartbeat, the paths an edit is judged by --
-  // is read at the project root, not at the folder the host's shell happened to be in.
+  // Everything below -- the plan and the evidence -- is read at the project root, not at the folder the host's shell happened to be in.
   const cwd = stateLib.projectRoot(ev.cwd || process.cwd());
   ev.cwd = cwd;
   const state = stateLib.readState(cwd);
 
   // Reading the working tree is not free, so the commit evidence is gathered only
-  // for the one event that needs it. Any failure leaves it undefined, which allows.
+  // for the one event that needs it. Any failure leaves it undefined, and dispatch.js then says the commit could not be checked.
   let commitEvidence;
-  let verifyEvidence;
   if (ev.event === 'preTool' && ev.tool === 'shell' && gatesLib.isCommitCommand(ev.command)) {
     try {
-      commitEvidence = experts.commitEvidence(cwd, state.file && state.stage === 'feature' ? state.file : '');
+      commitEvidence = experts.commitEvidence(cwd, state.file && state.stage === 'feature' ? state.file : '', undefined, { stage: state.stage, script: VERIFY_SCRIPT });
     } catch {
       commitEvidence = undefined;
     }
-    if (state.data.test_command) {
-      try {
-        verifyEvidence = verify.fullEvidence(cwd);
-      } catch {
-        verifyEvidence = undefined;
-      }
+  }
+
+  // The one fact a reminder needs that is not in the plan: whether the changes differ from the last passing full run.
+  // Read only at the start and end of a turn, never on an edit; nothing is written.
+  let codeChanged = false;
+  if ((ev.event === 'prompt' || ev.event === 'stop') && state.stage === 'feature' && state.file && state.data.test_command) {
+    try {
+      const t = experts.testsEvidence(cwd, experts.workingChanges(cwd, state.file), state.file);
+      const r = t.record;
+      codeChanged = !t.skip && !(r && r.mode === 'full' && r.passed === true && r.fingerprint === t.hash);
+    } catch {
+      codeChanged = false;
     }
   }
 
@@ -134,9 +137,12 @@ async function main() {
   let result = dispatch(ev, state, {
     workflowsAvailable: workflowsAvailable(cwd, process.env),
     commitEvidence,
-    verifyEvidence,
+    codeChanged,
     verifyScript: VERIFY_SCRIPT,
   });
+
+  // A commit that was not checked says so: the dispatch asks for it with `say`, and the host shows it as context.
+  if (result.kind === 'allow' && result.say) result = { ...result, kind: 'context', text: result.say };
 
   if (reminder) {
     if (result.kind === 'context') result = { ...result, text: `${result.text}\n${reminder}` };
@@ -153,29 +159,10 @@ async function main() {
     }
   }
 
-  if (result.patch && state.file) {
-    try {
-      stateLib.patchState(state.file, result.patch);
-    } catch {
-      // A state write failure must not turn into a block.
-    }
-  }
+  // The commit-time stamp: written only when the check ran on a commit. A failed write never changes the answer.
+  // A project that does not use the workflow (no plan, no .ultimate-workflow folder) gets no folder from a commit.
+  if (result.check && (state.stage !== 'none' || fs.existsSync(path.join(cwd, '.ultimate-workflow')))) stateLib.writeCommitStamp(cwd, result.check);
 
-  // Leave a trace that this gate ran, whatever it decided. Without it, "not
-  // loaded", "crashed", and "allowed" are indistinguishable from outside --
-  // and the first of those silently disables enforcement entirely.
-  try {
-    heartbeat.record(cwd, {
-      at: new Date().toISOString(),
-      event: ev.event,
-      vendor: ev.vendor,
-      stage: state.stage,
-      decision: result.kind,
-      deferred: result.deferred,
-    });
-  } catch {
-    // Diagnostics must never affect a decision.
-  }
 
   // Pass the event that actually fired. The host rejects a result whose
   // hookSpecificOutput.hookEventName does not match it, discarding everything

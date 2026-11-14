@@ -101,29 +101,6 @@ test('a --- separator inside the body is not treated as front matter', () => {
 
 // --- patchState ------------------------------------------------------------
 
-test('patchState updates a key and preserves the body and other keys', () => {
-  const dir = tmpdir();
-  const file = write(dir, 'PLAN-x.md', fm({ plan_confirmed: false, verify_rounds: 0 }, '\n## Feature\n\nText.\n'));
-
-  state.patchState(file, { plan_confirmed: true });
-
-  const after = state.parseFrontMatter(fs.readFileSync(file, 'utf8'));
-  assert.strictEqual(after.data.plan_confirmed, true);
-  assert.strictEqual(after.data.verify_rounds, 0);
-  assert.match(after.body, /## Feature/);
-});
-
-test('patchState adds front matter to a file that has none', () => {
-  const dir = tmpdir();
-  const file = write(dir, 'PLAN-x.md', '# Plan\n\nNo front matter here.\n');
-
-  state.patchState(file, { plan_confirmed: true });
-
-  const after = state.parseFrontMatter(fs.readFileSync(file, 'utf8'));
-  assert.strictEqual(after.data.plan_confirmed, true);
-  assert.match(after.body, /No front matter here\./);
-});
-
 // --- resolveStage ----------------------------------------------------------
 
 test('resolveStage returns none for a repo with no PRD and no plan', () => {
@@ -211,13 +188,122 @@ test('readState on an unmanaged repo yields stage none and no file', () => {
   assert.deepEqual(s.data, {});
 });
 
-test('readState picks the most recently modified PLAN file when several exist', () => {
+test('readState picks no plan when several exist and none is chosen, however recently each was modified', () => {
   const dir = tmpdir();
   const older = write(dir, 'PLAN-old.md', fm({ plan_confirmed: true }));
   const newer = write(dir, 'PLAN-new.md', fm({ plan_confirmed: false }));
   fs.utimesSync(older, new Date(1000), new Date(1000));
   fs.utimesSync(newer, new Date(9_000_000), new Date(9_000_000));
-  assert.equal(path.basename(state.readState(dir).file), 'PLAN-new.md');
+  assert.equal(state.readState(dir).file, null);
+  assert.equal(state.readState(dir).stage, 'feature');
+});
+
+// --- the plan pointer may name a plan in a subfolder -------------------------
+
+const POINTER = path.join('.ultimate-workflow', 'active-plan');
+const SUB_PLAN = 'internal/plans/PLAN-x.md';
+
+function writePointer(dir, value) {
+  write(dir, POINTER, `${value}\n`);
+}
+
+function withoutPointer(dir) {
+  fs.rmSync(path.join(dir, POINTER), { force: true });
+  return state.readState(dir);
+}
+
+test('pointer to internal/plans/PLAN-x.md: readState returns that file and its volatile_paths when the root has no PLAN file', () => {
+  const dir = tmpdir();
+  const file = write(dir, SUB_PLAN, fm({ plan_confirmed: true, volatile_paths: 'src/a.js, src/b.js' }));
+  writePointer(dir, SUB_PLAN);
+
+  const s = state.readState(dir);
+  assert.equal(s.stage, 'feature');
+  assert.equal(path.resolve(s.file), path.resolve(file));
+  assert.deepEqual(s.data.volatile_paths, 'src/a.js, src/b.js');
+});
+
+test('setActivePlan accepts a relative subfolder path and pointedPlanFile returns it', () => {
+  const dir = tmpdir();
+  const file = write(dir, SUB_PLAN, fm({ plan_confirmed: false }));
+
+  assert.strictEqual(state.setActivePlan(dir, SUB_PLAN), true);
+  assert.equal(fs.readFileSync(path.join(dir, POINTER), 'utf8').trim(), SUB_PLAN);
+  assert.equal(path.resolve(state.pointedPlanFile(dir)), path.resolve(file));
+});
+
+test('setActivePlan normalises backslashes in a subfolder path', () => {
+  const dir = tmpdir();
+  const file = write(dir, SUB_PLAN, fm({ plan_confirmed: false }));
+
+  assert.strictEqual(state.setActivePlan(dir, 'internal\\plans\\PLAN-x.md'), true);
+  assert.equal(fs.readFileSync(path.join(dir, POINTER), 'utf8').trim(), SUB_PLAN);
+  assert.equal(path.resolve(state.pointedPlanFile(dir)), path.resolve(file));
+});
+
+test('pointer refused: each unsafe form is ignored', () => {
+  const outer = tmpdir();
+  const dir = path.join(outer, 'root');
+  fs.mkdirSync(dir);
+  write(outer, 'PLAN-x.md', fm({ plan_confirmed: true }));
+  const real = write(dir, SUB_PLAN, fm({ plan_confirmed: true }));
+  write(dir, 'internal/plans/notes.md', fm({ plan_confirmed: true }));
+
+  const rows = [
+    '../PLAN-x.md',
+    'internal/../../PLAN-x.md',
+    real, // absolute path to a plan that really exists
+    '/abs/PLAN-x.md',
+    'C:PLAN-x.md',
+    'C:\\x\\PLAN-x.md',
+    '//server/share/PLAN-x.md',
+    'internal\\..\\..\\PLAN-x.md',
+    'internal/plans/notes.md',
+    'internal/plans/PLAN-missing.md',
+  ];
+  const baseline = withoutPointer(dir);
+  assert.equal(baseline.file, null);
+
+  for (const row of rows) {
+    assert.strictEqual(state.setActivePlan(dir, row), false, `setActivePlan ${row}`);
+    writePointer(dir, row);
+    assert.deepEqual(state.readState(dir), baseline, `readState with pointer ${row}`);
+    assert.equal(state.pointedPlanFile(dir), null, `pointedPlanFile ${row}`);
+    fs.rmSync(path.join(dir, POINTER), { force: true });
+  }
+});
+
+test('pointer through a directory junction out of the root is refused', () => {
+  const outer = tmpdir();
+  const dir = path.join(outer, 'root');
+  fs.mkdirSync(dir);
+  write(outer, 'elsewhere/PLAN-x.md', fm({ plan_confirmed: true }));
+  fs.symlinkSync(path.join(outer, 'elsewhere'), path.join(dir, 'linked'), 'junction');
+
+  assert.strictEqual(state.setActivePlan(dir, 'linked/PLAN-x.md'), false);
+  writePointer(dir, 'linked/PLAN-x.md');
+  assert.deepEqual(state.readState(dir), withoutPointer(dir));
+  assert.equal(withoutPointer(dir).file, null);
+});
+
+test('pointer to a phase: done plan is ignored', () => {
+  const dir = tmpdir();
+  const old = write(dir, 'PLAN-old.md', fm({ phase: 'implement' }));
+  write(dir, SUB_PLAN, fm({ phase: 'done' }));
+  writePointer(dir, SUB_PLAN);
+
+  const s = state.readState(dir);
+  assert.deepEqual(s, withoutPointer(dir));
+  assert.equal(path.resolve(s.file), path.resolve(old));
+});
+
+test('without a pointer the root-only guess is unchanged', () => {
+  const dir = tmpdir();
+  write(dir, SUB_PLAN, fm({ plan_confirmed: true }));
+
+  const s = state.readState(dir);
+  assert.equal(s.stage, 'none');
+  assert.equal(s.file, null);
 });
 
 // --- escape hatch ----------------------------------------------------------
@@ -273,4 +359,75 @@ test('handoff still fails when neither file carries the sections', () => {
   write(dir, 'CLAUDE.md', '@AGENTS.md\n');
 
   assert.equal(state.handoffComplete(dir), false);
+});
+
+// ---- PLAN-simplify, card frontmatter: one block finder, one parser, one in-place writer ----
+
+const expertsLib = require('../../experts/experts.js');
+
+// Every fence shape a real editor produces. `write` builds the plan the way that editor saves it.
+const SHAPES = {
+  LF: { eol: '\n', bom: '', fence: '---' },
+  CRLF: { eol: '\r\n', bom: '', fence: '---' },
+  BOM: { eol: '\n', bom: '﻿', fence: '---' },
+  'BOM and CRLF': { eol: '\r\n', bom: '﻿', fence: '---' },
+  'trailing spaces on both fences': { eol: '\n', bom: '', fence: '--- ' },
+  'trailing tab on both fences': { eol: '\n', bom: '', fence: '---\t' },
+  'closing fence at end of file, no newline': { eol: '\n', bom: '', fence: '---', noFinalNewline: true },
+};
+function planOf(shape, front, body = '# PLAN\n\n## Cards\n\n- 1: a\n  paths: src/a.js\n') {
+  const { eol, bom, fence, noFinalNewline } = shape;
+  const tail = noFinalNewline ? '' : body.replace(/\n/g, eol);
+  return `${bom}${fence}${eol}${front.join(eol)}${eol}${fence}${noFinalNewline ? '' : eol}${tail}`;
+}
+const FRONT = ['phase: build', 'plan_confirmed: false', 'tests_confirmed: false', 'test_command: node --test x', 'dirty: true', 'verify_rounds: 2'];
+
+test('frontmatter: a plan written by setConfirmed is read as confirmed by checkConfirmed, for every fence shape', () => {
+  for (const [name, shape] of Object.entries(SHAPES)) {
+    let text = planOf(shape, FRONT);
+    text = expertsLib.setConfirmed(text, 'plan_confirmed');
+    text = expertsLib.setConfirmed(text, 'tests_confirmed');
+    const verdict = expertsLib.checkConfirmed(text);
+    assert.strictEqual(verdict.ok, true, `${name}: ${verdict.reason}`);
+    assert.strictEqual(state.parseFrontMatter(text).data.plan_confirmed, true, `${name}: the flag reads as true`);
+  }
+});
+
+test('frontmatter: setFrontLine keeps the BOM, the line endings and every other byte, on replace and on insert', () => {
+  for (const [name, shape] of Object.entries(SHAPES)) {
+    const text = planOf(shape, FRONT);
+    // replace: the key is present
+    const replaced = state.setFrontLine(text, 'tests_confirmed', 'true');
+    assert.strictEqual(replaced, text.replace('tests_confirmed: false', 'tests_confirmed: true'), `${name}: replace changes one line only`);
+    // insert: the key is absent; the new line uses the file's own line ending and sits last in the block
+    const inserted = state.setFrontLine(text, 'confirmed_hash', 'abc');
+    const closing = shape.fence + (shape.noFinalNewline ? '' : shape.eol);
+    const at = text.lastIndexOf(shape.fence + (shape.noFinalNewline ? '' : shape.eol), text.length);
+    const expected = text.slice(0, at) + `confirmed_hash: abc${shape.eol}` + text.slice(at);
+    assert.strictEqual(inserted, expected, `${name}: insert adds one line with the file's line ending (${JSON.stringify(closing)})`);
+  }
+});
+
+test('frontmatter: setFrontLine on a file with no front matter throws', () => {
+  assert.throws(() => state.setFrontLine('# no front matter\n', 'a', '1'), /no front matter/);
+});
+
+test('frontmatter: unknown and old keys survive a write untouched', () => {
+  const text = planOf(SHAPES.LF, ['phase: build', 'plan_confirmed: false', 'tests_confirmed: false', 'dirty: true', 'verify_rounds: 2', 'last_verify: red', 'escalated: false', 'gate_violation: G1 text', 'odd_key: some value']);
+  let next = expertsLib.setConfirmed(text, 'plan_confirmed');
+  next = expertsLib.setConfirmed(next, 'tests_confirmed');
+  for (const line of ['dirty: true', 'verify_rounds: 2', 'last_verify: red', 'escalated: false', 'gate_violation: G1 text', 'odd_key: some value']) {
+    assert.ok(next.split('\n').includes(line), `${line} is still there, byte for byte`);
+  }
+});
+
+test('frontmatter: the block finder and the parser agree on a BOM plan', () => {
+  const parsed = state.parseFrontMatter(planOf(SHAPES['BOM and CRLF'], FRONT));
+  assert.strictEqual(parsed.hadFrontMatter, true);
+  assert.strictEqual(parsed.data.test_command, 'node --test x');
+  assert.strictEqual(parsed.body.startsWith('# PLAN'), true);
+  const split = state.splitFrontMatter(planOf(SHAPES.LF, FRONT));
+  assert.deepStrictEqual(Object.keys(split).sort(), ['after', 'block', 'bom', 'eol', 'open']);
+  assert.strictEqual(state.splitFrontMatter('no front matter'), null);
+  assert.strictEqual(state.splitFrontMatter('---\nunclosed: true\n'), null);
 });

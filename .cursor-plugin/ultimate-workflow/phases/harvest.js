@@ -9,33 +9,9 @@ export const meta = {
   ],
 }
 
-// --- agent names (identical in every workflow; a test holds them equal) ---
-// An installed plugin registers its agents as "<plugin>:<agent>", so a bare "uw-explorer"
-// is "agent type not found". Every agentType goes through agentName(). A local run against
-// agents copied to .claude/agents/ passes args.agentNamespace: "".
-const AGENT_NAMESPACE = args && typeof args.agentNamespace === 'string' ? args.agentNamespace : 'ultimate-workflow:'
-const agentName = (name) => (String(name).includes(':') ? name : AGENT_NAMESPACE + name)
-// --- end agent names ---
+// @shared agent-names
 
-// --- reader model (identical in plan and harvest; a test holds them to it) ---
-// 4.2.0: the agents that only search and read run on a smaller model, chosen in code. `experts.js
-// script` passes ULTIMATE_WORKFLOW_READER_MODEL as args.readerModel ("inherit" turns it off). A
-// reader that returns nothing with the override is asked once more on the session model, so an
-// install without that model loses nothing.
-const READER_MODEL = args && typeof args.readerModel === 'string' && args.readerModel.trim() ? (args.readerModel.trim() === 'inherit' ? '' : args.readerModel.trim()) : 'haiku'
-const asReader = async (prompt, opts) => {
-  if (!READER_MODEL) return agent(prompt, opts)
-  let first = null
-  try {
-    first = await agent(prompt, { ...opts, model: READER_MODEL, effort: 'low' })
-  } catch {
-    first = null
-  }
-  if (first) return first
-  log(`${opts.label}: no answer on ${READER_MODEL}; retried on the session model`)
-  return agent(prompt, opts)
-}
-// --- end reader model ---
+// @shared reader-model
 
 // Step 6 of the workflow -- writing down what was learned -- is its weakest
 // step in practice, because it happens at the end of a long session when
@@ -82,43 +58,16 @@ const EXISTING = {
   },
 }
 
-const PROPOSALS = {
-  type: 'object',
-  required: ['proposals', 'discarded'],
-  properties: {
-    proposals: {
-      type: 'array',
-      items: {
-        type: 'object',
-        required: ['destination', 'path', 'text', 'source', 'rationale'],
-        properties: {
-          destination: { type: 'string', enum: ['gotcha', 'memory', 'progress'] },
-          path: { type: 'string', description: 'Target file, e.g. CLAUDE.md or memory/gates.md' },
-          text: { type: 'string', description: 'The exact text to add, ready to paste' },
-          source: { type: 'string' },
-          rationale: { type: 'string', description: 'Which threshold it met, and why this store not the other' },
-        },
-      },
-    },
-    discarded: {
-      type: 'array',
-      items: {
-        type: 'object',
-        required: ['lesson', 'why'],
-        properties: {
-          lesson: { type: 'string' },
-          why: { type: 'string', description: 'Already recorded, not durable, obvious from code, or one-off' },
-        },
-      },
-    },
-  },
-}
+// @shared harvest-proposals
 
 // Stated in every reader prompt. The failure mode of a harvester is not missing
 // a lesson, it is inventing one -- a store that fills with filler teaches the
 // reader to skim past it, which costs more than the gap it was papering over.
 const NO_QUOTA =
   'You have no quota. Returning an empty list is a correct and common answer. Do not stretch to fill it. Every item must be something a future session would genuinely be worse off not knowing.'
+
+// The memory check the harvester runs first; its warnings say which cues have gone stale.
+const MEMORY_CHECK = `${(args && args.cli) || 'node experts/experts.js'} memory check`
 
 phase('Read')
 
@@ -154,6 +103,8 @@ ${NO_QUOTA}`,
 Read: the "## Gotchas" section of CLAUDE.md, the memory.md index if present, and every memory/*.md topical if present.
 
 Return each existing Gotcha verbatim, and for each topical its path and what it covers. Note anything a router should know -- for example a topical that a new lesson would naturally extend rather than replace.
+
+Run \`${MEMORY_CHECK}\` first (add \`--root <folder>\` when memory.md is not in the project root) and put its warnings in notes: a topical not migrated, a header path that matches no file.
 
 Propose nothing. This is an inventory.`,
       { agentType: agentName('uw-harvester'), label: 'existing', phase: 'Read', schema: EXISTING }
@@ -231,6 +182,8 @@ Merge candidates that are the same lesson seen from two angles. Two readers look
 
 For anything you keep, write the exact text to add, ready to paste, in the voice the target file already uses. Cite its source.
 
+A new memory topical also needs description, paths and keywords (its header). For an existing topical, use the warnings of \`${MEMORY_CHECK}\` in the inventory: a header path that matches no file is corrected with add_paths, add_keywords and remove_paths. Never propose an edit to memory.md: its index is generated from the headers.
+
 ${NO_QUOTA} A short, well-sourced list is the goal. Discarding most candidates is a good outcome, not a failure.`,
   { agentType: agentName('uw-harvester'), label: 'route', phase: 'Route', schema: PROPOSALS }
 )
@@ -249,7 +202,6 @@ if (args && args.mode === 'branch') {
   if (!args.cli || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(feature)) {
     return { ok: false, ...routed, error: 'mode "branch" needs cli and feature in the arguments (experts.js script writes cli in). The proposals are above; nothing was committed.' }
   }
-  if (routed.proposals.length === 0) return { ok: true, mode: 'branch', ...routed, branch: null, commits: [], reviewedRange: range }
   const file = `.ultimate-workflow/run/${feature}/harvest.json`
   const command = `${args.cli} harvest-branch --feature ${feature} --from "${file}"`
   const wrote = await agent(

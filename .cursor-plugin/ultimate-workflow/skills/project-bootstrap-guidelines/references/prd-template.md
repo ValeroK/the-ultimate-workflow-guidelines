@@ -4,9 +4,6 @@ prd_confirmed: false
 design_confirmed: false
 scaffold_verify: unrun
 build_command: ""
-verify_rounds: 0
-dirty: false
-escalated: false
 ---
 
 > The block above is read by the workflow gates during bootstrap. `scale` is the

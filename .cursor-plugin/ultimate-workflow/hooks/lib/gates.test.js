@@ -48,61 +48,6 @@ test('isDiagramPath does not open application html, svg or images', () => {
   }
 });
 
-test('G1, G2, G6 and the bootstrap gates let diagrams through before confirmation', () => {
-  const states = [
-    featureState({ plan_confirmed: false }),
-    featureState({ plan_confirmed: true }),
-    featureState({ plan_confirmed: true, experts: [], tests_confirmed: false }),
-    bootstrapState({ prd_confirmed: false }),
-    bootstrapState({ prd_confirmed: true, design_confirmed: false }),
-  ];
-  for (const state of states) {
-    for (const p of ['docs/aws/target.html', 'docs/aws/target.svg', 'arch.mmd', 'design.drawio']) {
-      assert.equal(gates.preEditGate(state, { path: p }).allow, true, `${state.stage}: ${p}`);
-    }
-    const abs = gates.preEditGate(state, { path: 'C:\\proj\\docs\\arch.html', cwd: 'C:\\proj' });
-    assert.equal(abs.allow, true, `${state.stage}: absolute`);
-    assert.equal(gates.preEditGate(state, { path: 'public/index.html' }).allow, false, `${state.stage}: app html`);
-  }
-});
-
-// The phase commands write their arguments and the ledger row into `.ultimate-workflow/run/` with
-// the Write tool. Found in a real run: with the plan accepted and tests not yet confirmed, G2 refused
-// `plan.row.json` and `tests.args.json`, so the tests phase could not even start.
-test('G2 and G1 let the plugin write its own run files, in every stage', () => {
-  const awaitingTests = featureState({ plan_confirmed: true, tests_confirmed: false });
-  const awaitingPlan = featureState({ plan_confirmed: false });
-  for (const state of [awaitingTests, awaitingPlan, bootstrapState({ prd_confirmed: false })]) {
-    for (const p of ['.ultimate-workflow/run/tests.args.json', '.ultimate-workflow/run/plan.row.json', '.ultimate-workflow/run/deep/er/x.js']) {
-      assert.equal(gates.preEditGate(state, { path: p }).allow, true, `${state.stage}: ${p}`);
-    }
-  }
-  // An absolute Windows path inside the project reduces to the same relative path.
-  const abs = gates.preEditGate(awaitingTests, { path: 'C:\\proj\\.ultimate-workflow\\run\\plan.row.json', cwd: 'C:\\proj' });
-  assert.equal(abs.allow, true);
-});
-
-test('the run-folder exemption does not open the evidence the commit gate reads, or anything else', () => {
-  const state = featureState({ plan_confirmed: true, tests_confirmed: false, experts: [] });
-  for (const p of [
-    '.ultimate-workflow/experts/review/security.json',
-    '.ultimate-workflow/snapshots/abc.diff',
-    '.ultimate-workflow/active-plan',
-    '.ultimate-workflow/run',
-    '.ultimate-workflow/runs/x.json',
-    '.ultimate-workflow/run/../experts/review/security.json',
-    '.ultimate-workflow/./experts/x.json',
-    'src/.ultimate-workflow/run/x.json',
-    'src/a.js',
-  ]) {
-    const r = gates.preEditGate(state, { path: p });
-    assert.equal(r.allow, false, p);
-    assert.match(r.reason, /Gate G2/, p);
-  }
-  assert.equal(gates.isRunPath('.ultimate-workflow/run/x.json'), true);
-  assert.equal(gates.isRunPath('.ultimate-workflow/RUN/x.json'), true, 'Windows paths are case-insensitive');
-});
-
 test('isTestPath recognises the common test conventions', () => {
   for (const p of [
     'hooks/lib/state.test.js',
@@ -132,149 +77,13 @@ test('isTestPath does not fire on "test" appearing as a substring', () => {
 
 // --- G1: no source edit before a confirmed plan ----------------------------
 
-test('G1 denies a source edit while the plan is unconfirmed, naming the gate', () => {
-  const r = gates.preEditGate(featureState({ plan_confirmed: false }), { path: 'src/a.js' });
-  assert.equal(r.allow, false);
-  assert.match(r.reason, /plan_confirmed/);
-});
-
-test('G1 allows editing the plan file itself', () => {
-  const r = gates.preEditGate(featureState({ plan_confirmed: false }), { path: 'PLAN-x.md' });
-  assert.equal(r.allow, true);
-});
-
-test('G1 allows documentation edits', () => {
-  const r = gates.preEditGate(featureState({ plan_confirmed: false }), { path: 'README.md' });
-  assert.equal(r.allow, true);
-});
-
 // --- G2: no implementation before confirmed tests --------------------------
-
-test('G2 denies a source edit while tests are unconfirmed', () => {
-  const r = gates.preEditGate(
-    featureState({ plan_confirmed: true, tests_confirmed: false, experts: '[]' }),
-    { path: 'src/a.js' }
-  );
-  assert.equal(r.allow, false);
-  assert.match(r.reason, /tests_confirmed/);
-});
-
-test('G2 allows editing test files while tests are unconfirmed -- that is the point', () => {
-  const r = gates.preEditGate(
-    featureState({ plan_confirmed: true, tests_confirmed: false }),
-    { path: 'hooks/lib/state.test.js' }
-  );
-  assert.equal(r.allow, true);
-});
-
-test('both confirmed allows source edits', () => {
-  const r = gates.preEditGate(
-    featureState({ plan_confirmed: true, tests_confirmed: true, experts: '[]' }),
-    { path: 'src/a.js' }
-  );
-  assert.equal(r.allow, true);
-});
 
 // --- stage none and bootstrap ---------------------------------------------
 
-test('stage none never blocks anything', () => {
-  assert.equal(gates.preEditGate(noneState(), { path: 'src/a.js' }).allow, true);
-  assert.equal(gates.stopGate(noneState()).allow, true);
-});
-
-test('B-G2 denies source edits before the design is confirmed', () => {
-  const r = gates.preEditGate(
-    bootstrapState({ prd_confirmed: true, design_confirmed: false }),
-    { path: 'src/index.js' }
-  );
-  assert.equal(r.allow, false);
-  assert.match(r.reason, /design_confirmed/);
-});
-
-test('B-G1 denies scaffolding before the PRD is confirmed', () => {
-  const r = gates.preEditGate(
-    bootstrapState({ prd_confirmed: false, design_confirmed: false }),
-    { path: 'src/index.js' }
-  );
-  assert.equal(r.allow, false);
-  assert.match(r.reason, /prd_confirmed/);
-});
-
-test('bootstrap always allows editing PRD.md', () => {
-  const r = gates.preEditGate(bootstrapState({ prd_confirmed: false }), { path: 'PRD.md' });
-  assert.equal(r.allow, true);
-});
-
 // --- G3: coding must route through verify ---------------------------------
 
-test('G3 blocks turn completion while the tree is dirty', () => {
-  const r = gates.stopGate(featureState({ plan_confirmed: true, tests_confirmed: true, dirty: true, test_command: 'node --test hooks/' }));
-  assert.equal(r.allow, false);
-  assert.match(r.reason, /node --test hooks\//);
-});
-
-test('G3 allows turn completion once verification is green', () => {
-  const r = gates.stopGate(featureState({ dirty: false, last_verify: 'green' }));
-  assert.equal(r.allow, true);
-});
-
-test('G3 does not block when nothing has been edited', () => {
-  const r = gates.stopGate(featureState({ plan_confirmed: true, tests_confirmed: true }));
-  assert.equal(r.allow, true);
-});
-
-test('G3 stays out of the way once the run has escalated', () => {
-  const r = gates.stopGate(featureState({ dirty: true, escalated: true }));
-  assert.equal(r.allow, true);
-});
-
 // --- G4: round cap ---------------------------------------------------------
-
-test('G4 counts failing rounds and escalates on the third', () => {
-  let data = { verify_rounds: 0, escalated: false };
-
-  let r = gates.roundCap({ stage: 'feature', data }, { passed: false });
-  assert.equal(r.patch.verify_rounds, 1);
-  assert.equal(r.patch.escalated, false);
-
-  data = { ...data, ...r.patch };
-  r = gates.roundCap({ stage: 'feature', data }, { passed: false });
-  assert.equal(r.patch.verify_rounds, 2);
-  assert.equal(r.patch.escalated, false);
-
-  data = { ...data, ...r.patch };
-  r = gates.roundCap({ stage: 'feature', data }, { passed: false });
-  assert.equal(r.patch.verify_rounds, 3);
-  assert.equal(r.patch.escalated, true);
-});
-
-test('G4 does not re-escalate on a fourth failing round', () => {
-  const r = gates.roundCap(
-    { stage: 'feature', data: { verify_rounds: 3, escalated: true } },
-    { passed: false }
-  );
-  assert.equal(r.alreadyEscalated, true);
-  assert.equal(r.patch.verify_rounds, 4);
-});
-
-test('G4 resets the counter and clears dirty on a green run', () => {
-  const r = gates.roundCap(
-    { stage: 'feature', data: { verify_rounds: 2, escalated: false, dirty: true } },
-    { passed: true }
-  );
-  assert.equal(r.patch.verify_rounds, 0);
-  assert.equal(r.patch.last_verify, 'green');
-  assert.equal(r.patch.dirty, false);
-});
-
-test('G4 records red without clearing dirty', () => {
-  const r = gates.roundCap(
-    { stage: 'feature', data: { verify_rounds: 0, dirty: true } },
-    { passed: false }
-  );
-  assert.equal(r.patch.last_verify, 'red');
-  assert.notEqual(r.patch.dirty, false);
-});
 
 // --- G5: phase pointer -----------------------------------------------------
 
@@ -293,11 +102,6 @@ test('G5 reports workflow availability', () => {
 
 test('G5 says nothing at stage none', () => {
   assert.equal(gates.phasePointer(noneState(), { workflowsAvailable: true }), '');
-});
-
-test('G5 surfaces an escalation instead of the ordinary next action', () => {
-  const line = gates.phasePointer(featureState({ escalated: true, verify_rounds: 3 }), { workflowsAvailable: true });
-  assert.match(line, /escalat/i);
 });
 
 // --- toProjectPath ---------------------------------------------------------
@@ -350,58 +154,7 @@ test('an ancestor directory named test outside the project does not leak in', ()
 
 // --- preEditGate with cwd --------------------------------------------------
 
-test('preEditGate ignores edits outside the project even with an unconfirmed plan', () => {
-  const r = gates.preEditGate(featureState({ plan_confirmed: false }), {
-    path: String.raw`C:\Users\kobiv\AppData\Local\Temp\scratch\a.js`,
-    cwd: CWD,
-  });
-  assert.equal(r.allow, true);
-});
-
-test('preEditGate still blocks an absolute path inside the project', () => {
-  const r = gates.preEditGate(featureState({ plan_confirmed: false }), {
-    path: CWD + String.raw`\src\a.js`,
-    cwd: CWD,
-  });
-  assert.equal(r.allow, false);
-  assert.match(r.reason, /plan_confirmed/);
-});
-
-test('preEditGate allows an absolute path to a test file inside the project', () => {
-  const r = gates.preEditGate(featureState({ plan_confirmed: true, tests_confirmed: false }), {
-    path: CWD + String.raw`\hooks\lib\state.test.js`,
-    cwd: CWD,
-  });
-  assert.equal(r.allow, true);
-});
-
 // --- G6: the domain-experts decision and the commit gate ------------------------
-
-test('G6 denies a source edit once the plan is confirmed but no experts decision is recorded, and says how to record one', () => {
-  const r = gates.preEditGate(featureState({ plan_confirmed: true, tests_confirmed: true }), { path: 'src/a.js' });
-  assert.equal(r.allow, false);
-  assert.match(r.reason, /Gate G6/);
-  assert.match(r.reason, /experts\.js select/);
-  assert.match(r.reason, /--add ""/);
-});
-
-test('G6 accepts any recorded decision, including "none apply"', () => {
-  for (const experts of ['[]', '[security]', '[security, devops]']) {
-    const r = gates.preEditGate(featureState({ plan_confirmed: true, tests_confirmed: true, experts }), { path: 'src/a.js' });
-    assert.equal(r.allow, true, experts);
-  }
-});
-
-test('G6 does not block test files or documentation, so the tests can be written before the decision is recorded', () => {
-  const st = featureState({ plan_confirmed: true, tests_confirmed: false });
-  assert.equal(gates.preEditGate(st, { path: 'hooks/lib/state.test.js' }).allow, true);
-  assert.equal(gates.preEditGate(st, { path: 'docs/notes.md' }).allow, true);
-});
-
-test('G1 is reported before G6: an unconfirmed plan is the first thing to fix', () => {
-  const r = gates.preEditGate(featureState({ plan_confirmed: false }), { path: 'src/a.js' });
-  assert.match(r.reason, /Gate G1/);
-});
 
 test('isCommitCommand sees a commit however git is invoked, and nothing else', () => {
   const yes = [
@@ -505,4 +258,140 @@ test('commitGate allows when no finding is open, and shows at most five when man
 test('the missing-review and stale-evidence reasons come before the findings, because they say the findings cannot be trusted yet', () => {
   const r = gates.commitGate(evidence({ recheck: null, open: [openFinding()] }));
   assert.match(r.reason, /have not been re-checked/);
+});
+
+// ---- the memory check inside commitGate (PLAN-memory-index, card gate) ----
+// gates.js reads no files: it is handed evidence.memory = { added, existing }, the problems a commit
+// introduces and the ones already there at HEAD. A problem is { file, kind, text } plus line and
+// target for a link; kind is 'index', 'header' or 'link'.
+
+const staleIndex = { file: 'memory.md', kind: 'index', text: 'memory/new.md is missing from the index in memory.md' };
+const brokenLink = { file: 'AGENTS.md', kind: 'link', line: 7, target: 'gone.md', text: 'AGENTS.md:7: broken link to gone.md' };
+const oldLink = { file: 'AGENTS.md', kind: 'link', line: 3, target: 'old.md', text: 'AGENTS.md:3: broken link to old.md' };
+
+test('commitGate denies a commit that adds a stale index, and the reason names the problem and the fixing command', () => {
+  const r = gates.commitGate({ skip: 'only documentation changed', memory: { added: [staleIndex], existing: [] } });
+  assert.equal(r.allow, false);
+  assert.match(r.reason, /memory\/new\.md is missing from the index in memory\.md/);
+  assert.match(r.reason, /node experts\/experts\.js memory index/);
+});
+
+test('commitGate denies a new broken link naming file, line and target, and does not offer the index command for it', () => {
+  const r = gates.commitGate({ skip: 'only documentation changed', memory: { added: [brokenLink], existing: [] } });
+  assert.equal(r.allow, false);
+  assert.match(r.reason, /AGENTS\.md:7: broken link to gone\.md/);
+  assert.doesNotMatch(r.reason, /memory index/);
+});
+
+test('commitGate lets a problem that was already there through, and returns it as a warning', () => {
+  const r = gates.commitGate({ skip: 'only documentation changed', memory: { added: [], existing: [oldLink] } });
+  assert.equal(r.allow, true);
+  assert.deepStrictEqual(r.warnings, [oldLink.text]);
+});
+
+test('commitGate denies for the new problem only and does not repeat the old one in the reason', () => {
+  const r = gates.commitGate({ skip: 'only documentation changed', memory: { added: [brokenLink], existing: [oldLink] } });
+  assert.equal(r.allow, false);
+  assert.match(r.reason, /gone\.md/);
+  assert.doesNotMatch(r.reason, /old\.md/);
+});
+
+test('commitGate checks memory before the experts, so a memory-only commit is not waved through and a new problem is not hidden by G6', () => {
+  const r = gates.commitGate(evidence({ recheck: null, memory: { added: [brokenLink], existing: [] } }));
+  assert.equal(r.allow, false);
+  assert.match(r.reason, /gone\.md/);
+});
+
+test('commitGate keeps the old warnings when the experts gate then allows, and still denies on G6 when it must', () => {
+  const ok = gates.commitGate(evidence({ memory: { added: [], existing: [oldLink] } }));
+  assert.equal(ok.allow, true);
+  assert.deepStrictEqual(ok.warnings, [oldLink.text]);
+  const no = gates.commitGate(evidence({ recheck: null, memory: { added: [], existing: [oldLink] } }));
+  assert.equal(no.allow, false);
+  assert.match(no.reason, /Gate G6/);
+});
+
+test('commitGate: evidence with no memory part, or an empty one, behaves as before', () => {
+  assert.deepStrictEqual(gates.commitGate(evidence()), { allow: true });
+  assert.equal(gates.commitGate({ skip: 'nothing to commit', memory: { added: [], existing: [] } }).allow, true);
+});
+
+// ---- PLAN-simplify, card commit-check: commitGate is the one decision ----
+
+test('gates: commitGate keeps allow, reason and warnings and adds missing', () => {
+  const ok = gates.commitGate({ skip: 'only documentation changed', memory: { added: [], existing: [{ text: 'old.md: broken link' }] } });
+  assert.deepStrictEqual(Object.keys(ok).sort(), ['allow', 'outcome', 'warnings', 'why']);
+  assert.strictEqual(ok.outcome, 'exempt');
+  assert.strictEqual(ok.allow, true);
+  const no = gates.commitGate({ memory: { added: [{ kind: 'index', text: 'memory.md is stale' }], existing: [] }, skip: 'only documentation changed' });
+  assert.strictEqual(no.allow, false);
+  assert.strictEqual(typeof no.reason, 'string');
+  assert.deepStrictEqual(no.missing.map((m) => m.kind), ['memory']);
+  assert.ok(no.missing[0].fix.includes('memory index'));
+});
+
+test('gates: commitGate holds the full-suite check, so no caller needs fullSuiteGate', () => {
+  const tests = (record, hash = 'h1') => ({ skip: 'no experts are installed', tests: { command: 'npm test', script: 'node "v.js"', hash, record } });
+  const never = gates.commitGate(tests(null));
+  assert.strictEqual(never.allow, false);
+  assert.match(never.reason, /^Gate G7: no passing full test suite run covers these changes/);
+  assert.deepStrictEqual(never.missing.map((m) => m.kind), ['tests']);
+  assert.strictEqual(never.missing[0].fix, 'node "v.js" --full');
+  assert.strictEqual(gates.commitGate(tests({ mode: 'full', passed: true, fingerprint: 'h1' })).allow, true);
+  const stale = gates.commitGate(tests({ mode: 'full', passed: true, fingerprint: 'old' }));
+  assert.match(stale.reason, /^Gate G7: the changes have changed since the last passing full test suite run/);
+  assert.strictEqual(gates.commitGate(tests({ mode: 'full', passed: false, fingerprint: 'h1' })).allow, false);
+  assert.strictEqual(gates.commitGate({ skip: 'x', tests: { skip: 'only documentation changed', command: 'npm test' } }).allow, true);
+});
+
+// ---- PLAN-simplify, card reminders: lines that remind and never refuse ----
+
+const planState = (data, over = {}) => ({ stage: 'feature', file: 'PLAN-x.md', data, ...over });
+
+test('reminders: plan not confirmed gives one line naming the confirm command', () => {
+  const lines = gates.reminders(planState({ plan_confirmed: false, tests_confirmed: true }));
+  assert.strictEqual(lines.length, 1);
+  assert.match(lines[0], /--confirm plan_confirmed/);
+});
+
+test('reminders: tests not confirmed gives one line naming the confirm command', () => {
+  const lines = gates.reminders(planState({ plan_confirmed: true, tests_confirmed: false }));
+  assert.strictEqual(lines.length, 1);
+  assert.match(lines[0], /--confirm tests_confirmed/);
+});
+
+test('reminders: code changed since the last full run gives one line, computed from the input with no dirty key present', () => {
+  const data = { plan_confirmed: true, tests_confirmed: true, test_command: 'npm test' };
+  const lines = gates.reminders(planState(data), { codeChanged: true, script: 'node "v.js"' });
+  assert.strictEqual(lines.length, 1);
+  assert.match(lines[0], /node "v\.js" --full/);
+  assert.ok(!('dirty' in data));
+});
+
+test('reminders: a clean confirmed tree gives no lines', () => {
+  assert.deepStrictEqual(gates.reminders(planState({ plan_confirmed: true, tests_confirmed: true, test_command: 'npm test' }), { codeChanged: false }), []);
+});
+
+test('reminders: with no test_command the code-changed line is not sent', () => {
+  assert.deepStrictEqual(gates.reminders(planState({ plan_confirmed: true, tests_confirmed: true }), { codeChanged: true }), []);
+});
+
+test('reminders: bootstrap with PRD or design unconfirmed reminds and does not deny', () => {
+  const prd = gates.reminders({ stage: 'bootstrap', file: 'PRD.md', data: { prd_confirmed: false } });
+  assert.strictEqual(prd.length, 1);
+  assert.match(prd[0], /PRD is not confirmed/);
+  const design = gates.reminders({ stage: 'bootstrap', file: 'PRD.md', data: { prd_confirmed: true, design_confirmed: false } });
+  assert.match(design[0], /design is not confirmed/);
+  assert.deepStrictEqual(gates.reminders({ stage: 'bootstrap', file: 'PRD.md', data: { prd_confirmed: true, design_confirmed: true } }), []);
+});
+
+test('reminders: several plans and none chosen names the use command; stage none says nothing', () => {
+  const lines = gates.reminders({ stage: 'feature', file: null, data: {}, several: ['a', 'b'] });
+  assert.strictEqual(lines.length, 1);
+  assert.match(lines[0], /experts\.js use --plan/);
+  assert.deepStrictEqual(gates.reminders({ stage: 'none', file: null, data: {} }), []);
+});
+
+test('gates: nothing in gates.js refuses an edit or a turn end any more', () => {
+  for (const name of ['preEditGate', 'stopGate', 'roundCap', 'fullSuiteGate']) assert.strictEqual(gates[name], undefined, `${name} is gone`);
 });

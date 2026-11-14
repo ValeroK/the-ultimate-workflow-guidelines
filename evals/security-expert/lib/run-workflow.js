@@ -1,6 +1,7 @@
 'use strict';
 
 const fs = require('node:fs');
+const path = require('node:path');
 
 // Runs a workflow script under stub globals so its control flow can be tested
 // without the host runtime. The scripts are not modules: they `export const meta`,
@@ -24,8 +25,19 @@ function stripMeta(source) {
 
 // `transform` lets a test rewrite the script text (for example to add a second
 // registry entry) so behaviour that must be registry-driven is proven to be.
+// A phase script's shared sections (lib/phase-shared.js) are put in by the same function that stages the script for
+// users (experts.js assemblePhase), so a test runs exactly what a user runs. Any other file is read as it is.
+function readScript(file) {
+  const dir = path.dirname(file);
+  if (path.basename(dir) === 'phases') {
+    const root = path.dirname(dir);
+    if (fs.existsSync(path.join(root, 'lib', 'phase-shared.js'))) return require(path.join(root, 'experts', 'experts.js')).assemblePhase(root, path.basename(file, '.js'));
+  }
+  return fs.readFileSync(file, 'utf8');
+}
+
 function loadWorkflow(file, { transform } = {}) {
-  let source = stripMeta(fs.readFileSync(file, 'utf8'));
+  let source = stripMeta(readScript(file));
   if (transform) source = transform(source);
 
   return async function run(args, respond) {
@@ -66,4 +78,4 @@ function loadWorkflow(file, { transform } = {}) {
   };
 }
 
-module.exports = { loadWorkflow, stripMeta };
+module.exports = { loadWorkflow, stripMeta, readScript };

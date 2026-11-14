@@ -47,6 +47,10 @@ Propose a **Memory topical** only if all three hold:
 
 A small explanatory lesson belongs in an existing topical's *Key decisions* section, not a new file.
 
+## A new topical carries its header
+
+A proposal for a new `memory/<topic>.md` also gives `description` (one line on what it covers), `paths` (globs of the files it is about, relative to the folder that holds memory.md) and `keywords` (words that cue it); at least one of paths or keywords. For an existing topical, `add_paths`, `add_keywords` and `remove_paths` change its header. Run `memory check` first (the prompt gives the command): a header path that matches no file, or a topical not migrated, is yours to correct. **Never propose an edit to `memory.md`**: its list is generated from the headers and a harvest regenerates it.
+
 ## What not to propose
 
 This matters more than what to propose.

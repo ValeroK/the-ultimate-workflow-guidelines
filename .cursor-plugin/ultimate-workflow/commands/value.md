@@ -28,6 +28,8 @@ It reads Claude Code's own transcripts for this project (add `--match <part of t
 3. **Review:** findings by basis and `skillShare`, the share that cites a skill; then `neverCited`, the skills loaded on every review run and cited on none.
 4. **Workarounds:** each with its phase and run. These are plugin problems, not the user's.
 
+**Per expert:** from the ledger report's `perExpert`, one row for each expert that took part in a run or made a catch: runs, catches, confirmed, confirmed unique to experts, and `estimatedTokens` (a run's tokens split evenly over the experts that ran in it, so say it is an estimate) with `tokensPerUniqueCatch`. No expert or skill is removed on this evidence alone; the table is there to show the owner which ones earn their cost.
+
 Then, in at most three sentences: where the cost went (a main conversation far larger than the agents means long sessions: suggest `/handoff` and new sessions), and whether the experts' catches and the skills' citations justify it. The cost per confirmed unique catch is `phases.expertsCheck` tokens divided by the confirmed unique catches; say it is computed from the transcripts. Two signals are worth naming: a high cost with few confirmed unique catches, and skills that load on every run and are never cited.
 
 ## Limits to state

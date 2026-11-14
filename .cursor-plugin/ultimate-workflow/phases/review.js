@@ -10,13 +10,7 @@ export const meta = {
   ],
 }
 
-// --- agent names (identical in every workflow; a test holds them equal) ---
-// An installed plugin registers its agents as "<plugin>:<agent>", so a bare "uw-explorer"
-// is "agent type not found". Every agentType goes through agentName(). A local run against
-// agents copied to .claude/agents/ passes args.agentNamespace: "".
-const AGENT_NAMESPACE = args && typeof args.agentNamespace === 'string' ? args.agentNamespace : 'ultimate-workflow:'
-const agentName = (name) => (String(name).includes(':') ? name : AGENT_NAMESPACE + name)
-// --- end agent names ---
+// @shared agent-names
 
 // Four orthogonal lenses, then a skeptic. The lenses are parallel because the
 // concerns genuinely do not overlap; a correctness reviewer and a scope
@@ -39,40 +33,11 @@ const extraLenses = ((args && args.lenses) || '')
   .map((l) => l.trim())
   .filter(Boolean)
 
-const CORE = ['correctness', 'simplicity', 'surgical-scope', 'test-coverage']
+// @shared core-lenses
+const CORE = CORE_LENSES
 
-// --- expert lane helpers (identical in plan.js, tests.js and review.js; a test holds them equal) ---
-// The expert list is discovered by experts/experts.js from the agents folder and passed in
-// as args.available, because a workflow script cannot read the folder itself.
-const asList = (v) => (Array.isArray(v) ? v : String(v || '').split(',')).map((e) => String(e).trim()).filter(Boolean)
-const wellFormedAvailable = (a) =>
-  Array.isArray(a) && a.every((e) => e && typeof e.name === 'string' && typeof e.agent === 'string' && Array.isArray(e.stages))
-const describeExperts = (a) => a.map((e) => `- ${e.name}: ${e.description}`).join('\n')
-const SELECTION = {
-  type: 'object',
-  required: ['experts'],
-  properties: {
-    experts: {
-      type: 'array',
-      items: {
-        type: 'object',
-        required: ['name', 'why'],
-        properties: { name: { type: 'string' }, why: { type: 'string', description: 'One sentence tying this expert to something in the material' } },
-      },
-    },
-  },
-}
-// A model answer is merged into the current set by code: it can add a name from the list and
-// nothing else. A name that is not on the list is returned, never applied, and nothing is removed.
-const addOnly = (current, answered, available) => {
-  const known = available.map((e) => e.name)
-  const names = [...new Set((answered || []).map((x) => String((x && x.name) || '').trim()).filter(Boolean))]
-  const merged = [...new Set([...current, ...names.filter((n) => known.includes(n))])]
-  return { experts: merged, added: merged.filter((n) => !current.includes(n)), rejected: names.filter((n) => !known.includes(n)) }
-}
-const takingPart = (available, selected, stage) =>
-  selected.map((n) => available.find((e) => e.name === n)).filter((e) => e && e.stages.includes(stage))
-// --- end expert lane helpers ---
+// @shared selection
+// @shared lane-helpers
 
 // Domain experts run as extra lenses under their own agent type. Which experts exist is
 // whatever experts/experts.js found in the agents folder (args.available); which of them
@@ -110,6 +75,7 @@ if (noExperts && (planned.length > 0 || expertsOnly)) {
   return { ok: false, error: 'noExperts contradicts experts/expertsOnly: pass one or the other. Nothing was reviewed.' }
 }
 
+// @shared recheck
 const RECHECK_ANSWER = SELECTION
 // The experts of the last check stay selected while the changes are the same work in progress
 // (prepare's `keep`, and the experts a changed-only review narrows): a recheck that answers
@@ -129,19 +95,15 @@ const notInstalled = []
 if (!noExperts && available.length > 0 && args.recheck !== false) {
   phase('Recheck')
   const answer = await agent(
-    `Decide which domain experts should review this change. The diff is saved at ${args.diffFile}; read it, and read the surrounding code where a hunk is not clear on its own.
-
-Available experts (the only names you may answer with):
-${describeExperts(available)}
-
-Already selected: ${experts.length ? experts.join(', ') : 'none'}.
-
-Name every available expert that applies to this change and is not already selected, each with one sentence tying it to something in the diff. You cannot remove an expert that is already selected; do not mention those. When you are unsure whether one applies, include it: an unnecessary review costs a few minutes, a missed one costs a defect nobody looked for. If none apply, return an empty list.`,
+    recheckPrompt(args.diffFile, available, experts),
     { agentType: agentName('uw-explorer'), label: 'recheck', phase: 'Recheck', schema: RECHECK_ANSWER }
   )
   if (!answer) {
+    // Decided 2026-11-13: a recheck that answers nothing does not refuse the commit. The planned experts review, and the
+    // lane says the recheck failed, so it is named in the report and never read as "no areas touched".
     recheckFailed = true
-    log('recheck failed; continuing with the planned experts only, and the commit gate will not be satisfied')
+    recheck = true
+    log('recheck failed; continuing with the planned experts only, and the report names the failed recheck')
   } else {
     const merged = addOnly(experts, answer.experts, available)
     experts = merged.experts
@@ -176,73 +138,7 @@ const lenses = [
   ...reviewingNames,
 ]
 
-const FINDINGS = {
-  type: 'object',
-  required: ['findings', 'lensVerdict'],
-  properties: {
-    lensVerdict: {
-      type: 'string',
-      description: 'One sentence on the change through this lens, INCLUDING when nothing was found',
-    },
-    concerns: {
-      type: 'array',
-      description: 'Domain experts: a worry that is not a finding (rated below 8, or no failure path you can show). At most three. Each says why it is not a finding.',
-      items: {
-        type: 'object',
-        required: ['text', 'reason'],
-        properties: {
-          text: { type: 'string', description: 'The worry, in one sentence' },
-          reason: { type: 'string', description: 'Why it is not a finding: its confidence, or what you could not show' },
-          file: { type: 'string' },
-          line: { type: 'integer' },
-        },
-      },
-    },
-    findings: {
-      type: 'array',
-      items: {
-        type: 'object',
-        required: ['file', 'line', 'what', 'howItFails', 'confidence'],
-        properties: {
-          file: { type: 'string' },
-          line: { type: 'integer' },
-          what: { type: 'string', description: 'One sentence naming the defect' },
-          howItFails: { type: 'string', description: 'Concrete inputs or state leading to a wrong result' },
-          confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
-          wouldSettleIt: { type: 'string', description: 'What check would confirm or kill this' },
-          evidence: { type: 'array', items: { type: 'string' }, description: 'Domain experts: one step per item, each with file and line (or the plan line, or a cited URL), ending at the failure' },
-          category: { type: 'string', description: 'Domain experts: the category from your reference, or the owning expert when it is outside your domain' },
-          severity: { type: 'string', enum: ['high', 'medium', 'low'], description: 'Domain experts: by the protocol and your reference' },
-          fix: { type: 'string', description: 'Domain experts: the fix in one sentence, smaller than the problem' },
-          basis: { type: 'string', description: 'Domain experts: where this finding came from: "skill:<name>" for a skill pasted into your prompt, "reference:<category>" for your stage reference, or "general" for your own knowledge' },
-          basisQuote: { type: 'string', description: 'Domain experts, with a skill basis: the words of the skill row that made you see it, copied exactly' },
-        },
-      },
-    },
-  },
-}
-
-const VERDICTS = {
-  type: 'object',
-  required: ['verdicts'],
-  properties: {
-    verdicts: {
-      type: 'array',
-      items: {
-        type: 'object',
-        required: ['index', 'verdict', 'reason'],
-        properties: {
-          index: { type: 'integer', description: 'Index of the finding in the list you were given' },
-          verdict: { type: 'string', enum: ['confirmed', 'refuted'] },
-          reason: { type: 'string', description: 'For refuted: what you could not establish, or the guard the reviewer missed' },
-        },
-      },
-    },
-  },
-}
-
-const NO_QUOTA =
-  'You have no quota. Zero findings is a correct and common answer, and saying so plainly is more useful than padding. A reviewer who always finds something teaches the reader to skim past the one that mattered.'
+// @shared review-core
 
 phase('Lenses')
 
@@ -250,10 +146,7 @@ phase('Lenses')
 // the skills, under `_protocol`, and they are pasted into each expert's prompt. Telling an expert
 // to open a file did not get it opened, which is why skills are pasted too.
 const protocolText = args && args.skills && typeof args.skills === 'object' && typeof args.skills._protocol === 'string' ? args.skills._protocol.trim() : ''
-const readFirst = (dir, name, stage) =>
-  protocolText
-    ? `Read ${dir}/${name}/references/${stage}.md.\n\nTHE PROTOCOL every expert follows:\n${protocolText}`
-    : `Read ${dir}/protocol.md first (the rules every expert follows), then ${dir}/${name}/references/${stage}.md.`
+// @shared read-first
 
 // Skills were chosen in code from the diff by `experts.js prepare` and arrive as
 // { <expert>: { skills: [{ name, text }], dropped: [names] } }. The text goes into the expert's
@@ -268,14 +161,7 @@ const droppedFor = (name) => {
 }
 // Each finding says where it came from, so a run can show what the skills added over the model's
 // own knowledge. experts.js checks a skill basis against the skills that were loaded.
-const BASIS_RULE =
-  ' For each finding set basis: "skill:<name>" when a row of a skill below is what made you see it, and copy that row\'s words into basisQuote; "reference:<category>" when it comes from your stage reference; "general" when it comes from your own knowledge. Say "general" rather than name a skill that did not lead you to it: the quote is checked against the skill.'
-const skillBlock = (name) => {
-  const mine = skillsFor(name)
-  return mine.length === 0
-    ? `\n\nNo skill applies to this change by its files and lines. Do not open skill files.${BASIS_RULE}`
-    : `\n\nSKILLS for this change (${mine.map((x) => x.name).join(', ')}), chosen by the workflow from the diff. Read them before you look for findings. Do not open other skill files.${BASIS_RULE}\n\n${mine.map((x) => x.text.trim()).join('\n\n')}`
-}
+// (BASIS_RULE is in the shared review-core section)
 
 // A changed-only recheck (experts.js prepare --delta): an expert whose last review covers the
 // previous changes reads only what changed since, and what uses it. An expert the recheck added,

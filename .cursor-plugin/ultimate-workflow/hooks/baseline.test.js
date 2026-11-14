@@ -387,3 +387,15 @@ test('setFrontLine replaces or adds a line, keeps the line endings, and leaves a
   assert.strictEqual(verify.setFrontLine('---\r\na: 1\r\nknown_failures: 9\r\n---\r\nbody\r\n', 'known_failures', 3), '---\r\na: 1\r\nknown_failures: 3\r\n---\r\nbody\r\n');
   assert.strictEqual(verify.setFrontLine('no front matter\n', 'known_failures', 3), 'no front matter\n');
 });
+
+test('frontmatter: writeKnownFailures handles a plan with no front matter without corrupting it, and still writes the section', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'uw-kf-'));
+  const plan = path.join(dir, 'PLAN-x.md');
+  fs.writeFileSync(plan, '# PLAN x\n\nbody\n');
+  verify.writeKnownFailures(plan, ['a test']);
+  const out = fs.readFileSync(plan, 'utf8');
+  assert.ok(out.startsWith('# PLAN x\n\nbody\n'), 'the original text is untouched');
+  assert.match(out, /## Known failures[\s\S]*- a test/);
+  assert.ok(!out.startsWith('---'), 'no front matter was invented');
+  fs.rmSync(dir, { recursive: true, force: true });
+});

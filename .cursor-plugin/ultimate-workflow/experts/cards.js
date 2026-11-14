@@ -23,7 +23,7 @@
 
 const NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const ITEM = /^[-*]\s+([A-Za-z0-9][A-Za-z0-9._-]*):(?:\s+(.*))?$/;
-const FIELD = /^[ \t]+(paths|carried|experts|depends|parked|committed|status|decision):\s*(.*)$/i;
+const FIELD = /^[ \t]+(paths|carried|experts|depends|parked|committed|status|decision|accepted):\s*(.*)$/i;
 const HEADING = /^(#{1,6})\s+(.*?)\s*#*\s*$/;
 
 const lines = (text) => String(text || '').split(/\r?\n/);
@@ -33,18 +33,20 @@ const split = (value, sep) => value.split(sep).map((s) => s.trim()).filter(Boole
 // of its own and not the same as no field at all.
 const expertList = (value) => split(value.replace(/^\[|\]$/g, ''), ',');
 
-/** The first `## Cards` heading's line range: [first line after it, line after the last of its content). */
+/**
+ * The first `## Cards` heading's line range: [first line after it, line after the last of its content).
+ * The list ends at the next heading of any level, so the detail bullets of a `### Card` subsection
+ * are not cards, and a card added at the end of the range stays in the list.
+ */
 function cardsRange(all) {
   const at = all.findIndex((l) => {
     const m = HEADING.exec(l);
     return m && m[2].toLowerCase() === 'cards';
   });
   if (at === -1) return null;
-  const level = HEADING.exec(all[at])[1].length;
   let end = all.length;
   for (let i = at + 1; i < all.length; i++) {
-    const m = HEADING.exec(all[i]);
-    if (m && m[1].length <= level) {
+    if (HEADING.test(all[i])) {
       end = i;
       break;
     }
@@ -80,6 +82,8 @@ function parseCards(planText) {
       } else if (key === 'committed') cur.committed = field[2].trim();
       else if (key === 'status') cur.status = field[2].trim();
       else if (key === 'decision') cur.decision = field[2].trim();
+      // The files the user accepted for this card with --resume <card> --accept, outside every card's paths.
+      else if (key === 'accepted') cur.accepted = [...(cur.accepted || []), ...split(field[2], ',').map((p) => p.replace(/\\/g, '/'))];
       else cur.carried.push(...split(field[2], ';'));
       continue;
     }
@@ -176,7 +180,7 @@ function addCard(planText, { name, title, paths = [], carried = [], experts = nu
  * `parked` and `committed` this way, so the Cards section stays the state a resumed run reads.
  * Throws, changing nothing, when there is no such card.
  */
-const SETTABLE = ['parked', 'committed', 'carried', 'depends', 'status', 'decision'];
+const SETTABLE = ['parked', 'committed', 'carried', 'depends', 'status', 'decision', 'accepted'];
 
 /**
  * A card's `status:` line, the run's state as the plan shows it. Written by code on every transition
@@ -254,4 +258,4 @@ function outOfScope(files, paths, makeRegExp) {
   return files.map(cleanPath).filter((f) => !covers(paths, f, makeRegExp));
 }
 
-module.exports = { parseCards, findCard, cardText, headingCardText, addCard, setField, outOfScope, covers, cleanPath, checkStatus, statusKind, NAME };
+module.exports = { cardsRange, parseCards, findCard, cardText, headingCardText, addCard, setField, outOfScope, covers, cleanPath, checkStatus, statusKind, NAME };

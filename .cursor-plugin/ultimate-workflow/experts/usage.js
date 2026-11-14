@@ -59,7 +59,7 @@ function role(firstPrompt, agentType = '') {
   const expert = /You are the ([\w-]+) domain expert/.exec(t);
   if (expert) return `expert:${expert[1]}`;
   if (/Try to REFUTE/.test(t)) return 'skeptic';
-  if (/^\s*Decide which domain experts should review this change/.test(t)) return 'recheck';
+  if (/^\s*(?:Decide which domain experts should review this change|Report which domain experts' areas this change touches)/.test(t)) return 'recheck';
   if (/minimal implementation/.test(t)) return 'implementer';
   if (/Write the tests from its confirmed/.test(t)) return 'write-tests';
   if (/Diagnose it from the evidence/.test(t)) return 'diagnose';

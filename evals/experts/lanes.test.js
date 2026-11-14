@@ -227,17 +227,6 @@ test('build: the implementer is told that the plan\'s expert input is binding, a
 
 // ---- the three workflows share their helpers --------------------------------------
 
-test('the lane helpers are the same text in plan, tests and review', () => {
-  const fs = require('node:fs');
-  const block = (n) => {
-    const s = fs.readFileSync(path.join(PLUGIN, 'phases', `${n}.js`), 'utf8');
-    return s.slice(s.indexOf('// --- expert lane helpers'), s.indexOf('// --- end expert lane helpers ---'));
-  };
-  assert.ok(block('plan').length > 500);
-  assert.strictEqual(block('tests'), block('plan'));
-  assert.strictEqual(block('review'), block('plan'));
-});
-
 // ---- tests: an expert marked always joins whether or not it was selected ------------------
 
 test('tests: an expert marked always: [tests] joins without being selected, and the lane says so', async () => {

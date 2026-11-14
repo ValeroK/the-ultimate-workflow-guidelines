@@ -1,0 +1,26 @@
+{
+  "note": "phases/review.js, no findings, stubbed agent; recorded in card baseline",
+  "noExperts": {
+    "count": 5,
+    "labels": [
+      "recheck",
+      "correctness",
+      "simplicity",
+      "surgical-scope",
+      "test-coverage"
+    ]
+  },
+  "oneExpert": {
+    "count": 6,
+    "extra": [
+      "security"
+    ]
+  },
+  "twoExperts": {
+    "count": 7,
+    "extra": [
+      "security",
+      "developer"
+    ]
+  }
+}

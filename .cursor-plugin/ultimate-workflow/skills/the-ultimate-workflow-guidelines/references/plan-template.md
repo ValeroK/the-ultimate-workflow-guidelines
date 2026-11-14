@@ -6,16 +6,11 @@ test_command: ""
 test_related_command: ""
 full_suite_paths: ""
 volatile_paths: ""
-verify_rounds: 0
-last_verify: unrun
-dirty: false
-escalated: false
 ---
 
-> The block above is read by the workflow gates. Leave it in place and let the
-> gates maintain it; edit `plan_confirmed` and `tests_confirmed` only when the
-> user has actually confirmed that stage. Set `test_command` to the project's
-> real verification command -- the stop gate quotes it back when it blocks.
+> The block above is read by the commit check. Leave it in place; edit `plan_confirmed` and `tests_confirmed`
+> only when the user has actually confirmed that stage. Set `test_command` to the project's
+> real verification command -- the commit check quotes it back when it refuses.
 > `test_related_command` (optional) is the same runner narrowed to the change, with
 > `{files}` or `{tests}`: `node hooks/verify.js` then runs only the related tests
 > while you work, and the full suite once before a commit (G7), at the end of a

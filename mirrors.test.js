@@ -20,7 +20,8 @@ const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
-const { execFileSync } = require('node:child_process');
+const os = require('node:os');
+const { execFileSync, spawnSync } = require('node:child_process');
 
 const root = __dirname;
 // Shippable plugin payload. Lives under .cursor-plugin/ so Cursor's
@@ -138,25 +139,114 @@ test('every file the always-on indexes point at actually exists', () => {
   }
 });
 
-test('every memory.md entry points at a file that exists', () => {
+const MARK_START = '<!-- uw:memory-index:start';
+const MARK_END = '<!-- uw:memory-index:end -->';
+
+test('memory check passes on this repo, migrated (headers and markers present)', () => {
+  const r = spawnSync(
+    process.execPath,
+    [pjoin('experts', 'experts.js'), 'memory', 'check', '--root', PLUGIN],
+    { cwd: root, encoding: 'utf8' }
+  );
+  assert.equal(r.status, 0, `memory check failed:\n${r.stdout}\n${r.stderr}`);
+  // An un-migrated memory also exits 0, with warnings; this repo must be past that.
+  assert.doesNotMatch(r.stdout + r.stderr, /not migrated/, 'memory check still warns "not migrated"');
+});
+
+test('every topical in memory/ has a header, and memory.md lists it between the markers', () => {
   const idx = pread('memory.md');
-  const refs = [...idx.matchAll(/\]\(([^)]+\.md)\)/g)].map((m) => m[1]);
-  assert.ok(refs.length >= 4, 'memory.md should index the topicals');
-  for (const r of refs) {
-    const target = r.startsWith('research/') ? path.join(root, r) : pjoin(r);
-    assert.ok(fs.existsSync(target), `memory.md points at ${r}, which does not exist`);
+  const s = idx.indexOf(MARK_START);
+  const e = idx.indexOf(MARK_END);
+  assert.ok(s >= 0 && e > s, 'memory.md has no index markers');
+  const block = idx.slice(s, e);
+  for (const t of topicals()) {
+    const text = pread(path.join('memory', `${t}.md`)).replace(/^﻿/, '');
+    assert.match(text, /^---\r?\n[\s\S]*?\r?\n---/, `memory/${t}.md has no header`);
+    assert.ok(block.includes(`](memory/${t}.md)`), `memory.md does not list memory/${t}.md between the markers`);
   }
 });
 
-test('every memory.md entry carries a Read when cue', () => {
+test('the research entry stays outside the markers', () => {
   const idx = pread('memory.md');
-  const entries = idx.split(/\r?\n/).filter((l) => /^- \[/.test(l));
-  assert.ok(entries.length >= 4);
-  for (const e of entries) {
-    assert.match(e, /\*\*Read when\*\*/, `an index entry has no "Read when" cue, so nothing will retrieve it: ${e.slice(0, 70)}`);
+  const at = idx.indexOf('research/new-sdlc-with-vibe-coding.md');
+  assert.ok(at >= 0, 'the research entry is gone from memory.md');
+  const s = idx.indexOf(MARK_START);
+  const e = idx.indexOf(MARK_END);
+  assert.ok(s >= 0 && e > s, 'memory.md has no index markers');
+  assert.ok(at < s || at > e, 'the research entry is inside the generated block, where the next index run deletes it');
+});
+
+test('both memory-template copies show the header and the markers', () => {
+  for (const p of [
+    'skills/project-bootstrap-guidelines/references/memory-template.md',
+    'skills/the-ultimate-workflow-guidelines/references/memory-template.md',
+  ]) {
+    const t = pread(p);
+    assert.match(t, /read_when/, `${p} does not show the topical header`);
+    assert.ok(t.includes(MARK_START) && t.includes(MARK_END), `${p} does not show the index markers`);
   }
 });
 
+test('the seeded memory.md has empty markers and passes the bootstrap handoff check', () => {
+  const t = pread('skills/project-bootstrap-guidelines/references/memory-template.md');
+  const seed = /```markdown\r?\n([\s\S]*?)```/.exec(t);
+  assert.ok(seed, 'the template has no memory.md block');
+  const s = seed[1].indexOf(MARK_START);
+  const e = seed[1].indexOf(MARK_END);
+  assert.ok(s >= 0 && e > s, 'the seed memory.md has no markers');
+  const between = seed[1].slice(seed[1].indexOf('-->', s) + 3, e);
+  assert.equal(between.trim(), '', 'the seeded markers are not empty');
+
+  const { handoffComplete } = require(path.join(PAYLOAD, 'hooks', 'lib', 'state.js'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'uw-seed-'));
+  try {
+    const w = (f, c) => fs.writeFileSync(path.join(dir, f), c);
+    w('PRD.md', '---\ndesign_confirmed: true\nscaffold_verify: green\n---\n# PRD\n');
+    w('AGENTS.md', '# A\n\n## Key files\n\n## Gotchas\n');
+    w('CLAUDE.md', '@AGENTS.md\n');
+    w('ROADMAP.md', '# R\n\n## M1\n');
+    w('progress.md', '# P\n\n## 2026-01-01\n');
+    w('memory.md', seed[1]);
+    assert.equal(handoffComplete(dir), true, 'the seeded memory.md breaks the handoff predicate');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('the memory guide names the header, the markers rule, the first-harvest migration and the conflict resolution', () => {
+  const g = pread('skills/the-ultimate-workflow-guidelines/references/memory-protocol.md');
+  assert.match(g, /read_when/, 'the guide never shows the header');
+  assert.match(g, /between the markers/i, 'the guide never says not to edit between the markers');
+  assert.match(g, /migrat/i, 'the guide never says how a project is migrated');
+  assert.match(g, /first harvest/i, 'the guide never ties the migration to the first harvest');
+  assert.match(g, /conflict/i, 'the guide never gives the conflict resolution');
+  assert.match(g, /memory index/, 'the guide never names the command that resolves it');
+});
+
+test('the run guide tells plan authors to name a card\'s documents in its own section', () => {
+  const r = pread('phases/run.md');
+  assert.match(r, /documents? (?:a|the) card (?:must|needs to) read[^.]*own section|own section[^.]*documents?/i);
+});
+
+test('the bootstrap skill and its rule mirror both describe the generated index', () => {
+  for (const p of ['skills/project-bootstrap-guidelines/SKILL.md', 'rules/project-bootstrap-guidelines.mdc']) {
+    assert.ok(pread(p).includes('uw:memory-index'), `${p} does not mention the index markers`);
+  }
+  const skill = pread('skills/the-ultimate-workflow-guidelines/SKILL.md');
+  assert.match(skill, /memory index/, 'the workflow skill never says the index is generated');
+});
+
+test('plugin manifests and the CHANGELOG say 5.0.0', () => {
+  const versions = [
+    JSON.parse(pread('.claude-plugin/plugin.json')).version,
+    JSON.parse(pread('.cursor-plugin/plugin.json')).version,
+    JSON.parse(read('.claude-plugin/marketplace.json')).metadata.version,
+    JSON.parse(read('.claude-plugin/marketplace.json')).plugins[0].version,
+    JSON.parse(read('.cursor-plugin/marketplace.json')).plugins[0].version,
+  ];
+  assert.deepEqual(versions, ['5.0.0', '5.0.0', '5.0.0', '5.0.0', '5.0.0']);
+  assert.match(read('CHANGELOG.md'), /^## \[5\.0\.0\] - \d{4}-\d{2}-\d{2}$/m);
+});
 // --- the write-isolation invariant ----------------------------------------
 
 test('exactly one agent can write, and it is the implementer', () => {
@@ -705,4 +795,202 @@ test('no shipped file points at a path that exists only outside the payload', ()
     [],
     `these resolve for a contributor and are dead for an installed user:\n  ${offenders.join('\n  ')}`
   );
+});
+
+// ---- PLAN-simplify, card baseline: guards that make "done" a test, not a rule a reviewer holds ----
+
+const WALK_SKIP = new Set(['.git', 'node_modules', '.claude']);
+function allTestFiles(dir = root, out = []) {
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (e.isDirectory()) {
+      if (!WALK_SKIP.has(e.name)) allTestFiles(path.join(dir, e.name), out);
+    } else if (e.name.endsWith('.test.js')) out.push(path.relative(root, path.join(dir, e.name)).split(path.sep).join('/'));
+  }
+  return out;
+}
+/** Test files the verify command reaches: the hooks tree, the evals tree, and this file. */
+const reached = (rel) => rel === 'mirrors.test.js' || rel.startsWith('.cursor-plugin/ultimate-workflow/hooks/') || rel.startsWith('evals/');
+// A skip or todo site: an options object or a call. An evidence field named `skip` is not one.
+const SKIP_SITE = /\b(?:test|it|describe)\([^\n]*\{\s*(?:skip|todo)\s*:|\bt\.(?:skip|todo)\(|\b(?:test|it|describe)\.(?:skip|todo)\(/g;
+const ONLY_SITE = /\b(?:test|it|describe)\.only\(|\{\s*only\s*:\s*true/g;
+const TITLE_SITE = /^\s*(?:test|it)(?:\.\w+)?\(\s*(['"`])((?:\.|(?!\1).)*)\1/gm;
+const titlesOf = (text) => [...text.matchAll(TITLE_SITE)].map((m) => m[2]);
+const SELF_CHECK = "test('x', { skip: 'no bash' }, () => {});\n  t.skip('y');\ntest.skip('z');\ntest('p', { only: true }, () => {});\nconst e = { skip: 'only documentation changed' };";
+
+test('gate integrity: the skip, todo and only patterns match what they claim to and nothing else', () => {
+  assert.strictEqual((SELF_CHECK.match(SKIP_SITE) || []).length, 3);
+  assert.strictEqual((SELF_CHECK.match(ONLY_SITE) || []).length, 1);
+  assert.deepStrictEqual(titlesOf("test('a b', () => {});\n  it(\"c\", () => {});"), ['a b', 'c']);
+});
+
+test('gate integrity: every test file is reached by the verify command', () => {
+  const files = allTestFiles();
+  assert.ok(files.length > 50, `the scan found ${files.length} test files`);
+  assert.ok(files.includes('mirrors.test.js') && files.includes('evals/experts/commit-contract.test.js') && files.includes('.cursor-plugin/ultimate-workflow/hooks/lib/gates.test.js'));
+  const stray = files.filter((f) => !reached(f));
+  assert.deepStrictEqual(stray, [], `these test files are outside the verify globs and would never run: ${stray.join(', ')}`);
+});
+
+// Today's conditional skips: symlinks, bash missing, the Cursor recordings. A new one fails here.
+const SKIPS = {
+  '.cursor-plugin/ultimate-workflow/hooks/lib/adapters.test.js': 4,
+  '.cursor-plugin/ultimate-workflow/hooks/status.test.js': 1,
+  'evals/experts/autopilot-fixes.test.js': 1,
+  'evals/experts/run-phase.test.js': 2,
+};
+
+test('skips: the set of skip and todo sites in the test files equals the committed allowlist, and no test uses only', () => {
+  const found = {};
+  for (const rel of allTestFiles().filter(reached)) {
+    const text = fs.readFileSync(path.join(root, rel), 'utf8');
+    if (rel === 'mirrors.test.js') continue; // this file holds the patterns as data
+    const n = (text.match(SKIP_SITE) || []).length;
+    if (n) found[rel] = n;
+    assert.strictEqual((text.match(ONLY_SITE) || []).length, 0, `${rel} uses only`);
+  }
+  assert.deepStrictEqual(found, SKIPS);
+});
+
+test('titles: every test title recorded in card baseline still exists, except those in the deleted list', () => {
+  const recorded = JSON.parse(fs.readFileSync(path.join(root, 'evals', 'experts', 'baseline-titles.json'), 'utf8'));
+  const deleted = new Set(JSON.parse(fs.readFileSync(path.join(root, 'evals', 'experts', 'deleted-titles.json'), 'utf8')).map(([f, t]) => `${f}\u0000${t}`));
+  assert.ok(Object.keys(recorded).length > 50);
+  const lost = [];
+  for (const [rel, titles] of Object.entries(recorded)) {
+    const have = fs.existsSync(path.join(root, rel)) ? new Set(titlesOf(fs.readFileSync(path.join(root, rel), 'utf8'))) : new Set();
+    for (const title of titles) if (!have.has(title) && !deleted.has(`${rel}\u0000${title}`)) lost.push(`${rel}: ${title}`);
+  }
+  assert.deepStrictEqual(lost, [], `titles gone and not in the deleted list:\n  ${lost.join('\n  ')}`);
+});
+
+// ---- PLAN-simplify, card frontmatter: one copy of the parser, the finder and the writer ----
+
+/** Non-test JavaScript under the shipped plugin, as { rel, text }. */
+function shippedSources() {
+  const base = path.join(root, '.cursor-plugin', 'ultimate-workflow');
+  const out = [];
+  (function walk(dir) {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) {
+        if (!['fixtures', 'architecture-evals', 'node_modules'].includes(e.name)) walk(p);
+      } else if (e.name.endsWith('.js') && !e.name.endsWith('.test.js')) out.push({ rel: path.relative(base, p).split(path.sep).join('/'), text: fs.readFileSync(p, 'utf8') });
+    }
+  })(base);
+  return out;
+}
+const declaresFunction = (text, name) => new RegExp(String.raw`^\s*(?:async\s+)?function\s+${name}\b`, 'm').test(text);
+
+test('one copy: the front-matter parser, finder and in-place writer are each declared in exactly one shipped file', () => {
+  // The scan proves itself first: it sees a declaration and ignores a call and a comment.
+  assert.ok(declaresFunction('function setFrontLine(a) {}', 'setFrontLine'));
+  assert.ok(!declaresFunction('x = setFrontLine(a);\n// function setFrontLine', 'setFrontLine'));
+  const files = shippedSources();
+  for (const sentinel of ['hooks/lib/state.js', 'experts/experts.js', 'hooks/verify.js', 'experts/autopilot.js', 'phases/run.js']) assert.ok(files.some((f) => f.rel === sentinel), `${sentinel} was scanned`);
+  const where = (name) => files.filter((f) => declaresFunction(f.text, name)).map((f) => f.rel);
+  assert.deepStrictEqual(where('parseFrontMatter'), ['hooks/lib/state.js']);
+  assert.deepStrictEqual(where('splitFrontMatter'), ['hooks/lib/state.js']);
+  assert.deepStrictEqual(where('setFrontLine'), ['hooks/lib/state.js']);
+  assert.deepStrictEqual(where('frontmatter'), []);
+  assert.deepStrictEqual(where('parseAgentFile'), []);
+  const statusTest = fs.readFileSync(path.join(root, '.cursor-plugin', 'ultimate-workflow', 'hooks', 'status.test.js'), 'utf8');
+  assert.ok(!declaresFunction(statusTest, 'frontMatter'), 'hooks/status.test.js declares no frontMatter helper');
+});
+
+// ---- PLAN-simplify, card cards-reader: no second Cards-section finder ----
+
+test('one copy: no Cards-heading match outside cardsRange in experts.js, verify.js and run-rules.js', () => {
+  // The pattern: a comparison of a section name against the literal cards, in either quote style.
+  const PATTERN = /(?:===?|!==?)\s*['"]cards['"]|['"]cards['"]\s*(?:===?|!==?)|\/\^cards\$\/i/;
+  assert.ok(PATTERN.test("if (section === 'cards') {"), 'the pattern sees a section comparison');
+  assert.ok(PATTERN.test('headings.find((h) => /^cards$/i.test(h))'), 'and a heading regex');
+  assert.ok(!PATTERN.test('const cards = parseCards(text);'), 'and ignores the word as a variable');
+  const files = shippedSources();
+  for (const rel of ['experts/experts.js', 'hooks/verify.js', 'lib/run-rules.js']) assert.ok(files.some((f) => f.rel === rel), `${rel} was scanned`);
+  const offenders = files.filter((f) => ['experts/experts.js', 'hooks/verify.js', 'lib/run-rules.js'].includes(f.rel) && PATTERN.test(f.text)).map((f) => f.rel);
+  assert.deepStrictEqual(offenders, [], 'only experts/cards.js finds the Cards section');
+});
+
+// ---- PLAN-simplify, card commit-check: one function decides whether a commit is allowed ----
+
+test('one decision: commitGate is called from exactly dispatch.js, autopilot.js, status.js and experts.js, and fullSuiteGate and expertsGate from nowhere outside gates.js', () => {
+  const CALL = /\bcommitGate\s*\(/;
+  assert.ok(CALL.test('const v = gates.commitGate(ev);'), 'the pattern sees a call');
+  assert.ok(!CALL.test('// commitGate is the one decision'), 'and ignores a comment without a call');
+  const files = shippedSources();
+  for (const rel of ['hooks/lib/gates.js', 'hooks/lib/dispatch.js', 'experts/autopilot.js', 'hooks/status.js', 'experts/experts.js']) assert.ok(files.some((f) => f.rel === rel), `${rel} was scanned`);
+  const callers = files.filter((f) => f.rel !== 'hooks/lib/gates.js' && CALL.test(f.text.replace(/^\s*(\/\/|\*).*$/gm, ''))).map((f) => f.rel).sort();
+  assert.deepStrictEqual(callers, ['experts/autopilot.js', 'experts/experts.js', 'hooks/lib/dispatch.js', 'hooks/status.js']);
+  const second = files.filter((f) => f.rel !== 'hooks/lib/gates.js' && /\b(?:fullSuiteGate|expertsGate)\s*\(/.test(f.text.replace(/^\s*(\/\/|\*).*$/gm, ''))).map((f) => f.rel);
+  assert.deepStrictEqual(second, [], 'no second caller-side decision');
+  const auto = files.find((f) => f.rel === 'experts/autopilot.js').text;
+  assert.ok(!/ev\.memory\s*=/.test(auto), 'autopilot.js does not edit the memory evidence');
+});
+
+test('gates: gates.js requires nothing (it was only ./state.js, for the round cap)', () => {
+  const src = fs.readFileSync(path.join(root, '.cursor-plugin', 'ultimate-workflow', 'hooks', 'lib', 'gates.js'), 'utf8');
+  const requires = [...src.matchAll(/require\(\s*['"]([^'"]+)['"]\s*\)/g)].map((m) => m[1]);
+  assert.deepStrictEqual(requires, [], 'gates.js is pure: it requires nothing, so state.js cannot reach back into it');
+});
+
+// ---- PLAN-simplify, card reminders: the removed names are gone from everything that ships ----
+
+function shippedFiles() {
+  const base = path.join(root, '.cursor-plugin', 'ultimate-workflow');
+  const out = [];
+  (function walk(dir) {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, e.name);
+      // Recorded host payloads are data, and the eval corpus is not part of what users run.
+      if (e.isDirectory()) {
+        if (!['fixtures', 'architecture-evals', 'node_modules'].includes(e.name)) walk(p);
+      } else if (/\.(js|md|mdc|json)$/.test(e.name) && !e.name.endsWith('.test.js')) out.push({ rel: path.relative(base, p).split(path.sep).join('/'), text: fs.readFileSync(p, 'utf8') });
+    }
+  })(base);
+  for (const rel of ['docs/gates.md']) out.push({ rel, text: fs.readFileSync(path.join(root, rel), 'utf8') });
+  return out;
+}
+// A removed front-matter key as a key line, or a removed identifier. Not the bare English word "dirty" in prose.
+const REMOVED_KEY = /^[ \t]*(?:dirty|verify_rounds|last_verify|escalated|gate_violation)[ \t]*:/m;
+const REMOVED_IDENT = /\b(?:verify_rounds|last_verify|gate_violation|markClean|roundCap|stopGate|patchState|serializeFrontMatter|preEditGate|fullSuiteGate)\b|\.dirty\b/;
+const HEARTBEAT = /\bheartbeat(?:\.js|\.json)?\b/i;
+
+test('removed names: dirty, verify_rounds, last_verify, escalated, gate_violation, heartbeat, markClean, roundCap, stopGate and patchState appear in no shipped source file', () => {
+  assert.ok(REMOVED_KEY.test('---\ndirty: true\n---'), 'the pattern sees a front-matter key');
+  assert.ok(!REMOVED_KEY.test('the tree is dirty and escalated to the user'), 'and ignores the word in prose');
+  assert.ok(REMOVED_IDENT.test('const r = gates.roundCap(state);') && REMOVED_IDENT.test('state.dirty'), 'and sees an identifier');
+  const files = shippedFiles();
+  for (const sentinel of ['hooks/lib/dispatch.js', 'experts/autopilot.js', 'phases/run.js', 'commands/build.md', 'phases/plan.js', 'docs/gates.md', 'skills/the-ultimate-workflow-guidelines/references/plan-template.md', 'skills/project-bootstrap-guidelines/references/prd-template.md']) {
+    assert.ok(files.some((f) => f.rel === sentinel), `${sentinel} was scanned`);
+  }
+  const offenders = files.filter((f) => REMOVED_KEY.test(f.text) || REMOVED_IDENT.test(f.text)).map((f) => f.rel);
+  assert.deepStrictEqual(offenders, [], 'these still name a removed key or function');
+  // The heartbeat: no module, and no hook file but status.js (which says a leftover file can be deleted) mentions it.
+  const beats = files.filter((f) => f.rel.startsWith('hooks/') && f.rel !== 'hooks/status.js' && HEARTBEAT.test(f.text)).map((f) => f.rel);
+  assert.deepStrictEqual(beats, [], 'no hook code mentions the heartbeat');
+});
+
+// ---- PLAN-simplify, card shared-blocks: the moved code is declared in no phase script ----
+
+test('shared block: the code that moved to lib/phase-shared.js is declared in no phases/*.js file', () => {
+  const files = shippedSources().filter((f) => f.rel.startsWith('phases/'));
+  for (const sentinel of ['phases/plan.js', 'phases/tests.js', 'phases/review.js', 'phases/harvest.js', 'phases/build.js', 'phases/run.js']) assert.ok(files.some((f) => f.rel === sentinel), `${sentinel} was scanned`);
+  const DECL = (name) => new RegExp(String.raw`^\s*(?:async\s+)?(?:function\s+${name}\b|const\s+${name}\s*=)`, 'm');
+  assert.ok(DECL('addOnly').test('const addOnly = (a) => a') && DECL('buildLoop').test('async function buildLoop(o) {}') && !DECL('addOnly').test('x = addOnly(a)'), 'the pattern sees a declaration and not a call');
+  for (const name of ['asList', 'wellFormedAvailable', 'addOnly', 'takingPart', 'asReader', 'readFirst', 'buildLoop', 'agentName', 'ROUND_CAP']) {
+    const where = files.filter((f) => DECL(name).test(f.text)).map((f) => f.rel);
+    assert.deepStrictEqual(where, [], `${name} is declared in ${where.join(', ')}`);
+  }
+});
+
+// ---- PLAN-simplify, card one-review: the run holds no experts check, review schema or lens list of its own ----
+
+test('one review: phases/run.js declares no experts check, no findings or verdict schema and no lens list of its own', () => {
+  const files = shippedSources().filter((f) => f.rel.startsWith('phases/'));
+  const run = files.find((f) => f.rel === 'phases/run.js');
+  assert.ok(run, 'run.js was scanned');
+  for (const name of ['expertsCheck', 'FINDINGS', 'VERDICTS', 'NO_QUOTA', 'BASIS_RULE', 'SELECTION', 'REVIEW_LENSES_LIST']) {
+    assert.ok(!new RegExp(String.raw`^\s*(?:async\s+)?(?:function\s+${name}\b|const\s+${name}\s*=)`, 'm').test(run.text), `${name} is declared in run.js`);
+  }
+  assert.ok(/^\/\/ @shared cards-experts-check/m.test(run.text) && /^\/\/ @shared review-core/m.test(run.text));
 });

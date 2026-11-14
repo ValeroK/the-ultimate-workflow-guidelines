@@ -19,7 +19,7 @@
 //   node experts.js list                                    available experts, as JSON
 //   node experts.js brief   [--plan P]                      the standing brief of every expert that declares the build stage,
 //                                                           with the skills each one selects for the plan
-//   node experts.js card-add --plan P --name N --title T --paths G[,G] [--carried X[;X]]   add a card to the plan's Cards section
+//   node experts.js card-add --plan P --name N --title T --paths G[,G] [--carried X[;X] | --carried-file F] [--title-file F] [--paths-file F] [--free-name]   add a card to the plan's Cards section (--free-name: the next free N, N-2, ...)
 //   node experts.js brief   --plan P --card N               the briefs for one card of the plan (its Cards entry, or a "Card N" heading)
 //   node experts.js scope   --plan P --card N [--result R]  the changed files outside the card's paths, from git
 //   node experts.js skills  --stage plan                    the skills each planning expert may be given, for the plan workflow to offer
@@ -50,6 +50,8 @@ const { spawnSync } = require('node:child_process');
 
 const gates = require('../hooks/lib/gates.js');
 const stateLib = require('../hooks/lib/state.js');
+const { setFrontLine } = stateLib;
+const runRules = require('../lib/run-rules.js');
 
 const PLUGIN_ROOT = path.join(__dirname, '..');
 const STAGES = ['plan', 'tests', 'review'];
@@ -67,17 +69,6 @@ const EVIDENCE = path.join('.ultimate-workflow', 'experts');
 const AGENT_FILE = /^uw-expert-([a-z][a-z0-9-]*)\.md$/;
 
 // ---- discovery ----
-
-function parseAgentFile(text) {
-  const m = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text.charCodeAt(0) === 0xfeff ? text.slice(1) : text);
-  const out = {};
-  if (!m) return out;
-  for (const line of m[1].split(/\r?\n/)) {
-    const i = line.indexOf(':');
-    if (i > 0) out[line.slice(0, i).trim()] = line.slice(i + 1).trim();
-  }
-  return out;
-}
 
 function inlineList(value) {
   return [...new Set(String(value).replace(/^\[/, '').replace(/\]$/, '').split(',').map((s) => s.trim().replace(/^['"]|['"]$/g, '')).filter(Boolean))];
@@ -98,7 +89,7 @@ function list(pluginRoot = PLUGIN_ROOT) {
   }
   for (const f of files) {
     const name = AGENT_FILE.exec(f)[1];
-    const fm = parseAgentFile(fs.readFileSync(path.join(dir, f), 'utf8'));
+    const fm = stateLib.parseFrontMatter(fs.readFileSync(path.join(dir, f), 'utf8'), { raw: true }).data;
     const stages = fm.stages === undefined ? ['review'] : inlineList(fm.stages);
     const always = fm.always === undefined ? [] : inlineList(fm.always);
     const whenSkills = fm['review-when-skills'] === undefined ? [] : inlineList(fm['review-when-skills']);
@@ -436,21 +427,10 @@ function mergeAdd(current, additions, availableNames) {
 
 // ---- the plan's `experts:` line ----
 
-function frontmatter(text) {
-  const bom = text.charCodeAt(0) === 0xfeff ? '﻿' : '';
-  const body = text.slice(bom.length);
-  const open = /^---[ \t]*\r?\n/.exec(body);
-  if (!open) return null;
-  const rest = body.slice(open[0].length);
-  const close = /^---[ \t]*(\r?\n|$)/m.exec(rest);
-  if (!close) return null;
-  return { bom, open: open[0], block: rest.slice(0, close.index), after: rest.slice(close.index), eol: open[0].endsWith('\r\n') ? '\r\n' : '\n' };
-}
-
 const EXPERTS_LINE = /^experts[ \t]*:[ \t]*(.*?)[ \t]*$/m;
 
 function readExperts(text) {
-  const fm = frontmatter(text);
+  const fm = stateLib.splitFrontMatter(text);
   if (!fm) return { present: false, experts: [] };
   const m = EXPERTS_LINE.exec(fm.block);
   if (!m) return { present: false, experts: [] };
@@ -461,7 +441,7 @@ function readExperts(text) {
 
 /** Replace or insert the line. Callers merge first; this only writes. */
 function setExperts(text, names) {
-  const fm = frontmatter(text);
+  const fm = stateLib.splitFrontMatter(text);
   if (!fm) throw new Error('the plan file has no frontmatter block (--- ... ---) to record experts in');
   const line = `experts: [${names.join(', ')}]`;
   if (EXPERTS_LINE.test(fm.block)) return fm.bom + fm.open + fm.block.replace(EXPERTS_LINE, line) + fm.after;
@@ -490,27 +470,34 @@ function looksEscaped(text) {
  * run adds itself (findings, fixup) and the `## Run status` block. A change to anything else after
  * the test plan was confirmed is a plan the user has not seen (2026-11-09).
  */
-const RUN_FIELD = /^[ \t]+(status|committed|parked|carried|decision):/i;
+const RUN_FIELD = /^[ \t]+(status|committed|parked|carried|decision|accepted):/i;
 function confirmHash(text) {
-  const fm = frontmatter(text);
+  const fm = stateLib.splitFrontMatter(text);
   const body = (fm ? fm.after : String(text)).replace(/^﻿/, '');
   const lines = body.split(/\r?\n/);
   const kept = [];
   let section = '';
+  // The one Cards-section finder (experts/cards.js): the first heading named Cards, to the next heading.
+  const cardsAt = require('./cards.js').cardsRange(lines);
   let dropCard = false;
   let inRunStatus = false;
-  for (const l of lines) {
+  // The `## Known failures` section a baseline accept writes after the confirmation is left out (to the next heading of level 1 or 2).
+  let inKnown = false;
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
     const h = /^(#{1,6})\s+(.*?)\s*#*\s*$/.exec(l);
     if (h) {
       section = h[2].toLowerCase();
       inRunStatus = h[1].length <= 2 && section === 'run status';
+      if (h[1].length <= 2) inKnown = section === 'known failures';
+      if (inKnown) continue;
       dropCard = false;
       if (inRunStatus) continue;
     }
-    if (inRunStatus) continue;
-    if (section === 'cards') {
+    if (inRunStatus || inKnown) continue;
+    if (cardsAt && i >= cardsAt.start && i < cardsAt.end) {
       const item = /^[-*]\s+([A-Za-z0-9][A-Za-z0-9._-]*):/.exec(l);
-      if (item) dropCard = /^(findings|fixup)$/i.test(item[1]);
+      if (item) dropCard = runRules.RUN_ADDED.test(item[1]);
       else if (l.trim() !== '' && !/^[ \t]/.test(l)) dropCard = false;
       if (dropCard) continue;
       if (RUN_FIELD.test(l)) continue;
@@ -522,39 +509,74 @@ function confirmHash(text) {
   return require('node:crypto').createHash('sha256').update(norm).digest('hex').slice(0, 16);
 }
 
-/** Set (or add) one front matter line, keeping the file's line endings. */
-function setFrontLine(text, key, value) {
-  const fm = frontmatter(text);
-  if (!fm) throw new Error('the document has no front matter');
-  const line = new RegExp(`^${key}[ \\t]*:.*$`, 'm');
-  const eol = fm.block.includes('\r\n') ? '\r\n' : '\n';
-  const block = line.test(fm.block) ? fm.block.replace(line, `${key}: ${value}`) : `${fm.block.replace(/(\r?\n)?$/, '')}${eol}${key}: ${value}${/\r?\n$/.test(fm.block) ? eol : ''}`;
-  return fm.bom + fm.open + block + fm.after;
+/**
+ * The plan settings the commit check reads and the confirmed hash leaves out (front matter). Changing one
+ * after the confirmation does not refuse a commit; the check names it, so a weakened check is visible.
+ * `experts` is named only when a confirmed expert was taken away (the review may add to the line).
+ */
+const SETTING_KEYS = ['test_command', 'volatile_paths', 'known_failures', 'full_suite_paths'];
+const sha8 = (value) => crypto.createHash('sha256').update(String(value === undefined || value === null ? '' : value).trim()).digest('hex').slice(0, 8);
+
+/** The settings as they stand now, in the form `confirmed_settings:` records them. */
+function settingsNow(text) {
+  const data = stateLib.parseFrontMatter(text).data || {};
+  const out = {};
+  for (const k of SETTING_KEYS) out[k] = sha8(data[k]);
+  const parsed = readExperts(text);
+  out.experts = (parsed.error ? [] : parsed.experts).slice().sort().join(',');
+  return out;
+}
+
+/** Which recorded settings differ from now. A plan with no record (confirmed before this) names none. */
+function settingsChanged(text) {
+  const data = stateLib.parseFrontMatter(text).data || {};
+  let was;
+  try {
+    was = JSON.parse(String(data.confirmed_settings || ''));
+  } catch {
+    return [];
+  }
+  if (!was || typeof was !== 'object') return [];
+  const now = settingsNow(text);
+  const changed = SETTING_KEYS.filter((k) => k in was && was[k] !== now[k]);
+  const before = String(was.experts || '').split(',').filter(Boolean);
+  const after = now.experts.split(',').filter(Boolean);
+  if (before.some((n) => !after.includes(n))) changed.push('experts');
+  return changed;
 }
 
 /**
- * Whether the run may start from this plan: both confirmations, and the plan unchanged since the
- * test plan was confirmed (its `confirmed_hash`). The reason names what the user has to do.
+ * Whether the plan is confirmed: both confirmations, and the plan unchanged since the test plan was
+ * confirmed (its `confirmed_hash`). The reason names what the user has to do. The run asks strictly: no hash, or a
+ * hash that no longer matches, is refused. At a commit (`{ atCommit: true }`, owner decision 2026-11-13) a missing hash
+ * is still refused (it proves the plan went through the confirm step, not a hand-typed flag), but a hash that no longer
+ * matches is allowed, with `changedSince: true` so the commit check can remind: re-confirm when convenient.
  */
-function checkConfirmed(text) {
+function checkConfirmed(text, { atCommit = false } = {}) {
   const data = stateLib.parseFrontMatter(text).data || {};
   if (data.plan_confirmed !== true) return { ok: false, missing: 'plan', reason: 'the plan is not confirmed (plan_confirmed is not true): the user confirms the plan first' };
   if (data.tests_confirmed !== true) return { ok: false, missing: 'tests', reason: 'the test plan is not confirmed (tests_confirmed is not true): the user confirms the Tests section next' };
   const want = String(data.confirmed_hash || '').trim();
-  if (!want) return { ok: false, missing: 'hash', reason: 'the plan has no confirmed_hash: it was confirmed by hand, not through experts.js present --confirm tests_confirmed, so nothing shows it is the plan the user saw. Show the user the plan and confirm it again' };
   const have = confirmHash(text);
+  if (!want) {
+    if (atCommit) return { ok: false, missing: 'hash', reason: 'the plan has no confirmed_hash, so nothing shows it went through the confirm step: confirm the plan and tests with the confirm step (present --confirm), then commit' };
+    return { ok: false, missing: 'hash', reason: 'the plan has no confirmed_hash: it was confirmed by hand, not through experts.js present --confirm tests_confirmed, so nothing shows it is the plan the user saw. Show the user the plan and confirm it again' };
+  }
+  if (have !== want && atCommit) return { ok: true, hash: have, changedSince: true, settingsChanged: settingsChanged(text) };
   if (have !== want) return { ok: false, missing: 'unchanged', reason: `the plan changed after the user confirmed it (confirmed_hash ${want}, now ${have}): show the user what changed and confirm again` };
-  return { ok: true, hash: have };
+  return { ok: true, hash: have, settingsChanged: settingsChanged(text) };
 }
 
 /** Turn the plan's `plan_confirmed: false` into true. Throws when the front matter has no such key. */
 function setConfirmed(text, key) {
-  const fm = frontmatter(text);
+  const fm = stateLib.splitFrontMatter(text);
   const line = new RegExp(`^${key}[ \\t]*:[ \\t]*(true|false)[ \\t]*$`, 'm');
   if (!fm || !line.test(fm.block)) throw new Error(`the document has no \`${key}:\` line in its front matter to confirm`);
   const next = fm.bom + fm.open + fm.block.replace(line, `${key}: true`) + fm.after;
   // The test plan is the second and last confirmation: what the user saw then is what the run builds.
-  return key === 'tests_confirmed' ? setFrontLine(next, 'confirmed_hash', confirmHash(next)) : next;
+  // The settings the hash leaves out are recorded with it, so a later change to one is shown.
+  if (key !== 'tests_confirmed') return next;
+  return setFrontLine(setFrontLine(next, 'confirmed_hash', confirmHash(next)), 'confirmed_settings', JSON.stringify(settingsNow(next)));
 }
 
 /**
@@ -607,7 +629,21 @@ function present(opts) {
   fs.mkdirSync(path.dirname(at(outFile)), { recursive: true });
   fs.writeFileSync(at(outFile), text);
   const headings = text.split(/\r?\n/).filter((l) => /^#{1,6}\s/.test(l));
-  return { out: outFile, chars: text.length, bytes: Buffer.byteLength(text), lastHeading: headings.length ? headings[headings.length - 1] : '', confirmed: Boolean(confirm), appended: Boolean(append) };
+  // Confirming the test plan shows, now, the warning the run would show for a card whose pack is over its budget (fault 22).
+  let packWarnings = [];
+  if (confirm === 'tests_confirmed') {
+    try {
+      const auto = require('./autopilot.js');
+      const planRel = path.relative(cwd, at(outFile)).split(path.sep).join('/');
+      for (const c of require('./cards.js').parseCards(text)) {
+        const r = auto.pack(cwd, { plan: planRel, card: c.name, feature: 'plan-check', dry: true });
+        if (r.overBudget) packWarnings.push(`card ${c.name}: its context pack is about ${r.tokens} tokens against a budget of ${r.budget}; the run goes on with a warning (raise pack_budget in the plan, or split the card)`);
+      }
+    } catch {
+      packWarnings = [];
+    }
+  }
+  return { out: outFile, chars: text.length, bytes: Buffer.byteLength(text), lastHeading: headings.length ? headings[headings.length - 1] : '', confirmed: Boolean(confirm), appended: Boolean(append), ...(packWarnings.length ? { packWarnings } : {}) };
 }
 
 /** Add to a plan's experts. Returns what changed; a human's entries are always kept. */
@@ -634,8 +670,10 @@ function selectIntoPlan(planFile, additions, availableNames) {
  * Several cards give the union of their fields. Anything else -- a file no card covers, a card with no
  * field, a field that is not a subset, no Cards section, no changes -- is the plan's line, unchanged,
  * and `reason` says why. `files` can be passed by a caller that already has the working changes.
+ * `options.card` names the card being committed (only `card-commit` does): when every changed file is
+ * that card's own, G6 asks for its field alone (see lib/run-rules.js narrowedExperts); otherwise the above.
  */
-function effectiveExperts(cwd, planFile, pluginRoot = PLUGIN_ROOT, files = null) {
+function effectiveExperts(cwd, planFile, pluginRoot = PLUGIN_ROOT, files = null, options = {}) {
   const cardsLib = require('./cards.js');
   const planText = fs.readFileSync(planFile, 'utf8');
   const parsed = readExperts(planText);
@@ -650,6 +688,18 @@ function effectiveExperts(cwd, planFile, pluginRoot = PLUGIN_ROOT, files = null)
   const changed = (files || workingChanges(cwd).files)
     .map(fwd)
     .filter((f) => f !== planRel && !f.startsWith('.ultimate-workflow/') && !gates.isTestPath(f));
+  const installed = new Set(list(pluginRoot).experts.map((e) => e.name));
+  if (options.card) {
+    const narrowed = runRules.narrowedExperts({
+      cards: cardList,
+      name: options.card,
+      changed,
+      accepted: (cardList.find((c) => c.name.toLowerCase() === String(options.card).trim().toLowerCase()) || {}).accepted || [],
+      covers: (paths, f) => cardsLib.covers(paths, f, globToRegExp),
+      valid: (n) => installed.has(n) && planExperts.includes(n),
+    });
+    if (narrowed) return { experts: planExperts.filter((n) => narrowed.experts.includes(n)), source: 'card', cards: narrowed.cards, planExperts };
+  }
   if (changed.length === 0) return plan('nothing changed beyond the plan, the tests and the tool files');
 
   const used = [];
@@ -658,7 +708,6 @@ function effectiveExperts(cwd, planFile, pluginRoot = PLUGIN_ROOT, files = null)
     if (covering.length === 0) return plan(`no card covers ${f}`);
     for (const c of covering) if (!used.includes(c)) used.push(c);
   }
-  const installed = new Set(list(pluginRoot).experts.map((e) => e.name));
   const union = new Set();
   for (const c of used) {
     if (c.experts === undefined) return plan(`card ${c.name} has no experts field`);
@@ -702,10 +751,11 @@ function hasHead(cwd) {
  * test-timing file or a live database. Left out of the changes, so they move no fingerprint (G6,
  * G7), reach no expert and pick no test. Comma-separated globs, `**` across folders.
  */
-function volatileExcludes(cwd) {
+function volatileExcludes(cwd, planFile = '') {
   let value = '';
   try {
-    value = stateLib.readState(cwd).data.volatile_paths || '';
+    // The plan the caller was given, not whichever plan the pointer names: the evidence and the decision must judge one plan.
+    value = (planFile ? stateLib.parseFrontMatter(fs.readFileSync(path.resolve(cwd, planFile), 'utf8')).data : stateLib.readState(cwd).data).volatile_paths || '';
   } catch {}
   return String(value)
     .split(',')
@@ -728,14 +778,14 @@ function volatileExcludes(cwd) {
  * in progress, unresolved conflicts, or tracked edits not yet staged. Callers then use the whole
  * diff against HEAD, so every doubt resolves to reviewing more.
  */
-function mergeInfo(cwd) {
+function mergeInfo(cwd, planFile = '') {
   try {
     git(cwd, ['rev-parse', '-q', '--verify', 'MERGE_HEAD']);
   } catch {
     return null;
   }
   try {
-    const ex = [...BASE_EXCLUDES, ...volatileExcludes(cwd)];
+    const ex = [...BASE_EXCLUDES, ...volatileExcludes(cwd, planFile)];
     if (git(cwd, ['diff', '--name-only', '--diff-filter=U']).trim()) return null;
     const unstaged = spawnSync('git', ['diff', '--quiet', '--', '.', ...ex], { cwd });
     if (unstaged.status !== 0) return null;
@@ -754,13 +804,13 @@ function mergeInfo(cwd) {
   }
 }
 
-function workingChanges(cwd) {
-  const merge = mergeInfo(cwd);
+function workingChanges(cwd, planFile = '') {
+  const merge = mergeInfo(cwd, planFile);
   if (merge) return { diff: merge.diff, files: merge.files, untracked: [], merge: { tree: merge.tree, headTree: merge.headTree, vsHead: merge.vsHead } };
   // Before the first commit there is no HEAD to diff against, and the empty tree is not an
   // object a fresh repository has. What would be committed is the index, so use that.
   const heads = hasHead(cwd);
-  const EXCLUDES = [...BASE_EXCLUDES, ...volatileExcludes(cwd)];
+  const EXCLUDES = [...BASE_EXCLUDES, ...volatileExcludes(cwd, planFile)];
   const tracked = heads
     ? git(cwd, ['diff', ...DIFF_FORMAT, '--binary', 'HEAD', '--', '.', ...EXCLUDES])
     : git(cwd, ['diff', ...DIFF_FORMAT, '--cached', '--binary', '--', '.', ...EXCLUDES]) + git(cwd, ['diff', ...DIFF_FORMAT, '--binary', '--', '.', ...EXCLUDES]);
@@ -785,15 +835,15 @@ function workingChanges(cwd) {
 }
 
 const sha = (text) => crypto.createHash('sha256').update(text).digest('hex');
-const fingerprint = (cwd) => sha(workingChanges(cwd).diff);
+const fingerprint = (cwd, planFile = '') => sha(workingChanges(cwd, planFile).diff);
 /**
  * What a full test run is recorded against. A merge is the tree that will be committed (its
  * combined diff can be empty while the tree still has never been tested); anything else is the
  * fingerprint of the changes.
  */
-const testFingerprint = (cwd) => {
-  const m = mergeInfo(cwd);
-  return m ? `merge:${m.tree}` : fingerprint(cwd);
+const testFingerprint = (cwd, planFile = '') => {
+  const m = mergeInfo(cwd, planFile);
+  return m ? `merge:${m.tree}` : fingerprint(cwd, planFile);
 };
 
 // ---- the changed-only recheck (decided 2026-10-29) ----
@@ -929,6 +979,7 @@ function computeDelta(cwd, changes) {
   if (changes.merge) return { refused: 'a merge reviews everything it adds, not a changed-only part of it' };
   const recheck = readJson(evidenceFile(cwd, 'review', '_recheck'));
   if (!recheck || !recheck.hash) return { refused: 'no earlier experts check to compare against' };
+  if (recheck.recheckFailed) return { refused: 'the last experts check had no answer from its recheck, so it is not a base to narrow from' };
   const base = recheck.hash;
   if (base === sha(changes.diff)) return { refused: 'nothing changed since the last experts check' };
   const experts = recheck.final || [];
@@ -1070,7 +1121,8 @@ function prepare(cwd, range = 'working', pluginRoot = PLUGIN_ROOT, { delta = fal
   }
   // The shared rules ride with the skills, because the workflow cannot read files (see protocolText).
   return {
-    hash, range, diffFile, files: changes.files, available, skills: { ...skills, _protocol: protocolText(pluginRoot) },
+    // The files of the diff that was saved: for a range, the range's files, not whatever the working tree holds (fault 20).
+    hash, range, diffFile, files: range === 'working' ? changes.files : change.files, available, skills: { ...skills, _protocol: protocolText(pluginRoot) },
     ...(skillProblems.length > 0 ? { skillProblems } : {}),
     ...(d && d.delta ? { delta: d.delta, deltaFile: d.deltaFile } : {}),
     ...(d && d.refused ? { deltaRefused: d.refused } : {}),
@@ -1205,7 +1257,7 @@ function record(cwd, stage, result, { planFile = '', pluginRoot = PLUGIN_ROOT } 
     });
   }
   if (stage === 'review' && lane.recheck === true) {
-    writeJson(evidenceFile(cwd, 'review', '_recheck'), { hash, final: lane.selected || [], added: lane.added || [], at });
+    writeJson(evidenceFile(cwd, 'review', '_recheck'), { hash, final: lane.selected || [], added: lane.added || [], at, ...(lane.recheckFailed === true ? { recheckFailed: true } : {}) });
   }
   const all = found.concat(...Object.values(carried));
   const open = all.filter((f) => blocking(f) && !readWaivers(cwd)[f.id]);
@@ -1214,14 +1266,134 @@ function record(cwd, stage, result, { planFile = '', pluginRoot = PLUGIN_ROOT } 
   return { stage, recorded: lane.ran || [], failed: lane.failed || [], hash, plan, findings: found.length, open, ...(stage === 'review' ? { concerns: concerns.length, ...(concerns.length > 0 ? { concernList: concerns } : {}) } : {}), ...(basisProblems.length > 0 ? { basisProblems } : {}) };
 }
 
-/** What the commit gate needs to decide, gathered once. Fails open to a skip. */
-function commitEvidence(cwd, planFile, pluginRoot = PLUGIN_ROOT) {
+/**
+ * The memory check of a commit (lib/memory.js): { added, existing } of the memory in the plan's
+ * memory_root, when the commit touches a file of it; undefined otherwise. { error } when the memory could not
+ * be read, which the commit decision lists as missing.
+ */
+function memoryEvidence(cwd, planFile, files) {
+  try {
+    const memory = require('../lib/memory.js');
+    const rootDir = path.resolve(cwd, planFile ? memory.rootOfPlan(fs.readFileSync(path.resolve(cwd, planFile), 'utf8')) : '');
+    const prefix = path.relative(cwd, rootDir).split(path.sep).filter(Boolean).map((d) => `${d}/`).join('');
+    if (!fs.existsSync(rootDir) || !files.some((f) => f.startsWith(prefix) && memory.inScope(f.slice(prefix.length)))) return undefined;
+    const lines = (args) => git(rootDir, args).split(/\r?\n/).filter(Boolean);
+    // `all` and `at` (every tracked path from the repository top, and where the root sits in it) let a link that leaves the root be looked up at HEAD.
+    const atHead = hasHead(cwd) ? { names: lines(['ls-tree', '-r', '--name-only', 'HEAD']), all: lines(['ls-tree', '-r', '--name-only', '--full-tree', 'HEAD']), at: lines(['rev-parse', '--show-prefix'])[0] || '', show: (f) => git(rootDir, ['show', `HEAD:./${f}`]) } : null;
+    return memory.commitProblems(rootDir, atHead);
+  } catch (err) {
+    // The memory could not be read at all (a malformed index, say): that is reported, not allowed silently.
+    return { added: [], existing: [], error: String((err && err.message) || err).split(/\r?\n/)[0] };
+  }
+}
+
+// ---- the last full test run (G7) ----
+
+/** How the commit check names the runner: forward slashes work for node on every OS. */
+const verifyScript = (pluginRoot = PLUGIN_ROOT) => `node "${path.join(pluginRoot, 'hooks', 'verify.js').split(path.sep).join('/')}"`;
+
+const RECORD_FILE = path.join('.ultimate-workflow', 'verify.json');
+/**
+ * The last full run's record. A file that is absent is null (never run). A file that exists and cannot be
+ * read as a record (half-written, a directory) is null with a `problem`, so the check says why instead of
+ * pretending no run happened.
+ */
+function readFullRecord(cwd) {
+  const file = path.join(cwd, RECORD_FILE);
+  if (!fs.existsSync(file)) return { record: null };
+  try {
+    const record = JSON.parse(fs.readFileSync(file, 'utf8'));
+    if (!record || typeof record !== 'object') return { record: null, problem: 'verify.json does not hold a record' };
+    return { record };
+  } catch (err) {
+    return { record: null, problem: `verify.json could not be read (${err.code || err.message})` };
+  }
+}
+
+/**
+ * What the full-suite check needs: the fingerprint of the changes and the last full run's record, or
+ * the reason none applies. Computed here once; hooks/verify.js `fullEvidence` and the status report
+ * call it too, so "fresh, stale, never, failed" has one source. A merge is judged on the tree it will
+ * commit, not on its combined diff (which is empty for a clean merge whose tree was never tested).
+ * `planFile` makes the fingerprint use that plan's volatile_paths, not the pointed plan's.
+ */
+function testsEvidence(cwd, changes = workingChanges(cwd), planFile = '') {
+  const { ALWAYS_FULL } = require('../hooks/lib/selection.js');
+  const onlyDocs = (files) => files.every((f) => gates.isDocPath(f) && !ALWAYS_FULL.some((re) => re.test(f)));
+  const withRecord = () => {
+    const { record, problem } = readFullRecord(cwd);
+    return { hash: testFingerprint(cwd, planFile), record, ...(problem ? { problem } : {}) };
+  };
+  if (changes.merge) {
+    const m = changes.merge;
+    if (m.tree === m.headTree || m.vsHead.length === 0) return { skip: 'a merge that changes nothing in the tree' };
+    if (onlyDocs(m.vsHead)) return { skip: 'only documentation changed' };
+    return withRecord();
+  }
+  if (changes.files.length === 0) return { skip: 'nothing to commit' };
+  // `requirements.txt` ends in a documentation extension and still changes what the tests run against.
+  if (onlyDocs(changes.files)) return { skip: 'only documentation changed' };
+  return withRecord();
+}
+
+/** The tests part of the commit evidence: feature work with a test_command in the plan it was given. */
+function testsPart(cwd, planFile, changes, options) {
+  if (options.stage !== 'feature' || !planFile) return undefined;
+  let command;
+  try {
+    command = stateLib.parseFrontMatter(fs.readFileSync(path.resolve(cwd, planFile), 'utf8')).data.test_command;
+  } catch (err) {
+    // The plan cannot be read, so the test command is unknown. The confirmation item says so too.
+    return { command: '', script: options.script || '', unreadable: `the plan could not be read (${err.code || err.message})` };
+  }
+  // No command to run the full suite with: a commit that needs a full run is refused (owner decision, 2026-11-13); one that
+  // needs none (documentation only, nothing to commit) still comes back with its skip.
+  if (!command) return { command: '', noCommand: true, script: options.script || '', ...testsEvidence(cwd, changes, planFile) };
+  return { command: String(command), script: options.script || '', ...testsEvidence(cwd, changes, planFile) };
+}
+
+/** The confirmation part: the plan is confirmed and unchanged since (feature work, the plan it was given). */
+function confirmationPart(cwd, planFile, options) {
+  if (options.stage !== 'feature' || !planFile) return undefined;
+  try {
+    const c = checkConfirmed(fs.readFileSync(path.resolve(cwd, planFile), 'utf8'), { atCommit: true });
+    return c.ok ? { ok: true, settingsChanged: c.settingsChanged || [], ...(c.changedSince ? { changedSince: true } : {}) } : { ok: false, missing: c.missing, reason: c.reason };
+  } catch (err) {
+    return { error: `the plan could not be read (${err.code || err.message})` };
+  }
+}
+
+/**
+ * What the commit decision needs, gathered once. `options`: { card } (the run's card, which narrows the
+ * experts), { stage: 'feature', script } (adds the confirmation and full-suite parts; the hook, card-commit,
+ * status and `check` pass it), { staleIndexOk } (a stale memory index is regenerated by the caller).
+ *
+ * Each guarantee is read on its own, so one failure cannot switch the others off: a guarantee whose
+ * evidence cannot be read comes back with an error of its own, and the decision lists it as missing. Only
+ * a failure to look at the working tree at all (a git error) is `couldNotCheck`.
+ */
+function commitEvidence(cwd, planFile, pluginRoot = PLUGIN_ROOT, options = {}) {
+  let changes;
+  try {
+    changes = workingChanges(cwd, planFile);
+  } catch (err) {
+    return { couldNotCheck: `the working tree could not be inspected (${err.message})` };
+  }
   try {
     const available = list(pluginRoot).experts.map((e) => e.name);
-    if (available.length === 0) return { skip: 'no experts are installed' };
-    const changes = workingChanges(cwd);
-    if (changes.files.length === 0) return { skip: changes.merge ? 'a merge that adds nothing beyond its parents' : 'nothing to commit' };
-    if (changes.files.every((f) => gates.isDocPath(f))) return { skip: 'only documentation changed' };
+    // The memory check runs before the skips below: a commit of memory files alone is documentation only.
+    let memory = memoryEvidence(cwd, planFile, changes.files);
+    let staleIndex = false;
+    if (memory && options.staleIndexOk && !memory.error && memory.added.some((p) => p.kind === 'index')) {
+      staleIndex = true;
+      memory = { ...memory, added: memory.added.filter((p) => p.kind !== 'index') };
+    }
+    const tests = testsPart(cwd, planFile, changes, options);
+    const confirmation = confirmationPart(cwd, planFile, options);
+    const wrap = (ev) => ({ ...ev, ...(memory ? { memory } : {}), ...(tests ? { tests } : {}), ...(confirmation ? { confirmation } : {}), ...(staleIndex ? { staleIndex } : {}) });
+    if (available.length === 0) return wrap({ skip: 'no experts are installed' });
+    if (changes.files.length === 0) return wrap({ skip: changes.merge ? 'a merge that adds nothing beyond its parents' : 'nothing to commit' });
+    if (changes.files.every((f) => gates.isDocPath(f))) return wrap({ skip: 'only documentation changed' });
 
     const recheck = readJson(evidenceFile(cwd, 'review', '_recheck'));
     const records = {};
@@ -1231,22 +1403,65 @@ function commitEvidence(cwd, planFile, pluginRoot = PLUGIN_ROOT) {
     }
     let planExperts = [];
     let cards = [];
+    let expertsError;
+    const hash = sha(changes.diff);
     if (planFile) {
       try {
-        const eff = effectiveExperts(cwd, planFile, pluginRoot, changes.files);
+        const eff = effectiveExperts(cwd, planFile, pluginRoot, changes.files, options);
         planExperts = eff.experts;
         cards = eff.cards;
-      } catch {}
+        // The experts the recheck added for these very changes are required of a narrowed card too.
+        if (eff.source === 'card' && recheck && recheck.hash === hash) planExperts = [...new Set([...planExperts, ...(recheck.added || [])])];
+      } catch (err) {
+        expertsError = `could not work out which experts apply (${err.code || err.message})`;
+      }
     }
-    const hash = sha(changes.diff);
     const open = allFindings(cwd, hash, available).filter((f) => f.current && blocking(f) && !f.waived);
-    return { hash, recheck: recheck ? { hash: recheck.hash, final: recheck.final || [] } : null, records, planExperts, cards, available, open };
-  } catch {
-    return { skip: 'the working tree could not be inspected' };
+    return wrap({ hash, recheck: recheck ? { hash: recheck.hash, final: recheck.final || [] } : null, records, planExperts, cards, available, open, ...(expertsError ? { expertsError } : {}) });
+  } catch (err) {
+    return { couldNotCheck: `the commit evidence could not be gathered (${err.message})` };
   }
 }
 
 // ---- phase scripts with their arguments built in ----
+
+/**
+ * The shared sections of the phase scripts: lib/phase-shared.js holds them between `// @@section <name>` and
+ * `// @@end <name>` lines. Read from the plugin only, never from the project.
+ */
+function sharedSections(pluginRoot) {
+  const text = fs.readFileSync(path.join(pluginRoot, 'lib', 'phase-shared.js'), 'utf8');
+  const out = {};
+  let key = null;
+  let body = [];
+  for (const line of text.split(/\r?\n/)) {
+    const open = /^\/\/ @@section ([a-z-]+)\s*$/.exec(line);
+    const close = /^\/\/ @@end ([a-z-]+)\s*$/.exec(line);
+    if (open) {
+      key = open[1];
+      body = [];
+    } else if (close && close[1] === key) {
+      out[key] = body.join('\n');
+      key = null;
+    } else if (key) body.push(line);
+  }
+  return out;
+}
+
+/**
+ * The runnable text of a phase script: phases/<name>.js with each `// @shared <name>` line replaced by that
+ * section of lib/phase-shared.js. The one function that builds it, called by stageScript (what users run) and
+ * by the test loader (so tests run what users run). A phase script cannot import, so this is how code is shared.
+ */
+function assemblePhase(pluginRoot, phaseName) {
+  const src = path.join(pluginRoot, 'phases', `${phaseName}.js`);
+  const text = fs.readFileSync(src, 'utf8');
+  const sections = sharedSections(pluginRoot);
+  return text.replace(/^[ \t]*\/\/ @shared ([a-z-]+)[ \t]*(\r?)$/gm, (m, key, cr) => {
+    if (!(key in sections)) throw new Error(`phases/${phaseName}.js asks for the shared section "${key}", which lib/phase-shared.js does not have`);
+    return sections[key] + cr;
+  });
+}
 
 // The Workflow tool loads a scriptPath only from a folder the session can read, never from
 // the plugin's install folder, and a model that passes args has to type them out: 30-300 KB
@@ -1328,7 +1543,7 @@ function stageScript(pluginRoot, cwd, phaseName, { argsFile = '', files = [], me
       args.verify = `node "${fwd(path.join(pluginRoot, 'hooks', 'verify.js'))}" --plan "${fwd(planRel)}"`;
     }
   }
-  const text = fs.readFileSync(src, 'utf8');
+  const text = assemblePhase(pluginRoot, phaseName);
   const meta = /^export const meta = \{[\s\S]*?^\}\r?\n/m.exec(text);
   if (!meta || meta.index !== 0) throw new Error(`phases/${phaseName}.js does not start with its meta block`);
   const head = meta[0];
@@ -1422,11 +1637,62 @@ function runArgs(pluginRoot, cwd, args) {
     cards,
     skillTexts,
     available,
+    planExperts,
     protocol: protocolText(pluginRoot),
     planBriefs: briefs(pluginRoot, { planText }).briefs.map((x) => ({ name: x.name, text: x.text, skills: keep(x.skills || []) })),
     cli: `node "${fwdPath(path.join(pluginRoot, 'experts', 'experts.js'))}"`,
     command: stateLib.parseFrontMatter(planText).data.test_command || '',
   };
+}
+
+/** card-add: the plan with one more card written. Throws the refusal; the caller prints it. */
+function cardAdd(o) {
+  if (!o.plan) throw new Error('card-add needs --plan');
+  const cardsLib = require('./cards.js');
+  const file = path.resolve(o.cwd, o.plan);
+  const text = fs.readFileSync(file, 'utf8');
+  let cardExperts = null;
+  if (o.experts !== undefined) {
+    const names = o.experts.trim() === 'none' ? [] : String(o.experts).split(',').map((s) => s.trim()).filter(Boolean);
+    const inPlan = readExperts(text);
+    if (!inPlan.present || inPlan.error) throw new Error(`the plan records no experts yet, so a card cannot narrow them. Record them first: node experts.js select --plan ${o.plan} --add <names> (or --add "" for none)`);
+    const installed = list(o.pluginRoot).experts.map((e) => e.name);
+    const unknown = names.filter((n) => !installed.includes(n));
+    if (unknown.length > 0) throw new Error(`unknown expert(s): ${unknown.join(', ')} (installed: ${installed.join(', ')})`);
+    const outside = names.filter((n) => !inPlan.experts.includes(n));
+    if (outside.length > 0) throw new Error(`${outside.join(', ')} is not in the plan's experts [${inPlan.experts.join(', ')}]. A card can only narrow the plan's list; add them to the plan first with select.`);
+    cardExperts = names;
+  }
+  // Text an agent wrote (a finding's file, a title, the carried items) comes in through a file, never the command line.
+  const fromFile = (f) => fs.readFileSync(path.resolve(o.cwd, f), 'utf8').trim();
+  if (o.titleFile) o.title = fromFile(o.titleFile);
+  if (o.pathsFile) o.paths = fromFile(o.pathsFile);
+  const carried = String(o.carriedFile ? fs.readFileSync(path.resolve(o.cwd, o.carriedFile), 'utf8') : o.carried || '').split(';').map((s) => s.trim()).filter(Boolean);
+  let name = o.name;
+  if (o.freeName) {
+    // The same request twice (a replayed step) returns the card it added, not a second one.
+    const again = runRules.reusableCard(cardsLib.parseCards(text), o.name, o.title, carried);
+    if (again) return { ok: true, plan: o.plan, card: again };
+    const free = runRules.freeName(o.name, (n) => cardsLib.findCard(text, n) !== null);
+    if (!free.ok) throw new Error(free.reason);
+    name = free.name;
+  }
+  const next = cardsLib.addCard(text, {
+    experts: cardExperts,
+    name,
+    title: o.title,
+    // Reviewers and builds often name files by absolute path; one inside the project is taken as
+    // relative to it. One outside it still reaches addCard's refusal unchanged.
+    paths: String(o.paths || '').split(',').map((s) => s.trim()).filter(Boolean).map((p) => {
+      if (!path.isAbsolute(p)) return p;
+      const rel = path.relative(path.resolve(o.cwd), path.resolve(p));
+      return rel && !path.isAbsolute(rel) && !rel.split(/[\\/]/).includes('..') ? rel.replace(/\\/g, '/') : p;
+    }),
+    carried,
+    depends: String(o.depends || '').split(',').map((s) => s.trim()).filter(Boolean),
+  });
+  fs.writeFileSync(file, next);
+  return { ok: true, plan: o.plan, card: cardsLib.findCard(next, name) };
 }
 
 // ---- command line ----
@@ -1460,8 +1726,12 @@ function parseArgs(argv) {
     else if (a === '--title') o.title = need();
     else if (a === '--paths') o.paths = need();
     else if (a === '--carried') o.carried = need();
+    else if (a === '--carried-file') o.carriedFile = need();
+    else if (a === '--title-file') o.titleFile = need();
+    else if (a === '--paths-file') o.pathsFile = need();
     else if (a === '--depends') o.depends = need();
     else if (a === '--experts') o.experts = need();
+    else if (a === '--free-name') o.freeName = true;
     else if (a === '--result') o.result = need();
     else if (a === '--field') o.field = need();
     else if (a === '--out') o.out = need();
@@ -1489,6 +1759,24 @@ function main(argv) {
   if (argv[0] === 'ledger') {
     try {
       return require('./ledger.js').cli(argv.slice(1), process.cwd(), out, fail);
+    } catch (err) {
+      return fail(err.message);
+    }
+  }
+  // The link check for the entry and memory files.
+  if (argv[0] === 'links') {
+    try {
+      process.exitCode = require('../lib/links.js').cli(argv.slice(1), process.cwd(), (s) => process.stdout.write(s), fail);
+      return;
+    } catch (err) {
+      return fail(err.message);
+    }
+  }
+  // The topical headers and the generated index in memory.md: memory index|check|migrate.
+  if (argv[0] === 'memory') {
+    try {
+      process.exitCode = require('../lib/memory.js').cli(argv.slice(1), process.cwd(), (s) => process.stdout.write(s), fail);
+      return;
     } catch (err) {
       return fail(err.message);
     }
@@ -1596,37 +1884,14 @@ function main(argv) {
       return out(stageScript(o.pluginRoot, o.cwd, o.phase, { argsFile: o.argsFile, files: o.files, merges: o.merges }));
     }
     if (o.cmd === 'card-add') {
-      if (!o.plan) fail('card-add needs --plan');
-      const cardsLib = require('./cards.js');
-      const file = path.resolve(o.cwd, o.plan);
-      let cardExperts = null;
-      if (o.experts !== undefined) {
-        const names = o.experts.trim() === 'none' ? [] : String(o.experts).split(',').map((s) => s.trim()).filter(Boolean);
-        const inPlan = readExperts(fs.readFileSync(file, 'utf8'));
-        if (!inPlan.present || inPlan.error) fail(`the plan records no experts yet, so a card cannot narrow them. Record them first: node experts.js select --plan ${o.plan} --add <names> (or --add "" for none)`);
-        const installed = list(o.pluginRoot).experts.map((e) => e.name);
-        const unknown = names.filter((n) => !installed.includes(n));
-        if (unknown.length > 0) fail(`unknown expert(s): ${unknown.join(', ')} (installed: ${installed.join(', ')})`);
-        const outside = names.filter((n) => !inPlan.experts.includes(n));
-        if (outside.length > 0) fail(`${outside.join(', ')} is not in the plan's experts [${inPlan.experts.join(', ')}]. A card can only narrow the plan's list; add them to the plan first with select.`);
-        cardExperts = names;
+      // One JSON line with ok, a refusal included: an agent does not see the exit code.
+      try {
+        out(cardAdd(o));
+      } catch (err) {
+        out({ ok: false, reason: err.message });
+        process.exitCode = 2;
       }
-      const next = cardsLib.addCard(fs.readFileSync(file, 'utf8'), {
-        experts: cardExperts,
-        name: o.name,
-        title: o.title,
-        // Reviewers and builds often name files by absolute path; one inside the project is taken as
-        // relative to it. One outside it still reaches addCard's refusal unchanged.
-        paths: String(o.paths || '').split(',').map((s) => s.trim()).filter(Boolean).map((p) => {
-          if (!path.isAbsolute(p)) return p;
-          const rel = path.relative(path.resolve(o.cwd), path.resolve(p));
-          return rel && !path.isAbsolute(rel) && !rel.split(/[\\/]/).includes('..') ? rel.replace(/\\/g, '/') : p;
-        }),
-        carried: String(o.carried || '').split(';').map((s) => s.trim()).filter(Boolean),
-        depends: String(o.depends || '').split(',').map((s) => s.trim()).filter(Boolean),
-      });
-      fs.writeFileSync(file, next);
-      return out({ ok: true, plan: o.plan, card: cardsLib.findCard(next, o.name) });
+      return;
     }
     if (o.cmd === 'scope') {
       if (!o.plan || !o.card) fail('scope needs --plan and --card');
@@ -1654,10 +1919,16 @@ function main(argv) {
       const outside = cardsLib.outOfScope(changed, card.paths, globToRegExp);
       return out({ card: card.name, title: card.title, paths: card.paths, changed: changed.length, outOfScope: outside, testsExcluded: testFiles.length });
     }
+    if (o.cmd === 'use') {
+      if (!o.plan) return fail('use needs --plan <plan file>');
+      if (!stateLib.setActivePlan(o.cwd, o.plan)) return fail(`${o.plan} is not a plan of this project: it must be a PLAN-*.md inside the project folder`);
+      return out({ ok: true, plan: o.plan });
+    }
     if (o.cmd === 'check') {
-      const evidence = commitEvidence(o.cwd, o.plan, o.pluginRoot);
+      const evidence = commitEvidence(o.cwd, o.plan, o.pluginRoot, o.plan ? { stage: 'feature', script: verifyScript(o.pluginRoot) } : {});
       const verdict = gates.commitGate(evidence);
-      out(verdict.allow ? { ok: true } : { ok: false, reason: verdict.reason, open: evidence.open || [] });
+      const extra = { ...(verdict.notices ? { notices: verdict.notices } : {}), ...(verdict.warnings ? { warnings: verdict.warnings } : {}) };
+      out(verdict.allow ? { ok: true, ...(verdict.outcome ? { outcome: verdict.outcome, why: verdict.why } : {}), ...extra } : { ok: false, reason: verdict.reason, open: evidence.open || [], missing: verdict.missing || [], ...extra });
       if (!verdict.allow) process.exit(1);
       return undefined;
     }
@@ -1670,6 +1941,9 @@ function main(argv) {
 module.exports = {
   confirmHash,
   checkConfirmed,
+  setConfirmed,
+  settingsChanged,
+  SETTING_KEYS,
   setFrontLine,
   STAGES,
   BUILD,
@@ -1713,6 +1987,10 @@ module.exports = {
   stageScript,
   record,
   commitEvidence,
+  testsEvidence,
+  assemblePhase,
+  sharedSections,
+  verifyScript,
   findingId,
   resolve,
   allFindings,

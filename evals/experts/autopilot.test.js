@@ -158,7 +158,7 @@ test('park writes parked into the plan and commits the plan alone on the run bra
   assert.equal(p.planCommit.committed, true, JSON.stringify(p.planCommit));
   assert.equal(git(dir, 'rev-parse', 'HEAD~1'), tip, 'one commit on the run branch: the plan');
   assert.deepStrictEqual(git(dir, 'show', '--name-only', '--format=', 'HEAD').split('\n'), ['PLAN-calc.md']);
-  assert.equal(cards.findCard(git(dir, 'show', 'HEAD:PLAN-calc.md'), '1').status, 'parked uw/parked/calc/1; not green: red three times');
+  assert.equal(cards.findCard(git(dir, 'show', 'HEAD:PLAN-calc.md'), '1').status, 'parked uw/parked/calc/1; not green: red three times (whole text: .ultimate-workflow/run/calc/cards/1/parked.md)');
   assert.equal(git(dir, 'status', '--porcelain'), '', 'the plan on the run branch matches git');
   const u = json(cli(dir, 'unpark', '--plan', 'PLAN-calc.md', '--card', '1', '--feature', 'calc'));
   assert.equal(u.ok, true, JSON.stringify(u));
@@ -173,7 +173,8 @@ test('park keeps the whole reason in the plan, on one line, when it is a heading
   write(dir, 'why.txt', 'blocking finding from the experts check, outside this card\'s paths so no fix round:\n- quality: src/prices.js:4 an unknown item is priced at 0\n');
   assert.equal(json(cli(dir, 'park', '--plan', 'PLAN-calc.md', '--card', '1', '--feature', 'calc', '--reason-file', 'why.txt')).ok, true);
   const c = cards.findCard(read(dir, 'PLAN-calc.md'), '1');
-  assert.match(c.status, /so no fix round: - quality: src\/prices\.js:4 an unknown item is priced at 0$/);
+  // PLAN-run-fixes.md, card reasons: the line also names parked.md, which holds the whole text.
+  assert.match(c.status, /so no fix round: - quality: src\/prices\.js:4 an unknown item is priced at 0 \(whole text: [^)]*parked\.md\)$/);
   assert.match(c.parked.reason, /src\/prices\.js:4 an unknown item is priced at 0/);
 });
 
@@ -382,13 +383,14 @@ test('notify appends the notice to the run folder and reports the desktop result
   const r = spawnSync(process.execPath, [CLI, 'notify', '--feature', 'calc', '--kind', 'needs-decision', '--card', '1', '--reason', 'added left-pad', '--action', '/ultimate-workflow:feature --resume 1 --accept'], { cwd: dir, encoding: 'utf8', env: { ...env, ULTIMATE_WORKFLOW_NOTIFY: 'off' } });
   const out = JSON.parse(r.stdout.trim().split('\n').pop());
   assert.equal(out.ok, true);
-  assert.equal(out.desktop, 'off');
+  // PLAN-run-fixes.md, card one-notice: only the finished notice reaches the desktop; this kind is file-only.
+  assert.equal(out.desktop, 'file-only');
   assert.match(read(dir, '.ultimate-workflow/run/calc/notifications.md'), /\*\*needs-decision\*\* card 1: added left-pad Next: `\/ultimate-workflow:feature --resume 1 --accept`/);
   const bad = spawnSync(process.execPath, [CLI, 'notify', '--feature', 'calc', '--kind', 'oops'], { cwd: dir, encoding: 'utf8', env });
   assert.match(bad.stdout, /notify --kind is one of/);
   // The desktop result is kept with the notice (a live run's step outputs are not in its result).
   const rec = JSON.parse(read(dir, '.ultimate-workflow/run/calc/notifications.jsonl').trim().split('\n').pop());
-  assert.equal(rec.desktop, 'off');
+  assert.equal(rec.desktop, 'file-only');
   assert.equal(rec.card, '1');
 });
 
@@ -458,7 +460,7 @@ test('card-add takes --depends and refuses a card that depends on itself', () =>
   assert.deepStrictEqual(cards.findCard(read(dir, 'PLAN-calc.md'), '4').depends, ['1', '2']);
   const self = cli(dir, 'card-add', '--plan', 'PLAN-calc.md', '--name', '5', '--title', 'x', '--paths', 'x.js', '--depends', '5');
   assert.equal(self.status, 2);
-  assert.match(self.stderr, /cannot depend/);
+  assert.match(self.stdout, /cannot depend/);
 });
 
 // 2026-11-08, a real run: the review named the fix-up card's file by absolute path and card-add refused it.
@@ -469,7 +471,7 @@ test('card-add takes an absolute path inside the project as relative, and still 
   assert.deepStrictEqual(cards.findCard(read(dir, 'PLAN-calc.md'), 'fixup').paths, ['test/sub.test.js']);
   const out = cli(dir, 'card-add', '--plan', 'PLAN-calc.md', '--name', 'out', '--title', 'x', '--paths', path.join(path.dirname(dir), 'x.js'));
   assert.equal(out.status, 2);
-  assert.match(out.stderr, /must be relative to the project root/);
+  assert.match(out.stdout, /must be relative to the project root/);
 });
 
 // --- pack ------------------------------------------------------------------------------------
@@ -534,8 +536,17 @@ test('pack lists the memory topicals whose Read-when cue matches the card, chose
     '',
   ].join('\n'));
   for (const f of ['parsing', 'deploy', 'adders']) write(dir, `memory/${f}.md`, `# ${f}\n`);
-  assert.deepStrictEqual(autopilot.matchingTopicals(dir, cards.findCard(PLAN, '2')), ['memory/parsing.md']);
-  assert.deepStrictEqual(autopilot.matchingTopicals(dir, cards.findCard(PLAN, '1')), ['memory/adders.md']);
+  assert.deepStrictEqual(autopilot.matchingTopicals(dir, cards.findCard(PLAN, '2')).map((m) => m.path), ['memory/parsing.md']);
+  assert.deepStrictEqual(autopilot.matchingTopicals(dir, cards.findCard(PLAN, '1')).map((m) => m.path), ['memory/adders.md']);
+});
+
+test('pack reads memory from the plan memory_root and lists the matched topical from the project root', () => {
+  const plan = PLAN.replace('experts: []', 'experts: []\nmemory_root: sub/dir').replace('paths: src/parse.js', 'paths: sub/dir/hooks/x.js');
+  const dir = repo({ plan });
+  write(dir, 'sub/dir/memory.md', '# Memory\n');
+  write(dir, 'sub/dir/memory/h.md', '---\ndescription: Hooks.\nread_when:\n  paths:\n    - hooks/**\n---\n\n# Hooks\n');
+  const r = json(cli(dir, 'pack', '--plan', 'PLAN-calc.md', '--card', '2', '--feature', 'calc'));
+  assert.match(read(dir, r.contextFile), /^- sub\/dir\/memory\/h\.md: /m);
 });
 
 test('pack refuses a feature name that cannot be a branch or a folder', () => {
@@ -585,7 +596,7 @@ test('park commits the card\'s work, failing tests and new files included, to it
   assert.equal(git(dir, 'rev-parse', 'uw/parked/calc/1^'), head);
   const plan = read(dir, 'PLAN-calc.md');
   assert.match(plan, /verify_rounds: 3/, 'the plan is kept as it was, not reset to its committed version');
-  assert.deepStrictEqual(cards.findCard(plan, '1').parked, { branch: 'uw/parked/calc/1', reason: 'Verification failed 3 times, the subtraction test cannot pass. Signature: sub-red' });
+  assert.deepStrictEqual(cards.findCard(plan, '1').parked, { branch: 'uw/parked/calc/1', reason: 'Verification failed 3 times, the subtraction test cannot pass. Signature: sub-red (whole text: .ultimate-workflow/run/calc/cards/1/parked.md)' });
   assert.match(read(dir, r.parked), /Signature: sub-red/);
   assert.equal(git(dir, 'status', '--porcelain', '--', 'src', 'test'), '');
 });
@@ -627,7 +638,7 @@ test('unpark refuses a dirty tree and a work that no longer applies, and leaves 
 
 // --- journal ---------------------------------------------------------------------------------
 
-test('journal add appends a card\'s lines, refuses more than 15, and refuses an empty entry', () => {
+test('journal add appends a card\'s lines, keeps the first 15 of a longer one with a warning, and refuses an empty entry', () => {
   const dir = repo();
   write(dir, 'j1.txt', 'node:test needs the quoted glob\n- parse returns numbers, not strings\n');
   const r = json(cli(dir, 'journal', 'add', '--feature', 'calc', '--card', '1', '--from', 'j1.txt', '--status', 'committed'));
@@ -637,11 +648,15 @@ test('journal add appends a card\'s lines, refuses more than 15, and refuses an 
   assert.match(text, /^- node:test needs the quoted glob$/m);
   write(dir, 'long.txt', Array.from({ length: 16 }, (_, i) => `line ${i}`).join('\n'));
   const long = json(cli(dir, 'journal', 'add', '--feature', 'calc', '--card', '2', '--from', 'long.txt'));
-  assert.equal(long.ok, false);
-  assert.match(long.reason, /16 lines.*at most 15/);
+  // PLAN-simplify, card run-inputs: a size limit warns and never stops a run.
+  assert.equal(long.ok, true, JSON.stringify(long));
+  assert.match(long.warning, /16 lines.*at most 15.*first 15/);
+  assert.doesNotMatch(read(dir, '.ultimate-workflow/run/calc/journal.md'), /line 15/);
+  assert.match(read(dir, '.ultimate-workflow/run/calc/journal.md'), /line 14/);
   write(dir, 'empty.txt', '\n\n');
   assert.equal(json(cli(dir, 'journal', 'add', '--feature', 'calc', '--card', '2', '--from', 'empty.txt')).ok, false);
-  assert.doesNotMatch(read(dir, '.ultimate-workflow/run/calc/journal.md'), /line 0|## 2/, 'a refused entry adds nothing');
+  // The long entry for card 2 was kept (cut to 15 lines); the refused empty one adds no second entry.
+  assert.equal((read(dir, '.ultimate-workflow/run/calc/journal.md').match(/^## 2 /gm) || []).length, 1, 'a refused empty entry adds nothing');
 });
 
 test('past 200 lines the journal names its oldest entries, and compact summarises one without dropping it', () => {
@@ -749,8 +764,9 @@ test('harvest-branch commits each destination file once on uw/harvest/<feature>,
   const agents = git(dir, 'show', 'uw/harvest/calc:AGENTS.md');
   assert.match(agents, /- Old one\.\n- Beware the quoted glob\.\n- Note that CRLF matters\.\n\n## Other/, 'gotchas go under the Gotchas heading');
   const again = json(cli(dir, 'harvest-branch', '--feature', 'calc', '--from', '.ultimate-workflow/run/calc/harvest.json'));
-  assert.equal(again.ok, false);
-  assert.match(again.reason, /already exists/);
+  // PLAN-simplify, card one-harvest: a feature is harvested once; a second call returns its branch and makes no -2.
+  assert.equal(again.ok, true, JSON.stringify(again));
+  assert.equal(again.branch, 'uw/harvest/calc');
   write(dir, 'bad.json', JSON.stringify([{ destination: 'gotcha', path: '../out.md', text: 'x' }]));
   assert.equal(json(cli(dir, 'harvest-branch', '--feature', 'other', '--from', 'bad.json')).ok, false);
 });
@@ -891,7 +907,8 @@ test('a card\'s fix round is in the report (row note and its own section) and in
   const r = json(cli(dir, 'run-finish', '--output', 'out/wf_fix-1.output'));
   assert.equal(r.ok, true, JSON.stringify(r));
   const report = read(dir, r.report);
-  assert.match(report, /\| add \| adder \| committed \| c1 \| 1 round\(s\) and a fix round \(fixed\) \|/);
+  // PLAN-run-fixes.md, card report-cost: three cost columns sit before the note (no cost data in this result).
+  assert.match(report, /\| add \| adder \| committed \| c1 \| unknown \| unknown \| unknown \| 1 round\(s\) and a fix round \(fixed\) \|/);
   assert.match(report, /## Fix rounds\n\n- add: round 2, fixed \(wrote the b test\)\n  - quality: test\/add\.test\.js:10 b guard untested/);
   const rows = read(dir, '.ultimate-workflow/ledger.jsonl').trim().split('\n').map((l) => JSON.parse(l));
   const run = rows.find((x) => x.run);
@@ -941,4 +958,196 @@ test('handoff takes an absolute claimed path inside the project as the same file
   git(dir, 'commit', '-q', '-m', 'p');
   const r = json(cli(dir, 'handoff', '--card', '2', '--feature', 'calc', '--range', `${base}..HEAD`, '--claimed', path.join(dir, 'test', 'parse.test.js')));
   assert.deepStrictEqual(r.missingClaims, []);
+});
+
+// --- PLAN-memory-index, card gate: the autopilot and the memory check ------------------------------
+// card-commit regenerates a stale index and commits it with the card; it refuses a new broken link or an
+// invalid header, not one already there at HEAD. run-start reports what the check finds as warnings.
+
+const memoryLib = require(path.join(PLUGIN, 'lib', 'memory.js'));
+
+const topic = (desc) => `---\ndescription: ${desc}\nread_when:\n  paths:\n    - src/**\n---\n\n# ${desc}\n\nbody\n`;
+const AGENTS_OK = '# Rules\n\nSee [memory](memory.md).\n';
+
+// repo() plus a migrated memory (one topical, a current index) and AGENTS.md, committed on main.
+function memoryRepo({ agents = AGENTS_OK, extraTopicals = {} } = {}) {
+  const dir = repo();
+  const topicals = { 'memory/a.md': topic('Topic A.'), ...extraTopicals };
+  for (const [file, text] of Object.entries(topicals)) write(dir, file, text);
+  write(dir, 'memory.md', memoryLib.renderIndex('# Memory\n', { 'memory/a.md': topicals['memory/a.md'] }));
+  write(dir, 'AGENTS.md', agents);
+  git(dir, 'add', '-A');
+  git(dir, 'commit', '-q', '-m', 'memory');
+  return dir;
+}
+
+// The checks card-commit wants before it commits: a passing full run and a review of these changes.
+function checked(dir) {
+  json(cli(dir, 'run-branch', '--feature', 'calc'));
+  const v = spawnSync(process.execPath, [VERIFY, '--full', '--plan', 'PLAN-calc.md'], { cwd: dir, encoding: 'utf8', env });
+  assert.equal(v.status, 0, v.stdout + v.stderr);
+  cli(dir, 'prepare', '--range', 'working');
+  write(dir, '.ultimate-workflow/run/lane.json', LANE);
+  assert.equal(cli(dir, 'record', '--stage', 'review', '--plan', 'PLAN-calc.md', '--result', '.ultimate-workflow/run/lane.json').status, 0);
+}
+const commitCard = (dir) => json(cli(dir, 'card-commit', '--plan', 'PLAN-calc.md', '--card', '1', '--feature', 'calc'));
+
+test('card-commit on a migrated project whose card changed a topical header commits the regenerated memory.md with the card', () => {
+  const dir = memoryRepo();
+  write(dir, 'memory/a.md', topic('Topic A, reworded.'));
+  checked(dir);
+  const r = commitCard(dir);
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.deepStrictEqual(git(dir, 'show', '--name-only', '--format=', 'HEAD').split('\n').sort(), ['PLAN-calc.md', 'memory.md', 'memory/a.md']);
+  assert.match(git(dir, 'show', 'HEAD:memory.md'), /Topic A, reworded\./);
+  assert.equal(cli(dir, 'memory', 'check').status, 0, 'the committed memory passes its own check');
+});
+
+test('card-commit refuses a card that adds a broken link, with the link in the reason, and commits nothing', () => {
+  const dir = memoryRepo();
+  write(dir, 'AGENTS.md', `${AGENTS_OK}See [gone](gone.md).\n`);
+  checked(dir);
+  const tip = git(dir, 'rev-parse', 'HEAD');
+  const r = commitCard(dir);
+  assert.equal(r.ok, false);
+  assert.match(r.reason, /AGENTS\.md:4: broken link to gone\.md/);
+  assert.equal(git(dir, 'rev-parse', 'HEAD'), tip);
+});
+
+test('card-commit refuses a card that makes a header invalid, naming the problem', () => {
+  const dir = memoryRepo();
+  write(dir, 'memory/a.md', topic('Topic A.').replace('description:', 'colour: blue\ndescription:'));
+  checked(dir);
+  const r = commitCard(dir);
+  assert.equal(r.ok, false);
+  assert.match(r.reason, /memory\/a\.md.*invalid header.*colour/);
+});
+
+test('card-commit does not refuse for a link already broken at HEAD', () => {
+  const dir = memoryRepo({ agents: `${AGENTS_OK}See [old](old.md).\n` });
+  write(dir, 'AGENTS.md', `${AGENTS_OK}See [old](old.md).\nA new line.\n`);
+  checked(dir);
+  const r = commitCard(dir);
+  assert.equal(r.ok, true, JSON.stringify(r));
+});
+
+test('run-start with a stale index and a broken link returns both as warnings and still starts', () => {
+  const dir = memoryRepo({ agents: `${AGENTS_OK}See [gone](gone.md).\n`, extraTopicals: { 'memory/b.md': topic('Topic B.') } });
+  const r = json(cli(dir, 'run-start', '--plan', 'PLAN-calc.md', '--feature', 'calc'));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const warnings = (r.warnings || []).join('\n');
+  assert.match(warnings, /AGENTS\.md:4: broken link to gone\.md/);
+  assert.match(warnings, /memory\/b\.md is missing from the index/);
+});
+
+test('run-start on a project with healthy memory returns no warnings', () => {
+  const dir = memoryRepo();
+  const r = json(cli(dir, 'run-start', '--plan', 'PLAN-calc.md', '--feature', 'calc'));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.deepStrictEqual(r.warnings || [], []);
+  assert.ok(Array.isArray(r.warnings), 'the field is there, and empty');
+});
+
+test('run-start with a malformed memory.md still starts and reports the failure as a warning', () => {
+  const dir = memoryRepo();
+  write(dir, 'memory.md', '# Memory\n\n<!-- uw:memory-index:start -->\n- [A](memory/a.md)\n');
+  const r = json(cli(dir, 'run-start', '--plan', 'PLAN-calc.md', '--feature', 'calc'));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.match((r.warnings || []).join('\n'), /memory check failed.*no "<!-- uw:memory-index:end -->"/);
+});
+
+// A harvester may name a file with a leading ./ or with backslashes; the memory.md refusal and the
+// topical routing must see the same path the branch would write.
+test('harvest-branch routes a backslash path to a new topical with its header, and refuses memory.md however it is spelled', () => {
+  const dir = memoryRepo();
+  write(dir, 'in.json', JSON.stringify([{ destination: 'memory', path: '.\\memory\\c.md', text: '# C\n\nHow C works.', description: 'Topic C.', paths: ['src/**'] }]));
+  const r = json(cli(dir, 'harvest-branch', '--feature', 'bs', '--from', 'in.json'));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.match(git(dir, 'show', 'uw/harvest/bs:memory/c.md'), /^---\ndescription: Topic C\./, 'the new topical has a header');
+  assert.match(git(dir, 'show', 'uw/harvest/bs:memory.md'), /memory\/c\.md/, 'and is in the regenerated index');
+  for (const [i, p] of ['.\\memory.md', './memory.md', 'memory.md'].entries()) {
+    write(dir, `idx${i}.json`, JSON.stringify([{ destination: 'memory', path: p, text: 'x' }]));
+    const bad = json(cli(dir, 'harvest-branch', '--feature', `idx${i}`, '--from', `idx${i}.json`));
+    assert.equal(bad.ok, false, p);
+    assert.match(bad.reason, /memory\.md/, p);
+  }
+});
+
+test('run-report shows the memory warnings run-start found, and no memory section when it found none', () => {
+  const result = { ok: true, feature: 'calc', branch: 'uw/run/calc', base: 'abc1234abcd', summary: '1 committed', counts: { committed: 1 }, cards: [{ card: '1', title: 'first', status: 'committed', commit: 'c1' }], review: { ran: false }, harvest: { ran: false } };
+  const report = (dir) => {
+    write(dir, 'result.json', JSON.stringify(result));
+    const r = json(cli(dir, 'run-report', '--result', 'result.json'));
+    assert.equal(r.ok, true, JSON.stringify(r));
+    return fs.readFileSync(path.join(dir, r.report), 'utf8');
+  };
+  const bad = memoryRepo({ agents: `${AGENTS_OK}See [gone](gone.md).\n`, extraTopicals: { 'memory/b.md': topic('Topic B.') } });
+  assert.equal(json(cli(bad, 'run-start', '--plan', 'PLAN-calc.md', '--feature', 'calc')).ok, true);
+  const shown = report(bad);
+  assert.match(shown, /AGENTS\.md:4: broken link to gone\.md/);
+  assert.match(shown, /memory\/b\.md is missing from the index/);
+  const good = memoryRepo();
+  assert.equal(json(cli(good, 'run-start', '--plan', 'PLAN-calc.md', '--feature', 'calc')).ok, true);
+  assert.doesNotMatch(report(good), /memory/i);
+});
+
+// ---- review findings of 2026-11-11: the same with memory under memory_root ----
+
+// repo() with `memory_root: sub` in the plan and the migrated memory under sub/.
+function nestedMemoryRepo({ extraTopicals = {} } = {}) {
+  const dir = repo({ plan: PLAN.replace('experts: []\n', 'experts: []\nmemory_root: sub\n').replace('paths: src/add.js, docs/new-guide.md', 'paths: src/add.js, docs/new-guide.md, sub/**') });
+  const topicals = { 'memory/a.md': topic('Topic A.'), ...extraTopicals };
+  for (const [file, text] of Object.entries(topicals)) write(dir, `sub/${file}`, text);
+  write(dir, 'sub/memory.md', memoryLib.renderIndex('# Memory\n', { 'memory/a.md': topicals['memory/a.md'] }));
+  git(dir, 'add', '-A');
+  git(dir, 'commit', '-q', '-m', 'memory');
+  return dir;
+}
+
+test('card-commit with memory_root regenerates the memory.md under that root and commits it with the card', () => {
+  const dir = nestedMemoryRepo();
+  write(dir, 'sub/memory/a.md', topic('Topic A, reworded.'));
+  checked(dir);
+  const r = commitCard(dir);
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.deepStrictEqual(git(dir, 'show', '--name-only', '--format=', 'HEAD').split('\n').sort(), ['PLAN-calc.md', 'sub/memory.md', 'sub/memory/a.md']);
+  assert.match(git(dir, 'show', 'HEAD:sub/memory.md'), /Topic A, reworded\./);
+  assert.ok(!fs.existsSync(path.join(dir, 'memory.md')), 'nothing is written at the project root');
+  assert.equal(cli(dir, 'memory', 'check', '--root', 'sub').status, 0, 'the committed memory passes its own check');
+});
+
+test('run-start with memory_root checks the memory under that root', () => {
+  const dir = nestedMemoryRepo({ extraTopicals: { 'memory/b.md': topic('Topic B.') } });
+  const r = json(cli(dir, 'run-start', '--plan', 'PLAN-calc.md', '--feature', 'calc'));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.match((r.warnings || []).join('\n'), /memory\/b\.md is missing from the index/);
+});
+
+// Review of the whole branch (2026-11-13), PLAN-run-fixes.md card gate-card: `--resume <card> --accept`
+// writes the files it accepted outside every card's paths to the card's `accepted:` run field.
+test('--accept writes the accepted files to the card\'s accepted: field, which parseCards reads and the confirmed hash leaves out', () => {
+  const dir = repo();
+  json(cli(dir, 'run-branch', '--feature', 'calc'));
+  write(dir, 'src/add.js', 'module.exports = require("left-pad");\n');
+  write(dir, 'package.json', '{ "dependencies": { "left-pad": "1.3.0" } }\n');
+  write(dir, 'why.txt', 'needs a decision the plan does not state:\n- dependency: added dependency left-pad@1.3.0 in package.json\n');
+  json(cli(dir, 'park', '--plan', 'PLAN-calc.md', '--card', '1', '--feature', 'calc', '--reason-file', 'why.txt', '--needs-decision'));
+  const r = json(cli(dir, 'run-start', '--plan', 'PLAN-calc.md', '--feature', 'calc', '--resume-card', '1', '--accept'));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const plan = read(dir, 'PLAN-calc.md');
+  const card = cards.findCard(plan, '1');
+  assert.deepStrictEqual([...card.accepted].sort(), ['package.json', 'why.txt'], 'the files outside every card\'s paths; src/add.js is the card\'s own');
+  assert.deepStrictEqual(card.carried, [], 'accepted is its own field, not carried text');
+  assert.match(plan, /^  accepted: /m);
+  const without = plan.split('\n').filter((l) => !/^  accepted: /.test(l)).join('\n');
+  assert.equal(expertsLib.confirmHash(plan), expertsLib.confirmHash(without), 'the accepted line is a run field, left out of the hash');
+  assert.equal(expertsLib.checkConfirmed(plan).ok, true);
+  // A resume that is not an --accept writes no accepted line.
+  const other = repo();
+  json(cli(other, 'run-branch', '--feature', 'calc'));
+  write(other, 'src/add.js', 'module.exports = 1;\n');
+  write(other, 'stray.txt', 'x\n');
+  json(cli(other, 'park', '--plan', 'PLAN-calc.md', '--card', '1', '--feature', 'calc', '--reason', 'red three times'));
+  json(cli(other, 'run-start', '--plan', 'PLAN-calc.md', '--feature', 'calc', '--resume-card', '1'));
+  assert.equal(cards.findCard(read(other, 'PLAN-calc.md'), '1').accepted, undefined);
 });

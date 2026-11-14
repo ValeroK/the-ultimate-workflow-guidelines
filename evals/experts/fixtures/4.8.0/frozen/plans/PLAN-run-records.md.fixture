@@ -1,0 +1,218 @@
+# PLAN: run records (draft proposal, not confirmed)
+
+> Draft. No gate state on purpose: this file must not steer the gates. Written 2026-11-04 against
+> plugin 4.2.1 (the version the re-wash cards 8a to 11 ran on). The local checkout was 4.0.1 when
+> this was written, so every "exists" or "missing" below was read from the installed 4.2.1.
+>
+> Source evidence: `.ultimate-workflow/session-trace.md` of the re-wash (cards 8a to 11), and the
+> value report of the same session. Related: `PRD-graph-orchestration.md` (schema-validated
+> returns), `docs/gates.md` (why a gate that silently does nothing is the worst case).
+
+## Status (2026-11-04, branch feat/run-records, not pushed)
+
+| Item | State |
+|---|---|
+| S0 hook spike | Done, results below |
+| W0a project root | Done: `state.projectRoot`, used by `gate.js` and `status.js` (`hooks/lib/root.test.js`) |
+| W0b ledger wrapper | Done (`evals/experts/run-records.test.js`) |
+| W1 build model | Done for `implementerModel` and `diagnoserModel` plus `ULTIMATE_WORKFLOW_BUILD_MODEL`. `excludePaths` was not built: it belongs with W4 |
+| W2 G3 deferral | Done on `background_tasks` (`hooks/lib/workflow-defer.test.js`). Not built: tagging subagent edits, `experts.js runstate`, the state-file fallback |
+| W3, W4, W5 | Not started |
+
+Deviations from the plan above: the dirty flag is not tagged by edit source. The ceo plan's end state shows
+`escalated: false`, and not marking subagent edits dirty would stop G3 from ever running on return; revisit only
+if a build's deliberate red runs are seen escalating G4. The ceo plan's `experts:` line lists all nine experts,
+which is why UI-only cards ran nine-way experts checks: that is a plan decision, not a gate defect.
+
+Acceptance run (real hooks, `claude -p`, Claude Code 2.1.316, only this branch's gate): a Stop while the
+workflow ran was allowed with `deferred: G3` in the heartbeat; the first Stop after it ended was blocked by G3
+(the subagent's edit had marked the tree dirty), the model ran the test command, and the next Stop was allowed.
+Two more runs, same setup (`claude -p`, 2.1.316, haiku), 2026-11-04:
+- A workflow that fails after its agent returns (host status `failed`): the first Stop deferred; the first Stop after the failure had an empty `background_tasks`, so G3 applied at once. Nothing stale was left behind.
+- A workflow stopped with `TaskStop` (host status `killed`/`stopped`): the next Stop had an empty list and G3 applied at once.
+- In both, G3 then blocked every Stop until the model ran the test command (this test told it not to); the host ended the session after 9 consecutive blocks. That is G3's existing behavior, unchanged by W2.
+
+Interactive mode: not run from here (no terminal to drive). The hooks reference documents `background_tasks` in the Stop input and in SubagentStop input ("distinguish 'session is done' from 'session is paused waiting for background work'"), with `id`, `type` (`workflow` is listed), `status`, `description` and `name` for workflows, empty when nothing is in flight, "present when the task registry is reachable". It says nothing that separates interactive from `-p`, so the same behavior is expected, but it is not shown. Status values other than `running` are not documented; only `running` defers. Manual check, once, in an interactive session with this plugin: start a build, let the turn end, run `node hooks/status.js` and look for "G3 deferred".
+
+Full suite on this branch against a clean origin/main: 921 tests; the only failures are the 13 that already
+fail there (merge tests T1 to T7, which vary from run to run, and skill-contract tests).
+
+## Goal
+
+Replace the hand steps and the prose-only state in the build flow with a small number of structured
+records that code reads and validates, so that gates and the monitor act on facts, not on guesses
+about events or journal text.
+
+Non-goals: a new phase, a graph DSL, a database, an always-on service, changing what the experts
+decide, picking experts by file type (separate change, `hooks/lib/selection.js`).
+
+## What the trace showed, and what 4.2.1 already does
+
+| Observation (trace) | In 4.2.1 | Verdict |
+|---|---|---|
+| Hand patch of `model: 'sonnet'` into `build.js` on 8a, 8b, 9, 10, 11 | `phases/build.js` has no model option; readers have `ULTIMATE_WORKFLOW_READER_MODEL` only | Missing: W1 |
+| Saved the wrapper "exactly as returned" and `ledger add` wrote a row with `ok:false, green:false, rounds:null` | `commands/build.md` line 39 says save exactly as returned; `experts/ledger.js` takes `--result` and reads it as the phase result | Contradiction plus a silent bad row: W0b |
+| `dashboard/src/.ultimate-workflow/heartbeat.json` fails DECK-WASH-3 in every worktree | `hooks/lib/heartbeat.js` writes under the hook's `cwd`; `gate.js` passes `ev.cwd` | Bug: W0a |
+| G3 fired mid-build twice; verify misread the builder's edits as its own | No notion of a build in flight | Missing: W2 |
+| "Is it done?" matched the tests-step result; git-status ticks said stuck while the agent worked | No run-state reader | Missing: W2 |
+| Card headings written by hand 3 times | `brief --section` needs a plan heading per card | Missing: W5 |
+| Quality lens called a hole "the one real hole" in prose, no finding | Only `high` confidence findings block (`experts.js` `blocking`) | Missing: W4 |
+| Experts re-ran 3 times on card 10 | Plugin only blocks on high confidence. The loop came from "rule A" (a finding on changed lines blocks), which is not in the plugin | Project rule, not plugin: note in W4 |
+| Fingerprint moved on rewritten files | `volatile_paths` (4.1.2, 4.2.1 lists the files a run rewrote) | Already fixed. Out of scope |
+| Context grows to 150k+ | Reminder at 150k (4.2.0), `/handoff` | Already there. Out of scope |
+
+## Work items
+
+### W0. Two standalone fixes (no new schema)
+
+- **W0a. Heartbeat at the repo root.** `heartbeatPath(cwd)` resolves the root first: nearest
+  ancestor with a `.git` entry or an `.ultimate-workflow/active-plan`, else `cwd`. `status.js` uses the
+  same function. Files: `hooks/lib/heartbeat.js`, `hooks/gate.js`, `hooks/status.js`.
+  Test: a hook event with `cwd = <root>/sub/dir` writes `<root>/.ultimate-workflow/heartbeat.json` and
+  creates nothing under `sub/dir`.
+- **W0b. `ledger add` takes the wrapper and refuses a bad row.** If `--result` is the workflow
+  wrapper (an object whose `result` is an object, next to `agentCount` or `summary`), unwrap it. After
+  unwrapping, require the phase result's own `ok` to be a boolean, else throw with the reason.
+  Update `commands/build.md` line 39 so it no longer contradicts the code. Files: `experts/ledger.js`,
+  `commands/build.md` (and the same sentence in the other phase commands).
+  Test: wrapper in, correct row; a result without `ok`, error and nothing appended.
+
+### W1. Run settings
+
+`build.args.json` gains `model` (`{ implementer, diagnoser }`, each `sonnet|opus|haiku|inherit`, default
+`inherit`) and an env default `ULTIMATE_WORKFLOW_BUILD_MODEL`, following the existing reader-model
+precedent. `phases/build.js` passes it on the three `agent()` calls (write-tests, attempt, diagnose). An
+unknown value is refused before any agent starts. Also accepted and validated here, consumed by W4:
+`excludePaths` (globs left out of the experts' diff, e.g. an operator file that must never be
+committed). Files: `phases/build.js`, the script generator in `experts/experts.js`,
+`commands/build.md`. Test: the generated script carries the model on every build agent; bad value, error.
+
+### W2. Run state (design fixed by the S0 results below)
+
+No state file is needed for the main case. The host already reports the running workflow on the Stop
+hook, and G3 is a Stop gate.
+
+- **G3 defers while the Stop payload's `background_tasks` holds an entry with `type: "workflow"` and
+  `status: "running"`.** Once the workflow ends, the next Stop carries an empty list and G3 applies as
+  before, so the build's edits are verified once, on return.
+- **No time cap on the deferral.** The host is the authority on whether the run is alive. A cap would
+  fire G3 in the middle of a long build (card 11 ran 4 hours, 1.8 of them one agent command, with no
+  hook events in between). Deferring a Stop check is low risk: G7 (full run) and G6 (experts) still
+  guard the commit.
+- **Edits made by workflow subagents are tagged.** Their PreToolUse/PostToolUse payloads carry
+  `agent_id` and `agent_type: "workflow-subagent"`; main-session edits carry neither. The dirty flag
+  records which kind changed the source, so the builder's edits are not read as "my changes" and
+  `verify.js` is not asked to run on half-built code.
+- **`experts.js runstate`** prints one line (workflow id, state, age, last activity from the agent
+  transcripts named in `agent_transcript_path`, tokens when known). It replaces the hand reads of
+  `journal.jsonl` and the git-status monitor tick.
+- **`status.js` shows the deferral:** "G3 deferred: workflow wf_x running for 47 min". It must never be
+  an invisible no-op. This is the main acceptance test.
+- Fallback if a host or version does not report `background_tasks`: the command writes
+  `.ultimate-workflow/run/state.json` at launch and the result file on return, with a staleness cap.
+  Not built unless needed.
+
+#### S0. How the hook behavior is verified before W2 is built
+
+The repo's own method (`memory/hooks-and-gates.md`): record real payloads with `hooks/dev/record.js`
+and write the code against the captured fixtures, never against documentation. Existing fixtures
+(`fixtures/claude-code/`) hold only Pre/PostToolUse, Stop and UserPromptSubmit, none from a Workflow.
+
+1. Register `record.js` for every event, with a matcher that includes the `Workflow` tool, in a
+   scratch repo (not the ceo checkout), then unregister.
+2. Run one real, cheap workflow there (two agents, one of them editing a file, one running a long
+   shell command), and during it: end a turn (Stop) and make an edit in the main session.
+3. Read the recorded payloads and answer five questions, each with the fixture file as evidence:
+   - Does the Workflow tool fire PreToolUse and PostToolUse, and at launch only, or also at the end?
+   - Does the Stop payload's `background_tasks` list the running workflow, with an id and a state?
+     (The field exists in the 4.2.1 fixtures, empty when nothing runs. If it works, G3 can defer on
+     it with no state file at all.)
+   - Do tool calls made by the workflow's subagents fire PreToolUse/PostToolUse, and does the payload
+     say which agent made them? If yes, G3 can ignore the builder's own edits directly.
+   - Is there a completion event (a SubagentStop-like hook or a notification) with the run id?
+   - Does the same hold when the workflow is started from a resumed or Remote Control session?
+4. Pick the W2 design from the answers, in this order of preference: `background_tasks` on Stop, then
+   subagent identity on edits, then a hook on the Workflow tool, then the command-written state file.
+   Add the recorded payloads as fixtures and a test per answer.
+5. Check the chosen path end to end on a real build before release: G3 stays quiet during the build,
+   fires after it, and `status.js` shows the deferral. A unit test alone is not accepted (the G4 and
+   Cursor defects in `docs/gates.md`).
+
+Limits: this shows what 4.2.1 does on this host (Claude Code, Windows). Other hosts get prose only,
+as today, and an update to Claude Code can change the payloads, so the fixtures carry the version.
+
+#### S0 results (run 2026-11-04, Claude Code 2.1.316, Windows, `claude -p`, haiku, recorded with a one-line-per-event JSONL recorder)
+
+A scratch repo, two parallel workflow agents (one Write, one 40 s Bash), a main-session Write right after
+launch. Events in order, with timestamps: SessionStart, UserPromptSubmit, PreToolUse and PostToolUse for
+`Workflow` (both within 0.1 s of launch), SubagentStart x2, subagent Write and Bash hooks, main-session
+Write, SubagentStop, Stop (workflow still running), PostToolUse Bash, SubagentStop, a second
+UserPromptSubmit, Stop, SessionEnd.
+
+| Question | Answer (from the recording) |
+|---|---|
+| Workflow fires Pre/PostToolUse at launch only? | Yes. Both fire at launch; `tool_response` is `{status: "async_launched", taskId, runId: "wf_...", transcriptDir, scriptPath}`. Nothing fires at completion for the tool itself |
+| Does Stop list the running workflow? | Yes. The first Stop, 41 s before the run ended, has `background_tasks: [{id, type: "workflow", status: "running", description, name}]`. The last Stop has `[]` |
+| Do subagent tool calls fire hooks, and is the agent named? | Yes. PreToolUse/PostToolUse from subagents carry `agent_id` and `agent_type: "workflow-subagent"`. The main session's Write carries neither |
+| Completion event? | SubagentStop per agent, with `agent_id` and `agent_transcript_path` (the path contains the run id `wf_...`). SubagentStop also carries `background_tasks`. The host then starts a turn with a `<task-notification>` as a UserPromptSubmit |
+| Resumed or Remote Control session? | Not tested |
+
+Not covered: interactive mode (only `-p` was run), more than one concurrent workflow, a workflow that
+fails or is stopped (does its entry vanish, or show `failed`?), a Stop hook that blocks while a workflow
+runs (does the host still end the turn?), a real build rather than two trivial agents, other Claude Code
+versions. The recording stays in the session scratchpad (`s0/events.jsonl`) because it holds local paths;
+sanitized copies become fixtures with a test per row, and the fixtures record the Claude Code version.
+Before release, repeat the recording on a real build in an interactive session.
+
+### W3. One verify record per fingerprint (small)
+
+Check what `verify.js` and G7 already store. Goal: a green full run at the current fingerprint
+satisfies G3, the experts-check precondition and G7, so a card does one full run at the end instead of
+`--changed` plus `--full`. Only add fields if they are missing. Lowest priority.
+
+### W4. Concerns need a disposition; cap noise
+
+- Expert and lens results gain `concerns: [{ text, disposition: finding | not_a_finding, reason }]`.
+  Recording refuses a concern without a disposition or a `not_a_finding` without a reason. Files:
+  `phases/review.js`, `experts/experts.js`, the expert agent prompts' output sections.
+- `excludePaths` (W1) applies to the experts' diff.
+- No `rerunCap` in the plugin (decision 3): the trace's loop came from a project rule ("a finding on
+  changed lines blocks"), amended in the ceo project's own instructions, not in the gate.
+- Catch records get `state` (open, confirmed, refuted, dismissed) and `judgedAt`. `/value` lists the
+  open ones, and the phase command prints them before asking for the next confirmation.
+
+### W5. Cards in the plan
+
+Plan front matter lists cards (`name`, `paths`, `carried`). `brief --section` resolves a card from it,
+and a card whose build edits files outside `paths` shows them as `outOfScope` in the phase result. A
+hand-written heading still works.
+
+## Order and versions
+
+S0 (done; rerun on a real build before release), then W0a, W0b, W1 and W2 together as the first release (version decided at release: W2 and the sonnet default are behavior changes); then W4, W5; W3 last.
+
+## Tests and acceptance
+
+- Each item gets a regression test shown to fail on 4.2.1 (this repo's practice: mutation-checked).
+- W2 is accepted only with a recorded real-payload fixture from a real build, not a hand-made one.
+- Measure on the next card of the same kind: hand steps per card (target 0), mid-build verify runs
+  (target 0), a false "done" or "stuck" reading (target 0), bad ledger rows (target 0).
+
+## Risks
+
+- A schema is a failure surface (PRD section 2.2): every field above has a stated behavior when it is
+  missing or malformed, and gates never trust a model-written status over a fact they can read.
+- W2 depends on what hook events a background workflow fires. If none does, the command writes the
+  state and the staleness cap is the only protection.
+- The records fix bookkeeping, not self-judgement: catches are still judged by the session that made them.
+
+## Decisions (owner, 2026-11-04)
+
+1. First release (4.2.2) carries W0, W1 and W2 together. S0 (the hook-event spike) therefore comes
+   first and gates W2: if it shows no usable event, W2 falls back to the command-written state with the
+   staleness cap, and that is decided before code, not after.
+2. `model` default for the implementer is `sonnet`; the diagnoser stays on the session model (`inherit`).
+   This changes behavior for every user of the plugin, so it needs a CHANGELOG line under Changed.
+3. The "rule A" change goes in the ceo project's own instructions only, not in the plugin. Done
+   2026-11-04: an amending "Boss decision" line in `PLAN-command-deck-apple-rewash.md` of the ceo repo
+   (uncommitted). The plugin's `rerunCap` setting is dropped from W1 and W4.

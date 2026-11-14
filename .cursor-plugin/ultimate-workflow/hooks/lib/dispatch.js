@@ -1,13 +1,14 @@
 'use strict';
 
-// Routes a normalised hook event to the right gate and returns what the entry
-// point should emit. Pure: no I/O, no environment reads, so it is testable
-// row by row against the gate tables in PRD sections 5 and 5.1.
+// Routes a normalised hook event to what the entry point should emit. Pure: no I/O, no environment
+// reads, so it is testable row by row.
+//
+// Since 5.0.0 only one thing here refuses: a `git commit`, through the one commit check
+// (gates.commitGate). Every other event reminds or records, and none of them blocks an edit or a turn
+// from ending. Hooks write nothing to the plan.
 
 const gates = require('./gates.js');
 const { canBlockWrite } = require('./adapters.js');
-
-const WRITE_TOOLS = new Set(['write', 'edit', 'multiedit']);
 
 const VERIFY_SCRIPT = /hooks[\\/]verify\.js\b/;
 const reEscape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -18,7 +19,7 @@ const reEscape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
  * Full is only the plugin's `verify.js --full`, or the configured command as the whole of the
  * last simple command (after `cd x &&` and the like), with nothing appended. Anything else that
  * contains the configured command -- `npm test -- one.test.ts`, `npm test 2>&1 | tail` -- narrows
- * or masks the run and is related: it still clears G3, never the commit check. Until 4.1.1 every
+ * or masks the run and is related: it never counts for the commit check. Until 4.1.1 every
  * such run counted as the whole suite, because this was a bare substring match.
  */
 function verifyKind(command, state) {
@@ -30,184 +31,80 @@ function verifyKind(command, state) {
   return new RegExp(`(^|&&|;|\\|\\||\\()\\s*${reEscape(configured)}\\s*\\)?\\s*$`).test(cmd) ? 'full' : 'related';
 }
 
-/**
- * The first workflow the host reports as running, or null. Anything else (a missing or malformed
- * list, a finished entry, another kind of background task) is not a reason to defer anything.
- */
-function runningWorkflow(tasks) {
-  if (!Array.isArray(tasks)) return null;
-  return tasks.find((t) => t && typeof t === 'object' && t.type === 'workflow' && t.status === 'running') || null;
-}
-
 /** Did this shell command run the project's verification, whole or narrowed? */
 function isVerifyCommand(command, state) {
   return verifyKind(command, state) !== null;
 }
 
-// A `looksLikeShellWrite` heuristic used to live here, marking the tree dirty
-// when a shell command appeared to write a file. Removed after three false
-// positives and zero true positives in real use: a heredoc (every
-// `git commit -F -`), an arrow function (every `node -e` one-liner), and
-// `2>/dev/null` (ordinary stderr suppression, which writes nothing).
-//
-// Its own comment claimed "over-marking costs one test run". That was wrong:
-// it cost a test run after nearly every command, which is how a gate gets
-// switched off rather than fixed.
-//
-// The gap it aimed at is real -- a shell CAN write source, and the harness
-// pushes agents toward sed and heredocs. But inferring intent from a command
-// string is the wrong instrument. Tool scoping answers it structurally: an
-// agent without Bash cannot route around anything.
-
 /**
  * @param {object} ev    normalised event from adapters.normalize
  * @param {object} state resolved state from state.readState
- * @param {object} opts  { workflowsAvailable, failed, commitEvidence }
- * @returns {{kind: string, reason?: string, text?: string, patch?: object, note?: string}}
+ * @param {object} opts  { workflowsAvailable, commitEvidence, codeChanged, verifyScript }
+ * @returns {{kind: string, reason?: string, text?: string, say?: string, note?: string, check?: object, verified?: object}}
  */
 function dispatch(ev, state, opts = {}) {
   const allow = { kind: 'allow' };
   if (!ev || !ev.event) return allow;
-  if (state.stage === 'none') return allow;
 
-  // --- G7, G6: no commit before a full test run, and before the experts, cover these changes --
-  if (ev.event === 'preTool' && ev.tool === 'shell' && gates.isCommitCommand(ev.command)) {
-    const tests = gates.fullSuiteGate(state, opts.verifyEvidence, opts.verifyScript);
-    if (!tests.allow) {
-      if (!canBlockWrite(ev.vendor)) return { kind: 'allow', note: 'detect-only on this vendor', reason: tests.reason };
-      return { kind: 'deny', reason: tests.reason };
+  const isCommit = ev.event === 'preTool' && ev.tool === 'shell' && gates.isCommitCommand(ev.command);
+  if (state.stage === 'none') {
+    // No plan and no PRD: nothing to check. A commit says so, and the stamp records it.
+    if (!isCommit) return allow;
+    const why = 'no plan is open in the project';
+    return { kind: 'allow', say: `Commit check: this commit was not checked (exempt: ${why}).`, check: { outcome: 'exempt', why, missing: [] } };
+  }
+
+  // Several open plans and none chosen: no plan is guessed, so there is nothing to judge the commit by. It goes
+  // through, says so, and names the command that picks one (owner decision, 2026-11-13).
+  if (isCommit && state.stage === 'feature' && !state.file) {
+    const why = 'several plans and no active plan chosen';
+    return { kind: 'allow', say: `Commit check: this commit was not checked (exempt: ${why}). Pick the plan with: node experts/experts.js use --plan <file>`, check: { outcome: 'exempt', why, missing: [] } };
+  }
+
+  // --- the one commit check: confirmation, a full run, the experts, memory -----------------------
+  if (isCommit) {
+    // The evidence is gathered by the entry point, only for a commit, because it reads the working tree.
+    if (!opts.commitEvidence) {
+      const why = 'the commit evidence could not be gathered';
+      return { kind: 'allow', say: `Commit check: could not check this commit (${why}). It goes through unchecked.`, check: { outcome: 'could-not-check', why, missing: [] } };
     }
-    // The evidence is gathered by the entry point, only for a commit, because it
-    // reads the working tree. Without it there is nothing to judge, so allow.
-    if (!opts.commitEvidence) return allow;
     const verdict = gates.commitGate(opts.commitEvidence);
-    if (verdict.allow) return allow;
-    if (!canBlockWrite(ev.vendor)) return { kind: 'allow', note: 'detect-only on this vendor', reason: verdict.reason };
-    return { kind: 'deny', reason: verdict.reason };
-  }
-
-  // --- G1, G2, B-G1, B-G2: pre-edit ---------------------------------------
-  if (ev.event === 'preTool' && WRITE_TOOLS.has(ev.tool)) {
-    const verdict = gates.preEditGate(state, { path: ev.path, cwd: ev.cwd });
-
-    // An edit that is now permitted means the condition the violation
-    // described -- an unconfirmed plan, usually -- no longer holds. Clear it
-    // the moment it stops being true, not at the next green run, so stop
-    // messages never quote a resolved problem back at the user.
+    const check = gates.checkRecord(verdict);
+    const notes = (verdict.notices || []).map((n) => (/^the plan changed/.test(n) ? `Reminder: ${n}.` : `Plan settings: ${n}.`));
     if (verdict.allow) {
-      return state.data.gate_violation ? { kind: 'allow', patch: { gate_violation: '' } } : allow;
+      // By hand, a check that cannot be satisfied lets the commit through and says so. The run parks instead.
+      if (verdict.outcome === 'could-not-check') return { kind: 'allow', say: [`Commit check: could not check this commit (${verdict.why}). It goes through unchecked.`, ...notes].join('\n'), check };
+      if (verdict.outcome === 'exempt') return { kind: 'allow', say: [`Commit check: this commit was not checked (exempt: ${verdict.why}).`, ...notes].join('\n'), check };
+      if (notes.length > 0) return { kind: 'allow', say: notes.join('\n'), check };
+      return { ...allow, check };
     }
-
-    // Cursor ignores a deny on a write and reports success to the model, so
-    // emitting one is worse than useless: it looks enforced and is not. Record
-    // the violation instead and let the stop follow-up correct it.
-    if (!canBlockWrite(ev.vendor)) {
-      return {
-        kind: 'allow',
-        patch: { dirty: true, gate_violation: verdict.reason },
-        note: 'detect-only on this vendor',
-      };
-    }
-    return { kind: 'deny', reason: verdict.reason };
+    if (!canBlockWrite(ev.vendor)) return { kind: 'allow', note: 'detect-only on this vendor', reason: verdict.reason, check };
+    return { kind: 'deny', reason: verdict.reason, check };
   }
 
-  // --- mark the tree dirty once an edit has landed -------------------------
-  if ((ev.event === 'postTool' && WRITE_TOOLS.has(ev.tool)) || ev.event === 'afterEdit') {
-    const rel = ev.cwd ? gates.toProjectPath(ev.cwd, ev.path) : ev.path;
-    // The plugin's own run folder is not source (4.7.0): the autopilot run writes its journal lines
-    // and harvest file there after the last card, and that made G3 ask for a test run of a tree the
-    // run had just verified.
-    if (rel === null || rel === '' || gates.isDocPath(rel) || gates.isDiagramPath(rel) || gates.isRunPath(rel)) return allow;
-    return { kind: 'allow', patch: { dirty: true } };
-  }
-
-  // --- G4: round cap on the verify command ---------------------------------
+  // --- a full run of the project's test command, typed directly: recorded for the commit check ----
   if ((ev.event === 'postTool' || ev.event === 'postToolFailure') && ev.tool === 'shell') {
-    // Any other shell command is left alone. See the note above on why guessing
-    // whether one wrote a file was abandoned.
     const kind = verifyKind(ev.command, state);
-    if (!kind) return allow;
-
-    // Pass or fail must come from every signal available, not from the event
-    // name alone.
-    //
-    // It used to come from the event name alone, on the belief that a failing
-    // command arrives as `postToolFailure`. Claude Code does not appear to send
-    // that event: fixtures/claude-code/PostToolUse.18.json is a non-zero-exit
-    // command recorded as a plain `PostToolUse`, and no failure fixture exists
-    // among the recorded payloads. So a RED verification run was scored green
-    // and written to the plan as `last_verify: green` -- which does not merely
-    // weaken G3 and G4, it inverts them: failing the tests was the way to
-    // satisfy the gate that exists to make you pass them.
-    //
-    // `normalize()` already derives `ok` from `tool_response.success`, and did
-    // so before this bug was found; nothing read it. Any signal saying failure
-    // now means failure.
+    if (kind !== 'full') return allow;
+    // Pass or fail must come from every signal available, not from the event name alone: a non-zero
+    // exit has been recorded as a plain PostToolUse (fixtures/claude-code/PostToolUse.18.json).
     const passed = !(ev.event === 'postToolFailure' || opts.failed === true || ev.ok === false);
-    const result = gates.roundCap(state, { passed });
-    const verified = { kind, passed };
-
-    if (result.escalated && !result.alreadyEscalated) {
-      return {
-        kind: 'context',
-        patch: result.patch,
-        verified,
-        text: `[ultimate-workflow] Verification failed ${result.patch.verify_rounds} times. Stop here. State the problem, what changed between rounds, and the failure signature; present 2-3 options with tradeoffs; wait for the user.`,
-      };
-    }
-    return { kind: 'allow', patch: result.patch, verified };
+    return { kind: 'allow', verified: { kind, passed } };
   }
 
-  // --- G3: stop ------------------------------------------------------------
+  // --- reminders ------------------------------------------------------------------------------------
   if (ev.event === 'stop') {
-    // Cursor fires stop on cancelled and superseded generations too. Emitting a
-    // follow-up there auto-submits a user message for a turn that did nothing,
-    // which burns the loop_limit and pesters the user.
+    // Cursor fires stop on cancelled and superseded generations too; nothing is said for a turn that did nothing.
     if (ev.status && ev.status !== 'completed') return allow;
-
-    const verdict = gates.stopGate(state, { verifyScript: opts.verifyScript });
-
-    // A recorded violation is checked BEFORE stopGate's verdict, not after it.
-    //
-    // On a host that cannot block a write, a denied pre-edit is downgraded to
-    // "allow, but record the violation and let the stop follow-up correct it".
-    // That promise was empty: stopGate steps aside whenever no verification
-    // command is configured, and the shipped plan template ships
-    // `test_command: ""`. So on Cursor -- the only host this compensation
-    // exists for -- G1 and G2 were bypassed, the violation was written to the
-    // plan front matter, and nothing ever told anyone.
-    //
-    // "Revert that edit" is satisfiable with no verification command
-    // configured, so this branch does not need stopGate's verdict to fire.
-    if (state.data.gate_violation) {
-      const tail = verdict.allow ? '' : ` ${verdict.reason}`;
-      return {
-        kind: 'stopBlock',
-        reason: `${state.data.gate_violation} That edit was not prevented on this host, so revert it before continuing.${tail}`,
-      };
-    }
-
-    if (verdict.allow) return allow;
-
-    // A workflow is still running (a build, usually): its edits are in progress, so a verify now
-    // would run half-built code. The host reports it in `background_tasks`; the next Stop, after
-    // the workflow ends, carries an empty list and G3 applies as it always did. G7 and G6 still
-    // guard the commit. After the violation check on purpose: that one is a different problem.
-    const running = runningWorkflow(ev.backgroundTasks);
-    if (running) {
-      return {
-        kind: 'allow',
-        deferred: { gate: 'G3', workflowId: running.id || null, workflowName: running.name || running.description || null },
-      };
-    }
-    return { kind: 'stopBlock', reason: verdict.reason };
+    const lines = gates.reminders(state, { codeChanged: opts.codeChanged, script: opts.verifyScript });
+    return lines.length > 0 ? { kind: 'notice', text: lines.join('\n') } : allow;
   }
 
-  // --- G5: phase pointer ---------------------------------------------------
   if (ev.event === 'prompt' || ev.event === 'sessionStart') {
-    const text = gates.phasePointer(state, { workflowsAvailable: opts.workflowsAvailable });
-    if (!text) return allow;
-    return { kind: 'context', text };
+    const pointer = gates.phasePointer(state, { workflowsAvailable: opts.workflowsAvailable });
+    const lines = gates.reminders(state, { codeChanged: opts.codeChanged, script: opts.verifyScript });
+    const text = [pointer, ...lines].filter(Boolean).join('\n');
+    return text ? { kind: 'context', text } : allow;
   }
 
   return allow;

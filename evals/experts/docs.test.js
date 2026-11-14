@@ -174,3 +174,104 @@ test('the site\'s flow diagram has the same lines as the README\'s', () => {
   assert.ok(fromReadme.length >= 6);
   assert.deepStrictEqual(fromSite, fromReadme);
 });
+
+// --- run.md says what the code does (PLAN-run-fixes.md, card run-md, tests 79 to 82, and test 64) ---
+
+const RUN_MD = read('.cursor-plugin/ultimate-workflow/phases/run.md');
+// run.js names the shared build loop with a `// @shared` line; the rules are read from the assembled script, the one users run.
+const RUN_JS = require('../security-expert/lib/run-workflow.js').readScript(path.join(__dirname, '..', '..', '.cursor-plugin', 'ultimate-workflow', 'phases', 'run.js'));
+const NUMBER_WORDS = { 1: 'one', 2: 'two', 3: 'three', 4: 'four', 5: 'five' };
+
+test('run-md 79: run.md round rules match run.js', () => {
+  const cap = /^const ROUND_CAP = (\d+)$/m.exec(RUN_JS);
+  assert.ok(cap, 'run.js no longer declares ROUND_CAP');
+  assert.ok(NUMBER_WORDS[cap[1]], `no word for ${cap[1]} rounds`);
+  assert.ok(RUN_MD.includes(`implements in up to ${NUMBER_WORDS[cap[1]]} rounds`), `run.md does not say "up to ${NUMBER_WORDS[cap[1]]} rounds"`);
+  // The two early stops of the build loop, each with its sentence in the guide.
+  const rules = [
+    { code: /if \(next && next\.testMayBeWrong\) \{/, phrase: 'after one round when the diagnosis says the test or the plan is wrong, not the code' },
+    { code: /if \(next && priorSignature && next\.signature === priorSignature\) \{/, phrase: 'after two when the same failure comes back' },
+  ];
+  for (const r of rules) {
+    assert.match(RUN_JS, r.code, `run.js no longer has the early stop that run.md describes as: ${r.phrase}`);
+    assert.ok(RUN_MD.includes(r.phrase), `run.md does not say: ${r.phrase}`);
+  }
+  assert.ok(!RUN_MD.includes('implements in up to three rounds with a fresh diagnosis after each failure, checks scope'), 'the old sentence with no exceptions is back');
+});
+
+test('run-md 80: run.md says the .gitignore commit happens only when the line was missing', () => {
+  assert.ok(RUN_MD.includes('commits that one line on the run branch only when the line was missing'));
+  assert.ok(!RUN_MD.includes('and commits that one line on the run branch itself'), 'the old "always committed" wording is back');
+  // The code it describes: run-start commits only when ensureIgnored added the line.
+  assert.match(read('.cursor-plugin/ultimate-workflow/experts/autopilot.js'), /if \(ignored\.added\)/);
+});
+
+test('run-md 81: run.md says review, fix-up and harvest wait for parked cards and the harvest branch may be uw/harvest/<feature>-2', () => {
+  assert.ok(RUN_MD.includes('wait until no card is parked, held for a decision or blocked'));
+  assert.ok(RUN_MD.includes('`uw/harvest/<feature>-2`'));
+  assert.match(RUN_MD, /how to run the review and the harvest by hand/);
+});
+
+test('run-md 82: run.md says one desktop notification, at the end', () => {
+  assert.ok(RUN_MD.includes('**One desktop notification per run, at the end.**'));
+  assert.ok(!RUN_MD.includes('The user hears about every blocker when it happens'), 'the old wording is back');
+  assert.match(RUN_MD, /Only the last one, when the run finishes, is also fired as a desktop notification/);
+});
+
+test('one-notice 64: run.md tells the session to send notify --kind finished with stopped when the run ended without one', () => {
+  const at = RUN_MD.indexOf('When the run ended without its own finished notice');
+  assert.ok(at > RUN_MD.indexOf('## 4. When it returns'), 'the rule is in the section about the return');
+  const rule = RUN_MD.slice(at, at + 1200);
+  assert.match(rule, /notify --feature <feature> --kind finished --reason "stopped: /);
+  assert.match(rule, /exactly one/);
+});
+
+// --- release (PLAN-run-fixes.md, card release, test 86) -------------------------------------------
+
+test('release 86: CHANGELOG 4.8.0 names the unattended-run fixes', () => {
+  const log = read('CHANGELOG.md');
+  const start = log.search(/^## \[4\.8\.0\]/m);
+  assert.ok(start >= 0, 'no 4.8.0 entry');
+  const entry = log.slice(start, log.indexOf('\n## [', start + 1));
+  const at = entry.indexOf('### Fixed (the unattended run)');
+  assert.ok(at > 0, 'the 4.8.0 entry has no "### Fixed (the unattended run)" section');
+  const section = entry.slice(at);
+  // One fixed phrase per fault of the first unattended run, items 4 to 16 of PLAN-run-fixes.md (and the cost columns).
+  const items = {
+    4: 'judges the card being committed',
+    5: 'asked once more',
+    6: 'goes inside the card list',
+    7: 'names the files in conflict',
+    8: 'more than one fix-up card',
+    9: 'gets its own branch',
+    10: 'wait until no card is parked',
+    11: 'whole in the report',
+    12: 'One desktop notification per run',
+    13: 'parked after one round',
+    14: 'a plan in a subfolder',
+    15: 'only when the line was missing',
+    16: '`experts.js claims`',
+    17: 'Pack (est.), Tokens and Cache read',
+  };
+  for (const [n, phrase] of Object.entries(items)) assert.ok(section.includes(phrase), `item ${n} is not named: "${phrase}"`);
+  assert.doesNotMatch(log, /^## \[4\.9\.0\]/m, 'these fixes ship inside 4.8.0');
+});
+
+// Review of the whole branch (2026-11-13): the session-side fallback must also cover a run whose script
+// finished while the step that sends the finished notice returned nothing, and say how to tell.
+test('one-notice 64b: run.md tells the session to look in notifications.jsonl for a finished entry of this run before sending one', () => {
+  const at = RUN_MD.indexOf('When the run ended without its own finished notice');
+  const rule = RUN_MD.slice(at, at + 1200);
+  assert.match(rule, /the script finished but the step that sends the finished notice returned nothing/);
+  assert.match(rule, /`\.ultimate-workflow\/run\/<feature>\/notifications\.jsonl`/);
+  assert.match(rule, /`"kind":"finished"`[^.]*newer than the run's start/);
+  assert.match(rule, /If there is one, send nothing/);
+});
+
+test('build loop: ROUND_CAP 3, the same-signature stop, testMayBeWrong and escalationText are in the build loop (lib/phase-shared.js, assembled into phases/build.js), not in a hook', () => {
+  const BUILD_JS = require('../security-expert/lib/run-workflow.js').readScript(path.join(__dirname, '..', '..', '.cursor-plugin', 'ultimate-workflow', 'phases', 'build.js'));
+  assert.match(BUILD_JS, /^const ROUND_CAP = 3\s*$/m);
+  for (const needle of ['testMayBeWrong', 'escalationText', 'if (round >= ROUND_CAP) break']) assert.ok(BUILD_JS.includes(needle), needle);
+  const caps = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', '4.8.0', 'recorded', 'caps.json'), 'utf8'));
+  assert.strictEqual(caps.ROUND_CAP['phases/build.js'], 3);
+});

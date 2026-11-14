@@ -141,10 +141,12 @@ test('shipped experts/ stays under a byte budget that grows with each expert', (
   // still refuses a ZIP over 2 MB. The shared skills library (experts/skills/) has no total
   // budget, by the same decision: each skill is capped at 16 KB and each expert's skills at
   // one stage at 40 KB, which bound what any one prompt pays.
+  // Decided by the maintainer on 2026-11-11: the code allowance goes from 60 KB to 100 KB,
+  // because experts.js and autopilot.js are the run's code and had 97 bytes left after 4.8.0.
   const root = path.join(PAYLOAD, 'experts');
   const skills = path.join(root, 'skills');
   const experts = fs.readdirSync(root, { withFileTypes: true }).filter((d) => d.isDirectory() && d.name !== 'skills');
-  const BUDGET = 60 * 1024 + experts.length * 40 * 1024;
+  const BUDGET = 100 * 1024 + experts.length * 40 * 1024;
   const files = walk(root).filter((p) => fs.statSync(p).isFile() && !p.startsWith(skills + path.sep));
   const total = files.reduce((n, p) => n + fs.statSync(p).size, 0);
   assert.ok(total <= BUDGET, `experts/ (without skills/) is ${total} bytes, budget ${BUDGET} for ${experts.length} experts`);

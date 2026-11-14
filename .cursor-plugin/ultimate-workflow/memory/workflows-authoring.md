@@ -1,8 +1,20 @@
+---
+description: How the phase scripts are built, what the runtime forbids, and what each phase costs.
+read_when:
+  paths:
+    - phases/*.js
+    - agents/uw-*.md
+  keywords:
+    - parallel() returned nothing
+    - the expert lane
+    - adding a phase
+updated: 2026-10-20
+---
+
 # Authoring workflow phases
 
 > How the phase scripts (five phases, plus the autopilot `run.js`) are built, what the runtime forbids, and what
 > each one costs.
-> Last updated 2026-10-20.
 
 ## Mental model: the script holds the sequence, the agent holds the judgement
 
@@ -12,7 +24,7 @@ The rule that keeps this from becoming a pile of dispersed decisions: **agents p
 
 Phases are separate invocations rather than one script because the runtime cannot take mid-run user input — the documentation says plainly that for sign-off between stages, each stage should be its own workflow. The confirmation points are the product, so the decomposition is forced, and it is also correct: each phase is independently rerunnable and independently costable.
 
-`phases/run.js` (4.7.0) is the deliberate exception, and only after both confirmations: nothing it does needs the user, so it holds the whole card loop, the review and the harvest in one script, and the main conversation makes one call. A card that would need a decision is parked on a branch instead of stopping. It carries `build.js`'s loop as a marked block (`// --- build loop`), held equal by a test in the source repository. It writes through its agents, but every commit, park and harvest commit goes through one `experts.js` command, never an agent's own git.
+`phases/run.js` (4.7.0) is the deliberate exception, and only after both confirmations: nothing it does needs the user, so it holds the whole card loop, the review and the harvest in one script, and the main conversation makes one call. A card that would need a decision is parked on a branch instead of stopping. It carries `build.js`'s loop as a marked block (`// --- build loop`), the same section of `lib/phase-shared.js` that `build.js` uses. It writes through its agents, but every commit, park and harvest commit goes through one `experts.js` command, never an agent's own git.
 
 ## Key decisions
 
@@ -22,7 +34,7 @@ Phases are separate invocations rather than one script because the runtime canno
 - **Refuted findings are returned, not dropped.** A verifier that silently filters cannot itself be audited, and a review that quietly discards has started lying by omission.
 - **The verifier defaults to refuted when uncertain.** A false finding costs more than a missed one, because it burns trust in every true finding beside it. This is the deliberate inverse of the "default to finding 3-5 issues" pattern seen in some public agent collections — an agent given a quota meets the quota, real or not.
 - **Barriers are justified only by cross-item need.** `/plan` and `/harvest` use one because synthesis and dedup genuinely need every reader's output at once. Elsewhere, pipeline.
-- **Domain experts take part through a lane, and the lane is the same code in plan, tests and review.** The scripts cannot read the agents folder, so the command runs `experts/experts.js list` and passes the result as `args.available`; a model answers "which of these apply" and `addOnly` merges the answer, so it can add a listed name and nothing else. The helper block is copied into each script between `// --- expert lane helpers` markers and a contract check holds the copies equal. What a lane produced is recorded from the return value (`expertLane`) by `experts.js record`, never from what the model said it did. Adding an expert is an agent file and its references; the recipe is the "adding an expert" document in the source repository's docs folder (not shipped with the plugin).
+- **Domain experts take part through a lane, and the lane is the same code in plan, tests and review (one section of `lib/phase-shared.js`, which `experts.js assemblePhase` puts into each script).** The scripts cannot read the agents folder, so the command runs `experts/experts.js list` and passes the result as `args.available`; a model answers "which of these apply" and `addOnly` merges the answer, so it can add a listed name and nothing else. The helper block is copied into each script between `// --- expert lane helpers` markers and a contract check holds the copies equal. What a lane produced is recorded from the return value (`expertLane`) by `experts.js record`, never from what the model said it did. Adding an expert is an agent file and its references; the recipe is the "adding an expert" document in the source repository's docs folder (not shipped with the plugin).
 - **Skills reach an expert as text in its prompt, chosen in code.** Telling a model to open the skill whose cue matched did not get it opened (two runs of two). `experts.js prepare` (review), `experts.js brief --plan` (build) and `experts.js skills --stage tests --plan` (tests) select by the selectors in the stage reference and pass the text in `args`; the script pastes it and returns `skillsLoaded`. At plan the draft exists only inside the script, so the expert-selection call also answers which skills it needs, from `experts.js skills --stage plan`; code limits the answer to that list.
 
 ## Common operations

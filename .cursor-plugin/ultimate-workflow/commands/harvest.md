@@ -23,6 +23,10 @@ Present the proposals grouped by destination and **stop**. Apply nothing without
 **Present them from the Workflow tool's output file, never from its completion notice.** A large result is cut off in the notice, and proposals read from cut-off text are a partial list shown as whole. The notice names the output file, which holds the complete result (the phase result is under `result`). Read all of it with the Read tool, paging with `offset` and `limit` until the end. If the notice names no output file, or the file cannot be read to the end, say so and stop: never summarise the notice, and do not run the phase again.
 
 
+## After the proposals are applied
+
+Once the accepted proposals are applied, run `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" memory index` (add `--root <folder>` when memory.md is not in the project root) so memory.md lists every topical, then `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" memory check` and fix what it reports. A new topical starts with a header (`description`, `read_when.paths`, `read_when.keywords`); never edit memory.md between its markers by hand.
+
 ## Record the run in the ledger
 
 Last, after the steps above: save the workflow's result, exactly as returned (the Workflow tool's output file, wrapper and all: `ledger add` reads the phase result out of the wrapper, so do not unwrap it by hand), to `.ultimate-workflow/run/harvest.result.json` (a one-liner that reads the tool's output file is the expected way, and is not a workaround; never retype or edit it), and write `.ultimate-workflow/run/harvest.row.json` with the Write tool: `{ "runId": "<the run id>", "agents": <number>, "tokens": <subagent tokens>, "durationMs": <milliseconds>, "plan": "<plan file, if any>", "workarounds": ["<anything you had to do that this command did not say, one line each>"] }`, the numbers from the Workflow tool's result. Leave out a number the result does not show; never estimate one. Then run `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" ledger add --phase harvest --row .ultimate-workflow/run/harvest.row.json --result .ultimate-workflow/run/harvest.result.json`. `/ultimate-workflow:value` reports from it.

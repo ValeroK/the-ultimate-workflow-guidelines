@@ -110,10 +110,8 @@ const MUTANTS = {
   'the expert directory grows past its byte budget': (t) => fs.writeFileSync(ref(t, 'fat.md'), 'x'.repeat(200 * 1024)),
   'a workflow edit that leaves review.js unparseable': (t) =>
     edit(path.join(t.payload, 'phases', 'review.js'), (s) => s.replace("const noExperts = Boolean(args && args.noExperts)", 'const noExperts = Boolean(args && args.noExperts) garbage')),
-  'the lane helpers drift in one workflow': (t) =>
-    edit(path.join(t.payload, 'phases', 'tests.js'), (s) => s.replace('const asList = (v) =>', 'const asList = (v, extra) =>')),
   'a workflow loses its lane helpers': (t) =>
-    edit(path.join(t.payload, 'phases', 'plan.js'), (s) => s.replace('// --- end expert lane helpers ---', '')),
+    edit(path.join(t.payload, 'phases', 'plan.js'), (s) => s.replace('// @shared lane-helpers', '')),
   'an expert agent file that discovery cannot read': (t) =>
     fs.writeFileSync(path.join(t.payload, 'agents', 'uw-expert-stray.md'), '---\nname: uw-expert-wrong\ndescription: A stray expert whose name does not match.\ntools: Read, Grep, Glob\nreadonly: true\n---\n\n# Stray\n'),
 };
@@ -122,7 +120,7 @@ for (const [name, mutate] of Object.entries(MUTANTS)) {
   test(`the contract rejects: ${name}`, () => {
     const t = copyTree();
     mutate(t);
-    const problems = /unparseable|drift|loses its lane|discovery cannot read/.test(name) ? all(t) : run(t);
+    const problems = /unparseable|loses its lane|discovery cannot read/.test(name) ? all(t) : run(t);
     assert.ok(problems.length > 0, `mutant "${name}" passed the contract`);
   });
 }

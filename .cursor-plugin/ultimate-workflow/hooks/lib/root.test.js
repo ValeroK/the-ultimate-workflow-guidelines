@@ -100,23 +100,25 @@ const editPayload = (cwd, file) => ({
 
 test('gate.js fired from a subfolder still enforces the root plan', () => {
   const root = project();
+  spawnSync('git', ['init', '-q', '-b', 'main'], { cwd: root });
+  spawnSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '--allow-empty', '-m', 'base'], { cwd: root });
   const sub = path.join(root, 'dashboard', 'src');
-  const r = spawnSync(process.execPath, [GATE], {
-    input: JSON.stringify(editPayload(sub, path.join(sub, 'a.js'))),
-    encoding: 'utf8',
-  });
-  assert.equal(r.status, 2, `an unplanned source edit must be denied; got exit ${r.status}, stdout ${r.stdout}`);
+  fs.writeFileSync(path.join(sub, 'a.js'), 'x\n');
+  const commit = (cwd) => spawnSync(process.execPath, [GATE], { input: JSON.stringify({ hook_event_name: 'PreToolUse', cwd, tool_name: 'Bash', tool_input: { command: 'git commit -am x' } }), encoding: 'utf8', env: { ...process.env, ULTIMATE_WORKFLOW_GATES: 'on' } });
+  const r = commit(sub);
+  assert.equal(r.status, 2, `an unconfirmed plan must refuse the commit; got exit ${r.status}, stdout ${r.stdout}`);
   assert.match(JSON.parse(r.stdout).hookSpecificOutput.permissionDecisionReason, /plan_confirmed/);
 });
 
-test('gate.js fired from a subfolder writes its heartbeat at the root and nothing in the subfolder', () => {
+test('gate.js fired from a subfolder writes its commit-check stamp at the root and nothing in the subfolder', () => {
   const root = project();
+  spawnSync('git', ['init', '-q', '-b', 'main'], { cwd: root });
+  spawnSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '--allow-empty', '-m', 'base'], { cwd: root });
   const sub = path.join(root, 'dashboard', 'src');
-  spawnSync(process.execPath, [GATE], {
-    input: JSON.stringify(editPayload(sub, path.join(sub, 'a.js'))),
-    encoding: 'utf8',
-  });
-  assert.ok(fs.existsSync(path.join(root, '.ultimate-workflow', 'heartbeat.json')), 'heartbeat at the root');
+  fs.writeFileSync(path.join(sub, 'a.js'), 'x\n');
+  const commit = (cwd) => spawnSync(process.execPath, [GATE], { input: JSON.stringify({ hook_event_name: 'PreToolUse', cwd, tool_name: 'Bash', tool_input: { command: 'git commit -am x' } }), encoding: 'utf8', env: { ...process.env, ULTIMATE_WORKFLOW_GATES: 'on' } });
+  commit(sub);
+  assert.ok(fs.existsSync(path.join(root, '.ultimate-workflow', 'commit-check.json')), 'the stamp is at the root');
   assert.ok(!fs.existsSync(path.join(sub, '.ultimate-workflow')), 'no stray folder in the subfolder');
 });
 

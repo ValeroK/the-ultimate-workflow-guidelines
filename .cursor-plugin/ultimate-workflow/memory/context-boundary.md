@@ -1,8 +1,20 @@
+---
+description: Why `CLAUDE.md` is a thin index, the keep-what-has-no-cue rule, and what stops it growing back.
+read_when:
+  paths:
+    - rules/*.mdc
+  keywords:
+    - CLAUDE.md
+    - memory.md
+    - SKILL.md
+    - something belongs in always-on context
+updated: 2026-08-28
+---
+
 # The static / dynamic context boundary
 
 > Why `AGENTS.md` is a thin index rather than the whole workflow, and what
 > stops it growing back.
-> Last updated 2026-08-28.
 
 **If you are reading this because a thin `AGENTS.md` looked incomplete and you were about to move content back into it: that is the failure this file exists to prevent.** Read on before editing.
 

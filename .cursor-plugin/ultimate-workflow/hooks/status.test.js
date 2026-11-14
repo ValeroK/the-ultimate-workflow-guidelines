@@ -21,7 +21,6 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
-const hb = require('./lib/heartbeat.js');
 const stateLib = require('./lib/state.js');
 const gates = require('./lib/gates.js');
 
@@ -55,43 +54,9 @@ function runJson(cwd, env = {}) {
   return { ...r, json: JSON.parse(r.stdout) };
 }
 
-function beat(dir, at) {
-  hb.record(dir, { at, event: 'preTool', vendor: 'claude', stage: 'feature', decision: 'allow' });
-}
+function beat() {} // the heartbeat is gone (5.0.0); calls that wrote one are harmless
 
 // --- liveness, the reason this exists --------------------------------------
-
-test('with no heartbeat it says the gates have never run, and names the restart', () => {
-  const r = runStatus(tmpdir());
-  assert.equal(r.exit, 0);
-  assert.match(r.stdout, /never run/i);
-  assert.match(r.stdout, /restart/i, 'the likely cause must be named, not left to guesswork');
-});
-
-test('with a recent heartbeat it reports live, with a count', () => {
-  const dir = tmpdir();
-  beat(dir, new Date().toISOString());
-  beat(dir, new Date().toISOString());
-
-  const r = runStatus(dir);
-  assert.match(r.stdout, /live/i);
-  assert.match(r.stdout, /2/, 'the invocation count belongs in the report');
-});
-
-test('with an old heartbeat it reports stale rather than live', () => {
-  const dir = tmpdir();
-  beat(dir, '2020-01-01T00:00:00.000Z');
-  assert.match(runStatus(dir).stdout, /stale/i);
-});
-
-test('with the escape hatch set it reports disabled and does not claim to enforce', () => {
-  const dir = tmpdir();
-  beat(dir, new Date().toISOString());
-
-  const out = runStatus(dir, { ULTIMATE_WORKFLOW_GATES: 'off' }).stdout;
-  assert.match(out, /disabled/i);
-  assert.doesNotMatch(out, /\blive\b/i, 'disabled gates must never read as live');
-});
 
 // --- stage and next action -------------------------------------------------
 
@@ -122,15 +87,6 @@ test('stage bootstrap reports against PRD.md', () => {
   assert.match(out, /PRD\.md/);
 });
 
-test('a fully confirmed plan reports nothing blocking', () => {
-  const dir = tmpdir();
-  fs.writeFileSync(
-    path.join(dir, 'PLAN-x.md'),
-    '---\nplan_confirmed: true\ntests_confirmed: true\nexperts: []\ndirty: false\n---\n'
-  );
-  assert.match(runStatus(dir).stdout, /nothing blocking/i);
-});
-
 // --- robustness ------------------------------------------------------------
 
 test('a malformed plan file exits 0 with no stack trace', () => {
@@ -142,38 +98,7 @@ test('a malformed plan file exits 0 with no stack trace', () => {
   assert.doesNotMatch(r.stdout + (r.stderr || ''), /at Object\.|node:internal/, 'no stack trace');
 });
 
-test('a corrupt heartbeat file exits 0 and still reports', () => {
-  const dir = tmpdir();
-  fs.mkdirSync(path.join(dir, hb.DIR), { recursive: true });
-  fs.writeFileSync(path.join(dir, hb.DIR, 'heartbeat.json'), '}{ not json');
-
-  const r = runStatus(dir);
-  assert.equal(r.exit, 0);
-  assert.match(r.stdout, /never run/i, 'an unreadable heartbeat is indistinguishable from none');
-});
-
 // --- it is a report, not a gate -------------------------------------------
-
-test('status writes nothing at all', () => {
-  const dir = tmpdir();
-  const plan = path.join(dir, 'PLAN-x.md');
-  fs.writeFileSync(plan, '---\nplan_confirmed: true\n---\n# Plan\n');
-  beat(dir, new Date().toISOString());
-
-  const planBefore = fs.readFileSync(plan, 'utf8');
-  const planMtime = fs.statSync(plan).mtimeMs;
-  const hbBefore = fs.readFileSync(path.join(dir, hb.DIR, 'heartbeat.json'), 'utf8');
-
-  runStatus(dir);
-
-  assert.equal(fs.readFileSync(plan, 'utf8'), planBefore, 'plan file must be untouched');
-  assert.equal(fs.statSync(plan).mtimeMs, planMtime, 'plan mtime must be untouched');
-  assert.equal(
-    fs.readFileSync(path.join(dir, hb.DIR, 'heartbeat.json'), 'utf8'),
-    hbBefore,
-    'reading the heartbeat must not record one'
-  );
-});
 
 // --- --json: the machine-readable report -----------------------------------
 //
@@ -183,12 +108,12 @@ test('status writes nothing at all', () => {
 // `experts` was added with the G6 commit gate: additive, null outside a feature.
 const JSON_KEYS = ['blocking', 'deferral', 'experts', 'file', 'fullVerify', 'g3Active', 'liveness', 'stage', 'state'];
 
-function frontMatter(lines) {
+function fenced(lines) {
   return `---\n${lines.join('\n')}\n---\n`;
 }
 
 function writePlan(dir, lines, name = 'PLAN-x.md') {
-  fs.writeFileSync(path.join(dir, name), frontMatter(lines));
+  fs.writeFileSync(path.join(dir, name), fenced(lines));
   return path.join(dir, name);
 }
 
@@ -212,76 +137,7 @@ test('--json emits exactly one JSON object on stdout and nothing on stderr', () 
   assert.doesNotMatch(r.stdout, /^Gates:/m, 'no human report alongside the JSON');
 });
 
-test('the --json object carries the documented top-level keys, and only those, at every stage', () => {
-  const empty = tmpdir();
-
-  const plan = tmpdir();
-  writePlan(plan, ['plan_confirmed: false', 'tests_confirmed: false']);
-
-  const prd = tmpdir();
-  fs.writeFileSync(path.join(prd, 'PRD.md'), frontMatter(['prd_confirmed: false']));
-
-  const bare = tmpdir();
-  writePlan(bare, ['feature: y'], 'PLAN-y.md');
-
-  for (const dir of [empty, plan, prd, bare]) {
-    const { json } = runJson(dir);
-    assert.deepEqual(Object.keys(json).sort(), JSON_KEYS, `key set for ${dir}`);
-  }
-
-  for (const dir of [empty, bare]) {
-    const { json } = runJson(dir);
-    assert.deepEqual(json.state, {}, 'state is an object, always -- never null, never absent');
-  }
-
-  const { json } = runJson(empty);
-  assert.deepEqual(json.blocking, { blocked: false, reason: null });
-  assert.equal(json.g3Active, false);
-});
-
 // 3-6 --- liveness ----------------------------------------------------------
-
-test('--json reports liveness as a state, a numeric age, and a numeric count', () => {
-  const dir = tmpdir();
-  beat(dir, new Date().toISOString());
-  beat(dir, new Date().toISOString());
-
-  const { json } = runJson(dir);
-  assert.equal(json.liveness.state, 'live');
-  assert.equal(typeof json.liveness.ageSeconds, 'number', 'not a rendered "12m ago"');
-  assert.ok(json.liveness.ageSeconds >= 0 && json.liveness.ageSeconds < 90, 'age is in seconds');
-  assert.strictEqual(json.liveness.count, 2, 'the number 2, not "2 invocations"');
-});
-
-test('--json reports never-run liveness with a null age and a zero count', () => {
-  const { json } = runJson(tmpdir());
-  assert.equal(json.liveness.state, 'never');
-  assert.ok('ageSeconds' in json.liveness, 'the key must survive JSON.stringify');
-  assert.strictEqual(json.liveness.ageSeconds, null);
-  assert.strictEqual(json.liveness.count, 0);
-});
-
-test('--json reports stale rather than live for an old heartbeat', () => {
-  const dir = tmpdir();
-  beat(dir, '2020-01-01T00:00:00.000Z');
-
-  const { json } = runJson(dir);
-  assert.equal(json.liveness.state, 'stale');
-  assert.ok(json.liveness.ageSeconds > 3600, 'stale means older than the live window');
-});
-
-test('--json reports disabled when the gates are switched off', () => {
-  const dir = tmpdir();
-  beat(dir, new Date().toISOString());
-
-  // Gates are on by default since 4.1.0, so only an explicit off disables them.
-  for (const env of [{ ULTIMATE_WORKFLOW_GATES: 'off' }, { ULTIMATE_WORKFLOW_GATES: '0' }]) {
-    const { json } = runJson(dir, env);
-    assert.equal(json.liveness.state, 'disabled', `for env ${JSON.stringify(env)}`);
-    assert.strictEqual(json.liveness.ageSeconds, null);
-    assert.strictEqual(json.liveness.count, 1, 'the real count passes through under disabled');
-  }
-});
 
 // 7-9 --- stage, file, state ------------------------------------------------
 
@@ -294,7 +150,7 @@ test('--json carries the stage and the absolute path of the file it read', () =>
   assert.equal(f.file, path.join(feature, 'PLAN-x.md'), 'the full path, not the basename');
 
   const bootstrap = tmpdir();
-  fs.writeFileSync(path.join(bootstrap, 'PRD.md'), frontMatter(['prd_confirmed: false']));
+  fs.writeFileSync(path.join(bootstrap, 'PRD.md'), fenced(['prd_confirmed: false']));
 
   const b = runJson(bootstrap).json;
   assert.equal(b.stage, 'bootstrap');
@@ -308,199 +164,11 @@ test('--json carries file as an explicit null when there is no plan or PRD', () 
   assert.strictEqual(json.file, null, 'null, not the string "null"');
 });
 
-test('--json echoes the whole shown front-matter whitelist with types and quoting intact', () => {
-  // Embedded double quotes and backslashes: this repo's own plan files carry
-  // both in test_command, and CLAUDE.md records backslash mangling as hit 4x.
-  const TEST_COMMAND = 'node --test "hooks/**/*.test.js" C:\\Users\\x';
-
-  const dir = tmpdir();
-  writePlan(dir, [
-    'plan_confirmed: false',
-    'tests_confirmed: false',
-    'prd_confirmed: false',
-    'design_confirmed: false',
-    'dirty: true',
-    'last_verify: red',
-    'verify_rounds: 2',
-    'escalated: false',
-    `test_command: ${TEST_COMMAND}`,
-    'feature: status-json',
-  ]);
-
-  const { json } = runJson(dir);
-  assert.deepEqual(json.state, {
-    plan_confirmed: false,
-    tests_confirmed: false,
-    prd_confirmed: false,
-    design_confirmed: false,
-    dirty: true,
-    last_verify: 'red',
-    verify_rounds: 2,
-    escalated: false,
-    test_command: TEST_COMMAND,
-  });
-  assert.strictEqual(
-    json.state.test_command,
-    stateLib.readState(dir).data.test_command,
-    'byte-identical to what the state library reads'
-  );
-});
-
 // 10-11 --- what is blocking ------------------------------------------------
-
-test('--json reports blocking exactly as the gate predicates do, for every gate', () => {
-  const rows = [
-    ['G1', (d) => writePlan(d, ['plan_confirmed: false'])],
-    ['G2', (d) => writePlan(d, ['plan_confirmed: true', 'tests_confirmed: false'])],
-    ['B-G1', (d) => fs.writeFileSync(path.join(d, 'PRD.md'), frontMatter(['prd_confirmed: false']))],
-    ['G3', (d) => writePlan(d, ['plan_confirmed: true', 'tests_confirmed: true', 'dirty: true', 'test_command: node --test'])],
-    ['G3 escalated', (d) => writePlan(d, ['plan_confirmed: true', 'tests_confirmed: true', 'dirty: true', 'test_command: node --test', 'escalated: true'])],
-    ['G3 no command', (d) => writePlan(d, ['plan_confirmed: true', 'tests_confirmed: true', 'dirty: true'])],
-    ['G1 wins over G3', (d) => writePlan(d, ['plan_confirmed: false', 'dirty: true', 'test_command: node --test'])],
-    ['clear', (d) => writePlan(d, ['plan_confirmed: true', 'tests_confirmed: true', 'dirty: false'])],
-  ];
-
-  for (const [label, setup] of rows) {
-    const dir = tmpdir();
-    setup(dir);
-
-    const r = runJson(dir);
-
-    // The expectation is computed from the live predicates, never from a
-    // literal or a regex, so a second code path cannot invent its own wording.
-    const st = stateLib.readState(dir);
-    const edit = gates.preEditGate(st, { path: 'src/example.js' });
-    const stop = gates.stopGate(st);
-    const expected = !edit.allow ? edit.reason : !stop.allow ? stop.reason : null;
-
-    assert.equal(r.json.blocking.reason, expected, `reason for ${label}`);
-    assert.equal(r.json.blocking.blocked, expected !== null, `blocked for ${label}`);
-    assert.equal(r.exit, 0, `exit for ${label}`);
-  }
-});
-
-test('--json reports whether G3 is active, for test_command and build_command alike', () => {
-  const confirmed = ['plan_confirmed: true', 'tests_confirmed: true'];
-
-  const none = tmpdir();
-  writePlan(none, confirmed);
-  assert.equal(runJson(none).json.g3Active, false);
-
-  const withTest = tmpdir();
-  writePlan(withTest, [...confirmed, 'test_command: node --test']);
-  assert.equal(runJson(withTest).json.g3Active, true);
-
-  const withBuild = tmpdir();
-  writePlan(withBuild, [...confirmed, 'build_command: make']);
-  assert.equal(
-    runJson(withBuild).json.g3Active,
-    true,
-    'stopGate reads test_command || build_command (gates.js:152)'
-  );
-});
 
 // 12 --- the single-code-path invariant -------------------------------------
 
-test('the JSON and the human report agree on every fact both carry', () => {
-  const fixtures = [
-    ['never-run, no plan', () => {}, {}],
-    [
-      'live, unconfirmed plan',
-      (d) => {
-        writePlan(d, ['plan_confirmed: false', 'tests_confirmed: false']);
-        beat(d, new Date().toISOString());
-      },
-      {},
-    ],
-    [
-      'stale, confirmed plan blocked by G3',
-      (d) => {
-        writePlan(d, ['plan_confirmed: true', 'tests_confirmed: true', 'dirty: true', 'test_command: node --test']);
-        beat(d, '2020-01-01T00:00:00.000Z');
-      },
-      {},
-    ],
-    ['bootstrap', (d) => fs.writeFileSync(path.join(d, 'PRD.md'), frontMatter(['prd_confirmed: false'])), {}],
-    [
-      'gates disabled',
-      (d) => {
-        writePlan(d, ['plan_confirmed: false', 'tests_confirmed: false']);
-        beat(d, new Date().toISOString());
-      },
-      { ULTIMATE_WORKFLOW_GATES: 'off' },
-    ],
-  ];
-
-  for (const [label, setup, env] of fixtures) {
-    const dir = tmpdir();
-    setup(dir);
-
-    const human = runStatus(dir, env).stdout;
-    const json = runJson(dir, env).json;
-
-    assert.match(human, new RegExp(json.liveness.state, 'i'), `liveness for ${label}`);
-    assert.ok(human.includes(json.stage), `stage for ${label}`);
-
-    if (json.file !== null) {
-      assert.ok(human.includes(json.file), `the human report prints the full path for ${label}`);
-    }
-
-    for (const [k, v] of Object.entries(json.state)) {
-      assert.ok(human.includes(`${k}: ${v}`), `state ${k} for ${label}`);
-    }
-
-    if (json.blocking.blocked) {
-      assert.ok(human.includes(json.blocking.reason), `blocking reason verbatim for ${label}`);
-    } else {
-      assert.doesNotMatch(human, /Gate (B-)?G\d/, `no gate named for ${label}`);
-    }
-
-    // The human renderer returns before the G3 note at stage 'none'
-    // (status.js:59-62), so the note is only comparable where it can be
-    // printed at all. Deviation from the plan's unconditional iff, recorded.
-    if (json.stage !== 'none') {
-      assert.equal(/INACTIVE/.test(human), json.g3Active === false, `g3Active note for ${label}`);
-    }
-  }
-});
-
 // 13-15 --- exit code and robustness ----------------------------------------
-
-test('--json exits 0 while a gate is blocking', () => {
-  const dir = tmpdir();
-  writePlan(dir, ['plan_confirmed: false']);
-
-  const r = runJson(dir);
-  assert.equal(r.json.blocking.blocked, true);
-  assert.equal(r.exit, 0, 'status is a report, not a gate -- usable under set -e');
-});
-
-test('--json still parses, and still reports the truth, for a malformed plan and a corrupt heartbeat', () => {
-  const malformed = tmpdir();
-  fs.writeFileSync(path.join(malformed, 'PLAN-x.md'), '---\nthis is not: valid: front: matter\n');
-
-  const m = runJson(malformed);
-  assert.equal(m.exit, 0);
-  assert.deepEqual(Object.keys(m.json).sort(), JSON_KEYS);
-  assert.equal(m.json.stage, 'feature');
-  assert.equal(m.json.file, path.join(malformed, 'PLAN-x.md'));
-  assert.equal(m.json.blocking.blocked, true, 'no front matter means G1 denies');
-
-  const corrupt = tmpdir();
-  fs.mkdirSync(path.join(corrupt, hb.DIR), { recursive: true });
-  fs.writeFileSync(path.join(corrupt, hb.DIR, 'heartbeat.json'), '}{ not json');
-
-  const c = runJson(corrupt);
-  assert.equal(c.exit, 0);
-  assert.equal(c.json.liveness.state, 'never', 'an unreadable heartbeat is indistinguishable from none');
-  assert.strictEqual(c.json.liveness.count, 0);
-
-  for (const r of [m, c]) {
-    const all = r.stdout + r.stderr;
-    assert.doesNotMatch(all, /at Object\.|node:internal/, 'no stack trace');
-    assert.doesNotMatch(all, /Could not complete/, 'no prose escape hatch');
-  }
-});
 
 test('--json degrades inside the contract when the report itself throws', (t) => {
   const dir = tmpdir();
@@ -526,27 +194,6 @@ test('--json degrades inside the contract when the report itself throws', (t) =>
 });
 
 // 16 --- still a report, not a gate -----------------------------------------
-
-test('--json writes nothing at all', () => {
-  const dir = tmpdir();
-  const plan = path.join(dir, 'PLAN-x.md');
-  fs.writeFileSync(plan, '---\nplan_confirmed: true\n---\n# Plan\n');
-  beat(dir, new Date().toISOString());
-
-  const planBefore = fs.readFileSync(plan, 'utf8');
-  const planMtime = fs.statSync(plan).mtimeMs;
-  const hbBefore = fs.readFileSync(path.join(dir, hb.DIR, 'heartbeat.json'), 'utf8');
-
-  runStatus(dir, {}, ['--json']);
-
-  assert.equal(fs.readFileSync(plan, 'utf8'), planBefore, 'plan file must be untouched');
-  assert.equal(fs.statSync(plan).mtimeMs, planMtime, 'plan mtime must be untouched');
-  assert.equal(
-    fs.readFileSync(path.join(dir, hb.DIR, 'heartbeat.json'), 'utf8'),
-    hbBefore,
-    'reading the heartbeat must not record one'
-  );
-});
 
 // 17-18 --- no regression to the default path -------------------------------
 
@@ -588,14 +235,6 @@ test('--json reports the experts state for a feature, and null where there is no
   assert.equal(typeof e.commit.allowed, 'boolean');
 });
 
-test('the human report says when the experts decision is missing, because that is what blocks the next edit', () => {
-  const dir = tmpdir();
-  writePlan(dir, ['plan_confirmed: true', 'tests_confirmed: true']);
-  const out = runStatus(dir).stdout;
-  assert.match(out, /Experts:/);
-  assert.match(out, /NO DECISION/);
-});
-
 test('T23 --json reports the last full test run: n/a, never, fresh, stale', () => {
   const dir = tmpdir();
   const g = (...a) => spawnSync('git', a, { cwd: dir, encoding: 'utf8' });
@@ -614,4 +253,84 @@ test('T23 --json reports the last full test run: n/a, never, fresh, stale', () =
   assert.equal(runJson(dir).json.fullVerify, 'fresh');
   fs.appendFileSync(path.join(dir, 'a.js'), 'z\n');
   assert.equal(runJson(dir).json.fullVerify, 'stale');
+});
+
+// ---- PLAN-simplify, card reminders: the report after the heartbeat and the edit gates are gone ----
+
+const snapshotDir = (dir) => {
+  const out = {};
+  (function walk(p) {
+    if (!fs.existsSync(p)) return;
+    for (const e of fs.readdirSync(p, { withFileTypes: true })) {
+      const q = path.join(p, e.name);
+      if (e.isDirectory()) walk(q);
+      else out[path.relative(dir, q)] = fs.readFileSync(q, 'utf8');
+    }
+  })(dir);
+  return out;
+};
+const NEW_KEYS = ['experts', 'file', 'fullVerify', 'gates', 'lastCheck', 'leftoverHeartbeat', 'reminders', 'stage', 'state'];
+
+test('status: gates off still reports disabled, in the human report and in --json', () => {
+  const dir = tmpdir();
+  writePlan(dir, ['plan_confirmed: true']);
+  const human = runStatus(dir, { ULTIMATE_WORKFLOW_GATES: 'off' });
+  assert.match(human.stdout, /DISABLED/);
+  assert.match(human.stdout, /Nothing is being checked/);
+  assert.strictEqual(runJson(dir, { ULTIMATE_WORKFLOW_GATES: 'off' }).json.gates, 'disabled');
+  assert.strictEqual(runJson(dir).json.gates, 'enabled');
+});
+
+test('status: the --json object carries the documented top-level keys, and only those, at every stage', () => {
+  const none = tmpdir();
+  const feature = tmpdir();
+  writePlan(feature, ['plan_confirmed: true', 'tests_confirmed: true']);
+  const bootstrap = tmpdir();
+  fs.writeFileSync(path.join(bootstrap, 'PRD.md'), fenced(['prd_confirmed: false']));
+  for (const dir of [none, feature, bootstrap]) assert.deepStrictEqual(Object.keys(runJson(dir).json).sort(), NEW_KEYS);
+});
+
+test('status: a leftover heartbeat.json is reported as deletable and not read', () => {
+  const dir = tmpdir();
+  writePlan(dir, ['plan_confirmed: true', 'tests_confirmed: true']);
+  fs.mkdirSync(path.join(dir, '.ultimate-workflow'), { recursive: true });
+  fs.writeFileSync(path.join(dir, '.ultimate-workflow', 'heartbeat.json'), '}{ not json');
+  const r = runJson(dir);
+  assert.strictEqual(r.exit, 0);
+  assert.strictEqual(r.json.leftoverHeartbeat, true);
+  assert.match(runStatus(dir).stdout, /heartbeat\.json is left over[\s\S]*can be deleted/);
+});
+
+test('status: the report writes nothing at all, in either form', () => {
+  const dir = tmpdir();
+  writePlan(dir, ['plan_confirmed: false']);
+  fs.mkdirSync(path.join(dir, '.ultimate-workflow'), { recursive: true });
+  fs.writeFileSync(path.join(dir, '.ultimate-workflow', 'verify.json'), '{}');
+  const before = snapshotDir(dir);
+  runStatus(dir);
+  runJson(dir);
+  assert.deepStrictEqual(snapshotDir(dir), before);
+});
+
+test('status: a corrupt commit-check.json exits 0 and the report still parses', () => {
+  const dir = tmpdir();
+  writePlan(dir, ['plan_confirmed: true', 'tests_confirmed: true']);
+  fs.mkdirSync(path.join(dir, '.ultimate-workflow'), { recursive: true });
+  fs.writeFileSync(path.join(dir, '.ultimate-workflow', 'commit-check.json'), '}{ not json');
+  const r = runJson(dir);
+  assert.strictEqual(r.exit, 0);
+  assert.strictEqual(r.json.lastCheck, null);
+  assert.match(runStatus(dir).stdout, /Last commit check: none yet/);
+});
+
+test('status: a confirmed plan has no reminders and an unconfirmed one names the confirm command', () => {
+  const ok = tmpdir();
+  writePlan(ok, ['plan_confirmed: true', 'tests_confirmed: true']);
+  assert.deepStrictEqual(runJson(ok).json.reminders, []);
+  const open = tmpdir();
+  writePlan(open, ['plan_confirmed: false', 'tests_confirmed: false']);
+  const lines = runJson(open).json.reminders;
+  assert.strictEqual(lines.length, 2);
+  assert.match(lines[0], /--confirm plan_confirmed/);
+  assert.match(lines[1], /--confirm tests_confirmed/);
 });

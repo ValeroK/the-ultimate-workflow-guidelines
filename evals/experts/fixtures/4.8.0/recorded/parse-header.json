@@ -1,0 +1,85 @@
+{
+  "context-boundary.md.fixture": {
+    "header": {
+      "description": "Why `CLAUDE.md` is a thin index, the keep-what-has-no-cue rule, and what stops it growing back.",
+      "paths": [
+        "rules/*.mdc"
+      ],
+      "keywords": [
+        "CLAUDE.md",
+        "memory.md",
+        "SKILL.md",
+        "something belongs in always-on context"
+      ],
+      "updated": "2026-08-28"
+    },
+    "errors": []
+  },
+  "cursor-install.md.fixture": {
+    "header": {
+      "description": "Why the plugin payload lives under `.cursor-plugin/ultimate-workflow/` and how Cursor marketplace sparse-checkout emptied root-level installs.",
+      "paths": [
+        ".cursor-plugin/**"
+      ],
+      "keywords": [
+        "/add-plugin",
+        "marketplace sources",
+        "packaging",
+        "release ZIP layout",
+        "a Cursor install that looks present but has no agents/rules"
+      ],
+      "updated": "2026-08-29"
+    },
+    "errors": []
+  },
+  "hooks-and-gates.md.fixture": {
+    "header": {
+      "description": "How enforcement works, why a fail-open gate goes silently dead, and what was measured per host.",
+      "paths": [
+        "hooks/**"
+      ],
+      "keywords": [
+        "gate.js",
+        "status.js",
+        "adapters",
+        "heartbeat",
+        "the G6 experts/commit gate",
+        "adding a host",
+        "a gate is not firing"
+      ],
+      "updated": "2026-11-07"
+    },
+    "errors": []
+  },
+  "mirrors.md.fixture": {
+    "header": {
+      "description": "Which files are hand-copies, which differences are deliberate, and what CI cannot see.",
+      "paths": [
+        "rules/*.mdc",
+        "skills/*/references/*",
+        "agents/"
+      ],
+      "keywords": [
+        "SKILL.md"
+      ],
+      "updated": "2026-08-28"
+    },
+    "errors": []
+  },
+  "workflows-authoring.md.fixture": {
+    "header": {
+      "description": "How the phase scripts are built, what the runtime forbids, and what each phase costs.",
+      "paths": [
+        "phases/*.js",
+        "agents/uw-*.md"
+      ],
+      "keywords": [
+        "parallel() returned nothing",
+        "the expert lane",
+        "adding a phase"
+      ],
+      "updated": "2026-10-20"
+    },
+    "errors": []
+  }
+}

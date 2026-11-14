@@ -41,6 +41,7 @@ function git(cwd, ...args) {
 }
 
 /** A repository with one commit, a plan file and a source file. */
+const stampedPlan = (text) => { const x = require('../../.cursor-plugin/ultimate-workflow/experts/experts.js'); return x.setFrontLine(text, 'confirmed_hash', x.confirmHash(text)); };
 function repo() {
   const dir = tmp('repo');
   git(dir, 'init', '-q', '-b', 'main');
@@ -48,7 +49,7 @@ function repo() {
   git(dir, 'config', 'user.name', 't');
   write(path.join(dir, 'src', 'a.js'), 'module.exports = 1;\n');
   write(path.join(dir, 'README.md'), '# x\n');
-  write(path.join(dir, 'PLAN-x.md'), '---\nplan_confirmed: true\ntests_confirmed: true\n---\nbody\n');
+  write(path.join(dir, 'PLAN-x.md'), stampedPlan('---\nplan_confirmed: true\ntests_confirmed: true\ntest_command: node --test x\n---\nbody\n'));
   git(dir, 'add', '-A');
   git(dir, 'commit', '-q', '-m', 'base');
   return dir;
@@ -67,7 +68,11 @@ const agentText = (name, extra = {}) => {
   return `---\n${lines.join('\n')}\n---\n\n# ${name}\n`;
 };
 
-const cli = (cwd, args, input) => spawnSync(process.execPath, [CLI, ...args], { cwd, input, encoding: 'utf8' });
+// These tests are about the experts check (G6): a passing full run is recorded before a `check` so G7 holds.
+const cli = (cwd, args, input) => {
+  if (args[0] === 'check') require(path.join(PLUGIN, 'hooks', 'verify.js')).recordFull(cwd, { passed: true, command: 'node --test x' });
+  return spawnSync(process.execPath, [CLI, ...args], { cwd, input, encoding: 'utf8' });
+};
 
 // ---- discovery -----------------------------------------------------------
 
@@ -317,7 +322,7 @@ test('prepare with a git range saves that range, while the fingerprint stays the
   git(dir, 'commit', '-q', '-m', 'feature');
   const p = ex.prepare(dir, 'main..HEAD', PLUGIN);
   assert.match(fs.readFileSync(path.join(dir, p.diffFile), 'utf8'), /b\.js/);
-  assert.deepStrictEqual(p.files, [], 'nothing uncommitted');
+  assert.deepStrictEqual(p.files, ['src/b.js'], 'the files of the saved range, not of the working tree (fault 20)');
 });
 
 // ---- recording evidence --------------------------------------------------------
@@ -364,11 +369,21 @@ test('record writes one file per expert that ran and the recheck, against the pr
   assert.ok(!fs.existsSync(path.join(dir, '.ultimate-workflow', 'experts', 'review', 'devops.json')), 'a failed expert has no record');
 });
 
-test('a review without a successful recheck leaves no recheck record', () => {
+test('a review whose recheck failed stores the failure in the recheck record, and a changed-only review does not narrow from it', () => {
   const dir = repo();
   ex.prepare(dir, 'working', PLUGIN);
-  ex.record(dir, 'review', reviewResult({ recheck: false, recheckFailed: true }), { pluginRoot: PLUGIN });
-  assert.ok(!fs.existsSync(path.join(dir, '.ultimate-workflow', 'experts', 'review', '_recheck.json')));
+  // 2026-11-13: a failed recheck does not refuse the commit, so the lane says recheck true and recheckFailed true.
+  ex.record(dir, 'review', reviewResult({ recheck: true, recheckFailed: true }), { pluginRoot: PLUGIN });
+  const marker = JSON.parse(fs.readFileSync(path.join(dir, '.ultimate-workflow', 'experts', 'review', '_recheck.json'), 'utf8'));
+  assert.strictEqual(marker.recheckFailed, true);
+  write(path.join(dir, 'src', 'b.js'), 'b\n');
+  const p = ex.prepare(dir, 'working', PLUGIN, { delta: true });
+  assert.match(p.deltaRefused || '', /no answer from its recheck/);
+  // A lane with recheck false (the recheck was switched off) still leaves no record.
+  const dir2 = repo();
+  ex.prepare(dir2, 'working', PLUGIN);
+  ex.record(dir2, 'review', reviewResult({ recheck: false }), { pluginRoot: PLUGIN });
+  assert.ok(!fs.existsSync(path.join(dir2, '.ultimate-workflow', 'experts', 'review', '_recheck.json')));
 });
 
 test('record adds the lane\'s selected experts to the plan, add-only, and an empty selection still writes the decision', () => {
@@ -400,7 +415,7 @@ function ready() {
   const dir = repo();
   write(path.join(dir, 'src', 'a.js'), 'module.exports = 2;\n');
   const plan = path.join(dir, 'PLAN-x.md');
-  fs.writeFileSync(plan, '---\nplan_confirmed: true\ntests_confirmed: true\nexperts: [security]\n---\nbody\n');
+  fs.writeFileSync(plan, stampedPlan('---\nplan_confirmed: true\ntests_confirmed: true\ntest_command: node --test x\nexperts: [security]\n---\nbody\n'));
   return { dir, plan };
 }
 const verdict = (dir, plan) => gates.commitGate(ex.commitEvidence(dir, plan, PLUGIN));

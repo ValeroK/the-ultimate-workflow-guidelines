@@ -100,7 +100,7 @@ Once the PRD is complete and holds all decisions, create four living docs:
    - Open questions / blockers.
    - Cross-reference: when a new `PLAN-<feature>.md` is produced, link it here.
 
-4. **`memory.md`** (template: [`references/memory-template.md`](references/memory-template.md)) — seeded **empty** (just the header + threshold comment). It's the slim index for topical knowledge that the workflow skill writes into `memory/<topic>.md` later. Empty is fine; the slot must exist for entries to land.
+4. **`memory.md`** (template: [`references/memory-template.md`](references/memory-template.md)) — seeded **empty** (just the header, the threshold comment, and an empty `<!-- uw:memory-index:start ... -->` / `<!-- uw:memory-index:end -->` pair that the list of topicals is generated into; never edit between the markers). It's the slim index for topical knowledge that the workflow skill writes into `memory/<topic>.md` later. Empty is fine; the slot must exist for entries to land.
 
 **Why a slim memory.md from day one:** like `## Gotchas`, the slot must exist for entries to land. `memory.md` captures explanatory knowledge ("here's how X works", "here's why we picked Y") in topical files that are lazy-loaded on demand — distinct from `## Gotchas`, which carries always-loaded defensive warnings. The workflow skill (`the-ultimate-workflow-guidelines`) knows what to do with it.
 

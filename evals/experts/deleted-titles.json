@@ -1,0 +1,526 @@
+[
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/state.test.js",
+  "readState picks the most recently modified PLAN file when several exist"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/registration.test.js",
+  "the pre-edit matcher covers every write tool"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/registration.test.js",
+  "the verify-command events match Bash, or G4 never sees a test run"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/dispatch.test.js",
+  "a landed source edit marks the tree dirty"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/dispatch.test.js",
+  "a documentation edit does not mark the tree dirty"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/dispatch.test.js",
+  "a diagram edit does not mark the tree dirty, an application html edit does"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/dispatch.test.js",
+  "an edit outside the project does not mark the tree dirty"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/dispatch.test.js",
+  "Cursor afterFileEdit marks dirty just like postTool"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/dispatch.test.js",
+  "a passing verify clears dirty and resets the counter"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/dispatch.test.js",
+  "the third failure escalates and hands the user the blocker protocol"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/dispatch.test.js",
+  "stop blocks while the tree is dirty"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/dispatch.test.js",
+  "a green verify clears gate_violation"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/dispatch.test.js",
+  "a red verify leaves gate_violation alone"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/dispatch.test.js",
+  "gate.js records a heartbeat even at stage none, where no gate acts"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/dispatch.test.js",
+  "gate.js still decides correctly when the heartbeat cannot be written"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/dispatch.test.js",
+  "gate.js echoes the real event name on a G4 escalation, end to end"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/dispatch.test.js",
+  "T16 a passing related verify.js run clears dirty; a failing one counts a G4 round"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/dispatch.test.js",
+  "G3 names the verify script when the hook knows it"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/gates.test.js",
+  "G1, G2, G6 and the bootstrap gates let diagrams through before confirmation"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/gates.test.js",
+  "G2 and G1 let the plugin write its own run files, in every stage"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/gates.test.js",
+  "the run-folder exemption does not open the evidence the commit gate reads, or anything else"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/gates.test.js",
+  "G1 denies a source edit while the plan is unconfirmed, naming the gate"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/gates.test.js",
+  "G1 allows editing the plan file itself"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/gates.test.js",
+  "G1 allows documentation edits"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/gates.test.js",
+  "G2 denies a source edit while tests are unconfirmed"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/gates.test.js",
+  "G2 allows editing test files while tests are unconfirmed -- that is the point"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/gates.test.js",
+  "both confirmed allows source edits"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/gates.test.js",
+  "stage none never blocks anything"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/gates.test.js",
+  "B-G2 denies source edits before the design is confirmed"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/gates.test.js",
+  "B-G1 denies scaffolding before the PRD is confirmed"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/gates.test.js",
+  "bootstrap always allows editing PRD.md"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/gates.test.js",
+  "G3 blocks turn completion while the tree is dirty"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/gates.test.js",
+  "G3 allows turn completion once verification is green"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/gates.test.js",
+  "G3 does not block when nothing has been edited"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/gates.test.js",
+  "G3 stays out of the way once the run has escalated"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/gates.test.js",
+  "G4 counts failing rounds and escalates on the third"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/gates.test.js",
+  "G4 does not re-escalate on a fourth failing round"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/gates.test.js",
+  "G4 resets the counter and clears dirty on a green run"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/gates.test.js",
+  "G4 records red without clearing dirty"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/gates.test.js",
+  "G5 surfaces an escalation instead of the ordinary next action"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/gates.test.js",
+  "preEditGate ignores edits outside the project even with an unconfirmed plan"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/gates.test.js",
+  "preEditGate still blocks an absolute path inside the project"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/gates.test.js",
+  "preEditGate allows an absolute path to a test file inside the project"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/gates.test.js",
+  "G6 denies a source edit once the plan is confirmed but no experts decision is recorded, and says how to record one"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/gates.test.js",
+  "G6 accepts any recorded decision, including \"none apply\""
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/gates.test.js",
+  "G6 does not block test files or documentation, so the tests can be written before the decision is recorded"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/gates.test.js",
+  "G1 is reported before G6: an unconfirmed plan is the first thing to fix"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/review-findings.test.js",
+  "the G4 escalation would be accepted by the host, not rejected as a mismatch"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/review-findings.test.js",
+  "a Windows path in front matter survives repeated round-trips unchanged"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/review-findings.test.js",
+  "a command containing quotes and a colon survives a round-trip"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/review-findings.test.js",
+  "a plain command is not needlessly quoted"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/review-findings.test.js",
+  "the stop gate does not block when no verification command is configured"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/review-findings.test.js",
+  "the stop gate does not block when test_command is absent entirely"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/review-findings.test.js",
+  "the stop gate still blocks once a verification command exists"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/review-findings.test.js",
+  "the verify command itself is not treated as a source write"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/state.test.js",
+  "patchState updates a key and preserves the body and other keys"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/state.test.js",
+  "patchState adds front matter to a file that has none"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/heartbeat.test.js",
+  "record writes a heartbeat with the fields status needs"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/heartbeat.test.js",
+  "record creates the heartbeat directory if it does not exist"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/heartbeat.test.js",
+  "record keeps at most 20 recent entries, evicting the oldest"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/heartbeat.test.js",
+  "count is a running total, not the length of recent"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/heartbeat.test.js",
+  "a corrupt heartbeat file is replaced rather than thrown on"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/heartbeat.test.js",
+  "a truncated heartbeat file is replaced rather than thrown on"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/heartbeat.test.js",
+  "recording into an unwritable location fails silently"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/heartbeat.test.js",
+  "read returns a null-ish heartbeat when none exists, without throwing"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/heartbeat.test.js",
+  "read on a corrupt file returns the empty shape rather than throwing"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/heartbeat.test.js",
+  "liveness reports never when no heartbeat exists"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/heartbeat.test.js",
+  "liveness reports live for a recent heartbeat"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/heartbeat.test.js",
+  "liveness reports stale for an old heartbeat"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/heartbeat.test.js",
+  "liveness reports disabled regardless of heartbeat age"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/workflow-defer.test.js",
+  "normalize exposes the workflow list a Stop payload carries"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/workflow-defer.test.js",
+  "normalize marks a workflow subagent edit, and leaves a main-session edit unmarked"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/workflow-defer.test.js",
+  "G3 defers while a workflow is running, and says so"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/workflow-defer.test.js",
+  "G3 applies as before once the workflow has finished"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/workflow-defer.test.js",
+  "a finished workflow entry does not defer G3"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/workflow-defer.test.js",
+  "a running background task that is not a workflow does not defer G3"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/workflow-defer.test.js",
+  "a missing or malformed background_tasks leaves G3 exactly as it was"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/workflow-defer.test.js",
+  "a recorded gate violation still blocks while a workflow runs"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/workflow-defer.test.js",
+  "nothing is deferred when G3 would have allowed anyway"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/workflow-defer.test.js",
+  "gate.js lets the turn end while the workflow runs, and records why in the heartbeat"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/workflow-defer.test.js",
+  "gate.js blocks the same turn end once the workflow is gone"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/workflow-defer.test.js",
+  "status.js reports a deferral from the last Stop, so it is never a silent no-op"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/workflow-defer.test.js",
+  "status.js shows no deferral once a later Stop was not deferred"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/workflow-defer.test.js",
+  "status.js does not call G3 a blocker while it is deferred, and does again once it is not"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/workflow-defer.test.js",
+  "a G1 or G2 block is still reported while G3 is deferred"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/workflow-defer.test.js",
+  "a workflow agent\\"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/workflow-defer.test.js",
+  "a write into the plugin\\"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/status.test.js",
+  "with no heartbeat it says the gates have never run, and names the restart"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/status.test.js",
+  "with a recent heartbeat it reports live, with a count"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/status.test.js",
+  "with an old heartbeat it reports stale rather than live"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/status.test.js",
+  "a corrupt heartbeat file exits 0 and still reports"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/status.test.js",
+  "--json reports liveness as a state, a numeric age, and a numeric count"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/status.test.js",
+  "--json reports never-run liveness with a null age and a zero count"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/status.test.js",
+  "--json reports stale rather than live for an old heartbeat"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/status.test.js",
+  "--json reports whether G3 is active, for test_command and build_command alike"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/status.test.js",
+  "--json reports blocking exactly as the gate predicates do, for every gate"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/status.test.js",
+  "--json echoes the whole shown front-matter whitelist with types and quoting intact"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/status.test.js",
+  "--json exits 0 while a gate is blocking"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/status.test.js",
+  "--json still parses, and still reports the truth, for a malformed plan and a corrupt heartbeat"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/status.test.js",
+  "the JSON and the human report agree on every fact both carry"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/status.test.js",
+  "status writes nothing at all"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/status.test.js",
+  "--json writes nothing at all"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/status.test.js",
+  "the --json object carries the documented top-level keys, and only those, at every stage"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/status.test.js",
+  "a fully confirmed plan reports nothing blocking"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/status.test.js",
+  "the human report says when the experts decision is missing, because that is what blocks the next edit"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/status.test.js",
+  "--json reports disabled when the gates are switched off"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/status.test.js",
+  "with the escape hatch set it reports disabled and does not claim to enforce"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/dispatch.test.js",
+  "Cursor gets no deny, because a deny there is ignored and reported as success"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/dispatch.test.js",
+  "G6 on a commit does not disturb the write gates"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/dispatch.test.js",
+  "a blocking vendor gets a deny when the plan is unconfirmed"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/dispatch.test.js",
+  "a denied pre-edit on a detect-only host still records the violation"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/dispatch.test.js",
+  "a newly allowed pre-edit clears a violation that is no longer true"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/dispatch.test.js",
+  "a recorded gate violation blocks the stop even with no verify command set"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/dispatch.test.js",
+  "a recorded gate violation is surfaced in the stop message with a revert instruction"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/dispatch.test.js",
+  "gate.js denies an unplanned source edit end to end, BOM and all"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/dispatch.test.js",
+  "gate.js records the decision when it denies"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/dispatch.test.js",
+  "the violation still carries the stop reason when stopGate also blocks"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/root.test.js",
+  "gate.js fired from a subfolder writes its heartbeat at the root and nothing in the subfolder"
+ ],
+ [
+  "evals/experts/harness.test.js",
+  "the flow end to end: a source edit waits for the experts decision, a commit waits for the experts, and any later change waits again"
+ ],
+ [
+  "evals/experts/harness.test.js",
+  "every gate invocation leaves a heartbeat, and status.js reports the experts state"
+ ],
+ [
+  "evals/experts/hook-events.test.js",
+  "hook events 4.8.0: every event payload reaches the temp project, and the old gate blocks or writes on it"
+ ],
+ [
+  "evals/experts/tokens.test.js",
+  "T2e the reader-model block is the same in the plan and harvest phases"
+ ],
+ [
+  "evals/experts/agent-names.test.js",
+  "every workflow carries the same agent names block"
+ ],
+ [
+  "evals/experts/lanes.test.js",
+  "the lane helpers are the same text in plan, tests and review"
+ ],
+ [
+  "evals/experts/run-phase.test.js",
+  "run.js carries the build loop and the build model exactly as build.js has them"
+ ],
+ [
+  "evals/security-expert/review-fanout.test.js",
+  "a failed recheck is visible, runs the planned experts only, and is not recorded as a recheck"
+ ],
+ [
+  "evals/experts/autopilot-fixes.test.js",
+  "harvest-name 51: with uw/harvest/<f> taken, harvest makes <f>-2 and returns ok: true"
+ ],
+ [
+  "evals/experts/autopilot-fixes.test.js",
+  "harvest-name 52: with <f> and <f>-2 taken, harvest makes <f>-3"
+ ],
+ [
+  "evals/experts/autopilot-fixes.test.js",
+  "harvest-name 54: the memory.md merge-conflict note is still given, on a second harvest branch too"
+ ],
+ [
+  "mirrors.test.js",
+  "plugin manifests and the CHANGELOG say 4.8.0"
+ ],
+ [
+  "evals/experts/experts.test.js",
+  "a review without a successful recheck leaves no recheck record"
+ ]
+]

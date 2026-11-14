@@ -123,11 +123,6 @@ test('T2c a reader that returns nothing on Haiku is retried once on the session 
   assert.equal(sonnet.calls.find((c) => c.label === 'a.ts').model, 'sonnet');
 });
 
-test('T2e the reader-model block is the same in the plan and harvest phases', () => {
-  const block = (f) => /\/\/ --- reader model[\s\S]*?\/\/ --- end reader model ---/.exec(read(f))[0];
-  assert.equal(block('phases/plan.js'), block('phases/harvest.js'));
-});
-
 test('T2d experts.js script passes the reader model from the environment, chosen in code', () => {
   const dir = tmp('script');
   const cli = (env) => spawnSync(process.execPath, [path.join(PLUGIN, 'experts', 'experts.js'), 'script', '--phase', 'plan'], { cwd: dir, encoding: 'utf8', env: { ...process.env, ...env } });

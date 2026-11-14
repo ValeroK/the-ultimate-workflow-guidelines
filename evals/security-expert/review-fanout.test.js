@@ -137,11 +137,11 @@ test('a name the model invents is ignored and reported, never applied', async ()
   assert.ok(!lensCalls(calls).some((c) => c.label === 'ghost'));
 });
 
-test('a failed recheck is visible, runs the planned experts only, and is not recorded as a recheck', async () => {
+test('a failed recheck is visible, runs the planned experts only, and does not refuse the commit', async () => {
   const respond = (c) => (c.label === 'recheck' ? null : clean(c));
   const { result } = await loadWorkflow(REVIEW)(base({ experts: ['security'] }), respond);
   assert.strictEqual(result.ok, true);
-  assert.strictEqual(result.expertLane.recheck, false);
+  assert.strictEqual(result.expertLane.recheck, true, 'the commit is not refused for it (owner decision, 2026-11-13)');
   assert.strictEqual(result.expertLane.recheckFailed, true);
   assert.deepStrictEqual(result.expertLane.selected, ['security']);
 });

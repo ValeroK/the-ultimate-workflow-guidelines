@@ -1,2 +1,3 @@
 vendor/** -text
 evals/experts/corpus/** -text
+evals/experts/fixtures/** -text

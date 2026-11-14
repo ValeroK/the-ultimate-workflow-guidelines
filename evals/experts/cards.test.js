@@ -129,7 +129,7 @@ test('card-add refuses a name that is taken, and changes nothing', () => {
   const dir = planDir(PLAN);
   const r = cli(dir, 'card-add', '--plan', 'PLAN-x.md', '--name', '8a', '--title', 'again', '--paths', 'x/**');
   assert.equal(r.status, 2);
-  assert.match(r.stderr, /already/);
+  assert.match(r.stdout, /already/);
   assert.equal(fs.readFileSync(path.join(dir, 'PLAN-x.md'), 'utf8'), PLAN);
 });
 
@@ -139,7 +139,7 @@ test('card-add refuses a name with spaces or a colon, and a card with no paths',
   assert.equal(cli(dir, 'card-add', '--plan', 'PLAN-x.md', '--name', '9:b', '--title', 't', '--paths', 'x/**').status, 2);
   const noPaths = cli(dir, 'card-add', '--plan', 'PLAN-x.md', '--name', '9', '--title', 't');
   assert.equal(noPaths.status, 2);
-  assert.match(noPaths.stderr, /paths/);
+  assert.match(noPaths.stdout, /paths/);
   assert.equal(fs.readFileSync(path.join(dir, 'PLAN-x.md'), 'utf8'), PLAN);
 });
 
@@ -257,4 +257,48 @@ test('the build command tells the session how to record, brief and check a card'
   assert.match(text, /card-add/);
   assert.match(text, /--card/);
   assert.match(text, /scope --plan/);
+});
+
+// ---- PLAN-simplify, card cards-reader: one Cards-section reader ----
+
+const expertsLib = require(path.join(PLUGIN, 'experts', 'experts.js'));
+
+const TWO_CARDS = [
+  '---', 'plan_confirmed: true', '---', '', '# PLAN', '',
+  '## Cards', '',
+  '- first: one', '  paths: a.js', '  status: pending', '',
+  '## Notes', '', 'text', '',
+  '## Cards', '',
+  '- second: two', '  paths: b.js', '  status: pending', '',
+].join('\n');
+
+test('cards: the first heading named Cards is the section, for confirmHash and parseCards alike', () => {
+  const lines = TWO_CARDS.split('\n');
+  const range = cards.cardsRange(lines);
+  assert.strictEqual(range.heading, 6, 'the first Cards heading, by hand-counted line number');
+  assert.strictEqual(range.end, 12, 'the section ends at the next heading');
+  assert.deepStrictEqual(cards.parseCards(TWO_CARDS).map((c) => c.name), ['first'], 'only the first section holds cards');
+  // A run field inside the first section is outside the hash; the same line in the second section is ordinary plan text.
+  const inFirst = TWO_CARDS.replace('  status: pending\n\n## Notes', '  status: running\n\n## Notes');
+  assert.strictEqual(expertsLib.confirmHash(inFirst), expertsLib.confirmHash(TWO_CARDS), 'a status line in the first Cards section is not hashed');
+  const inSecond = TWO_CARDS.replace(/status: pending\n$/, 'status: running\n');
+  assert.notStrictEqual(inSecond, TWO_CARDS);
+  assert.notStrictEqual(expertsLib.confirmHash(inSecond), expertsLib.confirmHash(TWO_CARDS), 'a status line under a second Cards heading is plan text the user confirmed');
+  // A card added under the second heading is ordinary text: it moves the hash and is not a card.
+  const added = `${TWO_CARDS}- third: three\n  paths: c.js\n`;
+  assert.notStrictEqual(expertsLib.confirmHash(added), expertsLib.confirmHash(TWO_CARDS));
+  assert.deepStrictEqual(cards.parseCards(added).map((c) => c.name), ['first']);
+});
+
+test('cards: accepted is a known field and does not land in carried', () => {
+  const plan = '## Cards\n\n- a: one\n  paths: a.js\n  accepted: x/y.js, z.js\n  carried: do this\n';
+  const [card] = cards.parseCards(plan);
+  assert.deepStrictEqual(card.accepted, ['x/y.js', 'z.js']);
+  assert.deepStrictEqual(card.carried, ['do this']);
+});
+
+test('cards: run-rules does not require experts.js', () => {
+  const src = fs.readFileSync(path.join(PLUGIN, 'lib', 'run-rules.js'), 'utf8');
+  const requires = [...src.matchAll(/require\(\s*['"]([^'"]+)['"]\s*\)/g)].map((m) => m[1]);
+  assert.ok(requires.every((r) => !/experts/.test(r)), `run-rules requires: ${requires.join(', ') || 'nothing'}`);
 });

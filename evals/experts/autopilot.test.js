@@ -1128,9 +1128,9 @@ test('one review: the report says "Reviewed by the experts at <head>: N findings
     assert.equal(r.ok, true, JSON.stringify(r));
     return fs.readFileSync(path.join(dir, r.report), 'utf8');
   };
-  const yes = show({ review: { ran: true, range: 'abc1234abcd..HEAD', findings: [], refuted: [], unverified: [] }, reviewed: { head: 'h9', open: 2 }, reviewedText: 'Reviewed by the experts at h9: 2 findings open' });
+  const yes = show({ review: { ran: true, range: 'abc1234abcd..HEAD', findings: [], refuted: [], unverified: [] }, reviewed: { head: 'h9', open: 2, ranges: ['abc1234abcd..h8', 'h8..h9'] }, reviewedText: 'Reviewed by the experts at h9: 2 findings open' });
   assert.match(yes, /\*\*Reviewed by the experts at h9: 2 findings open\.\*\*/);
-  assert.match(yes, /check --range abc1234abcd\.\.<head>/);
+  assert.match(yes, /check --range abc1234abcd\.\.h8`.*check --range h8\.\.h9`/);
   const no = show({ review: { ran: false, reason: 'waiting for 1' }, reviewed: null, reviewedText: 'NOT REVIEWED: waiting for 1' });
   assert.match(no, /\*\*NOT REVIEWED: waiting for 1\.\*\*/);
   assert.match(no, /Do not merge this branch until it is reviewed/);

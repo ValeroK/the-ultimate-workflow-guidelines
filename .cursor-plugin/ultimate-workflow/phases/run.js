@@ -447,12 +447,9 @@ if (anyCommitted && !stoppedBecause && !stateError && waiting.length === 0 && !n
     const ownerOf = (f) => (CARDS.find((c) => inCard(c, f.file)) || { name: '' }).name
     const groups = owners.map((owner) => toFix.filter((f) => ownerOf(f) === owner)).filter((g) => g.length > 0).slice(0, MAX_FIXUP_CARDS)
     review.leftInReport = confirmed.length - groups.reduce((n, g) => n + g.length, 0)
-    // The head the review covered: the experts check of the fix-up cards reads what came after it.
-    let reviewedHead = ''
-    if (groups.length > 0) {
-      const [h] = await runSteps('settle:head', [cliCmd('run-state', '--feature', FEATURE)])
-      reviewedHead = h && h.ok ? String(h.head || '') : ''
-    }
+    // The head the review covered (every card was settled, so it is the head read before the review): the experts check of the
+    // fix-up cards reads what came after it.
+    const reviewedHead = String(state.head || '')
     for (const [i, group] of groups.entries()) {
       const covering = CARDS.filter((c) => group.some((f) => inCard(c, f.file)))
       const lane = covering.length > 0 ? [...new Set(covering.flatMap((c) => c.experts || []))] : PLAN_EXPERTS
@@ -516,7 +513,10 @@ const counts = report.reduce((n, r) => ({ ...n, [r.status]: (n[r.status] || 0) +
 // Whether the branch was reviewed by the experts, said plainly: the report, the notice and the summary use these words.
 // A run that waited, stopped or could not review never reads as ready to merge.
 const savedReview = nothingNew && state.reviewed && state.reviewed.head ? state.reviewed : null
-const reviewed = reviewDone ? { head: (recState && recState.ok && recState.reviewed && recState.reviewed.head) || '', open: openCount } : savedReview ? { head: savedReview.head, open: Number(savedReview.open) || 0 } : null
+const finalHead = (recState && recState.ok && recState.reviewed && recState.reviewed.head) || ''
+// The concrete ranges a user can ask `experts.js check --range` about: the review's, and the fix-up cards' when there were any.
+const reviewedRanges = reviewDone ? [`${BASE}..${state.head || 'HEAD'}`, ...(fixupCommitted ? [`${state.head || 'HEAD'}..${finalHead || 'HEAD'}`] : [])] : []
+const reviewed = reviewDone ? { head: finalHead, open: openCount, ranges: reviewedRanges } : savedReview ? { head: savedReview.head, open: Number(savedReview.open) || 0 } : null
 const notReviewedWhy = reviewed
   ? ''
   : review.ran
@@ -535,7 +535,7 @@ const finishedFile = `${RUN_DIR}/finished-reason.txt`
 const finishedAction = held.length
   ? `settle ${held.join(', ')}: the report lists the command for each`
   : reviewed
-    ? `read the report (${reviewed.open} finding${reviewed.open === 1 ? '' : 's'} open), then merge uw/run/${FEATURE}; before merging: experts.js check --range ${BASE}..HEAD`
+    ? `read the report (${reviewed.open} finding${reviewed.open === 1 ? '' : 's'} open), then merge uw/run/${FEATURE}${(reviewed.ranges || []).length ? `; before merging: ${reviewed.ranges.map((r) => `experts.js check --range ${r}`).join(' and ')}` : ''}`
     : `do not merge yet: ${reviewedText}. Run /ultimate-workflow:feature --resume, or /ultimate-workflow:review`
 await runSteps('finished:notify', [cliCmd('notify', '--feature', FEATURE, '--kind', 'finished', '--reason-file', q(finishedFile), '--action', q(finishedAction))], [{ path: finishedFile, text: finishedText }])
 return {

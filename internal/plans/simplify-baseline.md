@@ -162,3 +162,18 @@ Plan targets, as they stand after this pass:
 
 - **8 or fewer state-file kinds: met by the same counting rules, with no real reduction.** The earlier "16" counted the plan's own front matter, `verify.lock` and `verify.log` (a lock and a log; the plan's section 5.3 says "not state"), each file of the experts folder as its own kind, `memory-warnings.json` apart from the run folder it sits in, and `heartbeat.json` where only a note about a leftover file names it. Counted one row per kind, 4.8.0 had 8 and 5.0.0 has 8. Going below 8 means a decision the plan took the other way or did not take: fold `baseline.json` into `verify.json` (the plan says not), or the commit-check stamp into `verify.json`, or make the saved diffs one location (review.diff and snapshots are still two places under one row). Not done.
 - **One orchestrator for the by-hand review and the run's check: partly met.** Both call one `recheckAdd`, one `collectConcerns` and one `laneFinding` (section `experts-check` of `lib/phase-shared.js`), and `phases/run.js` declares none of them or any experts-check code of its own. The by-hand review still runs the core lenses beside the experts and verifies all findings in one pass, with a changed-only mode and a range; the run checks one card at a time with carried findings and a retry on every empty answer. Merging those two into one function would change the call order and labels that the tests pin, so it was not done.
+
+## After, the run reviews once (branch uw/run-one-review)
+
+| Measure | Before (5.0.0 third pass) | After |
+|---|---|---|
+| `phases/run.js` lines | 658 | 560 |
+| `phases/review.js` lines | 409 | 126 (the review is `reviewRange` in the shared file) |
+| phases lines / bytes | 2133 / 135877 | 1777 / 117197 |
+| `lib` bytes / lines | 88860 / 1718 | 96166 / 1882 (`reviewRange` is in the shared file) |
+| Agents per card (one expert) | 9: start, tests, attempt, prepare, recheck, expert, decisions, commit, journal | 7: start, tests, attempt, scope, decisions, commit, journal |
+| Agents per card (three experts) | 11, and one more when a finding needs the refute step | 7 |
+| Agents once, at the end of the run | 4 lenses and one refute | prepare, recheck, 4 lenses, the experts, one verify, record; then, only with fix-up cards, prepare, the experts and record |
+| Release ZIP contents, raw | 1689501 | 1681596 |
+
+The "one orchestrator for the by-hand review and the run's check" target of the third pass is met by this branch: both call `reviewRange`.

@@ -1052,12 +1052,12 @@ test('one review: the review is recorded with run.json, and the result, the noti
   const base = responder({ reviewFindings: [{ file: 'src/1/y.js', line: 1, what: 'style', howItFails: 'n/a', confidence: 'low' }] });
   const { result } = await run(baseArgs([card('1')]), async (c) => { calls.push(c); return base(c); });
   assert.match(calls.find((c) => c.label === 'settle:record').prompt, /run-state [^\n]*--record --review --open 1/, 'one low finding is open');
-  assert.deepStrictEqual(result.reviewed, { head: 'head2', open: 1 });
+  assert.deepStrictEqual(result.reviewed, { head: 'head2', open: 1, ranges: ['abc1234..head1'] });
   assert.equal(result.reviewedText, 'Reviewed by the experts at head2: 1 finding open');
   assert.match(result.summary, /Reviewed by the experts at head2: 1 finding open/);
   const finished = calls.find((c) => c.label === 'finished:notify');
   assert.match(finished.prompt, /Reviewed by the experts at head2: 1 finding open/);
-  assert.match(finished.prompt, /--action "read the report \(1 finding open\), then merge uw\/run\/f; before merging: experts\.js check --range abc1234\.\.HEAD"/);
+  assert.match(finished.prompt, /--action "read the report \(1 finding open\), then merge uw\/run\/f; before merging: experts\.js check --range abc1234\.\.head1"/);
 });
 
 test('one review: fix-up cards take the confirmed high and medium findings, then ONE experts-only check covers them, with no second fix round', async () => {
@@ -1074,7 +1074,7 @@ test('one review: fix-up cards take the confirmed high and medium findings, then
   assert.equal(seen.filter((l) => /^fixup[^:]*:write-tests$/.test(l)).length, 1, 'no second fix round');
   assert.equal(result.fixupReview.ran, true);
   assert.equal(result.fixupReview.range, 'head1..HEAD');
-  assert.deepStrictEqual(result.reviewed, { head: 'head2', open: 0 }, 'the one finding was fixed by a committed fix-up card');
+  assert.deepStrictEqual(result.reviewed, { head: 'head2', open: 0, ranges: ['abc1234..head1', 'head1..head2'] }, 'the one finding was fixed by a committed fix-up card');
   assert.deepStrictEqual(result.expertLanes.map((l) => l.card), ['review', 'review-fixups']);
 });
 

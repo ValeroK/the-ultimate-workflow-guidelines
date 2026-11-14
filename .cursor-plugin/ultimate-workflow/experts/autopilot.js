@@ -988,7 +988,7 @@ function runReport(cwd, { result: resultFile, out = '' }) {
     `Branch \`${r.branch}\` from ${String(r.base || '').slice(0, 12)}. ${r.summary || ''}`,
     ...(r.stopped ? ['', `**The run stopped:** ${r.stopped}`] : []),
     '',
-    `**${r.reviewedText || (r.reviewed ? `Reviewed by the experts at ${r.reviewed.head}: ${r.reviewed.open} findings open` : 'NOT REVIEWED: the run result says nothing about a review')}.**${r.reviewed ? ` Before merging: \`node experts/experts.js check --range ${String(r.base || '').slice(0, 12)}..<head>\` (the head is ${r.reviewed.head || 'the run branch tip'}; the experts check of the fix-up cards covers the commits after the review: \`check --range <review head>..<head>\`).` : ' Do not merge this branch until it is reviewed: `/ultimate-workflow:feature --resume`, or `/ultimate-workflow:review`.'}`,
+    `**${r.reviewedText || (r.reviewed ? `Reviewed by the experts at ${r.reviewed.head}: ${r.reviewed.open} findings open` : 'NOT REVIEWED: the run result says nothing about a review')}.**${r.reviewed ? ` Before merging: ${(r.reviewed.ranges || []).length ? r.reviewed.ranges.map((x) => `\`node experts/experts.js check --range ${x}\``).join(' and ') : '`node experts/experts.js check --range <base>..<head>`'}.` : ' Do not merge this branch until it is reviewed: `/ultimate-workflow:feature --resume`, or `/ultimate-workflow:review`.'}`,
     '',
     '| Card | Title | Outcome | Commit or branch | Pack (est.) | Tokens | Cache read | Note |',
     '|---|---|---|---|---|---|---|---|',

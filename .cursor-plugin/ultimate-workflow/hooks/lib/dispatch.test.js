@@ -52,6 +52,38 @@ test('stage none is never gated', () => {
   assert.equal(r.kind, 'allow');
 });
 
+const gatesLib = require('./gates.js');
+
+test('plan offer: a prompt that gives a requirement, with no open plan, tells the assistant to ask the user about a plan', () => {
+  const none = { stage: 'none', file: null, data: {} };
+  const r = dispatch({ event: 'prompt', vendor: 'claude-code', prompt: 'Add a login page with email and password' }, none);
+  assert.equal(r.kind, 'context');
+  assert.match(r.text, /No plan is open/);
+  assert.match(r.text, /ask the user/);
+  assert.match(r.text, /ultimate-workflow:feature/);
+  // Not at the end of a turn, at a session start, or on a tool call.
+  for (const event of ['stop', 'sessionStart', 'preTool', 'postTool']) assert.equal(dispatch({ event, vendor: 'claude-code', tool: 'shell', command: 'ls', prompt: 'Add a login page with email and password' }, none).kind, 'allow', event);
+});
+
+test('plan offer: a prompt that is not a requirement gets nothing', () => {
+  const none = { stage: 'none', file: null, data: {} };
+  for (const prompt of ['yes', 'continue', 'status?', 'done merging', '/ultimate-workflow:plan add a login page to the app', 'why does the build fail on linux and not on windows?', 'what does this function return when the list is empty?', '', undefined]) {
+    assert.equal(dispatch({ event: 'prompt', vendor: 'claude-code', prompt }, none).kind, 'allow', String(prompt));
+  }
+});
+
+test('plan offer: looksLikeRequirement reads request words, long text and Hebrew request words', () => {
+  const yes = ['Add a login page with email and password', 'we need the export to support CSV as well', 'The report should show totals per month', 'Change the requirements: the user can now cancel an order', 'x'.repeat(400), 'תוסיף דף התחברות חדש למערכת'];
+  for (const p of yes) assert.equal(gatesLib.looksLikeRequirement(p), true, p.slice(0, 40));
+  const no = ['yes', 'ok go', '/handoff', 'how can we add this to the plugin?', 'thanks, that explains it well enough', null];
+  for (const p of no) assert.equal(gatesLib.looksLikeRequirement(p), false, String(p));
+});
+
+test('plan offer: nothing is offered while a plan or a PRD is open', () => {
+  const open = [feature({ plan_confirmed: false }), feature({ plan_confirmed: true, tests_confirmed: true, experts: '[]' }), { stage: 'bootstrap', file: 'PRD.md', data: {} }, { stage: 'feature', file: null, data: {}, several: ['a', 'b'] }];
+  for (const state of open) assert.doesNotMatch(String(dispatch({ event: 'prompt', vendor: 'claude-code', prompt: 'Add a login page with email and password' }, state).text || ''), /No plan is open/);
+});
+
 // --- dirty marking ---------------------------------------------------------
 
 // --- verify and the round cap ----------------------------------------------

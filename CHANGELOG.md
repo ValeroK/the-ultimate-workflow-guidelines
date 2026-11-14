@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.1] - 2026-11-14
+
+### Added
+
+- **The plan offer.** Since 5.0.0 no hook refuses an edit, so a new requirement typed in chat, in a project with no open plan, went straight to code. Now, when no plan and no PRD is open and the user's message can be a new feature or a change of requirements, the prompt hook adds one line that tells the assistant to ask the user whether to create a plan, and to run `/ultimate-workflow:feature` on a yes. Other prompts (a slash command, a short reply, a question) get nothing. The hook only drops what clearly is not a requirement (`looksLikeRequirement` in `hooks/lib/gates.js`: request words in English and Hebrew, or a text of 400 characters or more); the assistant still judges the message. It is a reminder and refuses nothing. Only on hosts that send the prompt text to the hook (measured: Claude Code).
+
 ## [5.0.0] - 2026-11-13
 
 A smaller plugin: one blocking check, at commit, with reminders everywhere else, and one copy of each thing that used to exist two to four times. It includes the 4.8.0 work below, which was never released on its own. The plan is `internal/plans/PLAN-simplify.md`.

@@ -163,6 +163,8 @@ function normalize(payload) {
     path: target,
     cwd,
     command: input.command || null,
+    // The user's message, on a prompt event (read by the plan offer); absent on hosts that do not send it.
+    prompt: typeof payload.prompt === 'string' ? payload.prompt : null,
     status: payload.status || null,
     ok,
     transcriptPath: payload.transcript_path || null,

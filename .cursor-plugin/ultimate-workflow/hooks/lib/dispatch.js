@@ -49,6 +49,9 @@ function dispatch(ev, state, opts = {}) {
   const isCommit = ev.event === 'preTool' && ev.tool === 'shell' && gates.isCommitCommand(ev.command);
   if (state.stage === 'none') {
     // No plan and no PRD: nothing to check. A commit says so, and the stamp records it.
+    // The start of a turn is the one moment a plan can still come first: on a prompt that can be a new
+    // requirement, the assistant is told to ask the user (5.0.1). Other prompts get nothing.
+    if (ev.event === 'prompt') return gates.looksLikeRequirement(ev.prompt) ? { kind: 'context', text: gates.PLAN_OFFER } : allow;
     if (!isCommit) return allow;
     const why = 'no plan is open in the project';
     return { kind: 'allow', say: `Commit check: this commit was not checked (exempt: ${why}).`, check: { outcome: 'exempt', why, missing: [] } };

@@ -338,7 +338,37 @@ function reminders(state, input = {}) {
   return out;
 }
 
+/**
+ * The plan offer (5.0.1): sent at the start of a turn when no plan and no PRD is open. Since 5.0.0 no hook
+ * refuses an edit, so without this line a new requirement typed in chat went straight to code. The user
+ * decides: the assistant asks, and starts the workflow on a yes. A reminder; it refuses nothing.
+ */
+const PLAN_OFFER =
+  '[ultimate-workflow] No plan is open in this project. If this message is a new requirement that needs a plan ' +
+  '(more than a typo, a one-line fix, a doc edit or a question), do not edit source yet: ask the user whether to ' +
+  'create a plan for it, and on a yes run /ultimate-workflow:feature with the request. If the user already ' +
+  'answered for this request, do not ask again.';
+
+const REQUEST_WORDS = /\b(add|implement|build|create|make|support|introduce|develop|design|integrate|migrate|refactor|redesign|replace|remove|change|update|extend|allow|enable|fix)\b|\b(i|we) (want|need|would like)\b|\bshould\b|\bfeatures?\b|\brequirements?\b|\bPRD\b|\buser stor(y|ies)\b/i;
+const REQUEST_WORDS_HE = /תוסיף|להוסיף|תבנה|לבנות|תיצור|ליצור|תשנה|לשנות|תממש|לממש|דרישה|דרישות|פיצ'ר|צריך|רוצה/;
+
+/**
+ * Whether a prompt can be a new feature or a change of requirements, so the plan offer is worth sending.
+ * A hook cannot understand a message; this only drops what clearly is not one (no text, a slash command, a
+ * short reply, a question) and keeps a message with a request word or a long text. The assistant still judges
+ * the message itself: the offer starts with "If this message is a new requirement".
+ */
+function looksLikeRequirement(prompt) {
+  const text = typeof prompt === 'string' ? prompt.trim() : '';
+  if (text.length < 25 || text.startsWith('/')) return false;
+  if (text.length >= 400) return true;
+  if (text.endsWith('?')) return false;
+  return REQUEST_WORDS.test(text) || REQUEST_WORDS_HE.test(text);
+}
+
 module.exports = {
+  PLAN_OFFER,
+  looksLikeRequirement,
   toProjectPath,
   isDocPath,
   isDiagramPath,

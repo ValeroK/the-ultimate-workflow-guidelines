@@ -236,7 +236,7 @@ test('the bootstrap skill and its rule mirror both describe the generated index'
   assert.match(skill, /memory index/, 'the workflow skill never says the index is generated');
 });
 
-test('plugin manifests and the CHANGELOG say 5.0.0', () => {
+test('plugin manifests and the CHANGELOG say 5.0.1', () => {
   const versions = [
     JSON.parse(pread('.claude-plugin/plugin.json')).version,
     JSON.parse(pread('.cursor-plugin/plugin.json')).version,
@@ -244,7 +244,7 @@ test('plugin manifests and the CHANGELOG say 5.0.0', () => {
     JSON.parse(read('.claude-plugin/marketplace.json')).plugins[0].version,
     JSON.parse(read('.cursor-plugin/marketplace.json')).plugins[0].version,
   ];
-  assert.deepEqual(versions, ['5.0.0', '5.0.0', '5.0.0', '5.0.0', '5.0.0']);
+  assert.deepEqual(versions, ['5.0.1', '5.0.1', '5.0.1', '5.0.1', '5.0.1']);
   assert.match(read('CHANGELOG.md'), /^## \[5\.0\.0\] - \d{4}-\d{2}-\d{2}$/m);
 });
 // --- the write-isolation invariant ----------------------------------------

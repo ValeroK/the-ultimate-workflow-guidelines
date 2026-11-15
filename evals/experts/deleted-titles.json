@@ -668,5 +668,13 @@
  [
   ".cursor-plugin/ultimate-workflow/hooks/lib/gates.test.js",
   "G5 says nothing at stage none"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/baseline.test.js",
+  "the baseline stops counting once the work is committed: the next change starts from a new one"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/baseline.test.js",
+  "the baseline is for one test command: a different command is judged without it"
  ]
 ]

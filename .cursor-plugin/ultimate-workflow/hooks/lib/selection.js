@@ -58,6 +58,35 @@ const posix = (p) => String(p).replace(/\\/g, '/').replace(/^\.\//, '');
 const quote = (p) => `"${posix(p).replace(/"/g, '\\"')}"`;
 
 /**
+ * The language of a file, by its extension, and the language a test command runs, by its runner (5.1.0).
+ * A related test must be in a language the command can run. In a repository with a Python backend and a
+ * TypeScript UI, a UI test was found as a user of a changed Python file and went to pytest, which collected
+ * nothing and exited 4. A file or a runner that is not listed has no language, and then nothing is left out.
+ */
+const LANGUAGES = [
+  ['py', /\.py$/i],
+  ['js', /\.(c|m)?(j|t)sx?$/i],
+  ['go', /\.go$/i],
+  ['rs', /\.rs$/i],
+  ['rb', /\.rb$/i],
+  ['jvm', /\.(java|kt|kts|scala)$/i],
+  ['cs', /\.cs$/i],
+  ['php', /\.php$/i],
+];
+const RUNNERS = [
+  ['py', /\b(pytest|unittest|tox|nox)\b/],
+  ['go', /\bgo\s+test\b/],
+  ['rs', /\bcargo\b/],
+  ['rb', /\b(rspec|rake|minitest)\b/],
+  ['jvm', /\b(gradle|gradlew|mvn|mvnw)\b/],
+  ['cs', /\bdotnet\b/],
+  ['php', /\b(phpunit|pest)\b/],
+  ['js', /\b(vitest|jest|mocha|ava|playwright|npm|npx|pnpm|yarn|bun|deno|node)\b/],
+];
+const languageOf = (file) => (LANGUAGES.find(([, re]) => re.test(file)) || [''])[0];
+const runnerLanguage = (command) => (RUNNERS.find(([, re]) => re.test(command)) || [''])[0];
+
+/**
  * @param {object} input
  * @param {string[]} input.changed     files changed since the last commit, untracked included
  * @param {string[]} [input.relatedTests] test files that use a changed file (found by the caller)
@@ -84,7 +113,13 @@ function select({ changed = [], relatedTests = [], data = {} } = {}) {
   const listed = files.find((f) => extra.some((re) => re.test(f)));
   if (listed) return asFull(`${listed} matches full_suite_paths`);
 
-  const tests = [...new Set([...files.filter(isTest), ...relatedTests.map(posix)])].sort();
+  // Known runner: only tests in its language, changed ones included. Runner not known: a changed test stays,
+  // and a related test must be in the language of a changed source file.
+  const runs = runnerLanguage(template);
+  const sourceLanguages = new Set(files.filter((f) => !isTest(f)).map(languageOf).filter(Boolean));
+  const runnable = (f) => !runs || !languageOf(f) || languageOf(f) === runs;
+  const sameLanguage = (f) => Boolean(runs) || !languageOf(f) || sourceLanguages.size === 0 || sourceLanguages.has(languageOf(f));
+  const tests = [...new Set([...files.filter(isTest).filter(runnable), ...relatedTests.map(posix).filter(runnable).filter(sameLanguage)])].sort();
   if (/\{tests\}/.test(template) && tests.length === 0) return asFull('no test file uses the changed files');
 
   const command = template.replace(/\{files\}/g, files.map(quote).join(' ')).replace(/\{tests\}/g, tests.map(quote).join(' '));

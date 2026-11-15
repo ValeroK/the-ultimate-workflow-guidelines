@@ -616,11 +616,27 @@ function setConfirmed(text, key) {
  * `confirm` sets the `plan_confirmed` (or `tests_confirmed`) line to true in what is written.
  */
 function present(opts) {
-  const { result: resultFile = '', field = '', out: outFile = '', from = '', confirm = '', append = false, cwd = process.cwd() } = opts || {};
-  if (!outFile) throw new Error('present needs --out <file to write>');
+  const { result: resultFile = '', field = '', from = '', confirm = '', append = false, replace = false, cwd = process.cwd() } = opts || {};
+  let outFile = (opts && opts.out) || '';
   const at = (p) => path.resolve(cwd, p);
+  // Confirm in place (5.1.0): --confirm with no source stamps the plan as it is on disk and changes nothing
+  // else. With no --out it is the chosen plan, so the hint the commit check prints runs as printed. Before,
+  // a confirmation needed a source file, and a session that gave an old draft wrote it over the plan.
+  const inPlace = Boolean(confirm) && !from && !resultFile && !field && !append;
+  if (inPlace && !outFile) {
+    const state = stateLib.readState(stateLib.projectRoot(cwd));
+    if (state.stage !== 'feature' || !state.file) throw new Error('present --confirm with no source needs to know which plan: give --out <the plan>, or pick one with `experts.js use --plan <file>`');
+    outFile = path.relative(cwd, state.file).split(path.sep).join('/');
+  }
+  if (!outFile) throw new Error('present needs --out <file to write>');
   let text;
-  if (from) {
+  if (inPlace) {
+    try {
+      text = fs.readFileSync(at(outFile), 'utf8');
+    } catch (err) {
+      throw new Error(`cannot read ${outFile}: ${err.message}`);
+    }
+  } else if (from) {
     if (resultFile || field) throw new Error('present takes --from, or --result with --field, not both');
     try {
       text = fs.readFileSync(at(from), 'utf8');
@@ -655,6 +671,17 @@ function present(opts) {
     text = `${existing.replace(/\s+$/, '')}${eol}${eol}${text.replace(/\r?\n/g, eol)}`;
   }
   if (confirm) text = setConfirmed(text, confirm);
+  // A write over a plan must not lose a section the plan has (5.1.0): the Tests and Cards of a confirmed plan
+  // went this way. --append and confirm in place cannot lose one; --replace says the smaller text is meant.
+  if (!inPlace && !append && !replace && /^PLAN-.+\.md$/i.test(path.basename(outFile)) && fs.existsSync(at(outFile))) {
+    const sections = (t) => t.split(/\r?\n/).filter((l) => /^## \S/.test(l)).map((l) => l.trim());
+    const has = new Set(sections(text));
+    const lost = sections(fs.readFileSync(at(outFile), 'utf8')).filter((s) => !has.has(s));
+    if (lost.length > 0) {
+      const how = confirm ? `To confirm the plan as it is, give no source: present --confirm ${confirm} --out ${outFile}. ` : '';
+      throw new Error(`this write would remove these sections from ${outFile}: ${lost.join(', ')}. Nothing was written. ${how}To add a section use --append; to write the smaller text on purpose add --replace.`);
+    }
+  }
   fs.mkdirSync(path.dirname(at(outFile)), { recursive: true });
   fs.writeFileSync(at(outFile), text);
   const headings = text.split(/\r?\n/).filter((l) => /^#{1,6}\s/.test(l));
@@ -1796,6 +1823,7 @@ function parseArgs(argv) {
     else if (a === '--confirm') o.confirm = need();
     else if (a === '--from') o.from = need();
     else if (a === '--append') o.append = true;
+    else if (a === '--replace') o.replace = true;
     else if (a === '--delta') o.delta = true;
     else if (a === '--args-file') o.argsFile = need();
     else if (a === '--file') o.files.push(need());
@@ -1930,7 +1958,7 @@ function main(argv) {
       }
       return out(record(o.cwd, o.stage, result, { planFile: o.plan, pluginRoot: o.pluginRoot }));
     }
-    if (o.cmd === 'present') return out(present({ result: o.result, field: o.field, out: o.out, from: o.from, confirm: o.confirm, append: o.append, cwd: o.cwd }));
+    if (o.cmd === 'present') return out(present({ result: o.result, field: o.field, out: o.out, from: o.from, confirm: o.confirm, append: o.append, replace: o.replace, cwd: o.cwd }));
     if (o.cmd === 'findings') {
       const names = list(o.pluginRoot).experts.map((e) => e.name);
       return out({ findings: allFindings(o.cwd, fingerprint(o.cwd), names).filter((f) => blocking(f)) });

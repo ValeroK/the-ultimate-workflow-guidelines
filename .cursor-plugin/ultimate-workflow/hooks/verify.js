@@ -146,9 +146,34 @@ function headSha(cwd) {
   return r.status === 0 ? r.stdout.trim() : '';
 }
 
-/** A baseline counts only when accepted, for this command, and taken at the commit the work started from. */
-function baselineApplies(baseline, cwd, command) {
-  return Boolean(baseline) && baseline.accepted === true && Array.isArray(baseline.failures) && baseline.command === command && baseline.head === headSha(cwd);
+/** Is commit `sha` the current commit, or an ancestor of it? */
+function onThisLine(cwd, sha) {
+  if (!sha) return false;
+  if (sha === headSha(cwd)) return true;
+  return spawnSync('git', ['merge-base', '--is-ancestor', sha, 'HEAD'], { cwd, encoding: 'utf8' }).status === 0;
+}
+
+/**
+ * Whether an accepted baseline counts for a run: { applies, why }. It counts for the command it was accepted
+ * for, for the plan it was accepted for, and on the line of work that holds the commit it was taken at.
+ * Until 5.0.1 it counted at that one commit only. A run commits after each card, and run-start itself commits
+ * a .gitignore line, so the next full run counted every known failure as new and the card parked. The plan
+ * bounds its life instead: a new plan takes a new baseline. A baseline with no plan recorded (accepted before
+ * 5.1.0) keeps the old rule. `why` is said to the user, so a list that silently stopped counting is explained.
+ */
+function baselineStatus(baseline, cwd, command, planName = '') {
+  if (!baseline || baseline.accepted !== true || !Array.isArray(baseline.failures)) return { applies: false, why: '' };
+  if (baseline.command !== command) return { applies: false, why: `it was accepted for the command \`${baseline.command}\`, and the plan now says \`${command}\`` };
+  if (!baseline.plan) {
+    return baseline.head === headSha(cwd) ? { applies: true, why: '' } : { applies: false, why: `it was taken at commit ${String(baseline.head || '').slice(0, 7)}, before this version recorded a plan with it, and the work has moved on` };
+  }
+  if (planName && baseline.plan !== planName) return { applies: false, why: `it was accepted for ${baseline.plan}, and this run is for ${planName}` };
+  if (!onThisLine(cwd, baseline.head)) return { applies: false, why: `it was taken at commit ${String(baseline.head || '').slice(0, 7)}, which is not part of this line of work` };
+  return { applies: true, why: '' };
+}
+
+function baselineApplies(baseline, cwd, command, planName = '') {
+  return baselineStatus(baseline, cwd, command, planName).applies;
 }
 
 /**
@@ -304,10 +329,12 @@ function acceptBaseline(cwd, opts) {
     console.error('verify: the failing tests were not recognised in the baseline output. Pass the list with --failures-file <file> (one test per line).');
     return 2;
   }
-  const rec = { ...b, failures, recognised: true, accepted: true, acceptedAt: new Date().toISOString() };
-  fs.writeFileSync(path.join(cwd, BASELINE), `${JSON.stringify(rec, null, 2)}\n`);
   const planFile = opts.plan ? path.resolve(cwd, opts.plan) : (stateLib.readState(cwd).file ? path.resolve(cwd, stateLib.readState(cwd).file) : '');
-  if (planFile && /(^|[\\/])PLAN-[^\\/]+\.md$/i.test(planFile) && fs.existsSync(planFile)) {
+  const isPlan = Boolean(planFile) && /(^|[\\/])PLAN-[^\\/]+\.md$/i.test(planFile) && fs.existsSync(planFile);
+  // The plan the list is for: it bounds how long the list counts (baselineStatus).
+  const rec = { ...b, failures, recognised: true, accepted: true, acceptedAt: new Date().toISOString(), ...(isPlan ? { plan: path.basename(planFile) } : {}) };
+  fs.writeFileSync(path.join(cwd, BASELINE), `${JSON.stringify(rec, null, 2)}\n`);
+  if (isPlan) {
     writeKnownFailures(planFile, failures);
     console.log(`verify: baseline accepted: ${failures.length} known failure${failures.length === 1 ? '' : 's'}, listed in ${path.basename(planFile)}.`);
   } else {
@@ -549,11 +576,16 @@ function main(argv, startDir = process.cwd()) {
   // command and this starting commit. Output that was not captured cannot be judged.
   let verdict = null;
   let acceptedBaseline = null;
+  let baselineWhyNot = '';
   if (choice.mode === 'full' && code !== 0 && !abnormal) {
     const baseline = readBaseline(cwd);
-    if (baselineApplies(baseline, cwd, choice.command)) {
+    const planFile = opts.plan || stateLib.readState(cwd).file || '';
+    const status = baselineStatus(baseline, cwd, choice.command, planFile ? path.basename(planFile) : '');
+    if (status.applies) {
       verdict = judge(code, fullOutput, baseline);
       acceptedBaseline = baseline;
+    } else {
+      baselineWhyNot = status.why;
     }
   }
   const passedFull = code === 0 || Boolean(verdict && verdict.passed);
@@ -582,10 +614,12 @@ function main(argv, startDir = process.cwd()) {
     for (const n of verdict.newFailures.slice(0, 20)) console.log(`  - ${n}`);
   } else {
     console.log(`verify: ${choice.mode} run ${code === 0 ? 'passed' : `failed (exit ${code})`}`);
+    // A list the user accepted and that no longer counts is explained, with the step that takes a new one.
+    if (baselineWhyNot) console.log(`verify: the accepted baseline does not apply: ${baselineWhyNot}. Every failure counts as new. To take a new list: ${SELF} --baseline, show it to the user, then --accept-baseline.`);
   }
   return code;
 }
 
 if (require.main === module) process.exit(main(process.argv.slice(2)));
 
-module.exports = { main, shellFor, readRecord, recordFull, fullEvidence, relatedTests, acquireLock, shortOutput, extractFailures, readBaseline, baselineApplies, judge, setFrontLine: lenientFrontLine, writeKnownFailures, RECORD, LOCK, LOG, BASELINE };
+module.exports = { main, shellFor, readRecord, recordFull, fullEvidence, relatedTests, acquireLock, shortOutput, extractFailures, readBaseline, baselineApplies, baselineStatus, judge, setFrontLine: lenientFrontLine, writeKnownFailures, RECORD, LOCK, LOG, BASELINE };

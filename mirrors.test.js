@@ -1007,3 +1007,11 @@ test('the three types of work: the session brief, the skill and the Cursor rule 
     assert.match(flat, /New project[^|]{0,120}\/ultimate-workflow:feature/, `${name} does not name the command for a new project`);
   }
 });
+
+test('the plan, tests and feature commands say what to do when the host refuses the confirm command', () => {
+  for (const c of ['plan', 'tests', 'feature']) {
+    const text = pread(`commands/${c}.md`);
+    assert.match(text, /If the host refuses (this|the confirm) command/, `${c}.md does not name the case`);
+    assert.match(text, /ask them to run it themself/, `${c}.md does not hand the command to the user`);
+  }
+});

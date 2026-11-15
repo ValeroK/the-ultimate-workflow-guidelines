@@ -21,6 +21,14 @@ Plan settings the confirmation hash leaves out (`test_command`, `volatile_paths`
 
 **Paths in this document** (`node hooks/verify.js`, `node hooks/status.js`, `experts/experts.js`) are given from the plugin folder. In a project, use the full path: since 5.1.0 every hint the hook prints carries it.
 
+## Known failures (the baseline)
+
+A suite that already fails before the work starts needs a list the user accepted: `verify.js --baseline`, then `--accept-baseline`. Since 5.1.0 the list counts for the plan it was accepted for, with the same test command, on every later commit of the same line of work; a test that is not on the list still fails the run. When the list does not count, the full run says which rule failed (another command, another plan, or a commit that is not part of this line of work) and names the step that takes a new one.
+
+## Related tests
+
+`verify.js` without `--full` runs the tests related to the change. Since 5.1.0 a related test must be in a language the test command runs (pytest: Python; vitest, jest, node and the package managers: JavaScript and TypeScript; `go test`: Go; cargo: Rust; and so on). For a runner the plugin does not know, a related test must be in the language of a changed file.
+
 ## The session brief, and the reminders
 
 Since 5.1.0 the hooks add nothing to a prompt and say nothing at the end of a turn. One time in each session (the `SessionStart` hook, in every project) the model gets a short brief: decide the type of each new request. A small fix is done with no talk about a plan. For a feature or a change of requirements the assistant asks one time if the user wants a plan, and runs `/ultimate-workflow:feature` on a yes. For a new project it offers the same command. Open plans are named by file name, to be spoken about only when the request is about one. The model decides, because it reads the request and a hook sees only files; the decision is not exact, and `evals/plan-offer/` measures it.

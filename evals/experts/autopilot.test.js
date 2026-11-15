@@ -851,6 +851,26 @@ test('run-start stops with the failing tests when the suite is already red, befo
   assert.ok(!fs.existsSync(path.join(dir, '.ultimate-workflow/run/run.js')));
 });
 
+test('run-start keeps a baseline the user accepted by hand before the run, though the run branch then moved on (5.1.0)', () => {
+  const dir = repo();
+  write(dir, 'test/red.test.js', "require('node:test')('already red', () => { throw new Error('x'); });\n");
+  git(dir, 'add', '-A');
+  git(dir, 'commit', '-q', '-m', 'red');
+  const verify = path.join(PLUGIN, 'hooks', 'verify.js');
+  for (const flag of ['--baseline', '--accept-baseline']) spawnSync(process.execPath, [verify, flag, '--plan', 'PLAN-calc.md'], { cwd: dir, encoding: 'utf8' });
+  const accepted = JSON.parse(read(dir, '.ultimate-workflow/baseline.json'));
+  assert.equal(accepted.accepted, true, JSON.stringify(accepted));
+  // A commit after the accept (here a note; in a real run, run-start's own .gitignore commit or a test edit).
+  write(dir, 'NOTES.md', 'a note\n');
+  git(dir, 'add', '-A');
+  git(dir, 'commit', '-q', '-m', 'note');
+  const r = json(cli(dir, 'run-start', '--plan', 'PLAN-calc.md', '--feature', 'calc'));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.notEqual(git(dir, 'rev-parse', 'HEAD'), accepted.head);
+  assert.deepStrictEqual(r.baseline, { taken: false, kept: true, failures: accepted.failures.length });
+  assert.equal(JSON.parse(read(dir, '.ultimate-workflow/baseline.json')).acceptedAt, accepted.acceptedAt, 'the accepted list was not replaced');
+});
+
 test('run-start --resume-card checks the run branch out again and brings the parked work back', () => {
   const dir = repo();
   json(cli(dir, 'run-start', '--plan', 'PLAN-calc.md', '--feature', 'calc'));

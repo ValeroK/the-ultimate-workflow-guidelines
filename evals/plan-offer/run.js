@@ -38,7 +38,7 @@ const correct = (type, reply) => (type === 'small' ? !offered(reply) : offered(r
 function ask(prompt, briefFile, model, cwd) {
   // No tools, so the reply is the model's first move in words. The brief goes in by file and the prompt on
   // stdin, and no shell is used, so nothing re-reads their quotes or line breaks.
-  const args = ['-p', '--max-turns', String(MAX_TURNS), '--allowedTools', 'Read,Glob,Grep', '--strict-mcp-config', '--output-format', 'stream-json', '--verbose', '--append-system-prompt-file', briefFile];
+  const args = ['-p', '--max-turns', String(MAX_TURNS), '--allowedTools', 'Read,Glob,Grep', '--strict-mcp-config', '--no-session-persistence', '--output-format', 'stream-json', '--verbose', '--append-system-prompt-file', briefFile];
   if (model) args.push('--model', model);
   const r = spawnSync('claude', args, { cwd, input: prompt, encoding: 'utf8', timeout: 300000, maxBuffer: 64 * 1024 * 1024 });
   // What the model said and did in its first steps: its text, and the questions and skills it called. Running out

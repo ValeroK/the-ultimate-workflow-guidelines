@@ -19,6 +19,8 @@ Documentation-only and empty commits are exempt from the first three. Each commi
 
 Plan settings the confirmation hash leaves out (`test_command`, `volatile_paths`, `known_failures`, `full_suite_paths`, and a shortened `experts` line) are recorded at confirmation, and the check names one that changed since. It is shown, never a refusal.
 
+**Paths in this document** (`node hooks/verify.js`, `node hooks/status.js`, `experts/experts.js`) are given from the plugin folder. In a project, use the full path: since 5.1.0 every hint the hook prints carries it.
+
 ## The session brief, and the reminders
 
 Since 5.1.0 the hooks add nothing to a prompt and say nothing at the end of a turn. One time in each session (the `SessionStart` hook, in every project) the model gets a short brief: decide the type of each new request. A small fix is done with no talk about a plan. For a feature or a change of requirements the assistant asks one time if the user wants a plan, and runs `/ultimate-workflow:feature` on a yes. For a new project it offers the same command. Open plans are named by file name, to be spoken about only when the request is about one. The model decides, because it reads the request and a hook sees only files; the decision is not exact, and `evals/plan-offer/` measures it.
@@ -27,7 +29,7 @@ The reminders (the plan is not confirmed yet, the test plan is not confirmed yet
 
 ## Which plan
 
-The plan the check reads is chosen, not guessed. One open plan is the plan. With several open plans and no pointer none is chosen: a commit goes through unchecked and says so, until you pick one with `node experts/experts.js use --plan <file>` (any `experts.js` command given `--plan` picks it too). A plan marked `phase: done` is closed.
+The plan the check reads is chosen, not guessed. One open plan is the plan. With several open plans and no pointer none is chosen: a commit goes through unchecked and says so, until you pick one with `experts.js use --plan <file>` (the commit message prints the command with its full path; any `experts.js` command given `--plan` picks it too). A plan marked `phase: done` is closed.
 
 Documentation (`.md`, `.txt`) never counts as code. Neither do diagrams, because a plan often needs one before it is confirmed: diagram sources (`.mmd`, `.mermaid`, `.puml`, `.plantuml`, `.drawio`, `.excalidraw`, `.d2`) anywhere, and rendered diagrams (`.html`, `.htm`, `.svg`, `.png`) only under a folder named `docs`. A diagram still counts as a change for the related tests, G6 and G7.
 

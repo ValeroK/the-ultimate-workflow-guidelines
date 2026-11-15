@@ -6,7 +6,7 @@
 //   bug 3: plan and harvest readers were counted as "other agents" (the host now frames every
 //          workflow prompt, so the patterns anchored at its start never matched);
 //   W7: `bash -c '...'` as test_command broke on cmd.exe quoting; an abandoned plan run went unrecorded;
-//   W9: the long-conversation reminder at 80k instead of 150k.
+//   W9: the long-conversation reminder (80k instead of 150k in 4.7.0; 600k since 5.1.0).
 
 const test = require('node:test');
 const assert = require('node:assert');
@@ -181,11 +181,12 @@ test('W7: a bash -c test command passes through verify.js for real when bash is 
 
 // --- W9 ----------------------------------------------------------------------------------------
 
-test('W9: the long-conversation reminder defaults to 80k tokens, and the variable still sets it', () => {
-  assert.equal(context.DEFAULT_THRESHOLD, 80000);
-  assert.equal(context.threshold({}), 80000);
+test('W9: the long-conversation reminder defaults to 600k tokens, and the variable still sets it', () => {
+  assert.equal(context.DEFAULT_THRESHOLD, 600000);
+  assert.equal(context.threshold({}), 600000);
   assert.equal(context.threshold({ ULTIMATE_WORKFLOW_CONTEXT_REMINDER: '150000' }), 150000);
-  assert.deepStrictEqual(context.decide({ tokens: 90000, threshold: context.threshold({}), lastBand: 0 }), { band: 1, remind: true });
+  assert.deepStrictEqual(context.decide({ tokens: 90000, threshold: context.threshold({}), lastBand: 0 }), { band: 0, remind: false });
+  assert.deepStrictEqual(context.decide({ tokens: 610000, threshold: context.threshold({}), lastBand: 0 }), { band: 1, remind: true });
 });
 
 // --- gate-card (PLAN-run-fixes.md, criterion 3): G6 judges the card being committed ----------------

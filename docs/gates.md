@@ -84,7 +84,7 @@ git show --cc --format= $c
 
 ### The long-conversation reminder (4.2.0)
 
-Not a gate: on each prompt the hook reads the last turn's context size from the end of the transcript, and past 80k tokens (and again every further 80k; 150k before 4.7.0) adds one line suggesting `/handoff` and a new session. It never blocks, runs in any repository while the gates are on, and keeps its state in the system temp folder. `ULTIMATE_WORKFLOW_CONTEXT_REMINDER` sets the size in tokens; `0` turns it off.
+Not a gate: on each prompt the hook reads the last turn's context size from the end of the transcript, and past 600k tokens (and again every further 600k; 80k from 4.7.0 to 5.0.1, 150k before) adds one line suggesting `/handoff` and a new session. It never blocks, runs in any repository while the gates are on, and keeps its state in the system temp folder. `ULTIMATE_WORKFLOW_CONTEXT_REMINDER` sets the size in tokens; `0` turns it off.
 
 ### Which tests run when (4.1.1)
 

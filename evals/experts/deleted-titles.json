@@ -676,5 +676,9 @@
  [
   ".cursor-plugin/ultimate-workflow/hooks/baseline.test.js",
   "the baseline is for one test command: a different command is judged without it"
+ ],
+ [
+  "evals/experts/autopilot-fixes.test.js",
+  "W9: the long-conversation reminder defaults to 80k tokens, and the variable still sets it"
  ]
 ]

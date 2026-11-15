@@ -98,7 +98,7 @@ test('a commit that stages only a new topical, with the index now stale, is deni
   const v = verdict(dir);
   assert.strictEqual(v.allow, false);
   assert.match(v.reason, /memory\/b\.md/);
-  assert.match(v.reason, /node experts\/experts\.js memory index/);
+  assert.match(v.reason, /node "[^"]+\/experts\/experts\.js" memory index/);
 });
 
 test('the same commit with the index regenerated is allowed', () => {

@@ -19,13 +19,25 @@ Documentation-only and empty commits are exempt from the first three. Each commi
 
 Plan settings the confirmation hash leaves out (`test_command`, `volatile_paths`, `known_failures`, `full_suite_paths`, and a shortened `experts` line) are recorded at confirmation, and the check names one that changed since. It is shown, never a refusal.
 
-## Reminders
+**Paths in this document** (`node hooks/verify.js`, `node hooks/status.js`, `experts/experts.js`) are given from the plugin folder. In a project, use the full path: since 5.1.0 every hint the hook prints carries it.
 
-Short lines, computed from the plan and the PRD each time, sent at the start of a turn and at its end (never on an edit): the plan is not confirmed yet, the test plan is not confirmed yet, code changed since the last full test run, several plans are open and none is chosen. One line per prompt also names the current stage, so it survives a trimmed history. At the end of a turn the line is shown on Claude Code only.
+## Known failures (the baseline)
+
+A suite that already fails before the work starts needs a list the user accepted: `verify.js --baseline`, then `--accept-baseline`. Since 5.1.0 the list counts for the plan it was accepted for, with the same test command, on every later commit of the same line of work; a test that is not on the list still fails the run. When the list does not count, the full run says which rule failed (another command, another plan, or a commit that is not part of this line of work) and names the step that takes a new one.
+
+## Related tests
+
+`verify.js` without `--full` runs the tests related to the change. Since 5.1.0 a related test must be in a language the test command runs (pytest: Python; vitest, jest, node and the package managers: JavaScript and TypeScript; `go test`: Go; cargo: Rust; and so on). For a runner the plugin does not know, a related test must be in the language of a changed file.
+
+## The session brief, and the reminders
+
+Since 5.1.0 the hooks add nothing to a prompt and say nothing at the end of a turn. One time in each session (the `SessionStart` hook, in every project) the model gets a short brief: decide the type of each new request. A small fix is done with no talk about a plan. For a feature or a change of requirements the assistant asks one time if the user wants a plan, and runs `/ultimate-workflow:feature` on a yes. For a new project it offers the same command. Open plans are named by file name, to be spoken about only when the request is about one. The model decides, because it reads the request and a hook sees only files; the decision is not exact, and `evals/plan-offer/` measures it.
+
+The reminders (the plan is not confirmed yet, the test plan is not confirmed yet, code changed since the last full test run, several plans are open and none is chosen) are printed by `node hooks/status.js` on request. The commit check names whatever is missing.
 
 ## Which plan
 
-The plan the check reads is chosen, not guessed. One open plan is the plan. With several open plans and no pointer none is chosen: a commit goes through unchecked and says so, until you pick one with `node experts/experts.js use --plan <file>` (any `experts.js` command given `--plan` picks it too). A plan marked `phase: done` is closed.
+The plan the check reads is chosen, not guessed. One open plan is the plan. With several open plans and no pointer none is chosen: a commit goes through unchecked and says so, until you pick one with `experts.js use --plan <file>` (the commit message prints the command with its full path; any `experts.js` command given `--plan` picks it too). A plan marked `phase: done` is closed.
 
 Documentation (`.md`, `.txt`) never counts as code. Neither do diagrams, because a plan often needs one before it is confirmed: diagram sources (`.mmd`, `.mermaid`, `.puml`, `.plantuml`, `.drawio`, `.excalidraw`, `.d2`) anywhere, and rendered diagrams (`.html`, `.htm`, `.svg`, `.png`) only under a folder named `docs`. A diagram still counts as a change for the related tests, G6 and G7.
 
@@ -72,7 +84,7 @@ git show --cc --format= $c
 
 ### The long-conversation reminder (4.2.0)
 
-Not a gate: on each prompt the hook reads the last turn's context size from the end of the transcript, and past 80k tokens (and again every further 80k; 150k before 4.7.0) adds one line suggesting `/handoff` and a new session. It never blocks, runs in any repository while the gates are on, and keeps its state in the system temp folder. `ULTIMATE_WORKFLOW_CONTEXT_REMINDER` sets the size in tokens; `0` turns it off.
+Not a gate: on each prompt the hook reads the last turn's context size from the end of the transcript, and past 600k tokens (and again every further 600k; 80k from 4.7.0 to 5.0.1, 150k before) adds one line suggesting `/handoff` and a new session. It never blocks, runs in any repository while the gates are on, and keeps its state in the system temp folder. `ULTIMATE_WORKFLOW_CONTEXT_REMINDER` sets the size in tokens; `0` turns it off.
 
 ### Which tests run when (4.1.1)
 

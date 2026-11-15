@@ -32,16 +32,16 @@ test('hooks.json is parseable JSON', () => {
 const config = JSON.parse(raw);
 
 test('every event the gates depend on is registered', () => {
-  // Each maps to a gate: PreToolUse -> G1/G2, PostToolUse + PostToolUseFailure
-  // -> G4, Stop -> G3, UserPromptSubmit -> G5.
-  for (const event of ['PreToolUse', 'PostToolUse', 'PostToolUseFailure', 'UserPromptSubmit', 'Stop']) {
+  // PreToolUse -> the commit check; PostToolUse + PostToolUseFailure -> a typed full test run;
+  // SessionStart -> the session brief (5.1.0); UserPromptSubmit -> the context size reminder.
+  for (const event of ['PreToolUse', 'PostToolUse', 'PostToolUseFailure', 'UserPromptSubmit', 'SessionStart']) {
     assert.ok(Array.isArray(config.hooks[event]), `${event} is not registered, so its gate can never fire`);
     assert.ok(config.hooks[event].length > 0, `${event} is registered with no hooks`);
   }
 });
 
 test('gate.js is registered for every event it handles', () => {
-  for (const event of ['PreToolUse', 'PostToolUse', 'PostToolUseFailure', 'UserPromptSubmit', 'Stop']) {
+  for (const event of ['PreToolUse', 'PostToolUse', 'PostToolUseFailure', 'UserPromptSubmit', 'SessionStart']) {
     const commands = config.hooks[event].flatMap((g) => (g.hooks || []).map((h) => h.command || ''));
     assert.ok(
       commands.some((c) => c.includes('gate.js')),
@@ -98,9 +98,10 @@ test('the pre-tool matcher includes Bash, or the commit gate (G6) can never see 
 // ---- PLAN-simplify, card reminders ----
 
 test('registration: no event is registered that gate.js no longer acts on, and edits are not matched', () => {
-  // gate.js acts on a commit (PreToolUse), on a typed test run (PostToolUse and PostToolUseFailure), and on the start and
-  // end of a turn (UserPromptSubmit, Stop). A matcher that names an edit tool would wake it for nothing.
-  assert.deepStrictEqual(Object.keys(config.hooks).sort(), ['PostToolUse', 'PostToolUseFailure', 'PreToolUse', 'Stop', 'UserPromptSubmit']);
+  // gate.js acts on a commit (PreToolUse), on a typed test run (PostToolUse and PostToolUseFailure), on the start of a
+  // session (SessionStart, the brief) and on a prompt (UserPromptSubmit, the context size reminder only). Since 5.1.0 it
+  // says nothing at the end of a turn, so Stop is not registered. A matcher that names an edit tool would wake it for nothing.
+  assert.deepStrictEqual(Object.keys(config.hooks).sort(), ['PostToolUse', 'PostToolUseFailure', 'PreToolUse', 'SessionStart', 'UserPromptSubmit']);
   for (const event of ['PreToolUse', 'PostToolUse', 'PostToolUseFailure']) {
     for (const g of config.hooks[event]) assert.strictEqual(g.matcher, 'Bash', `${event} matches Bash only`);
   }

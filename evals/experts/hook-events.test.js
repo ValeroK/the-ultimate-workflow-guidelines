@@ -179,27 +179,28 @@ const contextText = (r) => {
   }
 };
 
-test('reminders: sent on UserPromptSubmit and Stop, and not on an edit', () => {
+// Since 5.1.0 the hooks send no reminder: the commit check says what is missing, and status.js lists the reminders on request.
+const statusReminders = (dir) => JSON.parse(spawnSync(process.execPath, [path.join(PLUGIN, 'hooks', 'status.js'), '--json'], { cwd: dir, encoding: 'utf8', env: { ...process.env, ULTIMATE_WORKFLOW_GATES: 'on' } }).stdout).reminders;
+
+test('reminders: a prompt, the end of a turn and an edit say nothing, with an unconfirmed plan and changed code', () => {
   const dir = planProject(['phase: build', 'plan_confirmed: false', 'tests_confirmed: false', `test_command: ${TEST_COMMAND}`]);
-  const prompt = contextText(gateOut(dir, 'claude', 'prompt'));
-  assert.match(prompt, /plan is not confirmed/);
-  assert.match(prompt, /--confirm tests_confirmed/);
-  const stop = contextText(gateOut(dir, 'claude', 'stop'));
-  assert.match(stop, /plan is not confirmed/);
-  for (const kind of ['pre-edit', 'post-edit']) assert.strictEqual(contextText(gateOut(dir, 'claude', kind)), '', `${kind} says nothing`);
-  assert.strictEqual(gateOut(dir, 'cursor', 'stop').stdout, '', 'Cursor gets no stop line: its follow-up would start a new turn');
+  fs.writeFileSync(path.join(dir, 'src', 'a.js'), 'module.exports = 2;\n');
+  for (const vendor of ['claude', 'cursor']) {
+    for (const kind of ['prompt', 'stop', 'pre-edit', 'post-edit']) assert.strictEqual(gateOut(dir, vendor, kind).stdout, '', `${vendor} ${kind} says nothing`);
+  }
 });
 
-test('reminders: a confirmed tree with changed code gets the code-changed line, a write into the run folder does not raise it, and a source write does', () => {
+test('reminders: status.js gives the code-changed line for a source write, and not for the run folder or documentation', () => {
   const dir = planProject(['phase: build', 'plan_confirmed: true', 'tests_confirmed: true', `test_command: ${TEST_COMMAND}`]);
-  assert.doesNotMatch(contextText(gateOut(dir, 'claude', 'prompt')), /Code changed since the last full test run/);
+  const changed = () => statusReminders(dir).some((l) => /Code changed since the last full test run/.test(l));
+  assert.strictEqual(changed(), false);
   fs.mkdirSync(path.join(dir, '.ultimate-workflow', 'run', 'calc'), { recursive: true });
   fs.writeFileSync(path.join(dir, '.ultimate-workflow', 'run', 'calc', 'harvest.json'), '{}');
-  assert.doesNotMatch(contextText(gateOut(dir, 'claude', 'prompt')), /Code changed since the last full test run/, 'the run folder is not source');
+  assert.strictEqual(changed(), false, 'the run folder is not source');
   fs.writeFileSync(path.join(dir, 'README.md'), 'words\n');
-  assert.doesNotMatch(contextText(gateOut(dir, 'claude', 'prompt')), /Code changed since the last full test run/, 'documentation is not code');
+  assert.strictEqual(changed(), false, 'documentation is not code');
   fs.writeFileSync(path.join(dir, 'src', 'a.js'), 'module.exports = 2;\n');
-  assert.match(contextText(gateOut(dir, 'claude', 'prompt')), /Code changed since the last full test run/);
+  assert.strictEqual(changed(), true);
 });
 
 test('fault 18: another session\'s edits in the same checkout do not block this session\'s turn end', () => {
@@ -211,18 +212,13 @@ test('fault 18: another session\'s edits in the same checkout do not block this 
   assert.ok(!JSON.parse(r.stdout || '{}').decision);
 });
 
-test('reminders: status.js prints the same lines the hook sends', () => {
-  const states = [
-    ['phase: build', 'plan_confirmed: false', 'tests_confirmed: false', `test_command: ${TEST_COMMAND}`],
-    ['phase: build', 'plan_confirmed: true', 'tests_confirmed: false', `test_command: ${TEST_COMMAND}`],
-    ['phase: build', 'plan_confirmed: true', 'tests_confirmed: true'],
-  ];
-  for (const front of states) {
-    const dir = planProject(front);
-    const hookLines = contextText(gateOut(dir, 'claude', 'stop')).split('\n').filter(Boolean);
-    const s = spawnSync(process.execPath, [path.join(PLUGIN, 'hooks', 'status.js'), '--json'], { cwd: dir, encoding: 'utf8', env: { ...process.env, ULTIMATE_WORKFLOW_GATES: 'on' } });
-    const statusLines = JSON.parse(s.stdout).reminders;
-    // The hook adds the code-changed line from the fingerprint; status adds it from the same evidence.
-    assert.deepStrictEqual(statusLines, hookLines, front.join(' | '));
-  }
+test('reminders: status.js lists what is not confirmed, and nothing when both confirmations are given', () => {
+  const of = (front) => statusReminders(planProject(front)).join('\n');
+  const none = of(['phase: build', 'plan_confirmed: false', 'tests_confirmed: false', `test_command: ${TEST_COMMAND}`]);
+  assert.match(none, /plan is not confirmed/);
+  assert.match(none, /--confirm tests_confirmed/);
+  const half = of(['phase: build', 'plan_confirmed: true', 'tests_confirmed: false', `test_command: ${TEST_COMMAND}`]);
+  assert.doesNotMatch(half, /The plan is not confirmed/);
+  assert.match(half, /test plan is not confirmed/);
+  assert.strictEqual(of(['phase: build', 'plan_confirmed: true', 'tests_confirmed: true']), '');
 });

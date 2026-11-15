@@ -45,7 +45,7 @@ At each stop for the user, follow what `plan.md` and `tests.md` say: the documen
 
 Stop and hand over to the user, with what happened and what you need, only for:
 
-- the two confirmations above, which are the user's and never yours;
+- the two confirmations above, which are the user's and never yours. **If the host refuses the confirm command**, show the user the exact command and ask them to run it themself (`plan.md` and `tests.md` say how);
 - an open high-confidence finding (the experts command says how it is raised; never dismiss one yourself);
 - a build that escalates after three failed rounds;
 - a gate refusal you cannot satisfy by following the phase that it names;

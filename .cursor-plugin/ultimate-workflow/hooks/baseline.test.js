@@ -372,23 +372,79 @@ test('--baseline will not offer a list that does not account for the failures', 
   assert.strictEqual(run(dir, ['--accept-baseline']).status, 2, 'accepting needs the complete list from the reader');
 });
 
-test('the baseline stops counting once the work is committed: the next change starts from a new one', () => {
-  const dir = accepted(['alpha']);
-  assert.strictEqual(run(dir, ['--full']).status, 0);
+// ---- 5.1.0: the baseline lives as long as its plan, on the line of work it was taken on ----
+// Until 5.0.1 it applied at one commit only. A run commits after each card (and run-start itself commits a
+// .gitignore line), so every known failure then counted as new and the card parked: twice in one real run.
+
+const commitAll = (dir, message = 'work') => {
   git(dir, 'add', '-A');
-  git(dir, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'work');
+  git(dir, 'commit', '-q', '-m', message);
+};
+
+test('the baseline still applies after the work is committed, on the same line of work and for the same plan', () => {
+  const dir = accepted(['alpha']);
+  assert.strictEqual(baseline(dir).plan, 'PLAN-x.md', 'the accept step records the plan the list is for');
+  fs.writeFileSync(path.join(dir, 'src', 'a.js'), 'exports.a = 2\n');
+  commitAll(dir);
+  fs.writeFileSync(path.join(dir, 'src', 'a.js'), 'exports.a = 3\n');
+  commitAll(dir, 'more work');
   const r = run(dir, ['--full']);
-  assert.notStrictEqual(r.status, 0, 'a different HEAD, so the old list no longer applies');
-  assert.doesNotMatch(r.stdout, /known failure/);
+  assert.strictEqual(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /full run passed with 1 known failure \(the accepted baseline\) and 0 new/);
 });
 
-test('the baseline is for one test command: a different command is judged without it', () => {
+test('after a commit a new failing test still fails the run and is named', () => {
+  const dir = accepted(['alpha']);
+  commitAll(dir);
+  setFails(dir, ['alpha', 'gamma']);
+  const r = run(dir, ['--full']);
+  assert.notStrictEqual(r.status, 0);
+  assert.match(r.stdout, /1 failing test is not in the accepted baseline/);
+  assert.match(r.stdout, /- gamma/);
+});
+
+test('the baseline does not apply on a line of work that does not hold its commit, and the output says why', () => {
+  const dir = accepted(['alpha']);
+  commitAll(dir);
+  // A branch from before the baseline commit: an orphan history, so the baseline commit is not an ancestor.
+  git(dir, 'checkout', '-q', '--orphan', 'other');
+  commitAll(dir, 'another line');
+  const r = run(dir, ['--full']);
+  assert.notStrictEqual(r.status, 0);
+  assert.doesNotMatch(r.stdout, /known failure/);
+  assert.match(r.stdout, /the accepted baseline does not apply: it was taken at commit [0-9a-f]{7}, which is not part of this line of work/);
+  assert.match(r.stdout, /--baseline/, 'and it names the step that takes a new one');
+});
+
+test('the baseline is for one plan: with another plan the run is judged without it, and the output says why', () => {
+  const dir = accepted(['alpha']);
+  const text = fs.readFileSync(path.join(dir, 'PLAN-x.md'), 'utf8');
+  fs.writeFileSync(path.join(dir, 'PLAN-y.md'), text);
+  const r = run(dir, ['--full', '--plan', 'PLAN-y.md']);
+  assert.notStrictEqual(r.status, 0);
+  assert.doesNotMatch(r.stdout, /known failure/);
+  assert.match(r.stdout, /the accepted baseline does not apply: it was accepted for PLAN-x\.md, and this run is for PLAN-y\.md/);
+});
+
+test('a baseline accepted before 5.1.0 (no plan recorded) applies at its own commit only, as before', () => {
+  const dir = accepted(['alpha']);
+  const file = path.join(dir, '.ultimate-workflow', 'baseline.json');
+  const b = baseline(dir);
+  delete b.plan;
+  fs.writeFileSync(file, JSON.stringify(b));
+  assert.strictEqual(run(dir, ['--full']).status, 0, 'at its own commit');
+  commitAll(dir);
+  assert.notStrictEqual(run(dir, ['--full']).status, 0, 'and not after it');
+});
+
+test('the baseline is for one test command: a different command is judged without it, and the output says why', () => {
   const dir = accepted(['alpha']);
   const plan = fs.readFileSync(path.join(dir, 'PLAN-x.md'), 'utf8').replace('test_command: node full.js', 'test_command: node full.js --other');
   fs.writeFileSync(path.join(dir, 'PLAN-x.md'), plan);
   const r = run(dir, ['--full']);
   assert.notStrictEqual(r.status, 0);
   assert.doesNotMatch(r.stdout, /known failure/);
+  assert.match(r.stdout, /the accepted baseline does not apply: it was accepted for the command `node full\.js`, and the plan now says `node full\.js --other`/);
 });
 
 test('a green full run is unchanged: exit 0, passed, and no baseline fields in the record', () => {

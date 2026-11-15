@@ -4,8 +4,8 @@
 // reads, so it is testable row by row.
 //
 // Since 5.0.0 only one thing here refuses: a `git commit`, through the one commit check
-// (gates.commitGate). Every other event reminds or records, and none of them blocks an edit or a turn
-// from ending. Hooks write nothing to the plan.
+// (gates.commitGate). A typed full test run is recorded, and the session start carries the one brief
+// (5.1.0). A prompt and the end of a turn get nothing from here. Hooks write nothing to the plan.
 
 const gates = require('./gates.js');
 const { canBlockWrite } = require('./adapters.js');
@@ -39,12 +39,16 @@ function isVerifyCommand(command, state) {
 /**
  * @param {object} ev    normalised event from adapters.normalize
  * @param {object} state resolved state from state.readState
- * @param {object} opts  { workflowsAvailable, commitEvidence, codeChanged, verifyScript }
+ * @param {object} opts  { commitEvidence, failed }
  * @returns {{kind: string, reason?: string, text?: string, say?: string, note?: string, check?: object, verified?: object}}
  */
 function dispatch(ev, state, opts = {}) {
   const allow = { kind: 'allow' };
   if (!ev || !ev.event) return allow;
+
+  // The one text about the workflow, one time in a session and in every project (5.1.0). A prompt and the end of
+  // a turn get nothing: the model decides the type of each request from this brief.
+  if (ev.event === 'sessionStart') return { kind: 'context', text: gates.sessionBrief(state) };
 
   const isCommit = ev.event === 'preTool' && ev.tool === 'shell' && gates.isCommitCommand(ev.command);
   if (state.stage === 'none') {
@@ -58,7 +62,7 @@ function dispatch(ev, state, opts = {}) {
   // through, says so, and names the command that picks one (owner decision, 2026-11-13).
   if (isCommit && state.stage === 'feature' && !state.file) {
     const why = 'several plans and no active plan chosen';
-    return { kind: 'allow', say: `Commit check: this commit was not checked (exempt: ${why}). Pick the plan with: node experts/experts.js use --plan <file>`, check: { outcome: 'exempt', why, missing: [] } };
+    return { kind: 'allow', say: `Commit check: this commit was not checked (exempt: ${why}). Pick the plan with: ${gates.EXPERTS_CLI} use --plan <file>`, check: { outcome: 'exempt', why, missing: [] } };
   }
 
   // --- the one commit check: confirmation, a full run, the experts, memory -----------------------
@@ -90,21 +94,6 @@ function dispatch(ev, state, opts = {}) {
     // exit has been recorded as a plain PostToolUse (fixtures/claude-code/PostToolUse.18.json).
     const passed = !(ev.event === 'postToolFailure' || opts.failed === true || ev.ok === false);
     return { kind: 'allow', verified: { kind, passed } };
-  }
-
-  // --- reminders ------------------------------------------------------------------------------------
-  if (ev.event === 'stop') {
-    // Cursor fires stop on cancelled and superseded generations too; nothing is said for a turn that did nothing.
-    if (ev.status && ev.status !== 'completed') return allow;
-    const lines = gates.reminders(state, { codeChanged: opts.codeChanged, script: opts.verifyScript });
-    return lines.length > 0 ? { kind: 'notice', text: lines.join('\n') } : allow;
-  }
-
-  if (ev.event === 'prompt' || ev.event === 'sessionStart') {
-    const pointer = gates.phasePointer(state, { workflowsAvailable: opts.workflowsAvailable });
-    const lines = gates.reminders(state, { codeChanged: opts.codeChanged, script: opts.verifyScript });
-    const text = [pointer, ...lines].filter(Boolean).join('\n');
-    return text ? { kind: 'context', text } : allow;
   }
 
   return allow;

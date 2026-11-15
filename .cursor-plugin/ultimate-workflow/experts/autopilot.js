@@ -1123,7 +1123,11 @@ function runStart(cwd, { plan, feature, resume = null, implementerModel = '', di
     }
   })();
   const head = git(cwd, ['rev-parse', 'HEAD']).stdout.trim();
-  if (existing && existing.accepted === true && existing.head === head) baseline = { taken: false, kept: true, failures: existing.failures.length };
+  // The one rule for whether an accepted list still counts (verify.js baselineStatus): same command, same plan,
+  // and its commit on this line of work. Until 5.1.0 this asked for the exact commit, so a list the user had
+  // accepted was taken again, and refused, as soon as anything was committed after it.
+  const planCommand = String(require('../hooks/lib/state.js').parseFrontMatter(fs.readFileSync(path.resolve(cwd, plan), 'utf8')).data.test_command || '');
+  if (require('../hooks/verify.js').baselineStatus(existing, cwd, planCommand, path.basename(plan)).applies) baseline = { taken: false, kept: true, failures: existing.failures.length };
   else if (!resume) {
     const v = spawnSync(process.execPath, [path.join(pluginRoot, 'hooks', 'verify.js'), '--baseline', '--plan', plan], { cwd, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
     const recorded = (() => {

@@ -4,6 +4,33 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.1.0] - 2026-11-15
+
+The model decides the type of work. The hooks say it one time, at session start, and add nothing to a prompt.
+
+### Changed (read this before updating)
+
+- **No workflow text on a prompt or at the end of a turn.** Until 5.0.1 each prompt got a stage line and reminders whenever a `PLAN-*.md` or an unconfirmed `PRD.md` was open in the project, also in a session that had no relation to that plan (a session about a television got "next: write and confirm the plan" on every prompt, because three old plans were open). The hook decided from files; it cannot know what a request is about. Now a prompt gets nothing from the workflow (the context size reminder stays), and nothing is said at the end of a turn. The commit check still says everything that is missing, and `node hooks/status.js` lists the reminders on request.
+- **One brief at session start** (`gates.sessionBrief`, about 90 words, in every project): decide the type of each new request. A small fix is done with no talk about a plan. For a feature or a change of requirements the assistant asks the user one time if they want a plan, and runs `/ultimate-workflow:feature` on a yes. For a new project it offers the same command. Open plans are named by file name, to be spoken about only when the request is about one. This is also the answer to a gap in 5.0.0: requirements typed in chat with no plan open went straight to code. It is a model decision, so it is not exact; `evals/plan-offer/` holds the prompts it is measured with.
+- **Hooks registered:** `SessionStart` is new, `Stop` is gone (the hook says nothing there now). **Restart the host after updating.**
+- **Cursor** gets the same instruction in its always-on rule, and the skill carries it for every host.
+
+### Fixed
+
+- **The reminder to start a new session came too early.** Its default was 80k tokens of context, and a session with many tools and skills starts at 40k to 60k, so it came after little work. The default is now 600k, and again at every further 600k. A model with a smaller context window never reaches it; `ULTIMATE_WORKFLOW_CONTEXT_REMINDER` sets a lower size (`0` is off).
+- **A hint names `experts.js` by its full path.** Hints said `node experts/experts.js ...`, a path from the plugin folder. In a project the shell resolves it from the project folder, where the file is not, so the command ran only in this repository. The commit check, the reminders and `status.js` now print the full path of the `experts.js` that ships with the plugin (`gates.EXPERTS_CLI`). Two texts keep the short form on purpose, because they are written into files a project commits: the marker line in `memory.md` and one note in a harvest result.
+
+- **An accepted baseline no longer expires at the first commit.** The list of known failures counted at one commit only. A run commits after each card, so the next full run counted every known failure as new and the card parked; in one real run this stopped the work twice, and with it the commit by hand of a two-line test fix (the run refuses changed files, and the commit check refused the commit). The list now counts for the plan it was accepted for (recorded in `baseline.json`), with the same test command, on every later commit of the same line of work. A test that is not on the list still fails the run. `run-start` uses the same rule, so it keeps a list the user accepted by hand. A baseline accepted before 5.1.0 has no plan recorded and keeps the old rule.
+- **A list that does not count is explained.** The full run now says which rule failed (another test command, another plan, a commit that is not part of this line of work) and names the step that takes a new list. Before, it only counted every failure as new.
+- **A related test must be in a language the test command runs.** In a repository with a Python backend and a TypeScript UI, `verify.js` gave a `.test.tsx` file to pytest, which collected nothing and exited 4, so every card ran its tests by hand. Known runners (pytest, vitest, jest, node, the package managers, `go test`, cargo and others) get tests in their own language only; for a runner the plugin does not know, a related test must be in the language of a changed file.
+- **Confirm in place.** `experts.js present --confirm <flag>` with no source stamps the plan as it is on disk and changes nothing else; with no `--out` it is the chosen plan. So the hint the commit check prints now runs as printed (it stopped with "present needs --out"). Before, a confirmation needed a source file, and a session that gave an old draft wrote it over the plan: the Tests and Cards sections were gone, and `tests_confirmed` and the test command were the draft's.
+- **A write over a plan that would lose a section is refused.** `present --out PLAN-x.md` compares the `##` headings; when the new text lacks one the plan has, nothing is written and the message names the lost sections. `--append` and confirm in place cannot lose one; `--replace` writes the smaller text on purpose.
+- **When the host refuses the confirm command.** An automatic permission check of the host can refuse a confirmation that the assistant runs. `plan.md`, `tests.md` and `feature.md` now say what to do: show the user the exact command and ask them to run it themself.
+
+### Removed
+
+- `gates.phasePointer` and the `workflowsAvailable` probe in `gate.js`: nothing reads them now.
+
 ## [5.0.1] - 2026-11-14
 
 ### Fixed

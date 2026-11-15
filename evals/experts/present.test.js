@@ -229,3 +229,83 @@ test('present: creates the folder of --out, and works for testsMarkdown', () => 
   assert.strictEqual(r.status, 0, r.stderr);
   assert.strictEqual(fs.readFileSync(out, 'utf8'), '# Tests\n\n## Cases\n');
 });
+
+// ---- 5.1.0: confirm in place, and no write that loses a section of the plan ----
+// A session confirmed with an old draft as the source. The draft went over the plan: the Tests and Cards
+// sections were gone, and tests_confirmed and the test command were the draft's. And the hint the commit
+// check printed, `present --confirm <flag>`, did not run at all: it stopped with "present needs --out".
+
+const FULL_PLAN = '---\nphase: build\nplan_confirmed: true\ntests_confirmed: false\ntest_command: npm test\n---\n\n# Plan: x\n\n## Files\n\n- a\n\n## Tests\n\n- t1\n\n## Cards\n\n### 1: one\n';
+
+test('present --confirm with no source confirms the plan in place and changes nothing else', () => {
+  const dir = tmp();
+  const plan = inDir(dir, 'PLAN-x.md', PLAN);
+  const r = run(dir, ['present', '--confirm', 'plan_confirmed', '--out', 'PLAN-x.md']);
+  assert.strictEqual(r.status, 0, r.stderr);
+  assert.strictEqual(fs.readFileSync(plan, 'utf8'), PLAN.replace('plan_confirmed: false', 'plan_confirmed: true'));
+  assert.strictEqual(JSON.parse(r.stdout).confirmed, true);
+});
+
+test('present --confirm with no source and no --out confirms the one open plan, so the hint runs as printed', () => {
+  const dir = tmp();
+  const plan = inDir(dir, 'PLAN-x.md', FULL_PLAN);
+  const r = run(dir, ['present', '--confirm', 'tests_confirmed']);
+  assert.strictEqual(r.status, 0, r.stderr);
+  const after = fs.readFileSync(plan, 'utf8');
+  assert.match(after, /^tests_confirmed: true$/m);
+  assert.match(after, /^confirmed_hash: /m);
+  assert.strictEqual(after.slice(after.indexOf('# Plan: x')), FULL_PLAN.slice(FULL_PLAN.indexOf('# Plan: x')), 'the body is byte for byte the same');
+  assert.strictEqual(JSON.parse(r.stdout).out, 'PLAN-x.md');
+});
+
+test('present --confirm with no source, several open plans and none chosen names the two ways to say which', () => {
+  const dir = tmp();
+  inDir(dir, 'PLAN-x.md', PLAN);
+  inDir(dir, 'PLAN-y.md', PLAN);
+  const r = run(dir, ['present', '--confirm', 'plan_confirmed']);
+  assert.notStrictEqual(r.status, 0);
+  assert.match(r.stderr, /--out <the plan>/);
+  assert.match(r.stderr, /use --plan/);
+  assert.strictEqual(fs.readFileSync(path.join(dir, 'PLAN-x.md'), 'utf8'), PLAN);
+});
+
+test('present: a write over a plan that would lose one of its sections is refused, and the plan is not changed', () => {
+  const dir = tmp();
+  const plan = inDir(dir, 'PLAN-x.md', FULL_PLAN);
+  inDir(dir, 'draft.md', PLAN);
+  const r = run(dir, ['present', '--from', 'draft.md', '--out', 'PLAN-x.md', '--confirm', 'tests_confirmed']);
+  assert.notStrictEqual(r.status, 0);
+  assert.match(r.stderr, /would remove these sections from PLAN-x\.md: ## Tests, ## Cards/);
+  assert.match(r.stderr, /--confirm tests_confirmed --out PLAN-x\.md/, 'it names the command that confirms in place');
+  assert.strictEqual(fs.readFileSync(plan, 'utf8'), FULL_PLAN);
+});
+
+test('present: a write over a plan that keeps every section goes through, and --replace allows a smaller one on purpose', () => {
+  const dir = tmp();
+  const plan = inDir(dir, 'PLAN-x.md', FULL_PLAN);
+  const edited = FULL_PLAN.replace('- t1', '- t1\n- t2');
+  inDir(dir, 'shown.md', edited);
+  const r = run(dir, ['present', '--from', 'shown.md', '--out', 'PLAN-x.md', '--confirm', 'tests_confirmed']);
+  assert.strictEqual(r.status, 0, r.stderr);
+  assert.match(fs.readFileSync(plan, 'utf8'), /- t2/);
+  inDir(dir, 'draft.md', PLAN);
+  const smaller = run(dir, ['present', '--from', 'draft.md', '--out', 'PLAN-x.md', '--replace']);
+  assert.strictEqual(smaller.status, 0, smaller.stderr);
+  assert.strictEqual(fs.readFileSync(plan, 'utf8'), PLAN);
+});
+
+test('the confirm hint the reminders and the commit check print runs from a project folder as printed', () => {
+  const gates = require('../../.cursor-plugin/ultimate-workflow/hooks/lib/gates.js');
+  const dir = tmp();
+  const plan = inDir(dir, 'PLAN-x.md', PLAN);
+  const line = gates.reminders({ stage: 'feature', file: plan, data: { plan_confirmed: false, tests_confirmed: true } })[0];
+  const hint = /node "([^"]+)" (present --confirm plan_confirmed)$/.exec(line);
+  assert.ok(hint, line);
+  const r = spawnSync(process.execPath, [hint[1], ...hint[2].split(' ')], { cwd: dir, encoding: 'utf8' });
+  assert.strictEqual(r.status, 0, r.stderr);
+  assert.match(fs.readFileSync(plan, 'utf8'), /^plan_confirmed: true$/m);
+  // The findings hint, the other command a refusal names with no argument of its own (it reads the changes from git).
+  spawnSync('git', ['init', '-q'], { cwd: dir });
+  const findings = spawnSync(process.execPath, [hint[1], 'findings'], { cwd: dir, encoding: 'utf8' });
+  assert.strictEqual(findings.status, 0, findings.stderr);
+});

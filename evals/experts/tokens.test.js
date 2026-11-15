@@ -167,6 +167,8 @@ test('T4 through gate.js: a large context gets one reminder as context, never a 
   const dir = tmp('transcript');
   const file = path.join(dir, 't.jsonl');
   fs.writeFileSync(file, `${turn(170000)}\n`);
+  assert.equal(promptEvent(file, `s-${path.basename(dir)}-early`).out, null, '170k is below the default of 600k: nothing');
+  fs.writeFileSync(file, `${turn(640000)}\n`);
   const sid = `s-${path.basename(dir)}`;
   const first = promptEvent(file, sid);
   assert.equal(first.status, 0);
@@ -232,7 +234,7 @@ test('T6 the docs: loops in agents, value runs usage, the reminder', () => {
   assert.match(read('rules/the-ultimate-workflow-guidelines.mdc'), rule);
   assert.match(read('commands/feature.md'), rule);
   assert.match(read('commands/value.md'), /experts\.js" usage/);
-  assert.match(fs.readFileSync(path.join(PLUGIN, '..', '..', 'HOW-TO-USE.md'), 'utf8'), /80k/);
+  assert.match(fs.readFileSync(path.join(PLUGIN, '..', '..', 'HOW-TO-USE.md'), 'utf8'), /600k/);
 });
 
 // The value report takes its cost from the transcripts, grouped into phases, never from the ledger's tokens.

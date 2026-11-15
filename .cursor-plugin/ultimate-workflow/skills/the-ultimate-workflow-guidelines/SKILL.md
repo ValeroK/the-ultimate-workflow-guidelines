@@ -98,7 +98,7 @@ The Workflow *operationalizes* the Principles — each step cites the principle 
 
 **Entry point:** for any feature request or PRD, run `/ultimate-workflow:feature <what you want>`. It picks the tier (see [*How much of the workflow*](#how-much-of-the-workflow-skip-light-or-full)), runs the phase commands in order, and stops only at the two confirmations, a blocking finding or a real failure. The phase commands stay available one at a time.
 
-**Tokens.** Run repeated test-and-fix loops and wide searches inside a helper agent (or a phase) and bring back only the result: a long main conversation re-sends its whole context on every call, which made main conversations 73% of the tokens on a real project. Test runs through `node hooks/verify.js` print a summary and the failures; the whole output is in `.ultimate-workflow/verify.log`. Past 80k tokens of context a reminder suggests `/handoff` and a new session.
+**Tokens.** Run repeated test-and-fix loops and wide searches inside a helper agent (or a phase) and bring back only the result: a long main conversation re-sends its whole context on every call, which made main conversations 73% of the tokens on a real project. Test runs through `node hooks/verify.js` print a summary and the failures; the whole output is in `.ultimate-workflow/verify.log`. Past 600k tokens of context a reminder suggests `/handoff` and a new session.
 
 ### How to stop and ask
 
@@ -184,24 +184,24 @@ For any non-trivial task, follow this loop:
 
 Where `agents/uw-expert-*.md` exist (architect, softarch, developer, devops, quality, security ship with this plugin), the phase commands bring them in: at plan a model asks which apply and each chosen one adds constraints, at tests they add cases (quality always does), at build their standing briefs shape how code is written (the devops brief only when the plan names infrastructure, pipeline or container files), and before a commit they review the diff. The plan records the decision on its `experts:` line; `experts: []` is a decision too. Shared skills from `experts/skills/` are pasted into an expert's prompt by code. On a host without the phase scripts, invoke `uw-expert-<name>` yourself at the stages its `stages` line names, and read the skills its `experts/<name>/skills.md` lists for that stage. How it works: `commands/plan.md`, `commands/review.md`, `commands/experts.md`.
 
-### Gates: on by default, a backstop under the phases
+### The commit check: one blocking check, on by default
 
-The phase commands make ordering structural -- a phase you have not started cannot be skipped. The gates back that up for work done outside the phases, or when an agent drifts off them. As of 4.1.0 they are **on by default**; set `ULTIMATE_WORKFLOW_GATES=off` (or `0`, `false`, `no`) to turn them off.
+The phase commands make ordering structural -- a phase you have not started cannot be skipped. Under them is one backstop for work done outside the phases, or when an agent drifts off them: since 5.0.0 exactly one thing refuses, **`git commit`**. No hook refuses an edit, no hook stops a turn from ending, and no hook writes the plan file. It is **on by default**; set `ULTIMATE_WORKFLOW_GATES=off` (or `0`, `false`, `no`) to turn it off.
 
-They read a small YAML front-matter block at the top of `PRD.md` (bootstrap) or `PLAN-<feature>.md` (feature work):
+With a `PLAN-<feature>.md` open, a commit that changes source is refused until all four of these hold. The refusal lists every missing one, each with the command that fixes it:
 
-- No source edit lands before `plan_confirmed: true`.
-- No implementation lands before `tests_confirmed: true`. Test files are exempt -- that is the point.
-- A turn cannot end while source has changed since the last green verification. The tests related to the change are enough: `node hooks/verify.js` runs them (from `test_related_command`), or the full `test_command` when config, a lockfile or more than 20 files changed, or no related test is found.
-- No `git commit` until a passing full run (`node hooks/verify.js --full`) covers the current changes (G7). The full suite runs there, and once at the end of a build, not after every edit.
-- Three failing verification rounds escalate to the user through the blocker protocol in step 5.
-- No source edit before the plan records which domain experts apply, and no `git commit` until they have reviewed the current changes (`/ultimate-workflow:experts`) with no high-confidence finding left open.
+- The plan and the test plan are confirmed through the confirm step, and the plan text is unchanged since.
+- A full test run passed on exactly these changes (`verify.js --full`, or the plan's `test_command` typed whole). While iterating, the tests related to the change are enough; the full suite runs once at the end of a build and before a commit.
+- The domain experts the plan names reviewed exactly these changes (`/ultimate-workflow:experts`), with no high-confidence finding left open.
+- The memory files are not newly broken by this commit.
 
-Set `plan_confirmed` and `tests_confirmed` to `true` **only after the user has actually confirmed** that stage. Do not set them to clear a block. The gates maintain every other field themselves.
+Every commit ends in one printed outcome: **checked**; **exempt**, with the reason (documentation only, nothing to commit, no plan is open, several plans are open and none is chosen); or **could not check** (a git error). By hand the last two let the commit through and say so.
 
-They are inert in a repository with neither `PRD.md` nor `PLAN-*.md`, so skip-tier work and unmanaged projects are never affected. They fail open: an internal error blocks nothing. That is why liveness matters: run `node hooks/status.js` to see which of never-ran / live / stale / disabled you are actually in. (They were opt-in in 3.x because a default-on mechanism that fails open invisibly looked like enforcement while providing none; `status.js` is the answer to that, and the phase runs showed agents drifting without them.)
+Confirm a stage **only after the user has actually confirmed it**, and through the confirm step the refusal names. Do not confirm to clear a refusal, and do not dismiss a finding on your own authority.
 
-The gates are **Claude Code only**. Cursor, Codex CLI, Gemini CLI, and claude.ai run the workflow above as prose, with the confirmation steps observed rather than enforced. That is a deliberate scope: a pre-edit denial is silently dropped on Cursor, and the Codex and Gemini hook contracts have never been exercised, so shipping gates there would look like enforcement while providing none.
+Nothing is checked in a repository with neither `PRD.md` nor `PLAN-*.md`, so skip-tier work and unmanaged projects are never affected. The hook fails open: an internal error blocks nothing. That is why liveness matters: `status.js` in the plugin's `hooks` folder shows whether the check is loaded, when it last ran on a commit, and the reminders (what is not confirmed yet, code changed since the last full run). Since 5.1.0 no hook sends those reminders; ask `status.js` for them.
+
+The check refuses on **Claude Code only**. Cursor ignores a refusal from a hook for a write, and the Codex and Gemini hook contracts have never been exercised, so those hosts run the workflow above as prose, with the confirmation steps observed rather than enforced. There the same check is asked by `experts.js check` and by the unattended run.
 
 ### `## Gotchas` in `AGENTS.md` — capturing repeating issues
 
@@ -277,6 +277,14 @@ Length is a *consequence*, not the criterion. The two stores serve different **p
 Length follows naturally from purpose: warnings are short ("don't do X"); explanations need room to breathe.
 
 ### How much of the workflow: skip, light or full
+
+**Decide the type of each new request before you work on it** (5.1.0). You read the request and understand it; a hook sees only files, so this decision is yours and no hook makes it.
+
+- **Small fix** (a typo, one clear bug, a small change in a few files): do it. Do not speak about a plan.
+- **Feature, or a change of requirements:** before you read code or build anything, ask the user one time if they want a plan. On yes, run `/ultimate-workflow:feature` with the request. On no, do the work and do not ask again for that request.
+- **New project:** offer `/ultimate-workflow:feature` with the PRD or the idea.
+
+An open `PLAN-*.md` in the project matters only when the request is about it. On Claude Code the session start hook says this one time in each session and names the open plans; nothing is added to a prompt.
 
 `/ultimate-workflow:feature` makes this choice and says which; so should you when running the phases by hand.
 

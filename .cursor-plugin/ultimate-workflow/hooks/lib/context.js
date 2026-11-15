@@ -10,8 +10,12 @@
 
 const fs = require('node:fs');
 
-/** Default: remind at 80k tokens of context, and again at every further 80k (150k before 4.7.0). */
-const DEFAULT_THRESHOLD = 80000;
+/**
+ * Default: remind at 600k tokens of context, and again at every further 600k (80k from 4.7.0 to 5.0.1, 150k
+ * before). A session with many tools and skills starts at 40k to 60k, so 80k came after little work. A model
+ * with a smaller context window never reaches 600k: the variable sets a lower size.
+ */
+const DEFAULT_THRESHOLD = 600000;
 
 function readTail(file, bytes = 256 * 1024) {
   let fd;

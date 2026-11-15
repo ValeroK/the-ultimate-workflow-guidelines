@@ -54,7 +54,7 @@ Run the tests the change needs: while iterating, only the tests related to the c
 
 ## When to skip
 
-Three tiers, chosen by `/ultimate-workflow:feature` (or by you when running phases by hand):
+**Decide the type of each new request before you work on it.** Small fix: do it; do not speak about a plan. Feature, or a change of requirements: before you read code or build anything, ask the user one time if they want a plan; on yes, run `/ultimate-workflow:feature` with the request. New project: offer `/ultimate-workflow:feature` with the PRD or the idea. An open plan in the project matters only when the request is about it. Three tiers, chosen by `/ultimate-workflow:feature` (or by you when running phases by hand):
 
 - **Skip** -- typos and formatting, single-line fixes with an obvious cause, pure-doc edits, trivial renames with no behavioural change. Just make the change.
 - **Light** -- a small, clear change of a few files with no new module, contract, schema or external service: plan without experts, tests, build, experts check.

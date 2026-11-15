@@ -303,3 +303,77 @@ test('G7 applies to feature work only: at bootstrap the gates write PRD.md, so a
   const prd = { stage: 'bootstrap', file: 'PRD.md', data: { prd_confirmed: true, design_confirmed: true, test_command: 'npm test' } };
   assert.equal(dispatch(commit(), prd, { commitEvidence: { skip: 'n/a' } }).kind, 'allow');
 });
+
+// ---- 5.1.0: the model decides the type of work; the hooks say it one time, at session start ----
+// Until 5.0.1 each prompt got a stage line and reminders whenever a plan file was open, also in a session with no
+// relation to that plan. Now a prompt and the end of a turn get nothing, and the session start carries one brief.
+
+const gatesLib = require('./gates.js');
+const turn = (event) => ev({ event, tool: null, path: null, status: 'completed' });
+const STATES = {
+  none: { stage: 'none', file: null, data: {} },
+  'one unconfirmed plan': feature({ plan_confirmed: false, test_command: 'npm test' }),
+  'several plans, none chosen': { stage: 'feature', file: null, data: {}, several: ['C:/proj/PLAN-a.md', 'C:/proj/PLAN-b.md'] },
+  bootstrap: { stage: 'bootstrap', file: 'C:/proj/PRD.md', data: {} },
+};
+
+test('a prompt gets no workflow text, with no plan, one plan, several plans or a PRD', () => {
+  for (const [name, state] of Object.entries(STATES)) {
+    assert.deepStrictEqual(dispatch(turn('prompt'), state, { codeChanged: true, workflowsAvailable: true }), { kind: 'allow' }, name);
+  }
+});
+
+test('the end of a turn gets no workflow text', () => {
+  for (const [name, state] of Object.entries(STATES)) {
+    assert.deepStrictEqual(dispatch(turn('stop'), state, { codeChanged: true }), { kind: 'allow' }, name);
+  }
+});
+
+test('the session start gets the brief in every project, also one with no plan', () => {
+  for (const [name, state] of Object.entries(STATES)) {
+    const r = dispatch(turn('sessionStart'), state, {});
+    assert.strictEqual(r.kind, 'context', name);
+    assert.strictEqual(r.text, gatesLib.sessionBrief(state), name);
+  }
+});
+
+test('sessionBrief names the three types of work and what to do for each', () => {
+  const text = gatesLib.sessionBrief(STATES.none);
+  assert.match(text, /^\[ultimate-workflow\] /);
+  assert.match(text, /Small fix[^\n]*Do not speak about a plan/);
+  assert.match(text, /Feature[^\n]*ask the user one time if they want a plan[^\n]*\/ultimate-workflow:feature/);
+  assert.match(text, /New project[^\n]*\/ultimate-workflow:feature/);
+  assert.ok(text.split(/\s+/).length <= 110, `the brief is paid for in every session, so it stays short (${text.split(/\s+/).length} words)`);
+});
+
+test('sessionBrief names the open plans by file name only when there are some, and never a stage or a reminder', () => {
+  assert.doesNotMatch(gatesLib.sessionBrief(STATES.none), /PLAN-|Open plan/);
+  const one = gatesLib.sessionBrief({ stage: 'feature', file: 'C:/proj/PLAN-x.md', data: { plan_confirmed: false } });
+  assert.match(one, /Open plans? in this project: PLAN-x\.md\. Speak about (it|one) only when the request is about it\./);
+  const several = gatesLib.sessionBrief(STATES['several plans, none chosen']);
+  assert.match(several, /PLAN-a\.md, PLAN-b\.md/);
+  assert.doesNotMatch(several, /C:\/proj/);
+  for (const text of [one, several]) assert.doesNotMatch(text, /stage:|not confirmed|experts\.js/);
+  assert.match(gatesLib.sessionBrief(STATES.bootstrap), /PRD\.md/);
+});
+
+test('sessionBrief lists at most five plans and says how many more there are', () => {
+  const several = Array.from({ length: 8 }, (_, i) => `C:/proj/PLAN-p${i}.md`);
+  const text = gatesLib.sessionBrief({ stage: 'feature', file: null, data: {}, several });
+  assert.match(text, /PLAN-p4\.md and 3 more\./);
+  assert.doesNotMatch(text, /PLAN-p5\.md/);
+});
+
+test('gate.js at session start prints the brief under the SessionStart event name, and nothing on a prompt', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'uw-brief-'));
+  fs.writeFileSync(path.join(dir, 'PLAN-x.md'), '---\nplan_confirmed: false\n---\n');
+  fs.writeFileSync(path.join(dir, 'PLAN-y.md'), '---\nplan_confirmed: false\n---\n');
+  const start = runGate(JSON.stringify({ hook_event_name: 'SessionStart', source: 'startup', cwd: dir, session_id: 's1' }));
+  assert.strictEqual(start.exit, 0);
+  const out = JSON.parse(start.stdout).hookSpecificOutput;
+  assert.strictEqual(out.hookEventName, 'SessionStart');
+  assert.match(out.additionalContext, /Decide the type of each new request/);
+  assert.match(out.additionalContext, /PLAN-x\.md, PLAN-y\.md/);
+  const prompt = runGate(JSON.stringify({ hook_event_name: 'UserPromptSubmit', cwd: dir, session_id: 's1', prompt: 'find my TV on the network' }));
+  assert.deepStrictEqual([prompt.exit, prompt.stdout], [0, '']);
+});

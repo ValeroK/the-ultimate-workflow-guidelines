@@ -1,0 +1,22 @@
+[
+  { "type": "small", "prompt": "fix the typo in the README title, it says 'Wokflow'" },
+  { "type": "small", "prompt": "the build fails with: TypeError: Cannot read properties of undefined (reading 'map') at src/list.js:14. fix it" },
+  { "type": "small", "prompt": "rename the variable usr to user in src/auth.js" },
+  { "type": "small", "prompt": "bump the timeout in config.js from 5 to 10 seconds" },
+  { "type": "small", "prompt": "what does the function parseFrontMatter do?" },
+  { "type": "small", "prompt": "run the tests and tell me what fails" },
+  { "type": "small", "prompt": "I have an LG TV on my network, find it and connect to it" },
+  { "type": "small", "prompt": "the footer link to the privacy page is broken, it points to /privcy" },
+  { "type": "small", "prompt": "תתקן את שגיאת הכתיב בכותרת של הדף הראשי" },
+  { "type": "small", "prompt": "add a missing semicolon in line 3 of index.js and format the file" },
+  { "type": "feature", "prompt": "add a way for users to export their reports to PDF, with the company logo in the header" },
+  { "type": "feature", "prompt": "we need login with Google in addition to email and password" },
+  { "type": "feature", "prompt": "change of requirements: orders must now support partial refunds, and each refund needs an approval from a manager" },
+  { "type": "feature", "prompt": "I want a dashboard page that shows sales by region, with filters for date range and product" },
+  { "type": "feature", "prompt": "add rate limiting to the public API, per API key, with different limits for free and paid plans" },
+  { "type": "feature", "prompt": "the notification system should also send SMS, not only email. Users choose the channel in their settings" },
+  { "type": "feature", "prompt": "תוסיף אפשרות לייצא את הדוחות לקובץ אקסל, כולל סינון לפי תאריכים והרשאות לפי תפקיד" },
+  { "type": "feature", "prompt": "refactor the billing module: split it into invoicing and payments, and move the tax rules to their own service" },
+  { "type": "project", "prompt": "I want to build a new app from scratch: a habit tracker for families, with a mobile app and a web admin" },
+  { "type": "project", "prompt": "start a new project: an internal tool that collects customer feedback from email and Slack and makes a weekly report" }
+]

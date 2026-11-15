@@ -85,25 +85,6 @@ test('isTestPath does not fire on "test" appearing as a substring', () => {
 
 // --- G4: round cap ---------------------------------------------------------
 
-// --- G5: phase pointer -----------------------------------------------------
-
-test('G5 names the stage and the next required action', () => {
-  const line = gates.phasePointer(featureState({ plan_confirmed: false }), { workflowsAvailable: true });
-  assert.match(line, /feature/);
-  assert.match(line, /confirm the plan/i);
-});
-
-test('G5 reports workflow availability', () => {
-  const on = gates.phasePointer(featureState({ plan_confirmed: true, tests_confirmed: true }), { workflowsAvailable: true });
-  const off = gates.phasePointer(featureState({ plan_confirmed: true, tests_confirmed: true }), { workflowsAvailable: false });
-  assert.match(on, /workflows available/i);
-  assert.match(off, /workflows unavailable/i);
-});
-
-test('G5 says nothing at stage none', () => {
-  assert.equal(gates.phasePointer(noneState(), { workflowsAvailable: true }), '');
-});
-
 // --- toProjectPath ---------------------------------------------------------
 // Driven by real recorded payloads (fixtures/claude-code/PreToolUse.3.json),
 // which revealed that file_path is always absolute and is routinely outside cwd.

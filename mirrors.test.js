@@ -236,7 +236,7 @@ test('the bootstrap skill and its rule mirror both describe the generated index'
   assert.match(skill, /memory index/, 'the workflow skill never says the index is generated');
 });
 
-test('plugin manifests and the CHANGELOG say 5.0.1', () => {
+test('plugin manifests and the CHANGELOG say 5.1.0', () => {
   const versions = [
     JSON.parse(pread('.claude-plugin/plugin.json')).version,
     JSON.parse(pread('.cursor-plugin/plugin.json')).version,
@@ -244,8 +244,8 @@ test('plugin manifests and the CHANGELOG say 5.0.1', () => {
     JSON.parse(read('.claude-plugin/marketplace.json')).plugins[0].version,
     JSON.parse(read('.cursor-plugin/marketplace.json')).plugins[0].version,
   ];
-  assert.deepEqual(versions, ['5.0.1', '5.0.1', '5.0.1', '5.0.1', '5.0.1']);
-  assert.match(read('CHANGELOG.md'), /^## \[5\.0\.0\] - \d{4}-\d{2}-\d{2}$/m);
+  assert.deepEqual(versions, ['5.1.0', '5.1.0', '5.1.0', '5.1.0', '5.1.0']);
+  assert.match(read('CHANGELOG.md'), /^## \[5\.1\.0\] - \d{4}-\d{2}-\d{2}$/m);
 });
 // --- the write-isolation invariant ----------------------------------------
 
@@ -992,4 +992,18 @@ test('one review: phases/run.js declares no experts check, no findings or verdic
     assert.ok(!new RegExp(String.raw`^\s*(?:async\s+)?(?:function\s+${name}\b|const\s+${name}\s*=)`, 'm').test(run.text), `${name} is declared in run.js`);
   }
   assert.ok(/^\/\/ @shared review-range/m.test(run.text) && /^\/\/ @shared review-core/m.test(run.text));
+});
+
+// ---- 5.1.0: the model decides the type of work; three sources say the same thing ----
+
+test('the three types of work: the session brief, the skill and the Cursor rule give the same actions', () => {
+  const brief = require('./.cursor-plugin/ultimate-workflow/hooks/lib/gates.js').sessionBrief({ stage: 'none', file: null, data: {} });
+  const sources = { 'the session brief': brief, 'SKILL.md': pread('skills/the-ultimate-workflow-guidelines/SKILL.md'), 'the Cursor rule': pread('rules/the-ultimate-workflow-guidelines.mdc') };
+  for (const [name, text] of Object.entries(sources)) {
+    const flat = text.split(/\s+/).join(' ');
+    assert.match(flat, /Decide the type of each new request/, `${name} does not say to decide the type`);
+    assert.match(flat, /Small fix[^|]{0,160}o not speak about a plan/, `${name} does not keep a small fix free of plan talk`);
+    assert.match(flat, /ask the user one time if they want a plan/, `${name} does not offer a plan for a feature`);
+    assert.match(flat, /New project[^|]{0,120}\/ultimate-workflow:feature/, `${name} does not name the command for a new project`);
+  }
 });

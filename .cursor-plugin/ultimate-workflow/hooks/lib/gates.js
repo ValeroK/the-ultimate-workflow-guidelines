@@ -294,27 +294,33 @@ function testsItem(ev) {
   return { kind: 'tests', text: `Gate G7: no passing full test suite run covers these changes (only related tests ran, or none, or the last full run failed)${why}. Run ${run} once, then commit again.`, fix };
 }
 
-function nextAction(stage, data) {
-  if (stage === 'bootstrap') {
-    if (data.prd_confirmed !== true) return 'confirm the PRD with the user';
-    if (data.design_confirmed !== true) return 'confirm the system design and framework choices';
-    if (data.scaffold_verify !== 'green') return 'verify the scaffold builds';
-    return 'complete the living docs, then hand off to feature work';
-  }
-  if (data.plan_confirmed !== true) return 'write and confirm the plan';
-  if (data.tests_confirmed !== true) return 'write and confirm the test plan';
-  return 'proceed with the plan';
-}
-
 /**
- * The phase pointer. One line of injected context per prompt, so the current stage survives
- * compaction.
+ * The session brief (5.1.0): the one text the hooks give the model about the workflow, sent one time at
+ * session start. The model reads every request and understands it; a hook sees only files. So the model
+ * decides the type of the work, and nothing is added to a prompt or to the end of a turn. Until 5.0.1 each
+ * prompt got a stage line and reminders whenever a plan file was open, also in a session that had no
+ * relation to that plan. Open plans are named, by file name, so the model can tell when a request is about one.
  */
-function phasePointer(state, input) {
-  const { stage, data } = state;
-  if (stage === 'none') return '';
-  const availability = input && input.workflowsAvailable ? 'workflows available' : 'workflows unavailable';
-  return `[ultimate-workflow] stage: ${stage}; next: ${nextAction(stage, data)}. (${availability})`;
+const BRIEF = [
+  '[ultimate-workflow] Decide the type of each new request before you work on it.',
+  '- Small fix (a typo, one clear bug, a small change in a few files): do it. Do not speak about a plan.',
+  '- Feature, or a change of requirements: before you read code or build anything, ask the user one time if they want a plan. On yes, run /ultimate-workflow:feature with the request. On no, do the work and do not ask again for that request.',
+  '- New project: offer /ultimate-workflow:feature with the PRD or the idea.',
+];
+const MAX_PLANS_NAMED = 5;
+
+function sessionBrief(state) {
+  const lines = [...BRIEF];
+  const s = state || {};
+  if (s.stage === 'bootstrap') lines.push('A PRD is open in this project (PRD.md). Speak about it only when the request is about it.');
+  const files = s.stage === 'feature' ? (s.file ? [s.file] : s.several || []) : [];
+  if (files.length > 0) {
+    const names = files.map((f) => segments(f).pop());
+    const shown = names.slice(0, MAX_PLANS_NAMED).join(', ');
+    const more = names.length > MAX_PLANS_NAMED ? ` and ${names.length - MAX_PLANS_NAMED} more` : '';
+    lines.push(`Open plan${names.length === 1 ? '' : 's'} in this project: ${shown}${more}. Speak about ${names.length === 1 ? 'it' : 'one'} only when the request is about it.`);
+  }
+  return lines.join('\n');
 }
 
 /**
@@ -322,7 +328,7 @@ function phasePointer(state, input) {
  * edit and turn-end blocks, so they only ever remind: nothing here refuses, and nothing is written. The one
  * place that refuses is the commit check (commitGate). Computed from the plan, the PRD and one fact the
  * caller gathers, \`codeChanged\` (the changes differ from the last passing full run), so no flag has to be
- * kept in the plan. Sent at the start of a turn and at its end, never on an edit.
+ * kept in the plan. Since 5.1.0 no hook sends them: status.js prints them on request.
  *
  * input: { codeChanged, script } -- script names the verify runner in the fix command.
  */
@@ -356,5 +362,5 @@ module.exports = {
   commitGate,
   checkRecord,
   reminders,
-  phasePointer,
+  sessionBrief,
 };

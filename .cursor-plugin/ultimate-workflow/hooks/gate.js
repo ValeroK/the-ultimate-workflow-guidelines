@@ -67,34 +67,6 @@ function readStdin() {
   });
 }
 
-/**
- * Whether dynamic workflows are available (PRD open question Q4).
- *
- * There is no capability probe, and none is needed: the disable switches are
- * an environment variable read at startup and ordinary settings keys. The hook
- * detects; the skill does not guess.
- */
-function workflowsAvailable(cwd, env) {
-  if (env.CLAUDE_CODE_DISABLE_WORKFLOWS === '1') return false;
-
-  const candidates = [
-    path.join(cwd || '.', '.claude', 'settings.local.json'),
-    path.join(cwd || '.', '.claude', 'settings.json'),
-    path.join(env.CLAUDE_CONFIG_DIR || path.join(env.HOME || env.USERPROFILE || '.', '.claude'), 'settings.json'),
-  ];
-
-  for (const f of candidates) {
-    try {
-      const j = JSON.parse(fs.readFileSync(f, 'utf8'));
-      if (j.disableWorkflows === true) return false;
-      if (j.enableWorkflows === false) return false;
-    } catch {
-      // Missing or unreadable settings tell us nothing either way.
-    }
-  }
-  return true;
-}
-
 async function main() {
   const raw = await readStdin();
   if (!raw) return { stdout: null, exit: 0 };
@@ -120,26 +92,8 @@ async function main() {
     }
   }
 
-  // The one fact a reminder needs that is not in the plan: whether the changes differ from the last passing full run.
-  // Read only at the start and end of a turn, never on an edit; nothing is written.
-  let codeChanged = false;
-  if ((ev.event === 'prompt' || ev.event === 'stop') && state.stage === 'feature' && state.file && state.data.test_command) {
-    try {
-      const t = experts.testsEvidence(cwd, experts.workingChanges(cwd, state.file), state.file);
-      const r = t.record;
-      codeChanged = !t.skip && !(r && r.mode === 'full' && r.passed === true && r.fingerprint === t.hash);
-    } catch {
-      codeChanged = false;
-    }
-  }
-
   const reminder = contextReminder(ev, process.env);
-  let result = dispatch(ev, state, {
-    workflowsAvailable: workflowsAvailable(cwd, process.env),
-    commitEvidence,
-    codeChanged,
-    verifyScript: VERIFY_SCRIPT,
-  });
+  let result = dispatch(ev, state, { commitEvidence });
 
   // A commit that was not checked says so: the dispatch asks for it with `say`, and the host shows it as context.
   if (result.kind === 'allow' && result.say) result = { ...result, kind: 'context', text: result.say };

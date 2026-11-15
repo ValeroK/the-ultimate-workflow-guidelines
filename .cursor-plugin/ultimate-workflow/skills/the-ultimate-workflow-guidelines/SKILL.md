@@ -278,6 +278,14 @@ Length follows naturally from purpose: warnings are short ("don't do X"); explan
 
 ### How much of the workflow: skip, light or full
 
+**Decide the type of each new request before you work on it** (5.1.0). You read the request and understand it; a hook sees only files, so this decision is yours and no hook makes it.
+
+- **Small fix** (a typo, one clear bug, a small change in a few files): do it. Do not speak about a plan.
+- **Feature, or a change of requirements:** before you read code or build anything, ask the user one time if they want a plan. On yes, run `/ultimate-workflow:feature` with the request. On no, do the work and do not ask again for that request.
+- **New project:** offer `/ultimate-workflow:feature` with the PRD or the idea.
+
+An open `PLAN-*.md` in the project matters only when the request is about it. On Claude Code the session start hook says this one time in each session and names the open plans; nothing is added to a prompt.
+
 `/ultimate-workflow:feature` makes this choice and says which; so should you when running the phases by hand.
 
 | Tier | When | Flow |

@@ -518,7 +518,8 @@
  [
   "mirrors.test.js",
   "plugin manifests and the CHANGELOG say 4.8.0",
-  "plugin manifests and the CHANGELOG say 5.0.0"
+  "plugin manifests and the CHANGELOG say 5.0.0",
+  "plugin manifests and the CHANGELOG say 5.0.1"
  ],
  [
   "evals/experts/experts.test.js",
@@ -643,5 +644,29 @@
  [
   "evals/experts/run-phase.test.js",
   "card-field --carried-file takes the carried text from the file, as written"
+ ],
+ [
+  "evals/experts/hook-events.test.js",
+  "reminders: sent on UserPromptSubmit and Stop, and not on an edit"
+ ],
+ [
+  "evals/experts/hook-events.test.js",
+  "reminders: a confirmed tree with changed code gets the code-changed line, a write into the run folder does not raise it, and a source write does"
+ ],
+ [
+  "evals/experts/hook-events.test.js",
+  "reminders: status.js prints the same lines the hook sends"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/gates.test.js",
+  "G5 names the stage and the next required action"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/gates.test.js",
+  "G5 reports workflow availability"
+ ],
+ [
+  ".cursor-plugin/ultimate-workflow/hooks/lib/gates.test.js",
+  "G5 says nothing at stage none"
  ]
 ]

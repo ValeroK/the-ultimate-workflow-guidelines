@@ -19,9 +19,11 @@ Documentation-only and empty commits are exempt from the first three. Each commi
 
 Plan settings the confirmation hash leaves out (`test_command`, `volatile_paths`, `known_failures`, `full_suite_paths`, and a shortened `experts` line) are recorded at confirmation, and the check names one that changed since. It is shown, never a refusal.
 
-## Reminders
+## The session brief, and the reminders
 
-Short lines, computed from the plan and the PRD each time, sent at the start of a turn and at its end (never on an edit): the plan is not confirmed yet, the test plan is not confirmed yet, code changed since the last full test run, several plans are open and none is chosen. One line per prompt also names the current stage, so it survives a trimmed history. At the end of a turn the line is shown on Claude Code only.
+Since 5.1.0 the hooks add nothing to a prompt and say nothing at the end of a turn. One time in each session (the `SessionStart` hook, in every project) the model gets a short brief: decide the type of each new request. A small fix is done with no talk about a plan. For a feature or a change of requirements the assistant asks one time if the user wants a plan, and runs `/ultimate-workflow:feature` on a yes. For a new project it offers the same command. Open plans are named by file name, to be spoken about only when the request is about one. The model decides, because it reads the request and a hook sees only files; the decision is not exact, and `evals/plan-offer/` measures it.
+
+The reminders (the plan is not confirmed yet, the test plan is not confirmed yet, code changed since the last full test run, several plans are open and none is chosen) are printed by `node hooks/status.js` on request. The commit check names whatever is missing.
 
 ## Which plan
 

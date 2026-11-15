@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.1.0] - 2026-11-15
+
+The model decides the type of work. The hooks say it one time, at session start, and add nothing to a prompt.
+
+### Changed (read this before updating)
+
+- **No workflow text on a prompt or at the end of a turn.** Until 5.0.1 each prompt got a stage line and reminders whenever a `PLAN-*.md` or an unconfirmed `PRD.md` was open in the project, also in a session that had no relation to that plan (a session about a television got "next: write and confirm the plan" on every prompt, because three old plans were open). The hook decided from files; it cannot know what a request is about. Now a prompt gets nothing from the workflow (the context size reminder stays), and nothing is said at the end of a turn. The commit check still says everything that is missing, and `node hooks/status.js` lists the reminders on request.
+- **One brief at session start** (`gates.sessionBrief`, about 90 words, in every project): decide the type of each new request. A small fix is done with no talk about a plan. For a feature or a change of requirements the assistant asks the user one time if they want a plan, and runs `/ultimate-workflow:feature` on a yes. For a new project it offers the same command. Open plans are named by file name, to be spoken about only when the request is about one. This is also the answer to a gap in 5.0.0: requirements typed in chat with no plan open went straight to code. It is a model decision, so it is not exact; `evals/plan-offer/` holds the prompts it is measured with.
+- **Hooks registered:** `SessionStart` is new, `Stop` is gone (the hook says nothing there now). **Restart the host after updating.**
+- **Cursor** gets the same instruction in its always-on rule, and the skill carries it for every host.
+
+### Fixed
+
+- **A hint names `experts.js` by its full path.** Hints said `node experts/experts.js ...`, a path from the plugin folder. In a project the shell resolves it from the project folder, where the file is not, so the command ran only in this repository. The commit check, the reminders and `status.js` now print the full path of the `experts.js` that ships with the plugin (`gates.EXPERTS_CLI`). Two texts keep the short form on purpose, because they are written into files a project commits: the marker line in `memory.md` and one note in a harvest result.
+
+### Removed
+
+- `gates.phasePointer` and the `workflowsAvailable` probe in `gate.js`: nothing reads them now.
+
 ## [5.0.1] - 2026-11-14
 
 ### Fixed

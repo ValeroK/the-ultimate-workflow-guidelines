@@ -85,7 +85,9 @@ for (const [key, value] of [['implementerModel', IMPLEMENTER_MODEL], ['diagnoser
 // each failed one. One function so the build phase and every card of the autopilot run share it:
 // a hand copy would drift. It returns what the build phase returns. `o.locate` says what to read,
 // `o.brief` is the standing brief text, `o.label` and `o.phases` name the agents and their phase,
-// `o.setPhase` says whether to call phase(), and `o.commitRule` says who commits.
+// `o.setPhase` says whether to call phase(), and `o.commitRule` says who commits. `o.fullAtEnd` (5.1.1, a card of the
+// unattended run): the rounds run the related tests only and green needs no full run, because the run makes the
+// full run one time after all the cards.
 const ROUND_CAP = 3
 
 const WROTE = {
@@ -143,7 +145,11 @@ const DIAGNOSIS = {
 const EXPERT_NOTE =
   'If the plan has an "Expert input" section, its constraints are requirements, not suggestions: meet each one, or stop and say which one you cannot meet and why. Do not drop one silently.'
 
-const TESTS_COMMIT_RULE = 'Never stage or commit: the user commits the whole change after the experts check.'
+// 5.1.1: in two days of runs, ten failed full runs were each followed by the whole suite again (four minutes a time).
+const FAILED_FIRST =
+  "After a full run that fails, do not run the full suite again at once: correct the cause, run only the tests that failed (with the project's runner, by file or by name) until they pass, and then make the full run one more time."
+
+const TESTS_COMMIT_RULE ='Never stage or commit: the user commits the whole change after the experts check.'
 const IMPLEMENT_COMMIT_RULE = 'Never stage or commit, not even part of the work: the user commits the whole change after the experts check, and a partial commit is refused by the gates.'
 
 async function buildLoop(o) {
@@ -199,7 +205,9 @@ Report the project's real verification command as testCommand.`,
 
 Write the minimal implementation that makes the tests pass. ${
   o.verify
-    ? `After each change run \`${o.verify}\`: it runs the tests related to what you changed, or the full suite when the change needs it, and says which. Do not run the full suite by hand while iterating. When it passes, run \`${o.verify} --full\` once. Report green only if that full run passed after your last change, and set fullSuiteGreen to say so.`
+    ? o.fullAtEnd
+      ? `After each change run \`${o.verify}\`: it runs the tests related to what you changed, or the full suite when the change needs it, and says which. Never add --full and never run the full suite by hand: the run makes one full run after all the cards, and a full run here is time spent twice. Report green when that command passed after your last change; run it one more time if you changed anything after it passed.`
+      : `After each change run \`${o.verify}\`: it runs the tests related to what you changed, or the full suite when the change needs it, and says which. Do not run the full suite by hand while iterating. When it passes, run \`${o.verify} --full\` once. Report green only if that full run passed after your last change, and set fullSuiteGreen to say so. ${FAILED_FIRST}`
     : `Run \`${testCommand}\` and report whether it is green.`
 }
 ${
@@ -229,7 +237,7 @@ When not green, include the failure output verbatim.`,
 
     last = attempt
     // With verify.js, green means the full suite passed at the end, not only the related tests.
-    const green = attempt.green === true && (!o.verify || attempt.fullSuiteGreen === true)
+    const green = attempt.green === true && (!o.verify || o.fullAtEnd === true || attempt.fullSuiteGreen === true)
     history.push({ round, green, summary: attempt.summary, ...(attempt.green && !green ? { note: 'reported green without a passing full run' } : {}) })
 
     if (green) {

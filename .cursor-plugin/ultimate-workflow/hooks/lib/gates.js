@@ -250,7 +250,7 @@ function commitGate(ev) {
   const notices = noticeList.length > 0 ? { notices: noticeList } : {};
   if (missing.length > 0) return { allow: false, reason: missing.map((m) => m.text).join('\n'), missing, ...notices, ...warnings };
   if (exemptAll) return { allow: true, outcome: 'exempt', why: ev.skip, ...notices, ...warnings };
-  if (deferExperts) return { allow: true, outcome: 'deferred', why: "experts: deferred to the run's review", ...notices, ...warnings };
+  if (deferExperts) return { allow: true, outcome: 'deferred', why: `experts: deferred to the run's review${ev.tests && ev.tests.fullAtEnd && !ev.tests.skip ? '; full suite: one run after all the cards' : ''}`, ...notices, ...warnings };
   return { allow: true, ...notices, ...warnings };
 }
 
@@ -289,6 +289,14 @@ function testsItem(ev) {
   const r = t.record;
   const full = r && r.mode === 'full' && r.passed === true;
   if (full && typeof r.fingerprint === 'string' && r.fingerprint === t.hash) return null;
+  // A card of the unattended run (5.1.1): a passing run of the related tests on exactly these changes is enough here,
+  // because the run makes one full run after all the cards. A run that chose the full suite wrote the full record above.
+  if (t.fullAtEnd) {
+    const rel = t.related;
+    if (rel && rel.mode === 'related' && rel.passed === true && typeof rel.fingerprint === 'string' && rel.fingerprint === t.hash) return null;
+    const once = t.script ? `\`${t.script}\`` : `\`${t.command}\``;
+    return { kind: 'tests', text: `Gate G7: no passing test run covers these changes (the related tests did not run after the last change, or they failed). Run ${once} once, then commit again. ${VOLATILE_HINT}`, fix: t.script || t.command };
+  }
   const why = t.problem ? ` (${t.problem})` : '';
   if (full && typeof r.fingerprint === 'string') return { kind: 'tests', text: `Gate G7: the changes have changed since the last passing full test suite run. Run ${run} once, then commit again. ${VOLATILE_HINT}`, fix };
   return { kind: 'tests', text: `Gate G7: no passing full test suite run covers these changes (only related tests ran, or none, or the last full run failed)${why}. Run ${run} once, then commit again.`, fix };

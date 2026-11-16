@@ -5,6 +5,7 @@ export const meta = {
     'After the plan and the test plan are confirmed, from the Full tier of /ultimate-workflow:feature. Commits each finished card to uw/run/<feature>; never pushes.',
   phases: [
     { title: 'Cards', detail: 'per card: context pack, tests, implementation, commit or park' },
+    { title: 'Full suite', detail: 'the whole test suite one time after the cards; a failure gets one card' },
     { title: 'Review', detail: 'the whole run diff once, through the lenses and the experts, then fix-up cards and one experts check of them' },
     { title: 'Harvest', detail: 'lessons from the journal and the diff, committed to uw/harvest/<feature>' },
   ],
@@ -198,7 +199,7 @@ At most 10 short lines: what tripped it up, conventions found in the code, decis
 /** Where a non-blocking finding goes: the first later card whose paths cover its file, else the findings card. */
 // @shared cover-rule
 
-async function runCard(card, { adhoc = false } = {}) {
+async function runCard(card, { adhoc = false, fullNow = false } = {}) {
   log(`card ${card.name}: ${card.title}`)
   const pre = card.preflight || { ok: false, reason: 'no context pack was written for this card' }
   if (!pre.ok) return parkCard(card, pre.reason || 'missing input')
@@ -216,7 +217,8 @@ async function runCard(card, { adhoc = false } = {}) {
   // --resume <card> without --accept on a card held for a decision runs it again from its tests,
   // told what it did last time; with --accept (or for a parked card) it continues where it stopped.
   const rerun = RESUME && RESUME.card === card.name && RESUME.rerun ? RESUME : null
-  const resume = RESUME && RESUME.card === card.name && !RESUME.rerun ? { reason: String(RESUME.reason || 'resumed from its parked branch'), testFiles: Array.isArray(RESUME.testFiles) ? RESUME.testFiles : [] } : null
+  // The card for a failing full run has its tests already: the ones that fail. It writes no new test first.
+  const resume = RESUME && RESUME.card === card.name && !RESUME.rerun ? { reason: String(RESUME.reason || 'resumed from its parked branch'), testFiles: Array.isArray(RESUME.testFiles) ? RESUME.testFiles : [] } : fullNow ? { reason: 'the tests of this card are the ones that fail in the full run', testFiles: [] } : null
   const briefs = (Array.isArray(card.briefs) ? card.briefs : []).filter((b) => b && typeof b.name === 'string' && typeof b.text === 'string' && b.text.trim())
   const skills = briefs.flatMap((b) => skillsOf(b.skills)).filter((s, i, all) => all.findIndex((x) => x.name === s.name) === i)
   const brief = briefs.length === 0 ? '' : `\n\nSTANDING BRIEF, from ${briefs.map((b) => b.name).join(', ')}. It applies to every line you write, and it adds no work: do nothing the plan did not ask for.\n\n${briefs.map((b) => b.text.trim()).join('\n\n')}\n${skills.length ? `\nSKILLS for this card (${skills.map((s) => s.name).join(', ')}), chosen from its planned files and text. Write the code so that none of them would find anything. They add no work.\n\n${skills.map((s) => s.text.trim()).join('\n\n')}\n` : ''}`
@@ -236,6 +238,9 @@ async function runCard(card, { adhoc = false } = {}) {
     implementCommitRule: 'Never stage or commit, not even part of the work: the run commits the card itself, through the commit gates.',
     implementerModel: IMPLEMENTER_MODEL,
     diagnoserModel: DIAGNOSER_MODEL,
+    // 5.1.1: a card runs its related tests; the full suite runs one time after all the cards (fullSuiteCheck).
+    // Only the card that corrects a failing full run ends with a full run of its own.
+    fullAtEnd: Boolean(VERIFY) && !fullNow,
     briefsLoaded: briefs.map((b) => b.name),
     skillsLoaded: skills.map((s) => s.name),
   }
@@ -275,7 +280,7 @@ async function runCard(card, { adhoc = false } = {}) {
 
   // The commit check runs its confirmation, full-suite and memory parts here; the experts part is left to the one review
   // at the end of the run (card-commit says so: outcome deferred).
-  const commitCmd = cliCmd('card-commit', '--plan', q(PLAN), '--card', card.name, '--feature', FEATURE, ...(buildSummary.testFiles.length ? ['--claimed', q(buildSummary.testFiles.join(','))] : []))
+  const commitCmd = cliCmd('card-commit', '--plan', q(PLAN), '--card', card.name, '--feature', FEATURE, ...(VERIFY && !fullNow ? ['--full-at-end'] : []), ...(buildSummary.testFiles.length ? ['--claimed', q(buildSummary.testFiles.join(','))] : []))
   const [committed] = await runSteps(`${card.name}:commit`, [commitCmd])
   if (!committed || committed.ok !== true) {
     const why = `the commit was refused: ${(committed && (committed.reason || committed.gate)) || (rawOutputs.get(commitCmd) ? `card-commit printed no JSON line; it printed: ${rawOutputs.get(commitCmd).replace(/\s*\r?\n\s*/g, ' ')}` : 'card-commit printed nothing')}`
@@ -345,7 +350,7 @@ if (stoppedBecause) await runSteps('stopped:notify', [cliCmd('notify', '--featur
 
 const MAX_FIXUP_CARDS = 4
 const adhocPaths = []
-async function adhocCard(name, title, items, experts, label = name) {
+async function adhocCard(name, title, items, experts, label = name, { fullNow = false, carriedExtra = '' } = {}) {
   // Agent text (a finding's file and words) goes in files the step writes, never on the command line.
   const carriedFile = `${RUN_DIR}/${label}-carried.txt`
   const titleFile = `${RUN_DIR}/${label}-title.txt`
@@ -353,7 +358,7 @@ async function adhocCard(name, title, items, experts, label = name) {
   const files = [...new Set(items.map((f) => String(f.file || '').replace(/\\/g, '/')).filter(Boolean))]
   // Only names the plan's line holds: card-add refuses any other, and a plan with no line takes no --experts.
   const laneExperts = experts.filter((n) => PLAN_EXPERTS.includes(n))
-  const carriedText = items.map((f) => `${f.expert || f.lens} at ${f.file}:${f.line}: ${f.what}`.replace(/;/g, ','))
+  const carriedText = items.map((f) => (f.file ? `${f.expert || f.lens} at ${f.file}:${f.line}: ${f.what}` : `${f.expert || f.lens}: ${f.what}`).replace(/;/g, ','))
   // The name is free-chosen: every later step keys on the one card-add printed.
   const addCmd = cliCmd('card-add', '--plan', q(PLAN), '--name', name, '--free-name', '--title-file', q(titleFile), '--paths-file', q(pathsFile), '--carried-file', q(carriedFile), ...(PLAN_EXPERTS.length > 0 ? ['--experts', laneExperts.length > 0 ? laneExperts.join(',') : 'none'] : []))
   const [added] = await runSteps(`${label}:setup`, [addCmd], [{ path: titleFile, text: title }, { path: pathsFile, text: files.join(',') || '.' }, { path: carriedFile, text: carriedText.join('; ') }])
@@ -369,8 +374,56 @@ async function adhocCard(name, title, items, experts, label = name) {
   const [packed] = await runSteps(`${cardName}:pack`, [cliCmd('pack', '--plan', q(PLAN), '--card', cardName, '--feature', FEATURE, '--adhoc')])
   const cardPaths = (added.card && Array.isArray(added.card.paths) && added.card.paths) || files
   adhocPaths.push(...cardPaths)
-  const card = { name: cardName, title, paths: cardPaths, carried: [], depends: [], items, experts, briefs: PLAN_BRIEFS, reviewSkills: {}, preflight: packed && packed.ok ? { ok: true, contextFile: packed.contextFile } : { ok: false, reason: `the ${cardName} card could not be set up: ${(packed && packed.reason) || 'pack printed nothing'}` } }
-  return runCard(card, { adhoc: true })
+  const card = { name: cardName, title, paths: cardPaths, carried: carriedExtra ? [`What the full run printed: ${carriedExtra}`] : [], depends: [], items, experts, briefs: PLAN_BRIEFS, reviewSkills: {}, preflight: packed && packed.ok ? { ok: true, contextFile: packed.contextFile } : { ok: false, reason: `the ${cardName} card could not be set up: ${(packed && packed.reason) || 'pack printed nothing'}` } }
+  return runCard(card, { adhoc: true, fullNow })
+}
+
+// ---- the one full run (5.1.1) ----
+// A card is committed on its related tests. The full suite runs here: one time after the cards, and one time after the
+// review's fix-up cards. Until 5.1.0 every card ended with a full run, which on a suite of four minutes and ten cards
+// was forty minutes before any failure. A full run that fails gets one card of its own, which ends with a full run;
+// if that card cannot make the suite pass it parks, and the review and the harvest wait for it as for any card.
+const FULL_RUN = {
+  type: 'object',
+  required: ['passed', 'summary'],
+  properties: {
+    passed: { type: 'boolean', description: 'True only if the command exited 0 (it says "full run passed")' },
+    failures: { type: 'array', items: { type: 'string' }, description: 'The failing tests the command named, as it printed them; none when it passed' },
+    output: { type: 'string', description: 'When it failed: the lines the command printed, verbatim' },
+    summary: { type: 'string' },
+  },
+}
+const fullSuite = { runs: [] }
+async function fullSuiteCheck(tag) {
+  if (!VERIFY) return null
+  const r = await agent(
+    `${AUTH}\n\nRun this one command and report what it says: \`${VERIFY} --full\`. It runs the whole test suite of the project and can take many minutes: give the Bash call its longest timeout, and if the call is moved to the background, wait for it to end and read its output. Run it one time. Change no file, correct nothing, and do not stage or commit. Report passed true only if it exited 0. When it fails, list in failures the failing tests it names and put the lines it printed in output; \`.ultimate-workflow/verify.log\` holds the whole output.`,
+    { agentType: agentName('uw-implementer'), label: `${tag}:run`, phase: currentPhase, schema: FULL_RUN, ...modelOpt(IMPLEMENTER_MODEL) }
+  )
+  const entry = { at: tag, ran: Boolean(r), passed: Boolean(r && r.passed === true), failures: (r && r.failures) || [] }
+  fullSuite.runs.push(entry)
+  if (!r) {
+    entry.reason = 'the agent that makes the full run returned nothing'
+    return entry
+  }
+  if (entry.passed) {
+    log(`full suite (${tag}): passed`)
+    return entry
+  }
+  log(`full suite (${tag}): failed, ${entry.failures.length} failing test(s) named; one card corrects them`)
+  const named = entry.failures.length > 0 ? entry.failures : ['the full run failed and named no test: read .ultimate-workflow/verify.log']
+  const items = named.slice(0, 30).map((n) => ({ lens: 'full suite', file: '', line: 0, what: `fails in the full run after the cards: ${n}` }))
+  const card = await adhocCard(tag, 'the full suite fails after the cards', items, PLAN_EXPERTS, tag, { fullNow: true, carriedExtra: String(r.output || '').slice(0, 6000) })
+  entry.card = card ? { card: card.card, status: card.status } : null
+  entry.passed = Boolean(card && card.status === 'committed')
+  return entry
+}
+
+// The one full run after the cards: when this run committed a card and did not stop.
+const committedNow = () => report.filter((e) => e.status === 'committed').length
+if (committedNow() > 0 && !stoppedBecause) {
+  setPhase('Full suite')
+  await fullSuiteCheck('full-suite')
 }
 
 // The review, the fix-up cards and the harvest wait for every card to be settled.
@@ -473,6 +526,8 @@ if (anyCommitted && !stoppedBecause && !stateError && waiting.length === 0 && !n
       }
       if (stoppedBecause) break
     }
+    // The fix-up cards were committed on their related tests: one full run covers them, before the experts check them.
+    if (fixupCommitted && !stoppedBecause) await fullSuiteCheck('full-suite-fixups')
     // After the fix-up cards, ONE experts-only check of what they changed. Whatever it finds, or the review left, goes in the
     // report: there is no second fix round.
     if (fixupCommitted) {
@@ -530,6 +585,15 @@ if (reviewDone || harvestDone) {
   ;[recState] = await runSteps('settle:record', [cliCmd('run-state', '--feature', FEATURE, '--record', ...(reviewDone ? ['--review', '--open', String(openCount)] : []), ...(harvestDone ? ['--harvest'] : []), ...(branch ? ['--harvest-branch', branch] : []))])
 }
 
+// The full suite, said plainly: the report and the summary use these words.
+const lastFull = fullSuite.runs[fullSuite.runs.length - 1]
+const fullSuiteText = !VERIFY
+  ? 'Full suite: not run by the run (the plan has no test_command)'
+  : !lastFull
+    ? 'Full suite: not run (no card was committed in this run, or the run stopped)'
+    : lastFull.passed
+      ? `Full suite: passed${lastFull.card ? ` after the card ${lastFull.card.card} corrected it` : ''}`
+      : `FULL SUITE NOT GREEN: ${lastFull.reason || `${lastFull.failures.length} failing test(s)${lastFull.card ? `, and the card ${lastFull.card.card} is ${lastFull.card.status}` : ''}`}`
 const counts = report.reduce((n, r) => ({ ...n, [r.status]: (n[r.status] || 0) + 1 }), {})
 // Whether the branch was reviewed by the experts, said plainly: the report, the notice and the summary use these words.
 // A run that waited, stopped or could not review never reads as ready to merge.
@@ -576,9 +640,10 @@ return {
   reviewedText,
   fixupCard,
   fixupReview,
+  fullSuite: { ...fullSuite, text: fullSuiteText },
   harvest,
   expertLanes: lanes,
   ...(stateError ? { stateError } : {}),
   ...(stoppedBecause ? { stopped: stoppedBecause } : {}),
-  summary: `${counts.committed || 0} committed, ${counts.parked || 0} parked, ${counts.blocked || 0} blocked${counts['not started'] ? `, ${counts['not started']} not started` : ''}${stoppedBecause ? `; stopped: ${stoppedBecause}` : ''}. ${reviewedText}. ${review.ran ? `Review: ${(review.findings || []).length} confirmed.` : ''} Harvest: ${harvest.ran ? `${harvest.proposals || 0} proposals${harvest.branch ? ` on ${harvest.branch}` : ''}` : harvest.reason || 'not run'}.`,
+  summary: `${counts.committed || 0} committed, ${counts.parked || 0} parked, ${counts.blocked || 0} blocked${counts['not started'] ? `, ${counts['not started']} not started` : ''}${stoppedBecause ? `; stopped: ${stoppedBecause}` : ''}. ${reviewedText}. ${fullSuiteText}. ${review.ran ? `Review: ${(review.findings || []).length} confirmed.` : ''} Harvest: ${harvest.ran ? `${harvest.proposals || 0} proposals${harvest.branch ? ` on ${harvest.branch}` : ''}` : harvest.reason || 'not run'}.`,
 }

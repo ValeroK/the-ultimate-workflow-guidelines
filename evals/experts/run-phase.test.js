@@ -33,6 +33,7 @@ function responder(o = {}) {
   const fn = async (call) => {
     seen.push(call.label);
     const [who, role] = String(call.label).includes(':') ? call.label.split(':') : [call.label, ''];
+    if (role === 'run' && /^full-suite/.test(who)) return (o.fullRun && o.fullRun(who)) || { passed: true, failures: [], summary: 'full run passed' };
     if (role === 'write-tests') return { filesWritten: [`test/${who}.test.js`], testsFailAsExpected: true, summary: 'red' };
     if (/^attempt-/.test(role)) return (o.red || []).includes(who) ? { green: false, filesChanged: [`src/${who}/x.js`], failureOutput: `fail ${role}`, summary: role } : { green: true, fullSuiteGreen: true, filesChanged: [`src/${who}/x.js`], summary: 'done' };
     if (/^diagnose-/.test(role)) return { cause: 'wrong', signature: `sig-${role}`, suggestedFix: 'fix', confidence: 'medium' };

@@ -731,7 +731,7 @@ function journalCompact(cwd, { feature, card, from }) {
  * judged on. Then every change except the plugin's folder and the plans is committed, the plan's
  * card entry gets `committed:`, and the handoff is written from the commit.
  */
-function cardCommit(cwd, { plan, card: name, feature, claimed = [] }) {
+function cardCommit(cwd, { plan, card: name, feature, claimed = [], fullAtEnd = false }) {
   if (!plan) throw new Error('card-commit needs --plan');
   const gates = require('../hooks/lib/gates.js');
   const stateLib = require('../hooks/lib/state.js');
@@ -746,7 +746,7 @@ function cardCommit(cwd, { plan, card: name, feature, claimed = [] }) {
   let check = { outcome: 'exempt', why: 'gates off (ULTIMATE_WORKFLOW_GATES)', missing: [] };
   if (stateLib.gatesEnabled(process.env)) {
     // A stale memory index is no reason to refuse: it is regenerated below and committed with the card.
-    const ev = expertsLib.commitEvidence(cwd, path.resolve(cwd, plan), undefined, { card: card.name, stage: 'feature', script: 'verify.js', staleIndexOk: true, deferExperts: true });
+    const ev = expertsLib.commitEvidence(cwd, path.resolve(cwd, plan), undefined, { card: card.name, stage: 'feature', script: 'verify.js', staleIndexOk: true, deferExperts: true, fullAtEnd });
     const g = gates.commitGate(ev);
     check = gates.checkRecord(g);
     stateLib.writeCommitStamp(cwd, check);
@@ -1254,7 +1254,7 @@ function cli(argv, cwd, out, fail) {
   if (sub === 'notify') return run(() => notify(cwd, { feature: o.feature, kind: o.kind, card: o.card || '', reason: o.reason || '', reasonFile: o['reason-file'] || '', action: o.action || '' }));
   if (sub === 'decisions') return run(() => detectDecisions(cwd, { plan: o.plan, card: o.card, feature: o.feature || '', declaredFile: o.declared || '' }));
   if (sub === 'unpark') return run(() => unpark(cwd, { plan: o.plan, card: o.card, feature: o.feature }));
-  if (sub === 'card-commit') return run(() => cardCommit(cwd, { plan: o.plan, card: o.card, feature: o.feature, claimed }));
+  if (sub === 'card-commit') return run(() => cardCommit(cwd, { plan: o.plan, card: o.card, feature: o.feature, claimed, fullAtEnd: Boolean(o['full-at-end']) }));
   if (sub === 'card-status') return run(() => cardStatus(cwd, { plan: o.plan, card: o.card, status: o.status }));
   if (sub === 'run-branch') return run(() => runBranch(cwd, { feature: o.feature }));
   if (sub === 'ensure-ignored') return run(() => ensureIgnored(cwd));

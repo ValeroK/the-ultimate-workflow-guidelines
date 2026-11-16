@@ -25,6 +25,8 @@ const { isDocPath } = require('./lib/gates.js');
 const experts = require('../experts/experts.js');
 
 const RECORD = path.join('.ultimate-workflow', 'verify.json');
+// The last run of the related tests (5.1.1). Its own file: a related run never replaces the record of a full run.
+const RELATED_RECORD = path.join('.ultimate-workflow', 'verify-related.json');
 const LOCK = path.join('.ultimate-workflow', 'verify.lock');
 const LOG = path.join('.ultimate-workflow', 'verify.log');
 /** Per-file patches of the changes right now, or null when git cannot say. */
@@ -437,6 +439,19 @@ function recordFull(cwd, { passed, command, verdict = null, acceptedAt = '' }) {
   return rec;
 }
 
+/**
+ * Write the outcome of a run of the related tests, against the changes as they are after it ran (5.1.1). The
+ * unattended run commits a card on this record and runs the full suite one time after all the cards; by hand a
+ * commit still needs the full run.
+ */
+function recordRelated(cwd, { passed, command }) {
+  const file = path.join(cwd, RELATED_RECORD);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const rec = { mode: 'related', passed: passed === true, fingerprint: experts.testFingerprint(cwd), command, at: new Date().toISOString() };
+  fs.writeFileSync(file, `${JSON.stringify(rec, null, 2)}\n`);
+  return rec;
+}
+
 /** What the commit check needs: the current fingerprint and the last full run, or why it does not apply. */
 function fullEvidence(cwd) {
   try {
@@ -596,6 +611,11 @@ function main(argv, startDir = process.cwd()) {
       console.error('verify: the result could not be recorded, so a commit will ask for a full run again');
     }
   }
+  if (choice.mode === 'related' && !abnormal) {
+    try {
+      recordRelated(cwd, { passed: code === 0, command: choice.command });
+    } catch {}
+  }
   const hint = rewriteHint(cwd, before, data);
   if (hint) console.log(hint);
   if (verdict && verdict.passed) {
@@ -622,4 +642,4 @@ function main(argv, startDir = process.cwd()) {
 
 if (require.main === module) process.exit(main(process.argv.slice(2)));
 
-module.exports = { main, shellFor, readRecord, recordFull, fullEvidence, relatedTests, acquireLock, shortOutput, extractFailures, readBaseline, baselineApplies, baselineStatus, judge, setFrontLine: lenientFrontLine, writeKnownFailures, RECORD, LOCK, LOG, BASELINE };
+module.exports = { main, shellFor, readRecord, recordFull, recordRelated, RELATED_RECORD, fullEvidence, relatedTests, acquireLock, shortOutput, extractFailures, readBaseline, baselineApplies, baselineStatus, judge, setFrontLine: lenientFrontLine, writeKnownFailures, RECORD, LOCK, LOG, BASELINE };

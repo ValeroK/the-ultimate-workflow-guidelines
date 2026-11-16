@@ -150,6 +150,9 @@ function matchingTopicals(cwd, card, memoryRoot = '') {
  * exist (and that no card is to create), or no test-plan section for the card, fails with a reason
  * the run turns into a park.
  */
+/** The names the run gives the cards it adds itself: the review's fix-up cards, the findings card, the card for a failing full run. */
+const RUN_ADDED = /^(fixup|findings|full-suite)(-|$)/i;
+
 function pack(cwd, { plan, card: name, feature, resume = false, adhoc = false, dry = false }) {
   if (!plan) throw new Error('pack needs --plan');
   const planFile = path.resolve(cwd, plan);
@@ -177,8 +180,13 @@ function pack(cwd, { plan, card: name, feature, resume = false, adhoc = false, d
   if (cardsHead) addRange(cardsHead, `## Cards: this card is "${card.name}: ${card.title}"`);
   // A card the run adds itself (the findings card, the review's fix-up card) has no test-plan
   // section: its work is the carried items, and the tests are written for them.
-  const t = adhoc ? null : testSection(planText, card.name, all.length);
-  if (adhoc) add('(in this pack)', 'this card was added by the run and has no test-plan section: write a test for each carried item that can have one', { chars: 0 });
+  // 5.1.1: a resume builds the pack of every card with no --adhoc, so a fix-up card parked for a decision was parked
+  // again as "missing input: no test-plan section", and the user committed it by hand. A card with a name the run
+  // gives, carried items and no section of its own is one the run added, however its pack is asked for.
+  const section = adhoc ? null : testSection(planText, card.name, all.length);
+  const runAdded = adhoc || (!section && RUN_ADDED.test(card.name) && (card.carried || []).length > 0);
+  const t = runAdded ? null : section;
+  if (runAdded) add('(in this pack)', 'this card was added by the run and has no test-plan section: write a test for each carried item that can have one', { chars: 0 });
   else if (!t) problems.push(`no test-plan section for card ${card.name} (a heading under the plan's Tests section that names it)`);
   else addRange(t, `this card's tests: ${t.title}`);
 

@@ -1158,3 +1158,43 @@ test('one review: the report says "Reviewed by the experts at <head>: N findings
   const fixups = show({ review: { ran: true, range: 'a..HEAD', findings: [], refuted: [], unverified: [] }, reviewed: { head: 'h9', open: 1 }, reviewedText: 'Reviewed by the experts at h9: 1 finding open', fixupReview: { ran: true, range: 'h1..HEAD', findings: [{ confidence: 'high', lens: 'quality', file: 'a.js', line: 1, what: 'still wrong' }] } });
   assert.match(fixups, /experts check of the fix-up cards \(h1\.\.HEAD\): 1 confirmed, left open and not fixed again/);
 });
+
+// ---- 5.1.1: three faults from real sessions (2026-11-14 to 2026-11-16) ----
+
+test('a card the run added (a fix-up card) gets its pack on a resume too, with no --adhoc and no test-plan section', () => {
+  const dir = repo();
+  const added = json(cli(dir, 'card-add', '--plan', 'PLAN-calc.md', '--name', 'fixup', '--free-name', '--title', 'confirmed review findings', '--paths', 'src/**', '--carried', 'correctness at src/add.js:3: off by one'));
+  assert.equal(added.ok, true, JSON.stringify(added));
+  const r = json(cli(dir, 'pack', '--plan', 'PLAN-calc.md', '--card', added.card.name, '--feature', 'calc'));
+  assert.equal(r.ok, true, r.reason);
+  assert.match(fs.readFileSync(path.join(dir, r.contextFile), 'utf8'), /added by the run and has no test-plan section/);
+});
+
+test('a card of the plan with a run-like name but nothing carried still needs its test-plan section', () => {
+  const dir = repo();
+  const added = json(cli(dir, 'card-add', '--plan', 'PLAN-calc.md', '--name', 'fixup-things', '--free-name', '--title', 'a plan card', '--paths', 'src/**'));
+  assert.equal(added.ok, true, JSON.stringify(added));
+  const r = json(cli(dir, 'pack', '--plan', 'PLAN-calc.md', '--card', added.card.name, '--feature', 'calc'));
+  assert.equal(r.ok, false);
+  assert.match(r.reason, /no test-plan section/);
+});
+
+test('a run step started from a folder under .ultimate-workflow works from the project folder: journal add finds its file', () => {
+  const dir = repo();
+  const rel = path.join('.ultimate-workflow', 'run', 'calc', 'cards', '1');
+  fs.mkdirSync(path.join(dir, rel), { recursive: true });
+  fs.writeFileSync(path.join(dir, rel, 'journal.txt'), 'The adder lives in src/add.js.\n');
+  const r = json(cli(path.join(dir, rel), 'journal', 'add', '--feature', 'calc', '--card', '1', '--from', path.join(rel, 'journal.txt').split(path.sep).join('/')));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.ok(fs.existsSync(path.join(dir, '.ultimate-workflow', 'run', 'calc', 'journal.md')), 'the journal is in the project, not under the card folder');
+  assert.ok(!fs.existsSync(path.join(dir, rel, '.ultimate-workflow')), 'nothing was written under the card folder');
+});
+
+test('present --confirm takes --plan as the file to confirm in place', () => {
+  const dir = repo();
+  const r = cli(dir, 'present', '--confirm', 'plan_confirmed', '--plan', 'PLAN-calc.md');
+  assert.equal(r.status, 0, r.stderr);
+  const o = json(r);
+  assert.equal(o.confirmed, true, JSON.stringify(o));
+  assert.match(String(o.out), /PLAN-calc\.md$/);
+});

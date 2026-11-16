@@ -1891,7 +1891,12 @@ function main(argv) {
   // The autopilot run's card steps (4.7.0): pack, handoff, park, unpark, journal, card-commit, ...
   if (require('./autopilot.js').COMMANDS.includes(argv[0])) {
     try {
-      return require('./autopilot.js').cli(argv, process.cwd(), out, fail);
+      // 5.1.1: a step agent that had changed into a card's folder under .ultimate-workflow ran `journal add` there, and
+      // the step's path, which is relative to the project, was looked for under that folder (ENOENT, four times in two
+      // days; the card's journal lines were lost). The run's steps belong to the folder that holds .ultimate-workflow.
+      const here = process.cwd();
+      const inRunFolder = here.split(path.sep).indexOf('.ultimate-workflow');
+      return require('./autopilot.js').cli(argv, inRunFolder > 0 ? here.split(path.sep).slice(0, inRunFolder).join(path.sep) : here, out, fail);
     } catch (err) {
       return fail(err.message);
     }
@@ -1979,7 +1984,7 @@ function main(argv) {
       }
       return out(record(o.cwd, o.stage, result, { planFile: o.plan, pluginRoot: o.pluginRoot }));
     }
-    if (o.cmd === 'present') return out(present({ result: o.result, field: o.field, out: o.out, from: o.from, confirm: o.confirm, append: o.append, replace: o.replace, cwd: o.cwd }));
+    if (o.cmd === 'present') return out(present({ result: o.result, field: o.field, out: o.out || (o.confirm && !o.from && !o.result && o.plan ? o.plan : o.out), from: o.from, confirm: o.confirm, append: o.append, replace: o.replace, cwd: o.cwd }));
     if (o.cmd === 'findings') {
       const names = list(o.pluginRoot).experts.map((e) => e.name);
       return out({ findings: allFindings(o.cwd, fingerprint(o.cwd), names).filter((f) => blocking(f)) });

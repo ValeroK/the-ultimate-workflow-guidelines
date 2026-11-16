@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.1.1] - 2026-11-16
+
+The unattended run tests each card with its related tests and runs the full suite one time. From the sessions of two days: 771 test runs and 524 minutes, of which 27 were full runs by the run's implementer agents on a four-minute suite (108 minutes).
+
+### Changed
+
+- **The unattended run: related tests for each card, the full suite one time after the cards.** Until 5.1.0 every card ended with a full run, and the card commit needed it. Now a card runs `verify.js` (the related tests, or the full suite when the change needs it: a lockfile, test setup, more than 20 files) and is committed on a passing related run of exactly its changes. The run then makes the full run one time after all the cards, and one time more after the review's fix-up cards. A full run that fails gets one card, `full-suite`, with the failing tests carried to it; that card ends with a full run of its own. If it cannot make the suite pass it is parked, and the review and the harvest wait for it as for any card. The result and the summary say `Full suite: passed` or `FULL SUITE NOT GREEN`. The price: a regression outside a card's related tests shows after the cards, not at the card that caused it.
+- **By hand nothing changes.** A commit still needs a passing full run on exactly its changes, and the build phase still ends with one full run. `verify.js` records a related run in its own file (`.ultimate-workflow/verify-related.json`); only `card-commit --full-at-end`, which the run passes, reads it.
+- **After a full run that fails, the failed tests first.** The implementer is told to correct the cause, run only the tests that failed until they pass, and then make the full run one more time. Ten failed full runs in the two days were each followed by the whole suite again.
+
+### Fixed
+
+- **The tests phase writes one section for each card.** The unattended run finds a card's tests by a heading that starts with the card's name. In one session a seven-card plan got a test plan written by test file, with the card only named in the text, so every card would have parked as "missing input". `experts.js script --phase tests` now reads the cards from the plan, the drafter and the merge are told the exact headings, and the result lists `missingCardSections` when one is not there; `tests.md` says to add the headings and move the text, not to ask the user for a layout.
+- **The build stays in the build phase.** In that session the user chose to test at the end, and the build went to a general-purpose agent with no model named, which ran on the session model (Opus) and not on the implementer's Sonnet. `feature.md` and `build.md` now say: one build for the whole plan is the build phase, never a general-purpose agent, never an agent with no model.
+- **`angles` may be a list.** A list stopped the tests script before any agent ran.
+- **The confirm command is written for the user's shell.** When the host refuses the confirm command and the user must run it, the command is written for PowerShell on Windows. A Git Bash path (`cd /c/...`) did nothing in a PowerShell terminal, and the user ran a second command.
+
 ## [5.1.0] - 2026-11-15
 
 The model decides the type of work. The hooks say it one time, at session start, and add nothing to a prompt.

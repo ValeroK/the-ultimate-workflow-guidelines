@@ -96,6 +96,8 @@ Until 4.1.1, every check asked for the whole suite, so a one-line change waited 
 | No `test_related_command`, a template with neither placeholder, no git, or no related test found | The full suite (as before 4.1.1) |
 | A manifest or lockfile, compiler or test-runner config, test setup, CI file, a path in `full_suite_paths`, or more than 20 files changed | The full suite |
 | The end of a build | The full suite, once (`verify.js --full`); the build's round is green only if it passed |
+| A card of the unattended run (5.1.1) | The related tests only; the card is committed on a passing related run of exactly its changes |
+| The unattended run, after its cards and again after the review's fix-up cards (5.1.1) | The full suite, once each. A failure gets one card that ends with a full run of its own; if that card cannot make the suite pass it is parked, and the review and the harvest wait |
 | Before a commit (G7) | A passing full run must exist at the current fingerprint of the changes |
 | Only documentation changed | Nothing |
 

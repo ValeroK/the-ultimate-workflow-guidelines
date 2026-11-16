@@ -680,5 +680,9 @@
  [
   "evals/experts/autopilot-fixes.test.js",
   "W9: the long-conversation reminder defaults to 80k tokens, and the variable still sets it"
+ ],
+ [
+  "mirrors.test.js",
+  "plugin manifests and the CHANGELOG say 5.1.0"
  ]
 ]

@@ -125,7 +125,7 @@ Existing project:         /ultimate-workflow:feature <what you want>           -
 
 - They act only in a folder that has a `PRD.md` or a `PLAN-*.md`.
 - There, Claude cannot edit code before you confirm the plan, or commit before the experts check passes.
-- While Claude works, only the tests related to the change run. The full suite runs once at the end of a build and once before each commit, and whenever config, a lockfile or many files changed. Set `test_related_command` in the plan (it proposes one) to get this; without it every run is the full suite.
+- While Claude works, only the tests related to the change run. The full suite runs once at the end of a build and once before each commit, and whenever config, a lockfile or many files changed. In the unattended run each card runs its related tests, and the full suite runs one time after all the cards and one time after the review corrections. Set `test_related_command` in the plan (it proposes one) to get this; without it every run is the full suite.
 - Files your tests or app rewrite on every run (a timing file, a local database) go in the plan's `volatile_paths`, so they never make a check look out of date.
 - When a feature's commit has landed, its plan is marked `phase: done` and the gates stop reading it (`feature` does this).
 - When a conversation passes about 600k tokens of context, a reminder suggests finishing the step, running `/handoff` and starting a new session. Every turn re-sends the whole conversation, so long sessions cost the most. Change it with `ULTIMATE_WORKFLOW_CONTEXT_REMINDER` (tokens; `0` turns it off). A model with a context window smaller than 600k never reaches the default: set a lower number there.

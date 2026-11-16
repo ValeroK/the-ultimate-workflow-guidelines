@@ -27,6 +27,8 @@ argument-hint: "<plan file; required if more than one PLAN-*.md exists>"
 
 1. With the Write tool, write `.ultimate-workflow/run/build.args.json`: `{ "plan": "<the plan file from step 1>" }`, plus `"command"` if the user gave a verification command.
 
+   **One build for a plan with cards.** A plan split into cards can be built here in one go, with no `brief --section`: the tests of every card, then the implementation, then one full run. Use this, never an agent of your own, when the user wants one build with the tests at the end.
+
    **The model.** The test writer and the implementer run on Sonnet by default, and the diagnosis on the session model. To change that, add `"implementerModel"` and/or `"diagnoserModel"` here (`inherit`, `sonnet`, `opus`, `haiku` or a `claude-*` id), or set `ULTIMATE_WORKFLOW_BUILD_MODEL` for the implementer; a value in this file wins. Never edit the generated `build.js` to set it.
 
    **Resuming after a stop at the test step.** If an earlier build stopped because some new tests passed before the implementation, and the user has decided those are acceptable (for example a guard shown rejecting a bad sample), add `"resumeAt": "implement"`, `"resumeReason": "<the user's decision, in their words>"`, `"testFiles": [<the test files already written>]` and `"command"`. The test step is skipped on record and the result says so. Never use it without the user's decision.

@@ -37,6 +37,8 @@ At each stop for the user, follow what `plan.md` and `tests.md` say: the documen
 1. `plan.md`. If the work splits into cards, the first card is the harness that needs the running system, when there is one. **Stop for the user's confirmation of the plan.**
 2. `tests.md`. **Stop for the user's confirmation of the Tests section.**
 3. `build.md`, once per card, in order, with `brief --section "<card heading>"`.
+
+**The build is always the build phase.** When the user wants the cards built in one go with the tests at the end, or the unattended run cannot start, run `build.md` one time for the whole plan: its test writer and its implementer run on Sonnet by default, and it ends with one full run. Never give the build to a general-purpose agent, and never start an agent for it with no model named: such an agent runs on the session model, which on an Opus session is the most costly way to write the code. If you must call an agent directly for build work, it is `uw-implementer` with the model `sonnet`.
 4. `review.md` on the whole change.
 5. `experts.md`, the check before a commit.
 6. `harvest.md`. Its proposals wait for the user, as that command says.
@@ -45,7 +47,7 @@ At each stop for the user, follow what `plan.md` and `tests.md` say: the documen
 
 Stop and hand over to the user, with what happened and what you need, only for:
 
-- the two confirmations above, which are the user's and never yours. **If the host refuses the confirm command**, show the user the exact command and ask them to run it themself (`plan.md` and `tests.md` say how);
+- the two confirmations above, which are the user's and never yours. **If the host refuses the confirm command**, show the user the exact command, written for the shell they type in (PowerShell on Windows), and ask them to run it themself (`plan.md` and `tests.md` say how);
 - an open high-confidence finding (the experts command says how it is raised; never dismiss one yourself);
 - a build that escalates after three failed rounds;
 - a gate refusal you cannot satisfy by following the phase that it names;

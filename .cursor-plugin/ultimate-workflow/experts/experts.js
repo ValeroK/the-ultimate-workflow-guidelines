@@ -1597,6 +1597,13 @@ function stageScript(pluginRoot, cwd, phaseName, { argsFile = '', files = [], me
   // plugin's verify.js, when the plan names its test_command. Chosen here, in code, so a model
   // never types the path (and a Windows path never reaches a JSON string with bare backslashes).
   // 4.2.0: the model for the agents that only search and read (plan readers, harvest gatherers).
+  // 5.1.1: the tests phase writes one section for each card of the plan. The cards are read here, in code, so the
+  // headings it is told to write are the names the run looks for.
+  if (phaseName === 'tests' && typeof args.plan === 'string' && args.cards === undefined) {
+    try {
+      args.cards = require('./cards.js').parseCards(fs.readFileSync(path.resolve(cwd, args.plan), 'utf8')).map((c) => ({ name: c.name, title: c.title || '' }));
+    } catch {}
+  }
   if (phaseName === 'plan' || phaseName === 'harvest') {
     const reader = process.env.ULTIMATE_WORKFLOW_READER_MODEL;
     if (typeof reader === 'string' && reader.trim()) args.readerModel = reader.trim();

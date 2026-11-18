@@ -105,6 +105,11 @@ const WROTE = {
       description: 'Tests that passed before the implementation existed',
     },
     testCommand: { type: 'string' },
+    notWritten: {
+      type: 'array',
+      description: 'Tests the section names that you did not write, each with the reason; empty when you wrote them all',
+      items: { type: 'object', required: ['test', 'why'], properties: { test: { type: 'string' }, why: { type: 'string' } } },
+    },
     summary: { type: 'string' },
   },
 }
@@ -206,6 +211,8 @@ Then RUN them and confirm they FAIL.
 
 A new test that passes before the implementation exists is testing nothing, and it is invisible afterwards -- a green suite looks the same whether its tests constrain the behaviour or merely coexist with it. If any new test passes now, list it in unexpectedlyPassing and say so plainly. That is a finding, not a convenience.
 
+If the section names a test you cannot write as it is (it contradicts the plan, or another test of the section), do not write it and do not write a changed form of it: list it in notWritten with the reason. The user confirmed that section, so a test left out without a word is a fault.
+
 Report the project's real verification command as testCommand.`,
     { agentType: agentName('uw-implementer'), label: label('write-tests'), phase: ph.tests, schema: WROTE, ...modelOpt(o.implementerModel) }
   )
@@ -296,6 +303,7 @@ When not green, include the failure output verbatim.`,
         notDone: attempt.notDone || [],
         noticed: attempt.noticed || [],
         decisions: attempt.decisions || [],
+        testsNotWritten: tests.notWritten || [],
         history,
         summary: attempt.summary,
         ...(correction ? { testCorrection: correction } : {}),

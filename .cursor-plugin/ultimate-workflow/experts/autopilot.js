@@ -1299,7 +1299,7 @@ function cli(argv, cwd, out, fail) {
   if (sub === 'journal') action = rest.shift();
   for (let i = 0; i < rest.length; i++) {
     const a = rest[i];
-    if (a === '--resume' || a === '--adhoc' || a === '--accept' || a === '--take-over' || a === '--needs-decision' || a === '--record' || a === '--review' || a === '--harvest') {
+    if (a === '--resume' || a === '--adhoc' || a === '--accept' || a === '--take-over' || a === '--full-at-end' || a === '--needs-decision' || a === '--record' || a === '--review' || a === '--harvest') {
       o[a.slice(2)] = true;
       continue;
     }

@@ -557,3 +557,29 @@ test('test-guard: the counts before and after say what went away: a test, an ass
   assert.match(cli('check', 'snap/before.json').problems.join(), /is gone/);
   assert.equal(cli('snapshot', 'snap/none.json', 't/none.test.js').ok, false, 'no file to record is said');
 });
+
+// The first real run (2026-11-18): a test of the confirmed section contradicted the plan. The card left it out and
+// said so in notDone, and nothing in the report showed it to the user.
+test('a test of the section that was not written, and work a round left undone, are said in the result and recorded', async () => {
+  const r = responder({
+    on: (call, who, role) => {
+      if (who !== '1') return undefined;
+      if (role === 'write-tests') return { filesWritten: ['test/1.test.js'], testsFailAsExpected: true, notWritten: [{ test: 'plan test 4', why: 'it contradicts decision 2 and test 3' }], summary: 'red' };
+      if (role === 'attempt-1') return { green: true, filesChanged: ['src/1/x.js'], notDone: ['plan test 4 is not implemented'], summary: 'done' };
+      return undefined;
+    },
+  });
+  const { result } = await run(baseArgs([card('1'), card('2')]), r);
+  assert.match(r.prompt('1:write-tests'), /do not write it and do not write a changed form of it: list it in notWritten/);
+  assert.deepStrictEqual(result.leftOut, [{ card: '1', items: ['did not write the test plan test 4: it contradicts decision 2 and test 3', 'left undone: plan test 4 is not implemented'] }]);
+  assert.match(result.summary, /LEFT OUT BY A CARD: card 1: did not write the test plan test 4: it contradicts decision 2 and test 3 \| left undone: plan test 4 is not implemented\. Decide on each before you merge\./);
+  const declared = JSON.parse(/<<<CONTENT\n([\s\S]*?)\nCONTENT>>>/.exec(r.prompt('1:decisions'))[1]);
+  assert.deepStrictEqual(declared.map((d) => [d.what, d.major]), [['did not write the test plan test 4: it contradicts decision 2 and test 3', false], ['left undone: plan test 4 is not implemented', false]]);
+});
+
+test('a run where every card did all of its work says nothing about work left out', async () => {
+  const r = responder();
+  const { result } = await run(baseArgs([card('1')]), r);
+  assert.deepStrictEqual(result.leftOut, []);
+  assert.doesNotMatch(result.summary, /LEFT OUT/);
+});

@@ -36,6 +36,8 @@ const VERIFY = (args && typeof args.verify === 'string' && args.verify.trim()) |
 // The guard on a test the run corrects (lib/test-guard.js), next to the CLI: `node "<plugin>/lib/test-guard.js"`.
 const GUARD = /experts[\\/]experts\.js/.test(CLI) ? CLI.replace(/experts[\\/]experts\.js/, 'lib/test-guard.js') : ''
 const testCorrections = []
+// What a card left out of what the user confirmed: a test of the section it did not write, work it did not do.
+const leftOut = []
 const COMMAND = String((args && args.command) || '')
 const BASE = String((args && args.base) || '')
 const CARDS = Array.isArray(args && args.cards) ? args.cards.filter((c) => c && typeof c.name === 'string') : []
@@ -291,9 +293,14 @@ async function runCard(card, { adhoc = false, fullNow = false } = {}) {
   // in the diff. A major one is not committed: the card is held as needs-decision, its work kept on
   // the branch and the user told now; the cards that do not depend on it go on. Minor ones go into
   // the handoff and the report.
+  // The first real run (2026-11-18): a test of the confirmed section contradicted the plan, the card left it out and
+  // said so in notDone, and nothing showed it to the user. What a card leaves out is recorded and said in the result.
+  const omitted = [...(build.testsNotWritten || []).map((x) => `did not write the test ${x.test}: ${x.why}`), ...(build.notDone || []).map((x) => `left undone: ${x}`)]
+  if (omitted.length > 0) leftOut.push({ card: card.name, items: omitted })
   // A test the run corrected is a choice the plan did not state: recorded with the card's minor decisions.
   const declared = [
     ...((build && build.decisions) || []),
+    ...omitted.map((what) => ({ what, why: 'reported by the card', major: false })),
     ...(build.testCorrection && build.testCorrection.outcome === 'corrected'
       ? (build.testCorrection.corrected.length > 0 ? build.testCorrection.corrected : [{ test: 'tests of the card', was: '', now: '' }]).map((t) => ({ what: `the tester ${t.verdict === 'removed' ? 'removed' : 'corrected'} the test ${t.test}${t.verdict === 'removed' ? '' : ' to agree with the plan'}${t.planReference ? ` (${t.planReference})` : ''}${t.verdict === 'removed' ? (t.was ? `: it asserted ${t.was}` : '') : t.was || t.now ? `: it asserted ${t.was}, it now asserts ${t.now}` : ''}`, why: t.why || 'the diagnosis of a failed round said the test was wrong, not the code', major: false }))
       : []),
@@ -632,6 +639,7 @@ const fullSuiteText = !VERIFY
       : `FULL SUITE NOT GREEN: ${lastFull.reason || `${lastFull.failures.length} failing test(s)${lastFull.card ? `, and the card ${lastFull.card.card} is ${lastFull.card.status}` : ''}`}`
 // The tests the run corrected, said plainly: the user reads each one in the report.
 const correctedText = testCorrections.length > 0 ? ` TESTS CORRECTED BY THE RUN: ${testCorrections.map((c) => `card ${c.card} (${c.corrected.map((t) => `${t.verdict === 'removed' ? 'removed ' : ''}${t.test}${t.planReference ? `, plan: ${t.planReference}` : ''}`).join('; ') || 'see its decisions'}${(c.counted || []).length > 0 ? `; counted: ${c.counted.join(', ')}` : ''})`).join('; ')}. Read them before you merge.` : ''
+const leftOutText = leftOut.length > 0 ? ` LEFT OUT BY A CARD: ${leftOut.map((c) => `card ${c.card}: ${c.items.join(' | ')}`).join('; ')}. Decide on each before you merge.` : ''
 const counts = report.reduce((n, r) => ({ ...n, [r.status]: (n[r.status] || 0) + 1 }), {})
 // Whether the branch was reviewed by the experts, said plainly: the report, the notice and the summary use these words.
 // A run that waited, stopped or could not review never reads as ready to merge.
@@ -680,9 +688,10 @@ return {
   fixupReview,
   fullSuite: { ...fullSuite, text: fullSuiteText },
   testCorrections,
+  leftOut,
   harvest,
   expertLanes: lanes,
   ...(stateError ? { stateError } : {}),
   ...(stoppedBecause ? { stopped: stoppedBecause } : {}),
-  summary: `${counts.committed || 0} committed, ${counts.parked || 0} parked, ${counts.blocked || 0} blocked${counts['not started'] ? `, ${counts['not started']} not started` : ''}${stoppedBecause ? `; stopped: ${stoppedBecause}` : ''}. ${reviewedText}. ${fullSuiteText}.${correctedText} ${review.ran ? `Review: ${(review.findings || []).length} confirmed.` : ''} Harvest: ${harvest.ran ? `${harvest.proposals || 0} proposals${harvest.branch ? ` on ${harvest.branch}` : ''}` : harvest.reason || 'not run'}.`,
+  summary: `${counts.committed || 0} committed, ${counts.parked || 0} parked, ${counts.blocked || 0} blocked${counts['not started'] ? `, ${counts['not started']} not started` : ''}${stoppedBecause ? `; stopped: ${stoppedBecause}` : ''}. ${reviewedText}. ${fullSuiteText}.${correctedText}${leftOutText} ${review.ran ? `Review: ${(review.findings || []).length} confirmed.` : ''} Harvest: ${harvest.ran ? `${harvest.proposals || 0} proposals${harvest.branch ? ` on ${harvest.branch}` : ''}` : harvest.reason || 'not run'}.`,
 }

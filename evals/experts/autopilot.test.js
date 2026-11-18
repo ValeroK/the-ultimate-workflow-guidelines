@@ -1337,3 +1337,20 @@ test('decisions: a new migration under a card path that names the migrations fol
 test('plan: a step that only checks or reports is not a card', () => {
   assert.match(fs.readFileSync(path.join(PLUGIN, 'phases', 'plan.js'), 'utf8'), /a step that only checks, measures or reports[^.]*is not a card/);
 });
+
+// The first real run (2026-11-18, a sample project): `--full-at-end` was read as an option with a value, so it took
+// `--claimed` as that value and the test file after it was an "unexpected argument". Every card was parked at its
+// commit. The unit tests passed because none gave the two options together, as the run does.
+test('card-commit --full-at-end with --claimed after it, as the run builds the command: the card is committed on its related tests', () => {
+  const dir = repo();
+  json(cli(dir, 'run-branch', '--feature', 'calc'));
+  write(dir, 'src/add.js', 'module.exports = (a, b) => a + b; // checked\n');
+  const v = spawnSync(process.execPath, [VERIFY, '--plan', 'PLAN-calc.md'], { cwd: dir, encoding: 'utf8', env });
+  assert.equal(v.status, 0, v.stdout + v.stderr);
+  const abs = path.join(dir, 'test', 'add.test.js');
+  const out = cli(dir, 'card-commit', '--plan', 'PLAN-calc.md', '--card', '1', '--feature', 'calc', '--full-at-end', '--claimed', abs);
+  assert.doesNotMatch(out.stdout + out.stderr, /unexpected argument/);
+  const r = json(out);
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.deepStrictEqual(r.missingClaims, ['test/add.test.js'], 'the absolute path is read as the file it names (this card did not change it, so it is a missing claim)');
+});

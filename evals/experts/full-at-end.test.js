@@ -374,7 +374,7 @@ const correcting = ({ diagnosis = WRONG, fixed = FIXED, kept = { ok: true, kept:
     },
   });
 
-test('wrong tests: the diagnosis names every one, all go back to the tester in one pass, code checks them, and the card goes on', async () => {
+test('wrong tests: the diagnosis names every one, all go back to the tester in one pass, and the card goes on', async () => {
   const r = correcting();
   const { result } = await run(baseArgs([card('1')]), r);
   const labels = r.labels().filter((l) => /^1:/.test(l));
@@ -388,9 +388,12 @@ test('wrong tests: the diagnosis names every one, all go back to the tester in o
   assert.match(p, /Verify every named test against the plan, all in this one pass/);
   assert.match(p, /verify their other tests in the same way/);
   assert.match(p, /A test that agrees with the plan: leave it, and say so/);
-  assert.match(p, /do not delete a test\. Do not remove an assertion/);
+  assert.match(p, /A test the change does not need \(the plan does not ask for what it checks, or it repeats another test\): remove it/);
+  assert.match(p, /hold the tests this change needs, and only those/);
+  assert.match(p, /The plan decides, never the code: do not change or remove a test because the code fails it/);
+  assert.doesNotMatch(p, /Do not delete a test|Do not remove an assertion/i, 'the tester is free to remove what the change does not need');
   assert.match(p, /Do not add a skip or an expected-failure mark/);
-  assert.match(p, /The agent that writes the code next reads your report/);
+  assert.match(p, /The agent that writes the code next, and the user, read your report/);
   assert.deepStrictEqual(result.counts, { committed: 1 });
   assert.equal(result.testCorrections.length, 1);
   assert.deepStrictEqual(result.testCorrections[0].corrected.map((x) => x.test), ['test/1.test.js::title', 'test/1.test.js::spaces']);
@@ -430,14 +433,47 @@ test('each corrected test is recorded with the minor decisions of the card; a te
   assert.ok(!declared.some((d) => /::quotes/.test(d.what)));
 });
 
-test('a correction that removes a test or an assertion does not hold: the card is parked with the reason', async () => {
-  const r = correcting({ kept: { ok: true, kept: false, problems: ['test/1.test.js has 2 assertions, and had 3'] } });
+test('the tester removes a test the change does not need: the card goes on, and the user is shown what went away', async () => {
+  const fixed = {
+    changed: true,
+    tests: [
+      { test: 'test/1.test.js::title', verdict: 'corrected', was: 'a reordered title', now: 'a substring of the title', planReference: 'PLAN-f.md:322' },
+      { test: 'test/1.test.js::quotes', verdict: 'removed', was: 'the quotes are dropped', planReference: 'PLAN-f.md:323', why: 'the plan does not ask for it' },
+    ],
+    summary: 'One test corrected, one removed.',
+  };
+  const r = correcting({ fixed, kept: { ok: true, kept: false, problems: ['test/1.test.js has 1 tests, and had 2', 'test/1.test.js has 2 assertions, and had 3'] } });
   const { result } = await run(baseArgs([card('1')]), r);
-  assert.ok(!r.labels().includes('1:attempt-2'), 'no round is built on a weaker test');
-  assert.equal(result.cards[0].status, 'parked');
-  assert.match(result.cards[0].reason, /the correction made the tests weaker: test\/1\.test\.js has 2 assertions, and had 3/);
-  assert.deepStrictEqual(result.testCorrections, []);
-  assert.doesNotMatch(result.summary, /TESTS CORRECTED/);
+  assert.ok(r.labels().includes('1:attempt-2'), 'fewer tests is not a reason to stop');
+  assert.deepStrictEqual(result.counts, { committed: 1 });
+  assert.match(result.summary, /TESTS CORRECTED BY THE RUN: card 1 \(test\/1\.test\.js::title, plan: PLAN-f\.md:322; removed test\/1\.test\.js::quotes, plan: PLAN-f\.md:323; counted: test\/1\.test\.js has 1 tests, and had 2, test\/1\.test\.js has 2 assertions, and had 3\)/);
+  const declared = JSON.parse(/<<<CONTENT\n([\s\S]*?)\nCONTENT>>>/.exec(r.prompt('1:decisions'))[1]);
+  assert.match(declared[1].what, /^the tester removed the test test\/1\.test\.js::quotes \(PLAN-f\.md:323\): it asserted the quotes are dropped$/);
+  assert.equal(declared[1].why, 'the plan does not ask for it');
+  assert.match(r.prompt('1:attempt-2'), /"verdict": "removed"/);
+});
+
+test('the count that cannot run does not stop the card: the pass of the tester stands', async () => {
+  const r = responder({
+    on: (call, who, role) => {
+      if (who !== '1') return undefined;
+      if (role === 'attempt-1') return { green: false, filesChanged: ['src/1/x.js'], failureOutput: 'x', summary: 'red' };
+      if (role === 'diagnose-1') return WRONG;
+      if (role === 'tests-before') return steps({ ok: true, files: 1 });
+      if (role === 'correct-tests') return FIXED;
+      if (role === 'tests-kept') return steps({ ok: false, reason: 'no snapshot' });
+      return undefined;
+    },
+  });
+  const { result } = await run(baseArgs([card('1')]), r);
+  assert.deepStrictEqual(result.counts, { committed: 1 });
+  assert.deepStrictEqual(result.testCorrections[0].counted, []);
+});
+
+test('the test writer writes the tests the section names, and no others', async () => {
+  const r = responder();
+  await run(baseArgs([card('1')]), r);
+  assert.match(r.prompt('1:write-tests'), /the tests it names, and no others/);
 });
 
 test('no line of the plan, no correction: the card is parked as before', async () => {
@@ -501,7 +537,7 @@ test('test-guard: the counts of the common runners', () => {
   assert.equal(guard.count(`it.${'sk'}${'ip'}('a', () => {});\n`).skips, 1);
 });
 
-test('test-guard: a correction that keeps every test and assertion is kept; fewer of either, a new skip or a deleted file is not', () => {
+test('test-guard: the counts before and after say what went away: a test, an assertion, a file, or a new skip mark', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'uw-guard-'));
   const file = path.join(dir, 't', 'a.test.js');
   fs.mkdirSync(path.dirname(file), { recursive: true });

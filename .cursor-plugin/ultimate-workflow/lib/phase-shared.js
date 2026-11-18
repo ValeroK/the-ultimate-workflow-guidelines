@@ -162,13 +162,13 @@ const CORRECTED = {
     changed: { type: 'boolean', description: 'True only if you edited a test' },
     tests: {
       type: 'array',
-      description: 'One entry for each test you were sent, and one for each other test you changed',
+      description: 'One entry for each test you were sent, and one for each other test you changed or removed',
       items: {
         type: 'object',
         required: ['test', 'verdict'],
         properties: {
           test: { type: 'string', description: 'file::name' },
-          verdict: { type: 'string', enum: ['corrected', 'agrees with the plan'], description: 'corrected: you changed it. agrees with the plan: it was right, and you left it' },
+          verdict: { type: 'string', enum: ['corrected', 'removed', 'agrees with the plan'], description: 'corrected: you changed it. removed: the change does not need it, and you deleted it. agrees with the plan: it was right, and you left it' },
           was: { type: 'string', description: 'What it asserted' },
           now: { type: 'string', description: 'What it asserts now' },
           planReference: { type: 'string', description: 'The plan file and line that settles it' },
@@ -200,7 +200,7 @@ async function buildLoop(o) {
   const tests = o.resume ? { filesWritten: o.resume.testFiles, testsFailAsExpected: true, testCommand: o.command } : await agent(
     `${o.locate} ${EXPERT_NOTE}${o.brief}
 
-Write the tests from ${testsWhere}. Only the tests. Do not write the implementation yet. ${o.testsCommitRule || TESTS_COMMIT_RULE}
+Write the tests from ${testsWhere}: the tests it names, and no others. Only the tests. Do not write the implementation yet. ${o.testsCommitRule || TESTS_COMMIT_RULE}
 
 Then RUN them and confirm they FAIL.
 
@@ -332,12 +332,13 @@ If the TEST looks wrong rather than the code, say so: that is a legitimate outco
     // 5.2.0: in three runs, one hold in four was "the test is wrong, the code is right", and each time the user
     // resumed and the tests were changed to agree with the plan. The run now does that itself, one time for a build:
     // the diagnosis names every wrong test of the change, all of them go back to the tester in one pass, the tester
-    // verifies each against the plan and corrects what needs it, code checks that no test and no assertion went away
-    // and no skip mark came (lib/test-guard.js), and the next code round gets the full account of what changed.
+    // verifies each against the plan and corrects or removes what needs it, so that the files hold only the tests the
+    // change needs, and the next code round gets the full account of what changed. Code counts the tests and the
+    // assertions before and after (lib/test-guard.js) for the user to see; the counts stop nothing.
     const named = next && next.testMayBeWrong ? (Array.isArray(next.wrongTests) ? next.wrongTests : []).filter((w) => w && w.test) : []
     const settled = named.filter((w) => String(w.planReference || '').trim())
     if (settled.length > 0 && o.correctTests && !correction && (tests.filesWritten || []).length > 0) {
-      correction = { round, named, tests: [], kept: false }
+      correction = { round, named, tests: [] }
       const snapped = await o.correctTests.snapshot(tests.filesWritten)
       const fixed = snapped
         ? await agent(
@@ -348,31 +349,29 @@ ${JSON.stringify({ cause: next.cause, wrongTests: named }, null, 2)}
 
 The test files of this change: ${JSON.stringify(tests.filesWritten)}
 
-Verify every named test against the plan, all in this one pass. The plan is what the user confirmed, so it decides. A test that does not agree with the plan: correct it so that it asserts what the plan says. A test that agrees with the plan: leave it, and say so; the code is then what is wrong there. While you are in these files, verify their other tests in the same way and correct any that has the same fault, so that the code is written one time against tests that are right.
+Verify every named test against the plan, all in this one pass. The plan is what the user confirmed, so it decides. A test that does not agree with the plan: correct it so that it asserts what the plan says. A test the change does not need (the plan does not ask for what it checks, or it repeats another test): remove it. A test that agrees with the plan: leave it, and say so; the code is then what is wrong there. While you are in these files, verify their other tests in the same way, so that the code is written one time against tests that are right. The aim is that these files hold the tests this change needs, and only those.
 
-The limits, which code checks after you: do not delete a test. Do not remove an assertion, and do not make one weaker (an exact value stays an exact value). Do not add a skip or an expected-failure mark. Do not touch any file that is not a test file: the implementation is not yours. ${o.testsCommitRule || TESTS_COMMIT_RULE}
+The plan decides, never the code: do not change or remove a test because the code fails it. Do not add a skip or an expected-failure mark: a test is right, corrected or removed. Do not touch any file that is not a test file: the implementation is not yours. ${o.testsCommitRule || TESTS_COMMIT_RULE}
 
-Report one entry for each test you were sent, with its verdict, and one for each other test you changed. For each test you changed give what it asserted, what it asserts now, the line of the plan and why. The agent that writes the code next reads your report and nothing else about this, so make it complete.`,
+Report one entry for each test you were sent, with its verdict, and one for each other test you changed or removed. For each of those give what it asserted, what it asserts now (nothing, when removed), the line of the plan and why. The agent that writes the code next, and the user, read your report and nothing else about this, so make it complete.`,
             { agentType: agentName('uw-implementer'), label: label('correct-tests'), phase: ph.verify, schema: CORRECTED, ...modelOpt(o.implementerModel) }
           )
         : null
       const checked = fixed && fixed.changed === true ? await o.correctTests.check() : null
       correction.tests = (fixed && Array.isArray(fixed.tests) ? fixed.tests : []).filter((x) => x && x.test)
-      correction.corrected = correction.tests.filter((x) => x.verdict === 'corrected')
-      correction.kept = Boolean(checked && checked.kept === true)
+      correction.corrected = correction.tests.filter((x) => x.verdict === 'corrected' || x.verdict === 'removed')
+      // What code counted before and after: fewer tests, fewer assertions, a new skip mark, a file gone. It is shown
+      // to the user and stops nothing: a tester that keeps only the tests the change needs removes some.
+      correction.counted = checked && Array.isArray(checked.problems) ? checked.problems : []
       correction.outcome = !snapped
-        ? 'the tests could not be recorded before the correction, so none was made'
+        ? 'the tests could not be recorded before the pass, so none was made'
         : !fixed
           ? 'the tester returned nothing'
           : fixed.changed !== true
             ? `the tester changed nothing: ${fixed.summary}`
-            : !checked
-              ? 'the check of the corrected tests could not run'
-              : checked.kept === true
-                ? 'corrected'
-                : `the correction made the tests weaker: ${(checked.problems || []).join('; ')}`
+            : 'corrected'
       if (correction.outcome === 'corrected') {
-        history.push({ round, note: `the tester corrected ${correction.corrected.length || 'the'} test(s) to agree with the plan` })
+        history.push({ round, note: `the tester corrected or removed ${correction.corrected.length || 'some'} test(s) to agree with the plan` })
         // The full account for the code round: the diagnosis, every test the tester was sent with its verdict, and
         // every change with what it asserted, what it asserts now and the line of the plan.
         diagnosis = {
@@ -382,7 +381,7 @@ Report one entry for each test you were sent, with its verdict, and one for each
           testsWereWrong: true,
           testsChangedByTheTester: correction.tests,
           testerSummary: fixed.summary,
-          suggestedFix: 'The tests changed since your last round: the tester verified them against the plan and corrected the ones listed. Read each changed test before you touch the code. Run the tests again, and change the code only where they still fail. Do not change the tests back.',
+          suggestedFix: 'The tests changed since your last round: the tester verified them against the plan, and corrected or removed the ones listed. Read each changed test before you touch the code. Run the tests again, and change the code only where they still fail. Do not change the tests back.',
         }
         continue
       }

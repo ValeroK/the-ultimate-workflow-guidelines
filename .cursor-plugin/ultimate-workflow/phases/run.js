@@ -249,7 +249,7 @@ async function runCard(card, { adhoc = false, fullNow = false } = {}) {
     briefsLoaded: briefs.map((b) => b.name),
     skillsLoaded: skills.map((s) => s.name),
     // 5.2.0: the tests a diagnosis calls wrong, each with its line of the plan, go back to the tester in one pass.
-    // Code records the tests before and checks them after: no test and no assertion less.
+    // Code counts the tests and the assertions before and after, for the user to see: the counts stop nothing.
     ...(GUARD
       ? {
           correctTests: {
@@ -295,7 +295,7 @@ async function runCard(card, { adhoc = false, fullNow = false } = {}) {
   const declared = [
     ...((build && build.decisions) || []),
     ...(build.testCorrection && build.testCorrection.outcome === 'corrected'
-      ? (build.testCorrection.corrected.length > 0 ? build.testCorrection.corrected : [{ test: 'tests of the card', was: '', now: '' }]).map((t) => ({ what: `the tester corrected the test ${t.test} to agree with the plan${t.planReference ? ` (${t.planReference})` : ''}${t.was || t.now ? `: it asserted ${t.was}, it now asserts ${t.now}` : ''}`, why: t.why || 'the diagnosis of a failed round said the test was wrong, not the code', major: false }))
+      ? (build.testCorrection.corrected.length > 0 ? build.testCorrection.corrected : [{ test: 'tests of the card', was: '', now: '' }]).map((t) => ({ what: `the tester ${t.verdict === 'removed' ? 'removed' : 'corrected'} the test ${t.test}${t.verdict === 'removed' ? '' : ' to agree with the plan'}${t.planReference ? ` (${t.planReference})` : ''}${t.verdict === 'removed' ? (t.was ? `: it asserted ${t.was}` : '') : t.was || t.now ? `: it asserted ${t.was}, it now asserts ${t.now}` : ''}`, why: t.why || 'the diagnosis of a failed round said the test was wrong, not the code', major: false }))
       : []),
   ]
   const declaredFile = `${cardDir(card.name)}/declared-decisions.json`
@@ -631,7 +631,7 @@ const fullSuiteText = !VERIFY
       ? `Full suite: passed${lastFull.card ? ` after the card ${lastFull.card.card} corrected it` : ''}`
       : `FULL SUITE NOT GREEN: ${lastFull.reason || `${lastFull.failures.length} failing test(s)${lastFull.card ? `, and the card ${lastFull.card.card} is ${lastFull.card.status}` : ''}`}`
 // The tests the run corrected, said plainly: the user reads each one in the report.
-const correctedText = testCorrections.length > 0 ? ` TESTS CORRECTED BY THE RUN: ${testCorrections.map((c) => `card ${c.card} (${c.corrected.map((t) => `${t.test}${t.planReference ? `, plan: ${t.planReference}` : ''}`).join('; ') || 'see its decisions'})`).join('; ')}. Read them before you merge.` : ''
+const correctedText = testCorrections.length > 0 ? ` TESTS CORRECTED BY THE RUN: ${testCorrections.map((c) => `card ${c.card} (${c.corrected.map((t) => `${t.verdict === 'removed' ? 'removed ' : ''}${t.test}${t.planReference ? `, plan: ${t.planReference}` : ''}`).join('; ') || 'see its decisions'}${(c.counted || []).length > 0 ? `; counted: ${c.counted.join(', ')}` : ''})`).join('; ')}. Read them before you merge.` : ''
 const counts = report.reduce((n, r) => ({ ...n, [r.status]: (n[r.status] || 0) + 1 }), {})
 // Whether the branch was reviewed by the experts, said plainly: the report, the notice and the summary use these words.
 // A run that waited, stopped or could not review never reads as ready to merge.

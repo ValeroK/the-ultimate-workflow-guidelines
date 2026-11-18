@@ -53,7 +53,7 @@ Call it once. The exception: the run failed before any agent started (0 agents, 
 
 ## 4. When it returns: one command
 
-**Tests the run corrected.** When the result's summary has `TESTS CORRECTED BY THE RUN`, say it to the user in the first lines of your report, with each test and the line of the plan: a diagnosis called tests of that card wrong, they all went back to the tester in one pass, and code checked only that no test and no assertion went away. The user reads those tests before the merge.
+**Tests the run corrected.** When the result's summary has `TESTS CORRECTED BY THE RUN`, say it to the user in the first lines of your report, with each test, whether it was corrected or removed, the line of the plan, and what code counted (fewer tests or assertions): a diagnosis called tests of that card wrong, and they all went back to the tester in one pass. The user reads those tests before the merge.
 
 **Never present the result from the completion notice**: it is cut off when the result is large. Run, as one command, with the output file the notice names and the run id the Workflow call returned:
 

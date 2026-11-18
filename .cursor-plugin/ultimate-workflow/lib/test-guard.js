@@ -1,18 +1,18 @@
 'use strict';
 
-// The guard on a test that the unattended run corrects (5.2.0).
+// The count of the tests that the unattended run sends back to the tester (5.2.0).
 //
-// When the diagnosis of a failed round says that the test is wrong, not the code, and names the line of the plan
-// the test disagrees with, the run lets the test writer correct that test one time. A test is the proof of the
-// card, so the correction is held to a rule that code checks: no test file goes away, no file has fewer tests or
-// fewer assertions than before, and none has more skip or expected-failure marks.
+// When the diagnosis of a failed round says that tests are wrong, not the code, they all go back to the tester in one
+// pass. The tester corrects or removes what the plan does not support, so that the files hold only the tests the
+// change needs. This file counts the tests, the assertions and the skip marks of each test file before and after,
+// so the user is shown what went away. It stops nothing: fewer tests can be the right result.
 //
 //   node test-guard.js snapshot <snapshot.json> <test file>...   the counts now, written to the snapshot
 //   node test-guard.js check <snapshot.json>                     the counts now against the snapshot
 //
 // Each prints one JSON line. The counts are patterns over the text of the file, for the common runners (node:test,
-// jest, vitest, mocha, pytest, unittest, go, cargo, rspec). They do not understand the code: a correction that keeps
-// the count and weakens an assertion passes here, which is why the report lists every corrected test for the user.
+// jest, vitest, mocha, pytest, unittest, go, cargo, rspec). They do not understand the code, which is why the report
+// lists every corrected and removed test for the user.
 
 const fs = require('node:fs');
 const path = require('node:path');

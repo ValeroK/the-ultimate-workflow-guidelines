@@ -136,20 +136,47 @@ const DIAGNOSIS = {
     signature: { type: 'string', description: 'Short stable identifier for this failure, to detect no progress' },
     suggestedFix: { type: 'string' },
     testMayBeWrong: { type: 'boolean', description: 'True if the test, not the code, looks incorrect' },
-    planReference: { type: 'string', description: 'When the test looks incorrect: the plan file and line, with the words of the plan, that the test does not agree with. Empty when the plan does not settle it' },
-    wrongTests: { type: 'array', items: { type: 'string' }, description: 'When the test looks incorrect: the tests that are wrong, as file::name' },
+    wrongTests: {
+      type: 'array',
+      description: 'When the test looks incorrect: EVERY test of this change that does not agree with the plan, not only the one that failed',
+      items: {
+        type: 'object',
+        required: ['test', 'why'],
+        properties: {
+          test: { type: 'string', description: 'file::name' },
+          why: { type: 'string', description: 'What it asserts, and what the plan says' },
+          planReference: { type: 'string', description: 'The plan file and line, with the words of the plan, that the test does not agree with. Empty when the plan does not settle it' },
+        },
+      },
+    },
     confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
   },
 }
 
-// 5.2.0: what the test writer reports when the run lets it correct a test the diagnosis called wrong.
+// 5.2.0: what the tester reports when the run sends it the tests a diagnosis called wrong: a verdict for each one
+// named, and every test it changed, named or not.
 const CORRECTED = {
   type: 'object',
-  required: ['changed', 'summary'],
+  required: ['changed', 'tests', 'summary'],
   properties: {
-    changed: { type: 'boolean', description: 'True only if you edited a test. False when the test agrees with the plan and you changed nothing' },
-    tests: { type: 'array', items: { type: 'object', required: ['test', 'was', 'now'], properties: { test: { type: 'string', description: 'file::name' }, was: { type: 'string', description: 'What it asserted' }, now: { type: 'string', description: 'What it asserts now' } } } },
-    summary: { type: 'string' },
+    changed: { type: 'boolean', description: 'True only if you edited a test' },
+    tests: {
+      type: 'array',
+      description: 'One entry for each test you were sent, and one for each other test you changed',
+      items: {
+        type: 'object',
+        required: ['test', 'verdict'],
+        properties: {
+          test: { type: 'string', description: 'file::name' },
+          verdict: { type: 'string', enum: ['corrected', 'agrees with the plan'], description: 'corrected: you changed it. agrees with the plan: it was right, and you left it' },
+          was: { type: 'string', description: 'What it asserted' },
+          now: { type: 'string', description: 'What it asserts now' },
+          planReference: { type: 'string', description: 'The plan file and line that settles it' },
+          why: { type: 'string' },
+        },
+      },
+    },
+    summary: { type: 'string', description: 'What changed in the tests, for the agent that writes the code next' },
   },
 }
 
@@ -290,9 +317,12 @@ ${attempt.failureOutput || (attempt.green ? 'The round reported green but no pas
 WHAT WAS CHANGED
 ${JSON.stringify(attempt.filesChanged, null, 2)}
 
+THE TESTS OF THIS CHANGE
+${JSON.stringify(tests.filesWritten || [], null, 2)}
+
 Read the relevant code and tests. Say what is actually wrong -- not what might be. Give the failure a short stable signature so a repeat can be recognised as no progress.
 
-If the TEST looks wrong rather than the code, say so: that is a legitimate outcome. Then name the tests in wrongTests and give planReference: the plan file and line, with the words of the plan, that the test does not agree with. Leave planReference empty when the plan does not settle which of the two is right.`,
+If the TEST looks wrong rather than the code, say so: that is a legitimate outcome. Then do not stop at the test that failed: read every test in the test files of this change against the plan, and name in wrongTests every one that does not agree with it, each with what it asserts, what the plan says, and planReference (the plan file and line, with the words of the plan). One wrong test often has others like it, and they all go back to the tester in one pass. Leave planReference empty for a test where the plan does not settle which of the two is right.`,
       { agentType: agentName('uw-reviewer'), label: label(`diagnose-${round}`), phase: ph.verify, schema: DIAGNOSIS, ...modelOpt(o.diagnoserModel) }
     )
 
@@ -300,45 +330,60 @@ If the TEST looks wrong rather than the code, say so: that is a legitimate outco
     diagnosis = next
 
     // 5.2.0: in three runs, one hold in four was "the test is wrong, the code is right", and each time the user
-    // resumed and the test was changed to agree with the plan. The run now does that itself, one time, when the
-    // diagnosis names the line of the plan: the test writer (never the round that failed) corrects the test, and
-    // code checks that no test, no assertion went away and no skip mark came (lib/test-guard.js).
-    const planReference = next && next.testMayBeWrong ? String(next.planReference || '').trim() : ''
-    if (planReference && o.correctTests && !correction && (tests.filesWritten || []).length > 0) {
-      correction = { round, planReference, tests: [], kept: false }
+    // resumed and the tests were changed to agree with the plan. The run now does that itself, one time for a build:
+    // the diagnosis names every wrong test of the change, all of them go back to the tester in one pass, the tester
+    // verifies each against the plan and corrects what needs it, code checks that no test and no assertion went away
+    // and no skip mark came (lib/test-guard.js), and the next code round gets the full account of what changed.
+    const named = next && next.testMayBeWrong ? (Array.isArray(next.wrongTests) ? next.wrongTests : []).filter((w) => w && w.test) : []
+    const settled = named.filter((w) => String(w.planReference || '').trim())
+    if (settled.length > 0 && o.correctTests && !correction && (tests.filesWritten || []).length > 0) {
+      correction = { round, named, tests: [], kept: false }
       const snapped = await o.correctTests.snapshot(tests.filesWritten)
       const fixed = snapped
         ? await agent(
             `${o.locate}
 
-A build round failed, and a fresh reader says that a test is wrong, not the code:
-${JSON.stringify({ cause: next.cause, wrongTests: next.wrongTests || [], planReference }, null, 2)}
+You are the tester of this change: its tests are yours. A build round failed, and a fresh reader says that tests are wrong, not the code. These are all the tests it named, with what the plan says for each:
+${JSON.stringify({ cause: next.cause, wrongTests: named }, null, 2)}
 
-Read that part of the plan and the tests named. The plan is what the user confirmed, so it decides. If a named test does not agree with the plan, correct that test so that it asserts what the plan says. If it agrees with the plan, change nothing and report changed false: the code is then what is wrong.
+The test files of this change: ${JSON.stringify(tests.filesWritten)}
 
-The limits, which code checks after you: change only the tests named. Do not delete a test. Do not remove an assertion, and do not make one weaker (an exact value stays an exact value). Do not add a skip or an expected-failure mark. Do not touch any file that is not a test file: the implementation is not yours. ${o.testsCommitRule || TESTS_COMMIT_RULE}
+Verify every named test against the plan, all in this one pass. The plan is what the user confirmed, so it decides. A test that does not agree with the plan: correct it so that it asserts what the plan says. A test that agrees with the plan: leave it, and say so; the code is then what is wrong there. While you are in these files, verify their other tests in the same way and correct any that has the same fault, so that the code is written one time against tests that are right.
 
-For each test you changed, report what it asserted and what it asserts now.`,
+The limits, which code checks after you: do not delete a test. Do not remove an assertion, and do not make one weaker (an exact value stays an exact value). Do not add a skip or an expected-failure mark. Do not touch any file that is not a test file: the implementation is not yours. ${o.testsCommitRule || TESTS_COMMIT_RULE}
+
+Report one entry for each test you were sent, with its verdict, and one for each other test you changed. For each test you changed give what it asserted, what it asserts now, the line of the plan and why. The agent that writes the code next reads your report and nothing else about this, so make it complete.`,
             { agentType: agentName('uw-implementer'), label: label('correct-tests'), phase: ph.verify, schema: CORRECTED, ...modelOpt(o.implementerModel) }
           )
         : null
       const checked = fixed && fixed.changed === true ? await o.correctTests.check() : null
-      correction.tests = (fixed && fixed.tests) || []
+      correction.tests = (fixed && Array.isArray(fixed.tests) ? fixed.tests : []).filter((x) => x && x.test)
+      correction.corrected = correction.tests.filter((x) => x.verdict === 'corrected')
       correction.kept = Boolean(checked && checked.kept === true)
       correction.outcome = !snapped
         ? 'the tests could not be recorded before the correction, so none was made'
         : !fixed
-          ? 'the test writer returned nothing'
+          ? 'the tester returned nothing'
           : fixed.changed !== true
-            ? `the test writer changed nothing: ${fixed.summary}`
+            ? `the tester changed nothing: ${fixed.summary}`
             : !checked
               ? 'the check of the corrected tests could not run'
               : checked.kept === true
                 ? 'corrected'
                 : `the correction made the tests weaker: ${(checked.problems || []).join('; ')}`
       if (correction.outcome === 'corrected') {
-        history.push({ round, note: `a test was corrected to agree with the plan (${planReference})` })
-        diagnosis = { ...next, testMayBeWrong: false, suggestedFix: `The test was corrected to agree with the plan: ${fixed.summary} Run the tests again, and change the code only where they still fail.` }
+        history.push({ round, note: `the tester corrected ${correction.corrected.length || 'the'} test(s) to agree with the plan` })
+        // The full account for the code round: the diagnosis, every test the tester was sent with its verdict, and
+        // every change with what it asserted, what it asserts now and the line of the plan.
+        diagnosis = {
+          cause: next.cause,
+          signature: next.signature,
+          confidence: next.confidence,
+          testsWereWrong: true,
+          testsChangedByTheTester: correction.tests,
+          testerSummary: fixed.summary,
+          suggestedFix: 'The tests changed since your last round: the tester verified them against the plan and corrected the ones listed. Read each changed test before you touch the code. Run the tests again, and change the code only where they still fail. Do not change the tests back.',
+        }
         continue
       }
     }
@@ -349,11 +394,11 @@ For each test you changed, report what it asserted and what it asserts now.`,
         ok: false,
         green: false,
         stoppedAt: `round ${round}`,
-        reason: correction ? `The diagnosis says the test may be wrong, not the code, and the one correction the run may make did not hold (${correction.outcome}). That needs a decision, not another attempt.` : 'The diagnosis says the test may be wrong, not the code. That needs a decision, not another attempt.',
+        reason: correction ? `The diagnosis says tests may be wrong, not the code, and the one pass of the tester did not hold (${correction.outcome}). That needs a decision, not another attempt.` : 'The diagnosis says the test may be wrong, not the code. That needs a decision, not another attempt.',
         diagnosis: next,
         history,
         testFiles: tests.filesWritten,
-        escalation: `${correction ? `The run tried its one correction of the test, and it did not hold: ${correction.outcome}.\n\n` : ''}${escalationText(round, next, history)}`,
+        escalation: `${correction ? `The run sent the tests back to the tester one time, and that did not hold: ${correction.outcome}.\n\n` : ''}${escalationText(round, next, history)}`,
       }
     }
 

@@ -340,8 +340,26 @@ test('the record decides when the agent and the record disagree', async () => {
 // In three runs, one hold in four was "the test is wrong, the code is right", and each time the user resumed and the
 // test was changed to agree with the plan. The run does that itself when the diagnosis names the line of the plan.
 
-const WRONG = { cause: 'the test expects a reordered title', signature: 'sig-title', suggestedFix: 'fix the test', confidence: 'high', testMayBeWrong: true, planReference: 'PLAN-f.md:322 "a normalised substring of the stored title"', wrongTests: ['test/1.test.js::title'] };
-const FIXED = { changed: true, tests: [{ test: 'test/1.test.js::title', was: 'a reordered title', now: 'a substring of the title' }], summary: 'The title test now uses a substring.' };
+const WRONG = {
+  cause: 'the tests expect a reordered title',
+  signature: 'sig-title',
+  suggestedFix: 'fix the tests',
+  confidence: 'high',
+  testMayBeWrong: true,
+  wrongTests: [
+    { test: 'test/1.test.js::title', why: 'asserts a reordered title; the plan says a substring', planReference: 'PLAN-f.md:322 "a normalised substring of the stored title"' },
+    { test: 'test/1.test.js::quotes', why: 'drops the quotes; the plan keeps them', planReference: 'PLAN-f.md:323 "double quotes are kept"' },
+  ],
+};
+const FIXED = {
+  changed: true,
+  tests: [
+    { test: 'test/1.test.js::title', verdict: 'corrected', was: 'a reordered title', now: 'a substring of the title', planReference: 'PLAN-f.md:322', why: 'the plan says substring' },
+    { test: 'test/1.test.js::quotes', verdict: 'agrees with the plan' },
+    { test: 'test/1.test.js::spaces', verdict: 'corrected', was: 'one space', now: 'two spaces', planReference: 'PLAN-f.md:324', why: 'the same fault, not named' },
+  ],
+  summary: 'Two tests now follow the plan; the quotes test was right.',
+};
 /** Card 1 fails round 1 and passes round 2. `diagnosis` answers diagnose-1; `fixed` is the test writer's answer; `kept` the guard's. */
 const correcting = ({ diagnosis = WRONG, fixed = FIXED, kept = { ok: true, kept: true, problems: [] }, snapshot = { ok: true, files: 1 } } = {}) =>
   responder({
@@ -356,33 +374,60 @@ const correcting = ({ diagnosis = WRONG, fixed = FIXED, kept = { ok: true, kept:
     },
   });
 
-test('a wrong test with a line of the plan: the test writer corrects it one time, code checks it, and the card goes on', async () => {
+test('wrong tests: the diagnosis names every one, all go back to the tester in one pass, code checks them, and the card goes on', async () => {
   const r = correcting();
   const { result } = await run(baseArgs([card('1')]), r);
   const labels = r.labels().filter((l) => /^1:/.test(l));
   assert.deepStrictEqual(labels.slice(2, 8), ['1:attempt-1', '1:diagnose-1', '1:tests-before', '1:correct-tests', '1:tests-kept', '1:attempt-2'], labels.join(' '));
+  assert.equal(labels.filter((l) => l === '1:correct-tests').length, 1, 'one pass for all the tests');
   assert.match(r.prompt('1:tests-before'), /node "\/p\/lib\/test-guard\.js" snapshot "\.ultimate-workflow\/run\/f\/cards\/1\/tests-before\.json" "test\/1\.test\.js"/);
   assert.match(r.prompt('1:tests-kept'), /test-guard\.js" check /);
   const p = r.prompt('1:correct-tests');
-  assert.match(p, /PLAN-f\.md:322/);
-  assert.match(p, /The plan is what the user confirmed, so it decides/);
-  assert.match(p, /Do not delete a test\. Do not remove an assertion/);
+  assert.match(p, /You are the tester of this change/);
+  for (const named of ['test/1.test.js::title', 'test/1.test.js::quotes', 'PLAN-f.md:322', 'PLAN-f.md:323']) assert.ok(p.includes(named), named);
+  assert.match(p, /Verify every named test against the plan, all in this one pass/);
+  assert.match(p, /verify their other tests in the same way/);
+  assert.match(p, /A test that agrees with the plan: leave it, and say so/);
+  assert.match(p, /do not delete a test\. Do not remove an assertion/);
   assert.match(p, /Do not add a skip or an expected-failure mark/);
-  assert.match(p, /If it agrees with the plan, change nothing/);
-  assert.match(r.prompt('1:attempt-2'), /The test was corrected to agree with the plan/);
+  assert.match(p, /The agent that writes the code next reads your report/);
   assert.deepStrictEqual(result.counts, { committed: 1 });
   assert.equal(result.testCorrections.length, 1);
-  assert.equal(result.testCorrections[0].card, '1');
-  assert.match(result.summary, /TESTS CORRECTED BY THE RUN: card 1 \(test\/1\.test\.js::title; plan: PLAN-f\.md:322[^)]*\)\. Read them before you merge\./);
+  assert.deepStrictEqual(result.testCorrections[0].corrected.map((x) => x.test), ['test/1.test.js::title', 'test/1.test.js::spaces']);
+  assert.match(result.summary, /TESTS CORRECTED BY THE RUN: card 1 \(test\/1\.test\.js::title, plan: PLAN-f\.md:322; test\/1\.test\.js::spaces, plan: PLAN-f\.md:324\)\. Read them before you merge\./);
 });
 
-test('the corrected test is recorded with the minor decisions of the card', async () => {
+test('the diagnoser is told to read every test of the change when one looks wrong, and to name them all', async () => {
+  const r = correcting();
+  await run(baseArgs([card('1')]), r);
+  const p = r.prompt('1:diagnose-1');
+  assert.match(p, /THE TESTS OF THIS CHANGE\n\[\n  "test\/1\.test\.js"\n\]/);
+  assert.match(p, /do not stop at the test that failed: read every test in the test files of this change against the plan/);
+  assert.match(p, /they all go back to the tester in one pass/);
+});
+
+test('the code round after the tester gets the full account: each test sent, its verdict, and each change', async () => {
+  const r = correcting();
+  await run(baseArgs([card('1')]), r);
+  const p = r.prompt('1:attempt-2');
+  assert.match(p, /"testsWereWrong": true/);
+  const account = JSON.parse(/diagnosed it:\n(\{[\s\S]*?\n\})\n\nUse that diagnosis/.exec(p)[1]);
+  assert.deepStrictEqual(account.testsChangedByTheTester, FIXED.tests, 'every entry of the tester, the one it left also');
+  assert.equal(account.testerSummary, FIXED.summary);
+  assert.equal(account.cause, WRONG.cause);
+  assert.match(account.suggestedFix, /Read each changed test before you touch the code/);
+  assert.match(account.suggestedFix, /Do not change the tests back/);
+});
+
+test('each corrected test is recorded with the minor decisions of the card; a test the tester left is not', async () => {
   const r = correcting();
   await run(baseArgs([card('1')]), r);
   const declared = JSON.parse(/<<<CONTENT\n([\s\S]*?)\nCONTENT>>>/.exec(r.prompt('1:decisions'))[1]);
-  assert.equal(declared.length, 1);
-  assert.equal(declared[0].major, false);
-  assert.match(declared[0].what, /the run corrected the test test\/1\.test\.js::title to agree with the plan \(PLAN-f\.md:322.*it asserted a reordered title, it now asserts a substring of the title/);
+  assert.equal(declared.length, 2);
+  assert.ok(declared.every((d) => d.major === false));
+  assert.match(declared[0].what, /the tester corrected the test test\/1\.test\.js::title to agree with the plan \(PLAN-f\.md:322\): it asserted a reordered title, it now asserts a substring of the title/);
+  assert.match(declared[1].what, /test\/1\.test\.js::spaces/);
+  assert.ok(!declared.some((d) => /::quotes/.test(d.what)));
 });
 
 test('a correction that removes a test or an assertion does not hold: the card is parked with the reason', async () => {
@@ -396,15 +441,15 @@ test('a correction that removes a test or an assertion does not hold: the card i
 });
 
 test('no line of the plan, no correction: the card is parked as before', async () => {
-  const r = correcting({ diagnosis: { ...WRONG, planReference: '' } });
+  const r = correcting({ diagnosis: { ...WRONG, wrongTests: WRONG.wrongTests.map((w) => ({ ...w, planReference: '' })) } });
   const { result } = await run(baseArgs([card('1')]), r);
   assert.ok(!r.labels().includes('1:correct-tests'));
   assert.equal(result.cards[0].status, 'parked');
-  assert.match(result.cards[0].reason, /the test expects a reordered title/);
+  assert.match(result.cards[0].reason, /the tests expect a reordered title/);
 });
 
 test('the test writer that finds the test agrees with the plan changes nothing, and the card is parked', async () => {
-  const r = correcting({ fixed: { changed: false, summary: 'the test agrees with the plan' } });
+  const r = correcting({ fixed: { changed: false, tests: WRONG.wrongTests.map((w) => ({ test: w.test, verdict: 'agrees with the plan' })), summary: 'the tests agree with the plan' } });
   const { result } = await run(baseArgs([card('1')]), r);
   assert.ok(!r.labels().includes('1:tests-kept'), 'nothing changed, nothing to check');
   assert.ok(!r.labels().includes('1:attempt-2'));

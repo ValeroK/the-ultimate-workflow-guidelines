@@ -1059,7 +1059,28 @@ function pluginIsAnotherCheckout(cwd, pluginRoot) {
   return Boolean(mine && theirs && mine.common === theirs.common && mine.top !== theirs.top);
 }
 
-function runStart(cwd, { plan, feature, resume = null, implementerModel = '', diagnoserModel = '' }) {
+/** The mark of the run that is active in this checkout: run-start writes it, run-finish removes it. */
+const activeFile = (cwd) => path.join(cwd, '.ultimate-workflow', 'run', 'active.json');
+
+/**
+ * 5.1.1: one run at a time in a checkout. A second run-start made its branch from the first run's branch and
+ * checked it out while the first run's agents worked, so their commits went to the wrong branch. The run that
+ * is active is the one whose mark is here and whose branch is still checked out; a mark with another branch
+ * checked out is a run that is over, and is ignored.
+ */
+function otherRun(cwd, feature) {
+  let mark;
+  try {
+    mark = JSON.parse(fs.readFileSync(activeFile(cwd), 'utf8'));
+  } catch {
+    return null;
+  }
+  if (!mark || typeof mark.feature !== 'string' || mark.feature === feature) return null;
+  const current = git(cwd, ['rev-parse', '--abbrev-ref', 'HEAD'], { allowFail: true }).stdout.trim();
+  return current === `uw/run/${mark.feature}` ? mark : null;
+}
+
+function runStart(cwd, { plan, feature, resume = null, implementerModel = '', diagnoserModel = '', takeOver = false }) {
   if (!plan) throw new Error('run-start needs --plan');
   checkFeature(feature);
   // The user's two confirmations gate the Workflow call: nothing is branched, built or written
@@ -1067,6 +1088,8 @@ function runStart(cwd, { plan, feature, resume = null, implementerModel = '', di
   const confirmation = require('./experts.js').checkConfirmed(fs.readFileSync(path.resolve(cwd, plan), 'utf8'));
   if (!confirmation.ok) return { ok: false, needs: 'confirmation', missing: confirmation.missing, reason: confirmation.reason };
   if (pluginIsAnotherCheckout(cwd, path.resolve(__dirname, '..'))) return { ok: false, reason: 'the plugin that is running is another checkout of this repository, and the run builds in this one: an agent could edit the plugin\'s own files. Run it from the checkout the plugin was installed from.' };
+  const other = takeOver ? null : otherRun(cwd, feature);
+  if (other) return { ok: false, needs: 'other-run', other: other.feature, started: other.started, reason: `the run of "${other.feature}" (started ${other.started}) is not finished in this folder, and two runs at the same time in one folder are not supported: the second one moves the branch under the first. Wait until it ends. If it stopped and will not continue, ask the user, then run this command again with --take-over` };
   let branch;
   const name = `uw/run/${feature}`;
   if (resume && git(cwd, ['rev-parse', '--abbrev-ref', 'HEAD']).stdout.trim() !== name) {
@@ -1168,6 +1191,7 @@ function runStart(cwd, { plan, feature, resume = null, implementerModel = '', di
   fs.mkdirSync(runDir(cwd, feature), { recursive: true });
   fs.writeFileSync(path.join(runDir(cwd, feature), 'memory-warnings.json'), `${JSON.stringify(warnings)}
 `);
+  fs.writeFileSync(activeFile(cwd), `${JSON.stringify({ feature, plan: fwd(plan), started: new Date().toISOString() })}\n`);
   const s = require('./experts.js').stageScript(pluginRoot, cwd, 'run', { argsFile });
   const embedded = JSON.parse(/^const EMBEDDED_ARGS = (.*)$/m.exec(fs.readFileSync(s.scriptPath, 'utf8'))[1]);
   const failed = embedded.cards.filter((c) => c.preflight && c.preflight.ok === false).map((c) => ({ card: c.name, reason: c.preflight.reason }));
@@ -1187,6 +1211,11 @@ function runFinish(cwd, { output, runId = '', plan = '' }) {
   fs.writeFileSync(saved, raw);
   const ledger = require('./ledger.js');
   const result = ledger.unwrapResult(raw);
+  // The run is over, however it ended: its mark goes, so the next run can start (5.1.1).
+  try {
+    const mark = JSON.parse(fs.readFileSync(activeFile(cwd), 'utf8'));
+    if (!result.feature || mark.feature === result.feature) fs.rmSync(activeFile(cwd), { force: true });
+  } catch {}
   let wrapper = {};
   try {
     wrapper = JSON.parse(raw);
@@ -1234,7 +1263,7 @@ function cli(argv, cwd, out, fail) {
   if (sub === 'journal') action = rest.shift();
   for (let i = 0; i < rest.length; i++) {
     const a = rest[i];
-    if (a === '--resume' || a === '--adhoc' || a === '--accept' || a === '--needs-decision' || a === '--record' || a === '--review' || a === '--harvest') {
+    if (a === '--resume' || a === '--adhoc' || a === '--accept' || a === '--take-over' || a === '--needs-decision' || a === '--record' || a === '--review' || a === '--harvest') {
       o[a.slice(2)] = true;
       continue;
     }
@@ -1275,7 +1304,7 @@ function cli(argv, cwd, out, fail) {
       let resume = null;
       if (o['resume-card']) resume = { card: o['resume-card'], reason: o['resume-reason'] || 'resumed by the user', accept: Boolean(o.accept) };
       else if (o.resume) resume = { all: true };
-      return runStart(cwd, { plan: o.plan, feature: o.feature, resume, implementerModel: o['implementer-model'] || '', diagnoserModel: o['diagnoser-model'] || '' });
+      return runStart(cwd, { plan: o.plan, feature: o.feature, resume, implementerModel: o['implementer-model'] || '', diagnoserModel: o['diagnoser-model'] || '', takeOver: Boolean(o['take-over']) });
     });
   }
   if (sub === 'run-finish') return run(() => runFinish(cwd, { output: o.output, runId: o['run-id'] || '', plan: o.plan || '' }));

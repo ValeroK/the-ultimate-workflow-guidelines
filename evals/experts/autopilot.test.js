@@ -1198,3 +1198,49 @@ test('present --confirm takes --plan as the file to confirm in place', () => {
   assert.equal(o.confirmed, true, JSON.stringify(o));
   assert.match(String(o.out), /PLAN-calc\.md$/);
 });
+
+// 5.1.1: one run at a time in a folder. A second run-start made its branch from the first run's branch and
+// checked it out under the first run's agents.
+test('run-start refuses a run of another feature while a run is not finished in the folder, and creates nothing', () => {
+  const dir = repo();
+  assert.equal(json(cli(dir, 'run-start', '--plan', 'PLAN-calc.md', '--feature', 'calc')).ok, true);
+  const mark = JSON.parse(read(dir, '.ultimate-workflow/run/active.json'));
+  assert.equal(mark.feature, 'calc');
+  const r = json(cli(dir, 'run-start', '--plan', 'PLAN-calc.md', '--feature', 'other'));
+  assert.equal(r.ok, false);
+  assert.equal(r.needs, 'other-run');
+  assert.equal(r.other, 'calc');
+  assert.match(r.reason, /two runs at the same time in one folder are not supported/);
+  assert.equal(git(dir, 'branch', '--list', 'uw/run/other'), '', 'no branch for the second run');
+  assert.equal(git(dir, 'rev-parse', '--abbrev-ref', 'HEAD'), 'uw/run/calc', 'the first run keeps its branch');
+  assert.equal(JSON.parse(read(dir, '.ultimate-workflow/run/active.json')).feature, 'calc');
+});
+
+test('run-start --take-over starts in spite of the other run, and the mark is then the new run', () => {
+  const dir = repo();
+  json(cli(dir, 'run-start', '--plan', 'PLAN-calc.md', '--feature', 'calc'));
+  const r = json(cli(dir, 'run-start', '--plan', 'PLAN-calc.md', '--feature', 'other', '--take-over'));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(JSON.parse(read(dir, '.ultimate-workflow/run/active.json')).feature, 'other');
+});
+
+test('run-start ignores the mark of a run whose branch is not checked out: that run is over', () => {
+  const dir = repo();
+  write(dir, '.ultimate-workflow/run/active.json', JSON.stringify({ feature: 'gone', started: '2026-11-01T00:00:00.000Z' }));
+  const r = json(cli(dir, 'run-start', '--plan', 'PLAN-calc.md', '--feature', 'calc'));
+  assert.equal(r.ok, true, JSON.stringify(r));
+});
+
+test('run-finish removes the mark of the run, so the next run can start', () => {
+  const dir = repo();
+  json(cli(dir, 'run-start', '--plan', 'PLAN-calc.md', '--feature', 'calc'));
+  write(dir, 'out/wf_done-1.output', JSON.stringify({ result: { ok: false, feature: 'calc', error: 'stopped' } }));
+  json(cli(dir, 'run-finish', '--output', 'out/wf_done-1.output'));
+  assert.equal(fs.existsSync(path.join(dir, '.ultimate-workflow/run/active.json')), false);
+});
+
+test('run.md tells the session what to do when another run is not finished', () => {
+  const md = fs.readFileSync(path.join(PLUGIN, 'phases', 'run.md'), 'utf8');
+  assert.match(md, /needs: "other-run"/);
+  assert.match(md, /--take-over/);
+});

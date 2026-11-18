@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [5.1.1] - 2026-11-16
+## [5.1.1] - 2026-11-18
 
 The unattended run tests each card with its related tests and runs the full suite one time. From the sessions of two days: 771 test runs and 524 minutes, of which 27 were full runs by the run's implementer agents on a four-minute suite (108 minutes).
 
@@ -16,6 +16,7 @@ The unattended run tests each card with its related tests and runs the full suit
 
 ### Fixed
 
+- **One run at a time in a folder.** A second `run-start` in a folder where a run was active made its branch from the first run's branch and checked it out, so the first run's agents committed to the wrong branch. `run-start` now writes a mark (`.ultimate-workflow/run/active.json`), `run-finish` removes it, and a `run-start` for another feature is refused (`needs: "other-run"`) while the mark is there and that run's branch is checked out. `--take-over` starts in spite of it, for a run that stopped and will not continue. Parallel runs in one folder are not supported.
 - **The cards are part of the plan the user confirms.** The cards were added by hand after the confirmation of the plan. In one session a plan reached the unattended run with no `## Cards` section: the run refused to start, the cards were added, and the plan needed a second confirmation. The plan phase now writes the section (name, title, `paths`, `depends`), the Full tier makes it required (`"cards": true`), and the result lists the cards it read and has a `cardsNote` when the section is missing or a card has no paths. The commands tell the session to correct that before the user sees the plan.
 - **The claims check reads a `measure:` line with a note after the number**, such as `<= 5000 (4,300 now)` or `<= 5000 bytes`. A unit (`5 KB`, `5k`) is still not understood. **A claim on a file that a card of the plan creates** is shown as not measured yet (`pending`, with the cards that write there) and does not stop the confirmation. A glob that matches no file and that no card writes to is still not understood.
 - **The tests phase writes one section for each card.** The unattended run finds a card's tests by a heading that starts with the card's name. In one session a seven-card plan got a test plan written by test file, with the card only named in the text, so every card would have parked as "missing input". `experts.js script --phase tests` now reads the cards from the plan, the drafter and the merge are told the exact headings, and the result lists `missingCardSections` when one is not there; `tests.md` says to add the headings and move the text, not to ask the user for a layout.

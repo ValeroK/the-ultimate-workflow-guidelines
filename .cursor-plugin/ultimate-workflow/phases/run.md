@@ -26,7 +26,7 @@ Raise any open question one at a time, each with the issue, what each answer cha
 
 ## 2. Set up the run: one command
 
-`node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" run-start --plan <plan file> --feature <feature>` (add `--implementer-model` / `--diagnoser-model` if the user asked, as in `build.md`; `ULTIMATE_WORKFLOW_BUILD_MODEL` also applies, and every role of the run uses them). Run it as one command and do nothing between it and the Workflow call. It:
+`node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" run-start --plan <plan file> --feature <feature>` (add `--implementer-model` / `--diagnoser-model` if the user asked, as in `build.md`; `ULTIMATE_WORKFLOW_BUILD_MODEL` also applies, and every role of the run uses them). Run it as one command and do nothing between it and the Workflow call. When it answers `needs: "other-run"`, another run is not finished in this folder: tell the user which one and stop. Two runs at the same time in one folder are not supported. Add `--take-over` only when the user says that the other run is stopped and will not continue. It:
 
 - creates `uw/run/<feature>` from the current tip and checks it out (every card is committed there; the user's own branch is never touched; it refuses a branch that already exists: use `--resume`);
 - adds `.ultimate-workflow/` to the project's `.gitignore`, so the run's own files are never committed and git-based scanners skip them. It commits that one line on the run branch only when the line was missing; a project that already ignores the folder gets no such commit. Do not commit it yourself;

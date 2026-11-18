@@ -407,6 +407,7 @@ test('the diagnoser is told to read every test of the change when one looks wron
   assert.match(p, /THE TESTS OF THIS CHANGE\n\[\n  "test\/1\.test\.js"\n\]/);
   assert.match(p, /do not stop at the test that failed: read every test in the test files of this change against the plan/);
   assert.match(p, /they all go back to the tester in one pass/);
+  assert.match(p, /THE PLAN\nPLAN-f\.md/, 'the diagnosis is told which plan the tests are read against');
 });
 
 test('the code round after the tester gets the full account: each test sent, its verdict, and each change', async () => {

@@ -233,6 +233,7 @@ async function runCard(card, { adhoc = false, fullNow = false } = {}) {
   const locate = `This is card ${card.name} (${card.title}) of the plan ${PLAN}. Read its context pack ${pre.contextFile} and every file it lists before you write anything; the run journal in it holds what earlier cards learned. Change only files under this card's paths (${(card.paths || []).join(', ')}) and the tests for it.${carriedText.length ? `\n\nCARRIED to this card, part of its work:\n${carriedText.map((c) => `- ${c}`).join('\n')}` : ''}`
   const loopOpts = {
     locate,
+    plan: PLAN,
     brief,
     verify: VERIFY,
     command: COMMAND,

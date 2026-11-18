@@ -328,6 +328,9 @@ ${JSON.stringify(attempt.filesChanged, null, 2)}
 THE TESTS OF THIS CHANGE
 ${JSON.stringify(tests.filesWritten || [], null, 2)}
 
+THE PLAN
+${o.plan || 'the active PLAN-*.md of this project, the most recently modified one'}
+
 Read the relevant code and tests. Say what is actually wrong -- not what might be. Give the failure a short stable signature so a repeat can be recognised as no progress.
 
 If the TEST looks wrong rather than the code, say so: that is a legitimate outcome. Then do not stop at the test that failed: read every test in the test files of this change against the plan, and name in wrongTests every one that does not agree with it, each with what it asserts, what the plan says, and planReference (the plan file and line, with the words of the plan). One wrong test often has others like it, and they all go back to the tester in one pass. Leave planReference empty for a test where the plan does not settle which of the two is right.`,

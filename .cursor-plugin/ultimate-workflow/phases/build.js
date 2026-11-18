@@ -78,6 +78,7 @@ if (resume) log(`Resumed at the implementation, tests not rewritten: ${resume.re
 
 return await buildLoop({
   locate,
+  plan: planFile,
   brief: BRIEF,
   verify,
   command,

@@ -292,3 +292,16 @@ test('in a repository: a change after the related run, or a related run that fai
   assert.equal(json(dir, 'verify-related.json').passed, false);
   assert.equal(needsTests(dir, { fullAtEnd: true }), true, 'the related tests fail');
 });
+
+// 5.1.1, from the journals: "tests were already in the tree, so the card was not red-first" 9 times in one run (the
+// run writes the tests in an earlier step), and lines such as "ruff is not installed" that help no later card.
+test('the journal agent is told how the run works, and not to report it or the tools of the machine', async () => {
+  const r = responder();
+  await run(baseArgs([card('1')]), r);
+  const j = { prompt: r.prompt('1:journal') };
+  assert.match(j.prompt, /How this run works/);
+  assert.match(j.prompt, /wrote the tests of the card in a step before the build/);
+  assert.match(j.prompt, /the full suite runs one time after all the cards/);
+  assert.match(j.prompt, /Do not run the tests yourself/);
+  assert.match(j.prompt, /tools of this machine/);
+});

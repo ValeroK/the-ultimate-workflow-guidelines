@@ -698,12 +698,27 @@ function journalAdd(cwd, { feature, card, from, status = '', at = new Date().toI
   const file = path.join(runDir(cwd, feature), 'journal.md');
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const existing = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : `# Run journal: ${feature}\n\nLessons from each card of this run, for the cards after it. Not committed; harvest reads it at the end.\n`;
-  const entry = `\n## ${card}${status ? ` (${status})` : ''} ${at.slice(0, 16)}\n\n${body.join('\n')}\n`;
-  const next = `${existing.replace(/\s+$/, '')}\n${entry}`;
+  // 5.1.1: one entry for each card. A card that was parked and tried again had three or four entries, a quarter of a
+  // long journal repeated itself, and an entry that a later one called false stayed for the next cards to read. The new
+  // entry replaces the earlier ones of the card; of the last park one line stays, so the reason is not lost.
+  const all = lines(existing);
+  const heads = journalEntries(existing);
+  const mine = heads.map((e, i) => ({ ...e, end: i + 1 < heads.length ? heads[i + 1].start : all.length })).filter((e) => e.card === card);
+  let earlier = '';
+  const lastPark = [...mine].reverse().find((e) => /\(parked\)/.test(all[e.start]));
+  if (lastPark) {
+    const when = (/(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})/.exec(all[lastPark.start]) || [])[1] || '';
+    const first = all.slice(lastPark.start + 1, lastPark.end).find((l) => /^\s*[-*]\s/.test(l) && !/^\s*[-*]\s+Earlier attempt, parked/.test(l));
+    if (first) earlier = `- Earlier attempt, parked${when ? ` ${when}` : ''}: ${first.replace(/^\s*[-*]\s+/, '').slice(0, 300)}\n`;
+  }
+  for (const e of [...mine].reverse()) all.splice(e.start, e.end - e.start);
+  const kept = mine.length > 0 ? all.join('\n') : existing;
+  const entry = `\n## ${card}${status ? ` (${status})` : ''} ${at.slice(0, 16)}\n\n${earlier}${body.join('\n')}\n`;
+  const next = `${kept.replace(/\s+$/, '')}\n${entry}`;
   fs.writeFileSync(file, next);
   const count = lines(next).length;
   const entries = journalEntries(next);
-  return { ok: true, card, journal: rel(cwd, file), lines: count, ...(tooLong ? { warning: tooLong } : {}), ...(count > JOURNAL_MAX_LINES ? { overLimit: true, oldest: entries.slice(0, Math.max(1, entries.length - 3)).map((e) => e.card) } : {}) };
+  return { ok: true, card, journal: rel(cwd, file), lines: count, ...(mine.length > 0 ? { replaced: mine.length } : {}), ...(tooLong ? { warning: tooLong } : {}), ...(count > JOURNAL_MAX_LINES ? { overLimit: true, oldest: entries.slice(0, Math.max(1, entries.length - 3)).map((e) => e.card) } : {}) };
 }
 
 function journalEntries(text) {

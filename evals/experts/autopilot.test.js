@@ -1244,3 +1244,39 @@ test('run.md tells the session what to do when another run is not finished', () 
   assert.match(md, /needs: "other-run"/);
   assert.match(md, /--take-over/);
 });
+
+// 5.1.1, from the journals of five runs: a card that was parked and tried again had 3 or 4 entries, 23% to 29% of the
+// lines of a long journal repeated an earlier line, and an old entry that a later one called false stayed for the
+// next cards to read.
+test('journal add: a new entry of a card replaces its earlier entries, and keeps one line of the last park', () => {
+  const dir = repo();
+  const add = (card, status, text) => {
+    write(dir, 'j.txt', text);
+    return json(cli(dir, 'journal', 'add', '--feature', 'calc', '--card', card, '--status', status, '--from', 'j.txt'));
+  };
+  add('1', 'parked', 'Parked: the plan and the guard test disagree on xfail.\nThe e2e file exists in the tree.\n');
+  add('2', 'committed', 'The adder lives in src/add.js.\n');
+  add('1', 'parked', 'Parked: the host check flags the schema URI.\nSecond park detail.\n');
+  const r = add('1', 'committed', 'Committed after two parks.\nKeep the schema URI.\n');
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.replaced, 1, 'one earlier entry of this card was in the journal: the first park was already replaced');
+  const text = read(dir, '.ultimate-workflow/run/calc/journal.md');
+  assert.equal((text.match(/^## 1 /gm) || []).length, 1, 'one entry for card 1');
+  assert.equal((text.match(/^## 2 /gm) || []).length, 1, 'the entry of another card stays');
+  assert.match(text, /^## 1 \(committed\)/m);
+  assert.match(text, /- Earlier attempt, parked [0-9T:-]+: Parked: the host check flags the schema URI\./);
+  assert.doesNotMatch(text, /Second park detail|The e2e file exists|xfail/, 'the earlier entries are gone, also the claim a later one replaced');
+  assert.ok(text.indexOf('## 2 ') < text.indexOf('## 1 '), 'the new entry is the last one');
+});
+
+test('journal add: the line of an earlier park does not count against the 15 lines of the entry', () => {
+  const dir = repo();
+  write(dir, 'p.txt', 'Parked: red three times.\n');
+  json(cli(dir, 'journal', 'add', '--feature', 'calc', '--card', '1', '--status', 'parked', '--from', 'p.txt'));
+  write(dir, 'long.txt', Array.from({ length: 15 }, (_, i) => `line ${i}`).join('\n'));
+  const r = json(cli(dir, 'journal', 'add', '--feature', 'calc', '--card', '1', '--status', 'committed', '--from', 'long.txt'));
+  assert.equal(r.warning, undefined);
+  const text = read(dir, '.ultimate-workflow/run/calc/journal.md');
+  assert.match(text, /line 14/);
+  assert.match(text, /Earlier attempt, parked/);
+});

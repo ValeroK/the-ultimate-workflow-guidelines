@@ -194,7 +194,7 @@ const CARDS_SHAPE = `- **Cards** -- ${WANT_CARDS ? 'required' : 'only when the w
     paths: <the globs the card may change, comma-separated, relative to the project root>
     depends: <the names of the cards that must be committed first; leave the line out when there are none>
 
-  A name is short, with letters, digits, dot, dash and underscore only (\`1\`, \`2a\`, \`harness\`). Every file the plan changes is under the paths of one card. A card is small enough for one build and big enough to be proved by its own tests. Put the detail of a card in the plan's other sections, not here.`
+  A name is short, with letters, digits, dot, dash and underscore only (\`1\`, \`2a\`, \`harness\`). Every file the plan changes is under the paths of one card. A card is small enough for one build and big enough to be proved by its own tests. Every card changes code or content that a test of its own can prove: a step that only checks, measures or reports (a pre-flight check, a note in a progress file) is not a card, because the run stops a card whose tests cannot fail first. Put such a step in the plan's text as a thing to do before or after the build. Put the detail of a card in the plan's other sections, not here.`
 
 /** The cards of a plan's \`## Cards\` section, read as experts/cards.js reads them: name, title and paths. */
 function readCards(md) {

@@ -1280,3 +1280,60 @@ test('journal add: the line of an earlier park does not count against the 15 lin
   assert.match(text, /line 14/);
   assert.match(text, /Earlier attempt, parked/);
 });
+
+// 5.1.1: the record of the full run, and whether it is of the project as it is now.
+test('full-record: no record, a record of this commit, and a record of another commit', () => {
+  const dir = repo();
+  const none = json(cli(dir, 'full-record'));
+  assert.equal(none.ok, true);
+  assert.equal(none.current, false);
+  assert.equal(none.passed, false);
+  const ex = require(path.join(PLUGIN, 'experts', 'experts.js'));
+  const rec = (over) => write(dir, '.ultimate-workflow/verify.json', JSON.stringify({ mode: 'full', passed: true, fingerprint: ex.testFingerprint(dir), head: git(dir, 'rev-parse', 'HEAD'), at: '2026-11-18T10:00:00.000Z', ...over }));
+  rec({});
+  assert.deepStrictEqual([json(cli(dir, 'full-record')).current, json(cli(dir, 'full-record')).passed], [true, true]);
+  rec({ passed: false });
+  assert.deepStrictEqual([json(cli(dir, 'full-record')).current, json(cli(dir, 'full-record')).passed], [true, false]);
+  rec({ head: '0000000000000000000000000000000000000000' });
+  const old = json(cli(dir, 'full-record'));
+  assert.deepStrictEqual([old.current, old.passed], [false, false]);
+  assert.match(old.reason, /not of the project as it is now/);
+  rec({ mode: 'related' });
+  assert.equal(json(cli(dir, 'full-record')).current, false);
+});
+
+// 5.1.1, from the holds of three runs: a URL that is a name and not a call, and a migration the card's own paths name.
+test('decisions: a schema dialect, an id, an XML namespace and a standards host are minor; a real call and a remote $ref are major', () => {
+  const dir = repo({ plan: PLAN.replace('paths: src/add.js, docs/new-guide.md', 'paths: src/**, docs/new-guide.md') });
+  write(dir, 'src/shape.json', JSON.stringify({ $schema: 'https://json-schema.org/draft/2020-12/schema', $id: 'https://ids.acme.io/shape', type: 'object' }, null, 2));
+  write(dir, 'src/docx.py', '_W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"\nSVG = \'<svg xmlns="http://www.w3.org/2000/svg">\'\n');
+  write(dir, 'src/call.js', "fetch('https://api.numbers.io/x');\n");
+  write(dir, 'src/ref.json', JSON.stringify({ $ref: 'https://remote.acme.io/defs.json' }, null, 2));
+  const r = json(cli(dir, 'decisions', '--plan', 'PLAN-calc.md', '--card', '1', '--feature', 'calc'));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const services = (list) => list.filter((d) => d.kind === 'service').map((d) => d.what).sort();
+  assert.deepStrictEqual(services(r.major), ['calls the external host api.numbers.io in src/call.js', 'calls the external host remote.acme.io in src/ref.json'], JSON.stringify(r.major));
+  const minor = services(r.minor).join('\n');
+  for (const host of ['json-schema.org', 'ids.acme.io', 'schemas.openxmlformats.org', 'www.w3.org']) assert.match(minor, new RegExp(`names ${host.replace(/\./g, '\.')} in src/[a-z.]+ as an identifier`), host);
+});
+
+test('decisions: a new migration under a card path that names the migrations folder is minor; elsewhere, or changed, it is major', () => {
+  const plan = PLAN.replace('paths: src/add.js, docs/new-guide.md', 'paths: src/**, migrations/versions/**').replace('paths: src/parse.js', 'paths: src/**, db/**');
+  const dir = repo({ plan });
+  write(dir, 'migrations/versions/0001_old.py', 'OLD = 1\n');
+  git(dir, 'add', '-A');
+  git(dir, 'commit', '-q', '-m', 'base');
+  write(dir, 'migrations/versions/0002_new.py', 'NEW = 1\n');
+  const named = json(cli(dir, 'decisions', '--plan', 'PLAN-calc.md', '--card', '1', '--feature', 'calc'));
+  assert.deepStrictEqual(named.major.filter((d) => d.kind === 'schema'), [], JSON.stringify(named.major));
+  assert.ok(named.minor.some((d) => d.kind === 'schema' && /added the schema or migration migrations\/versions\/0002_new\.py \(the paths of the card name this place\)/.test(d.what)));
+  const other = json(cli(dir, 'decisions', '--plan', 'PLAN-calc.md', '--card', '2', '--feature', 'calc'));
+  assert.ok(other.major.some((d) => d.kind === 'schema'), 'card 2 does not name the migrations folder');
+  write(dir, 'migrations/versions/0001_old.py', 'OLD = 2\n');
+  const changed = json(cli(dir, 'decisions', '--plan', 'PLAN-calc.md', '--card', '1', '--feature', 'calc'));
+  assert.ok(changed.major.some((d) => d.kind === 'schema' && /changed the schema or migration migrations\/versions\/0001_old\.py/.test(d.what)), 'a changed migration is still for the user');
+});
+
+test('plan: a step that only checks or reports is not a card', () => {
+  assert.match(fs.readFileSync(path.join(PLUGIN, 'phases', 'plan.js'), 'utf8'), /a step that only checks, measures or reports[^.]*is not a card/);
+});

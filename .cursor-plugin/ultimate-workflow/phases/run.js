@@ -402,12 +402,20 @@ async function fullSuiteCheck(tag) {
     `${AUTH}\n\nRun this one command and report what it says: \`${VERIFY} --full\`. It runs the whole test suite of the project and can take many minutes: give the Bash call its longest timeout, and if the call is moved to the background, wait for it to end and read its output. Run it one time. Change no file, correct nothing, and do not stage or commit. Report passed true only if it exited 0. When it fails, list in failures the failing tests it names and put the lines it printed in output; \`.ultimate-workflow/verify.log\` holds the whole output.`,
     { agentType: agentName('uw-implementer'), label: `${tag}:run`, phase: currentPhase, schema: FULL_RUN, ...modelOpt(IMPLEMENTER_MODEL) }
   )
-  const entry = { at: tag, ran: Boolean(r), passed: Boolean(r && r.passed === true), failures: (r && r.failures) || [] }
+  const entry = { at: tag, ran: Boolean(r), passed: false, failures: (r && r.failures) || [] }
   fullSuite.runs.push(entry)
   if (!r) {
     entry.reason = 'the agent that makes the full run returned nothing'
     return entry
   }
+  // The verdict is the record verify.js wrote, read by code: what the agent says it saw is not proof (5.1.1).
+  const [rec] = await runSteps(`${tag}:proof`, [cliCmd('full-record')])
+  if (!rec || rec.ok !== true || rec.current !== true) {
+    entry.reason = `the full run is not proven: ${(rec && rec.reason) || 'the record of the full run could not be read'}${r.passed === true ? ' (the agent that ran it reported a pass)' : ''}`
+    return entry
+  }
+  entry.passed = rec.passed === true
+  if (entry.passed !== (r.passed === true)) entry.note = `the agent reported ${r.passed === true ? 'a pass' : 'a failure'} and the record says ${entry.passed ? 'passed' : 'failed'}: the record decides`
   if (entry.passed) {
     log(`full suite (${tag}): passed`)
     return entry

@@ -181,8 +181,7 @@ function pack(cwd, { plan, card: name, feature, resume = false, adhoc = false, d
   // A card the run adds itself (the findings card, the review's fix-up card) has no test-plan
   // section: its work is the carried items, and the tests are written for them.
   // 5.1.1: a resume builds the pack of every card with no --adhoc, so a fix-up card parked for a decision was parked
-  // again as "missing input: no test-plan section", and the user committed it by hand. A card with a name the run
-  // gives, carried items and no section of its own is one the run added, however its pack is asked for.
+  // again as "missing input: no test-plan section", and the user committed it by hand.
   const section = adhoc ? null : testSection(planText, card.name, all.length);
   const runAdded = adhoc || (!section && RUN_ADDED.test(card.name) && (card.carried || []).length > 0);
   const t = runAdded ? null : section;
@@ -419,6 +418,10 @@ const SCHEMA = /(^|\/)(migrations?|db\/migrate|alembic)\/|\.sql$|\.prisma$|(^|\/
 const SECURITY = /(^|\/)(\.env[^/]*|\.npmrc|CODEOWNERS|Dockerfile|docker-compose[^/]*\.ya?ml)$|(^|\/)\.github\/workflows\/|(^|\/)[^/]*(auth|security|permission|policy|cors|csp|iam|rbac|secret)[^/]*\.(json|ya?ml|toml|ini|conf|config)$/i;
 const DOC_OR_TEST = /\.(md|txt)$|(^|\/)(test|tests|__tests__|spec)\/|\.(test|spec)\.[a-z]+$/i;
 
+// 5.1.1, from three runs: a URL that is a name and not a call held cards for the user.
+const IDENTIFIER_HOSTS = /^(json-schema\.org|(www\.)?w3\.org|schemas\.openxmlformats\.org|schemas\.microsoft\.com|schemas\.xmlsoap\.org|purl\.org|xmlns\.com|ns\.adobe\.com|docs\.oasis-open\.org|(www\.)?omg\.org|schema\.org|(www\.)?apache\.org|(www\.)?gnu\.org|opensource\.org|creativecommons\.org|spdx\.org)$/;
+const IDENTIFIER_LINE = /["']\$(schema|id)["']\s*:|\bxmlns(:[\w.-]+)?\s*=|<!DOCTYPE\b|\bSPDX-License-Identifier\b/i;
+
 function commonExports(text) {
   const names = new Set(require('./experts.js').exportedNames(text));
   for (const m of text.matchAll(/module\.exports\s*=\s*(?:async\s+)?function\s+([A-Za-z_$][\w$]*)/g)) names.add(m[1]);
@@ -477,7 +480,12 @@ function detectDecisions(cwd, { plan, card: name, feature = '', declaredFile = '
       continue;
     }
     if (MANIFEST.test(f)) { if (!planned(f)) manifestPlanned = false; add(true, 'dependency', `changed the dependency manifest ${f}`, f); continue; }
-    if (SCHEMA.test(f)) { add(true, 'schema', `${old === null ? 'added' : 'changed'} the schema or migration ${f}`, f); continue; }
+    if (SCHEMA.test(f)) {
+      // 5.1.1: a new migration held two cards whose own paths were `migrations/versions/**`.
+      const cardNamesIt = old === null && (card.paths || []).some((p) => SCHEMA.test(String(p).replace(/\*+$/, '')) && cardsLib.outOfScope([f], [p], expertsLib.globToRegExp).length === 0);
+      add(!cardNamesIt, 'schema', `${old === null ? 'added' : 'changed'} the schema or migration ${f}${cardNamesIt ? ' (the paths of the card name this place)' : ''}`, f);
+      continue;
+    }
     if (SECURITY.test(f)) { add(true, 'security', `${old === null ? 'added' : 'changed'} the security or permission configuration ${f}`, f); continue; }
     if (LOCKFILE.test(f)) continue;
     if (DOC_OR_TEST.test(f)) continue;
@@ -487,10 +495,13 @@ function detectDecisions(cwd, { plan, card: name, feature = '', declaredFile = '
       const v = m[1] || m[2] || m[3] || m[4];
       add(true, 'env', `reads the environment variable ${v} in ${f}`, v);
     }
-    for (const m of addedText.matchAll(/https?:\/\/([a-z0-9-]+(?:\.[a-z0-9-]+)+)/gi)) {
-      const host = m[1].toLowerCase();
-      if (/^(localhost|127\.0\.0\.1|example\.(com|org|net))$/.test(host) || host.endsWith('.example.com')) continue;
-      add(true, 'service', `calls the external host ${host} in ${f}`, host);
+    for (const line of addedText.split('\n')) {
+      for (const m of line.matchAll(/https?:\/\/([a-z0-9-]+(?:\.[a-z0-9-]+)+)/gi)) {
+        const host = m[1].toLowerCase();
+        if (/^(localhost|127\.0\.0\.1|example\.(com|org|net))$/.test(host) || host.endsWith('.example.com')) continue;
+        if (IDENTIFIER_HOSTS.test(host) || IDENTIFIER_LINE.test(line)) add(false, 'service', `names ${host} in ${f} as an identifier (a schema dialect, an id or a namespace), not a call`, host);
+        else add(true, 'service', `calls the external host ${host} in ${f}`, host);
+      }
     }
     if (old !== null) {
       const had = commonExports(old);
@@ -698,9 +709,7 @@ function journalAdd(cwd, { feature, card, from, status = '', at = new Date().toI
   const file = path.join(runDir(cwd, feature), 'journal.md');
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const existing = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : `# Run journal: ${feature}\n\nLessons from each card of this run, for the cards after it. Not committed; harvest reads it at the end.\n`;
-  // 5.1.1: one entry for each card. A card that was parked and tried again had three or four entries, a quarter of a
-  // long journal repeated itself, and an entry that a later one called false stayed for the next cards to read. The new
-  // entry replaces the earlier ones of the card; of the last park one line stays, so the reason is not lost.
+  // 5.1.1: one entry for each card.
   const all = lines(existing);
   const heads = journalEntries(existing);
   const mine = heads.map((e, i) => ({ ...e, end: i + 1 < heads.length ? heads[i + 1].start : all.length })).filter((e) => e.card === card);
@@ -1078,10 +1087,7 @@ function pluginIsAnotherCheckout(cwd, pluginRoot) {
 const activeFile = (cwd) => path.join(cwd, '.ultimate-workflow', 'run', 'active.json');
 
 /**
- * 5.1.1: one run at a time in a checkout. A second run-start made its branch from the first run's branch and
- * checked it out while the first run's agents worked, so their commits went to the wrong branch. The run that
- * is active is the one whose mark is here and whose branch is still checked out; a mark with another branch
- * checked out is a run that is over, and is ignored.
+ * 5.1.1: one run at a time in a checkout.
  */
 function otherRun(cwd, feature) {
   let mark;
@@ -1093,6 +1099,21 @@ function otherRun(cwd, feature) {
   if (!mark || typeof mark.feature !== 'string' || mark.feature === feature) return null;
   const current = git(cwd, ['rev-parse', '--abbrev-ref', 'HEAD'], { allowFail: true }).stdout.trim();
   return current === `uw/run/${mark.feature}` ? mark : null;
+}
+
+/**
+ * The record of the last full run, as verify.js wrote it, and whether it is of the project as it is now: the same
+ * commit and the same changes (5.1.1). The run takes "the full suite passed" from here, not from an agent's answer.
+ */
+function fullRecord(cwd) {
+  let rec = null;
+  try {
+    rec = JSON.parse(fs.readFileSync(path.join(cwd, '.ultimate-workflow', 'verify.json'), 'utf8'));
+  } catch {}
+  const head = git(cwd, ['rev-parse', 'HEAD'], { allowFail: true }).stdout.trim();
+  if (!rec || rec.mode !== 'full') return { ok: true, current: false, passed: false, reason: 'there is no record of a full run (.ultimate-workflow/verify.json)' };
+  const same = Boolean(head) && rec.head === head && rec.fingerprint === require('./experts.js').testFingerprint(cwd);
+  return { ok: true, current: same, passed: same && rec.passed === true, at: rec.at, ...(same ? {} : { reason: `the last full run on record (${rec.at || 'no time'}) is not of the project as it is now` }) };
 }
 
 function runStart(cwd, { plan, feature, resume = null, implementerModel = '', diagnoserModel = '', takeOver = false }) {
@@ -1310,6 +1331,7 @@ function cli(argv, cwd, out, fail) {
   if (sub === 'card-status') return run(() => cardStatus(cwd, { plan: o.plan, card: o.card, status: o.status }));
   if (sub === 'run-branch') return run(() => runBranch(cwd, { feature: o.feature }));
   if (sub === 'ensure-ignored') return run(() => ensureIgnored(cwd));
+  if (sub === 'full-record') return run(() => fullRecord(cwd));
   if (sub === 'claims') return run(() => claimsCheck(cwd, { plan: o.plan, feature: o.feature }));
   if (sub === 'run-state') return run(() => runState(cwd, { feature: o.feature, record: Boolean(o.record), review: Boolean(o.review), harvest: Boolean(o.harvest), harvestBranch: o['harvest-branch'] || '', open: o.open }));
   if (sub === 'harvest-branch') return run(() => harvestBranch(cwd, { feature: o.feature, from: o.from }));
@@ -1331,6 +1353,6 @@ function cli(argv, cwd, out, fail) {
   return fail(`unknown autopilot command ${sub}`);
 }
 
-const COMMANDS = ['pack', 'handoff', 'park', 'unpark', 'journal', 'card-commit', 'card-status', 'notify', 'decisions', 'run-branch', 'ensure-ignored', 'run-state', 'claims', 'harvest-branch', 'run-report', 'run-start', 'run-finish'];
+const COMMANDS = ['pack', 'handoff', 'park', 'unpark', 'journal', 'card-commit', 'card-status', 'notify', 'decisions', 'run-branch', 'ensure-ignored', 'run-state', 'claims', 'full-record', 'harvest-branch', 'run-report', 'run-start', 'run-finish'];
 
 module.exports = { pluginIsAnotherCheckout, COMMANDS, NOTIFY_KINDS, cardStatus, notify, detectDecisions, acceptDecision, writeRunStatus, commitPlan, pack, handoff, park, unpark, journalAdd, journalCompact, cardCommit, runBranch, ensureIgnored, harvestBranch, withAddition: memoryLib.withAddition, matchingTopicals, testSection, sections, cli, JOURNAL_CARD_LINES, JOURNAL_MAX_LINES };

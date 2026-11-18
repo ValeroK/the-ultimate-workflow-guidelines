@@ -1444,7 +1444,7 @@ function testsPart(cwd, planFile, changes, options) {
   // No command to run the full suite with: a commit that needs a full run is refused (owner decision, 2026-11-13); one that
   // needs none (documentation only, nothing to commit) still comes back with its skip.
   // 5.1.1: a card of the unattended run is committed on a passing run of its related tests; the run makes the full run
-  // one time after all the cards. Only card-commit asks for this, with `fullAtEnd`.
+  // one time after all the cards.
   const atEnd = options.fullAtEnd ? { fullAtEnd: true, related: readRelatedRecord(cwd) } : {};
   if (!command) return { command: '', noCommand: true, script: options.script || '', ...atEnd, ...testsEvidence(cwd, changes, planFile) };
   return { command: String(command), script: options.script || '', ...atEnd, ...testsEvidence(cwd, changes, planFile) };
@@ -1597,8 +1597,7 @@ function stageScript(pluginRoot, cwd, phaseName, { argsFile = '', files = [], me
   // plugin's verify.js, when the plan names its test_command. Chosen here, in code, so a model
   // never types the path (and a Windows path never reaches a JSON string with bare backslashes).
   // 4.2.0: the model for the agents that only search and read (plan readers, harvest gatherers).
-  // 5.1.1: the tests phase writes one section for each card of the plan. The cards are read here, in code, so the
-  // headings it is told to write are the names the run looks for.
+  // 5.1.1: the tests phase writes one section for each card of the plan.
   if (phaseName === 'tests' && typeof args.plan === 'string' && args.cards === undefined) {
     try {
       args.cards = require('./cards.js').parseCards(fs.readFileSync(path.resolve(cwd, args.plan), 'utf8')).map((c) => ({ name: c.name, title: c.title || '' }));
@@ -1893,7 +1892,7 @@ function main(argv) {
     try {
       // 5.1.1: a step agent that had changed into a card's folder under .ultimate-workflow ran `journal add` there, and
       // the step's path, which is relative to the project, was looked for under that folder (ENOENT, four times in two
-      // days; the card's journal lines were lost). The run's steps belong to the folder that holds .ultimate-workflow.
+      // days; the card's journal lines were lost).
       const here = process.cwd();
       const inRunFolder = here.split(path.sep).indexOf('.ultimate-workflow');
       return require('./autopilot.js').cli(argv, inRunFolder > 0 ? here.split(path.sep).slice(0, inRunFolder).join(path.sep) : here, out, fail);

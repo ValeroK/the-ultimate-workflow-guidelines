@@ -341,6 +341,7 @@ function healthy(calls) {
     calls.push(call);
     const [who, role] = String(call.label).includes(':') ? call.label.split(':') : [call.label, ''];
     if (role === 'run' && /^full-suite/.test(who)) return { passed: true, failures: [], summary: 'full run passed' };
+    if (role === 'proof' && /^full-suite/.test(who)) return steps({ ok: true, current: true, passed: true });
     if (role === 'write-tests') return { filesWritten: [`test/${who}.test.js`], testsFailAsExpected: true, summary: 'red' };
     if (/^attempt-/.test(role)) return { green: true, fullSuiteGreen: true, filesChanged: [`src/${who}/x.js`], summary: 'done' };
     if (role === 'scope') return steps({ card: who, outOfScope: [] });

@@ -30,10 +30,16 @@ const steps = (...lines) => ({ outputs: lines.map((l) => ({ command: '', output:
 function responder(o = {}) {
   const calls = [];
   let fullRuns = 0;
+  let said = true;
   const fn = async (call) => {
     calls.push(call);
     const [who, role] = String(call.label).includes(':') ? call.label.split(':') : [call.label, ''];
-    if (role === 'run' && /^full-suite/.test(who)) return (o.fullRun && o.fullRun(who, ++fullRuns)) || { passed: true, failures: [], summary: 'full run passed' };
+    if (role === 'run' && /^full-suite/.test(who)) {
+      const fr = (o.fullRun && o.fullRun(who, ++fullRuns)) || { passed: true, failures: [], summary: 'full run passed' };
+      said = fr.passed === true;
+      return fr;
+    }
+    if (role === 'proof' && /^full-suite/.test(who)) return steps((o.proof && o.proof(who)) || { ok: true, current: true, passed: said });
     if (role === 'write-tests') return { filesWritten: [`test/${who}.test.js`], testsFailAsExpected: true, summary: 'red' };
     // No fullSuiteGreen: a card of the run never makes a full run.
     if (/^attempt-/.test(role)) return (o.red || []).includes(who) ? { green: false, filesChanged: [`src/${who}/x.js`], failureOutput: `fail ${role}`, summary: role } : { green: true, ...(o.fullGreen && o.fullGreen.includes(who) ? { fullSuiteGreen: true } : {}), filesChanged: [`src/${who}/x.js`], summary: 'done' };
@@ -89,7 +95,7 @@ test('the full suite runs one time, after the last card and before the review', 
   const r = responder();
   const { result } = await run(baseArgs([card('1'), card('2'), card('3')]), r);
   const labels = r.labels();
-  assert.equal(labels.filter((l) => /^full-suite/.test(l)).length, 1, labels.join(' '));
+  assert.deepStrictEqual(labels.filter((l) => /^full-suite/.test(l)), ['full-suite:run', 'full-suite:proof'], labels.join(' '));
   const at = labels.indexOf('full-suite:run');
   assert.ok(at > labels.indexOf('3:commit'), 'after the last card');
   assert.ok(at < labels.findIndex((l) => /^review:/.test(l)), 'before the review');
@@ -304,4 +310,24 @@ test('the journal agent is told how the run works, and not to report it or the t
   assert.match(j.prompt, /the full suite runs one time after all the cards/);
   assert.match(j.prompt, /Do not run the tests yourself/);
   assert.match(j.prompt, /tools of this machine/);
+});
+
+// 5.1.1: "the full suite passed" is the record verify.js wrote, read by code, never the answer of the agent.
+test('a pass the agent reports and the record does not show is not a pass, and no card is made for it', async () => {
+  const r = responder({ proof: () => ({ ok: true, current: false, passed: false, reason: 'there is no record of a full run (.ultimate-workflow/verify.json)' }) });
+  const { result } = await run(baseArgs([card('1')]), r);
+  assert.match(r.prompt('full-suite:proof'), /experts\.js" full-record/);
+  assert.match(result.fullSuite.text, /^FULL SUITE NOT GREEN: the full run is not proven: there is no record of a full run .*the agent that ran it reported a pass/);
+  assert.ok(!r.labels().includes('full-suite:setup'), 'nothing failed that a card could correct');
+});
+
+test('the record decides when the agent and the record disagree', async () => {
+  const pass = responder({ fullRun: () => ({ passed: false, failures: [], summary: 'I think it failed' }), proof: () => ({ ok: true, current: true, passed: true }) });
+  const a = await run(baseArgs([card('1')]), pass);
+  assert.equal(a.result.fullSuite.text, 'Full suite: passed');
+  assert.match(a.result.fullSuite.runs[0].note, /the record decides/);
+
+  const fail = responder({ proof: () => ({ ok: true, current: true, passed: false }), fullGreen: ['full-suite'] });
+  const b = await run(baseArgs([card('1')]), fail);
+  assert.ok(fail.labels().includes('full-suite:setup'), 'the record says failed: one card corrects it');
 });

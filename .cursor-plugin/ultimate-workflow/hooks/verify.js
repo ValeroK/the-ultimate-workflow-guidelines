@@ -427,7 +427,9 @@ function readRecord(cwd) {
 function recordFull(cwd, { passed, command, verdict = null, acceptedAt = '' }) {
   const file = path.join(cwd, RECORD);
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  const rec = { mode: 'full', passed: passed === true, fingerprint: experts.testFingerprint(cwd), command, at: new Date().toISOString() };
+  // `head` (5.1.1): with all the cards committed the fingerprint of the changes is the same at every commit, so the
+  // commit says which state of the project the run was made on.
+  const rec = { mode: 'full', passed: passed === true, fingerprint: experts.testFingerprint(cwd), head: headSha(cwd), command, at: new Date().toISOString() };
   // A pass that leans on the accepted baseline says so, so the commit check and the report show it.
   if (verdict && !verdict.unrecognised) {
     rec.knownFailures = verdict.known.length;

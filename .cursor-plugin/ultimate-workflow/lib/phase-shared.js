@@ -153,7 +153,7 @@ const DIAGNOSIS = {
   },
 }
 
-// 5.2.0: what the tester reports when the run sends it the tests a diagnosis called wrong: a verdict for each one
+// 5.1.1: what the tester reports when the run sends it the tests a diagnosis called wrong: a verdict for each one
 // named, and every test it changed, named or not.
 const CORRECTED = {
   type: 'object',
@@ -236,7 +236,7 @@ Report the project's real verification command as testCommand.`,
   let last = null
   let diagnosis = null
   const history = []
-  // 5.2.0, the unattended run only (`o.correctTests`): one correction of a wrong test for each build.
+  // 5.1.1, the unattended run only (`o.correctTests`): one correction of a wrong test for each build.
   let correction = null
 
   while (round < ROUND_CAP) {
@@ -329,7 +329,7 @@ If the TEST looks wrong rather than the code, say so: that is a legitimate outco
     const priorSignature = diagnosis && diagnosis.signature
     diagnosis = next
 
-    // 5.2.0: in three runs, one hold in four was "the test is wrong, the code is right", and each time the user
+    // 5.1.1: in three runs, one hold in four was "the test is wrong, the code is right", and each time the user
     // resumed and the tests were changed to agree with the plan. The run now does that itself, one time for a build:
     // the diagnosis names every wrong test of the change, all of them go back to the tester in one pass, the tester
     // verifies each against the plan and corrects or removes what needs it, so that the files hold only the tests the

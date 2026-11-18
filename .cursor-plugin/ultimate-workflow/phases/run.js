@@ -248,7 +248,7 @@ async function runCard(card, { adhoc = false, fullNow = false } = {}) {
     fullAtEnd: Boolean(VERIFY) && !fullNow,
     briefsLoaded: briefs.map((b) => b.name),
     skillsLoaded: skills.map((s) => s.name),
-    // 5.2.0: the tests a diagnosis calls wrong, each with its line of the plan, go back to the tester in one pass.
+    // 5.1.1: the tests a diagnosis calls wrong, each with its line of the plan, go back to the tester in one pass.
     // Code counts the tests and the assertions before and after, for the user to see: the counts stop nothing.
     ...(GUARD
       ? {

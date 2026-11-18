@@ -336,7 +336,7 @@ test('the record decides when the agent and the record disagree', async () => {
   assert.ok(fail.labels().includes('full-suite:setup'), 'the record says failed: one card corrects it');
 });
 
-// --- 5.2.0: the run corrects a wrong test one time ------------------------------------------------------------------
+// --- 5.1.1: the run corrects a wrong test one time ------------------------------------------------------------------
 // In three runs, one hold in four was "the test is wrong, the code is right", and each time the user resumed and the
 // test was changed to agree with the plan. The run does that itself when the diagnosis names the line of the plan.
 

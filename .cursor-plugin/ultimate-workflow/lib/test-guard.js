@@ -1,6 +1,6 @@
 'use strict';
 
-// The count of the tests that the unattended run sends back to the tester (5.2.0).
+// The count of the tests that the unattended run sends back to the tester (5.1.1).
 //
 // When the diagnosis of a failed round says that tests are wrong, not the code, they all go back to the tester in one
 // pass. The tester corrects or removes what the plan does not support, so that the files hold only the tests the

@@ -34,6 +34,10 @@ function responder(o = {}) {
   const fn = async (call) => {
     calls.push(call);
     const [who, role] = String(call.label).includes(':') ? call.label.split(':') : [call.label, ''];
+    if (o.on) {
+      const own = o.on(call, who, role);
+      if (own !== undefined) return own;
+    }
     if (role === 'run' && /^full-suite/.test(who)) {
       const fr = (o.fullRun && o.fullRun(who, ++fullRuns)) || { passed: true, failures: [], summary: 'full run passed' };
       said = fr.passed === true;
@@ -330,4 +334,145 @@ test('the record decides when the agent and the record disagree', async () => {
   const fail = responder({ proof: () => ({ ok: true, current: true, passed: false }), fullGreen: ['full-suite'] });
   const b = await run(baseArgs([card('1')]), fail);
   assert.ok(fail.labels().includes('full-suite:setup'), 'the record says failed: one card corrects it');
+});
+
+// --- 5.2.0: the run corrects a wrong test one time ------------------------------------------------------------------
+// In three runs, one hold in four was "the test is wrong, the code is right", and each time the user resumed and the
+// test was changed to agree with the plan. The run does that itself when the diagnosis names the line of the plan.
+
+const WRONG = { cause: 'the test expects a reordered title', signature: 'sig-title', suggestedFix: 'fix the test', confidence: 'high', testMayBeWrong: true, planReference: 'PLAN-f.md:322 "a normalised substring of the stored title"', wrongTests: ['test/1.test.js::title'] };
+const FIXED = { changed: true, tests: [{ test: 'test/1.test.js::title', was: 'a reordered title', now: 'a substring of the title' }], summary: 'The title test now uses a substring.' };
+/** Card 1 fails round 1 and passes round 2. `diagnosis` answers diagnose-1; `fixed` is the test writer's answer; `kept` the guard's. */
+const correcting = ({ diagnosis = WRONG, fixed = FIXED, kept = { ok: true, kept: true, problems: [] }, snapshot = { ok: true, files: 1 } } = {}) =>
+  responder({
+    on: (call, who, role) => {
+      if (who !== '1') return undefined;
+      if (role === 'attempt-1') return { green: false, filesChanged: ['src/1/x.js'], failureOutput: 'title mismatch', summary: 'red' };
+      if (role === 'diagnose-1') return diagnosis;
+      if (role === 'tests-before') return steps(snapshot);
+      if (role === 'correct-tests') return fixed;
+      if (role === 'tests-kept') return steps(kept);
+      return undefined;
+    },
+  });
+
+test('a wrong test with a line of the plan: the test writer corrects it one time, code checks it, and the card goes on', async () => {
+  const r = correcting();
+  const { result } = await run(baseArgs([card('1')]), r);
+  const labels = r.labels().filter((l) => /^1:/.test(l));
+  assert.deepStrictEqual(labels.slice(2, 8), ['1:attempt-1', '1:diagnose-1', '1:tests-before', '1:correct-tests', '1:tests-kept', '1:attempt-2'], labels.join(' '));
+  assert.match(r.prompt('1:tests-before'), /node "\/p\/lib\/test-guard\.js" snapshot "\.ultimate-workflow\/run\/f\/cards\/1\/tests-before\.json" "test\/1\.test\.js"/);
+  assert.match(r.prompt('1:tests-kept'), /test-guard\.js" check /);
+  const p = r.prompt('1:correct-tests');
+  assert.match(p, /PLAN-f\.md:322/);
+  assert.match(p, /The plan is what the user confirmed, so it decides/);
+  assert.match(p, /Do not delete a test\. Do not remove an assertion/);
+  assert.match(p, /Do not add a skip or an expected-failure mark/);
+  assert.match(p, /If it agrees with the plan, change nothing/);
+  assert.match(r.prompt('1:attempt-2'), /The test was corrected to agree with the plan/);
+  assert.deepStrictEqual(result.counts, { committed: 1 });
+  assert.equal(result.testCorrections.length, 1);
+  assert.equal(result.testCorrections[0].card, '1');
+  assert.match(result.summary, /TESTS CORRECTED BY THE RUN: card 1 \(test\/1\.test\.js::title; plan: PLAN-f\.md:322[^)]*\)\. Read them before you merge\./);
+});
+
+test('the corrected test is recorded with the minor decisions of the card', async () => {
+  const r = correcting();
+  await run(baseArgs([card('1')]), r);
+  const declared = JSON.parse(/<<<CONTENT\n([\s\S]*?)\nCONTENT>>>/.exec(r.prompt('1:decisions'))[1]);
+  assert.equal(declared.length, 1);
+  assert.equal(declared[0].major, false);
+  assert.match(declared[0].what, /the run corrected the test test\/1\.test\.js::title to agree with the plan \(PLAN-f\.md:322.*it asserted a reordered title, it now asserts a substring of the title/);
+});
+
+test('a correction that removes a test or an assertion does not hold: the card is parked with the reason', async () => {
+  const r = correcting({ kept: { ok: true, kept: false, problems: ['test/1.test.js has 2 assertions, and had 3'] } });
+  const { result } = await run(baseArgs([card('1')]), r);
+  assert.ok(!r.labels().includes('1:attempt-2'), 'no round is built on a weaker test');
+  assert.equal(result.cards[0].status, 'parked');
+  assert.match(result.cards[0].reason, /the correction made the tests weaker: test\/1\.test\.js has 2 assertions, and had 3/);
+  assert.deepStrictEqual(result.testCorrections, []);
+  assert.doesNotMatch(result.summary, /TESTS CORRECTED/);
+});
+
+test('no line of the plan, no correction: the card is parked as before', async () => {
+  const r = correcting({ diagnosis: { ...WRONG, planReference: '' } });
+  const { result } = await run(baseArgs([card('1')]), r);
+  assert.ok(!r.labels().includes('1:correct-tests'));
+  assert.equal(result.cards[0].status, 'parked');
+  assert.match(result.cards[0].reason, /the test expects a reordered title/);
+});
+
+test('the test writer that finds the test agrees with the plan changes nothing, and the card is parked', async () => {
+  const r = correcting({ fixed: { changed: false, summary: 'the test agrees with the plan' } });
+  const { result } = await run(baseArgs([card('1')]), r);
+  assert.ok(!r.labels().includes('1:tests-kept'), 'nothing changed, nothing to check');
+  assert.ok(!r.labels().includes('1:attempt-2'));
+  assert.equal(result.cards[0].status, 'parked');
+});
+
+test('one correction for each build: a second "the test is wrong" parks the card', async () => {
+  const r = responder({
+    on: (call, who, role) => {
+      if (who !== '1') return undefined;
+      if (role === 'attempt-1' || role === 'attempt-2') return { green: false, filesChanged: ['src/1/x.js'], failureOutput: role, summary: 'red' };
+      if (role === 'diagnose-1') return WRONG;
+      if (role === 'diagnose-2') return { ...WRONG, signature: 'sig-other' };
+      if (role === 'tests-before') return steps({ ok: true, files: 1 });
+      if (role === 'correct-tests') return FIXED;
+      if (role === 'tests-kept') return steps({ ok: true, kept: true, problems: [] });
+      return undefined;
+    },
+  });
+  const { result } = await run(baseArgs([card('1')]), r);
+  assert.equal(r.labels().filter((l) => l === '1:correct-tests').length, 1);
+  assert.equal(result.cards[0].status, 'parked');
+});
+
+test('by hand the build still stops for the user on a wrong test: the build phase gives no guard', async () => {
+  const calls = [];
+  const { result } = await loadWorkflow(BUILD)({ plan: 'PLAN-f.md', command: 'npm test' }, (call) => {
+    calls.push(call.label);
+    if (call.label === 'write-tests') return { filesWritten: ['test/a.test.js'], testsFailAsExpected: true, summary: 'red' };
+    if (/^attempt-/.test(call.label)) return { green: false, filesChanged: ['src/a.js'], failureOutput: 'x', summary: 'red' };
+    if (/^diagnose-/.test(call.label)) return WRONG;
+    return null;
+  });
+  assert.ok(!calls.includes('correct-tests'), calls.join(' '));
+  assert.equal(result.green, false);
+  assert.match(result.reason, /needs a decision, not another attempt/);
+});
+
+// --- the guard itself ---------------------------------------------------------------------------------------------
+
+const guard = require(path.join(PLUGIN, 'lib', 'test-guard.js'));
+const GUARD_CLI = path.join(PLUGIN, 'lib', 'test-guard.js');
+
+test('test-guard: the counts of the common runners', () => {
+  assert.deepStrictEqual(guard.count("test('a', () => { assert.equal(1, 1); expect(x).toBe(2); });\nit('b', () => {});\n"), { tests: 2, asserts: 2, skips: 0 });
+  assert.deepStrictEqual(guard.count('def test_a():\n    assert f() == 1\n\nasync def test_b():\n    with pytest.raises(ValueError):\n        f()\n'), { tests: 2, asserts: 2, skips: 0 });
+  assert.equal(guard.count('@pytest.mark.xfail\ndef test_a():\n    assert 1\n').skips, 1);
+  // The mark is built from two parts: the repository's own guard counts skip sites in the test files.
+  assert.equal(guard.count(`it.${'sk'}${'ip'}('a', () => {});\n`).skips, 1);
+});
+
+test('test-guard: a correction that keeps every test and assertion is kept; fewer of either, a new skip or a deleted file is not', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'uw-guard-'));
+  const file = path.join(dir, 't', 'a.test.js');
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const cli = (...a) => JSON.parse(spawnSync(process.execPath, [GUARD_CLI, ...a], { cwd: dir, encoding: 'utf8' }).stdout.trim());
+  const body = "test('a', () => { assert.equal(f(), 1); assert.ok(g()); });\ntest('b', () => { assert.equal(h(), 2); });\n";
+  fs.writeFileSync(file, body);
+  assert.deepStrictEqual(cli('snapshot', 'snap/before.json', 't/a.test.js', 't/none.test.js'), { ok: true, files: 1 });
+  fs.writeFileSync(file, body.replace('f(), 1', 'f(), 7'));
+  assert.deepStrictEqual(cli('check', 'snap/before.json'), { ok: true, kept: true, problems: [] });
+  fs.writeFileSync(file, body.replace(' assert.ok(g());', ''));
+  assert.match(cli('check', 'snap/before.json').problems.join(), /has 2 assertions, and had 3/);
+  fs.writeFileSync(file, body.split('\n')[0] + '\n');
+  assert.match(cli('check', 'snap/before.json').problems.join(), /has 1 tests, and had 2/);
+  fs.writeFileSync(file, body.replace("test('b'", `test.${'sk'}${'ip'}('b'`));
+  assert.equal(cli('check', 'snap/before.json').kept, false);
+  fs.rmSync(file);
+  assert.match(cli('check', 'snap/before.json').problems.join(), /is gone/);
+  assert.equal(cli('snapshot', 'snap/none.json', 't/none.test.js').ok, false, 'no file to record is said');
 });

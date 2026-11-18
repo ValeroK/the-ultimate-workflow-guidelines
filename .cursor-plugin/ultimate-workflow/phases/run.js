@@ -33,6 +33,9 @@ const PLAN = String((args && args.plan) || '')
 const FEATURE = String((args && args.feature) || '')
 const CLI = String((args && args.cli) || '')
 const VERIFY = (args && typeof args.verify === 'string' && args.verify.trim()) || ''
+// The guard on a test the run corrects (lib/test-guard.js), next to the CLI: `node "<plugin>/lib/test-guard.js"`.
+const GUARD = /experts[\\/]experts\.js/.test(CLI) ? CLI.replace(/experts[\\/]experts\.js/, 'lib/test-guard.js') : ''
+const testCorrections = []
 const COMMAND = String((args && args.command) || '')
 const BASE = String((args && args.base) || '')
 const CARDS = Array.isArray(args && args.cards) ? args.cards.filter((c) => c && typeof c.name === 'string') : []
@@ -245,6 +248,22 @@ async function runCard(card, { adhoc = false, fullNow = false } = {}) {
     fullAtEnd: Boolean(VERIFY) && !fullNow,
     briefsLoaded: briefs.map((b) => b.name),
     skillsLoaded: skills.map((s) => s.name),
+    // 5.2.0: a test the diagnosis calls wrong, with the line of the plan it disagrees with, is corrected one time by
+    // the test writer. Code records the tests before and checks them after: no test and no assertion less.
+    ...(GUARD
+      ? {
+          correctTests: {
+            snapshot: async (files) => {
+              const [s] = await runSteps(`${card.name}:tests-before`, [`${GUARD} snapshot ${q(`${cardDir(card.name)}/tests-before.json`)} ${files.map(q).join(' ')}`])
+              return Boolean(s && s.ok === true)
+            },
+            check: async () => {
+              const [c] = await runSteps(`${card.name}:tests-kept`, [`${GUARD} check ${q(`${cardDir(card.name)}/tests-before.json`)}`])
+              return c && c.ok === true ? c : null
+            },
+          },
+        }
+      : {}),
   }
   let build = await buildLoop(loopOpts)
   // A card the run added for a finding that the code is untested (a review's test-coverage lens, an
@@ -258,7 +277,8 @@ async function runCard(card, { adhoc = false, fullNow = false } = {}) {
     log(`card ${card.name}: its tests pass against the existing code and every item was a missing test; continuing with them`)
     build = await buildLoop({ ...loopOpts, resume: { reason: 'the carried findings were missing tests; the new tests pass against code that already does the right thing', testFiles: build.filesWritten } })
   }
-  const buildSummary = { green: Boolean(build.green), rounds: build.rounds || (build.history ? build.history.length : 0), testFiles: build.testFiles || build.filesWritten || [], ...(testsOnly ? { testsOnly: true } : {}) }
+  const buildSummary = { green: Boolean(build.green), rounds: build.rounds || (build.history ? build.history.length : 0), testFiles: build.testFiles || build.filesWritten || [], ...(testsOnly ? { testsOnly: true } : {}), ...(build.testCorrection ? { testCorrection: build.testCorrection } : {}) }
+  if (build.testCorrection && build.testCorrection.outcome === 'corrected') testCorrections.push({ card: card.name, ...build.testCorrection })
   if (!build.green) {
     const why = build.escalation || [build.error, build.reason, build.hint, build.unexpectedlyPassing && build.unexpectedlyPassing.length ? `Passing before the implementation: ${build.unexpectedlyPassing.join(', ')}` : ''].filter(Boolean).join('\n')
     return parkCard(card, `${build.stoppedAt === 'Tests' ? 'tests did not fail first' : 'not green'}: ${why || 'the build stopped'}`, { build: buildSummary })
@@ -271,7 +291,13 @@ async function runCard(card, { adhoc = false, fullNow = false } = {}) {
   // in the diff. A major one is not committed: the card is held as needs-decision, its work kept on
   // the branch and the user told now; the cards that do not depend on it go on. Minor ones go into
   // the handoff and the report.
-  const declared = (build && build.decisions) || []
+  // A test the run corrected is a choice the plan did not state: recorded with the card's minor decisions.
+  const declared = [
+    ...((build && build.decisions) || []),
+    ...(build.testCorrection && build.testCorrection.outcome === 'corrected'
+      ? (build.testCorrection.tests.length > 0 ? build.testCorrection.tests : [{ test: 'a test', was: '', now: '' }]).map((t) => ({ what: `the run corrected the test ${t.test} to agree with the plan (${build.testCorrection.planReference})${t.was || t.now ? `: it asserted ${t.was}, it now asserts ${t.now}` : ''}`, why: 'the diagnosis of a failed round said the test was wrong, not the code', major: false }))
+      : []),
+  ]
   const declaredFile = `${cardDir(card.name)}/declared-decisions.json`
   const [decided] = await runSteps(`${card.name}:decisions`, [cliCmd('decisions', '--plan', q(PLAN), '--card', card.name, '--feature', FEATURE, '--declared', q(declaredFile))], [{ path: declaredFile, text: JSON.stringify(declared) }])
   if (!decided || decided.ok !== true) return parkCard(card, 'the check for decisions the plan does not state could not run: experts.js decisions did not report success', { build: buildSummary })
@@ -604,6 +630,8 @@ const fullSuiteText = !VERIFY
     : lastFull.passed
       ? `Full suite: passed${lastFull.card ? ` after the card ${lastFull.card.card} corrected it` : ''}`
       : `FULL SUITE NOT GREEN: ${lastFull.reason || `${lastFull.failures.length} failing test(s)${lastFull.card ? `, and the card ${lastFull.card.card} is ${lastFull.card.status}` : ''}`}`
+// The tests the run corrected, said plainly: the user reads each one in the report.
+const correctedText = testCorrections.length > 0 ? ` TESTS CORRECTED BY THE RUN: ${testCorrections.map((c) => `card ${c.card} (${c.tests.map((t) => t.test).join(', ') || 'see its decisions'}; plan: ${c.planReference})`).join('; ')}. Read them before you merge.` : ''
 const counts = report.reduce((n, r) => ({ ...n, [r.status]: (n[r.status] || 0) + 1 }), {})
 // Whether the branch was reviewed by the experts, said plainly: the report, the notice and the summary use these words.
 // A run that waited, stopped or could not review never reads as ready to merge.
@@ -651,9 +679,10 @@ return {
   fixupCard,
   fixupReview,
   fullSuite: { ...fullSuite, text: fullSuiteText },
+  testCorrections,
   harvest,
   expertLanes: lanes,
   ...(stateError ? { stateError } : {}),
   ...(stoppedBecause ? { stopped: stoppedBecause } : {}),
-  summary: `${counts.committed || 0} committed, ${counts.parked || 0} parked, ${counts.blocked || 0} blocked${counts['not started'] ? `, ${counts['not started']} not started` : ''}${stoppedBecause ? `; stopped: ${stoppedBecause}` : ''}. ${reviewedText}. ${fullSuiteText}. ${review.ran ? `Review: ${(review.findings || []).length} confirmed.` : ''} Harvest: ${harvest.ran ? `${harvest.proposals || 0} proposals${harvest.branch ? ` on ${harvest.branch}` : ''}` : harvest.reason || 'not run'}.`,
+  summary: `${counts.committed || 0} committed, ${counts.parked || 0} parked, ${counts.blocked || 0} blocked${counts['not started'] ? `, ${counts['not started']} not started` : ''}${stoppedBecause ? `; stopped: ${stoppedBecause}` : ''}. ${reviewedText}. ${fullSuiteText}.${correctedText} ${review.ran ? `Review: ${(review.findings || []).length} confirmed.` : ''} Harvest: ${harvest.ran ? `${harvest.proposals || 0} proposals${harvest.branch ? ` on ${harvest.branch}` : ''}` : harvest.reason || 'not run'}.`,
 }

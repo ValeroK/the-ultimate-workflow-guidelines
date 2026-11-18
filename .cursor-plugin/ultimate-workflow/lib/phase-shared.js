@@ -136,7 +136,20 @@ const DIAGNOSIS = {
     signature: { type: 'string', description: 'Short stable identifier for this failure, to detect no progress' },
     suggestedFix: { type: 'string' },
     testMayBeWrong: { type: 'boolean', description: 'True if the test, not the code, looks incorrect' },
+    planReference: { type: 'string', description: 'When the test looks incorrect: the plan file and line, with the words of the plan, that the test does not agree with. Empty when the plan does not settle it' },
+    wrongTests: { type: 'array', items: { type: 'string' }, description: 'When the test looks incorrect: the tests that are wrong, as file::name' },
     confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
+  },
+}
+
+// 5.2.0: what the test writer reports when the run lets it correct a test the diagnosis called wrong.
+const CORRECTED = {
+  type: 'object',
+  required: ['changed', 'summary'],
+  properties: {
+    changed: { type: 'boolean', description: 'True only if you edited a test. False when the test agrees with the plan and you changed nothing' },
+    tests: { type: 'array', items: { type: 'object', required: ['test', 'was', 'now'], properties: { test: { type: 'string', description: 'file::name' }, was: { type: 'string', description: 'What it asserted' }, now: { type: 'string', description: 'What it asserts now' } } } },
+    summary: { type: 'string' },
   },
 }
 
@@ -196,6 +209,8 @@ Report the project's real verification command as testCommand.`,
   let last = null
   let diagnosis = null
   const history = []
+  // 5.2.0, the unattended run only (`o.correctTests`): one correction of a wrong test for each build.
+  let correction = null
 
   while (round < ROUND_CAP) {
     round += 1
@@ -256,6 +271,7 @@ When not green, include the failure output verbatim.`,
         decisions: attempt.decisions || [],
         history,
         summary: attempt.summary,
+        ...(correction ? { testCorrection: correction } : {}),
       }
     }
 
@@ -276,23 +292,68 @@ ${JSON.stringify(attempt.filesChanged, null, 2)}
 
 Read the relevant code and tests. Say what is actually wrong -- not what might be. Give the failure a short stable signature so a repeat can be recognised as no progress.
 
-If the TEST looks wrong rather than the code, say so: that is a legitimate outcome and needs a human, not another attempt.`,
+If the TEST looks wrong rather than the code, say so: that is a legitimate outcome. Then name the tests in wrongTests and give planReference: the plan file and line, with the words of the plan, that the test does not agree with. Leave planReference empty when the plan does not settle which of the two is right.`,
       { agentType: agentName('uw-reviewer'), label: label(`diagnose-${round}`), phase: ph.verify, schema: DIAGNOSIS, ...modelOpt(o.diagnoserModel) }
     )
 
     const priorSignature = diagnosis && diagnosis.signature
     diagnosis = next
 
+    // 5.2.0: in three runs, one hold in four was "the test is wrong, the code is right", and each time the user
+    // resumed and the test was changed to agree with the plan. The run now does that itself, one time, when the
+    // diagnosis names the line of the plan: the test writer (never the round that failed) corrects the test, and
+    // code checks that no test, no assertion went away and no skip mark came (lib/test-guard.js).
+    const planReference = next && next.testMayBeWrong ? String(next.planReference || '').trim() : ''
+    if (planReference && o.correctTests && !correction && (tests.filesWritten || []).length > 0) {
+      correction = { round, planReference, tests: [], kept: false }
+      const snapped = await o.correctTests.snapshot(tests.filesWritten)
+      const fixed = snapped
+        ? await agent(
+            `${o.locate}
+
+A build round failed, and a fresh reader says that a test is wrong, not the code:
+${JSON.stringify({ cause: next.cause, wrongTests: next.wrongTests || [], planReference }, null, 2)}
+
+Read that part of the plan and the tests named. The plan is what the user confirmed, so it decides. If a named test does not agree with the plan, correct that test so that it asserts what the plan says. If it agrees with the plan, change nothing and report changed false: the code is then what is wrong.
+
+The limits, which code checks after you: change only the tests named. Do not delete a test. Do not remove an assertion, and do not make one weaker (an exact value stays an exact value). Do not add a skip or an expected-failure mark. Do not touch any file that is not a test file: the implementation is not yours. ${o.testsCommitRule || TESTS_COMMIT_RULE}
+
+For each test you changed, report what it asserted and what it asserts now.`,
+            { agentType: agentName('uw-implementer'), label: label('correct-tests'), phase: ph.verify, schema: CORRECTED, ...modelOpt(o.implementerModel) }
+          )
+        : null
+      const checked = fixed && fixed.changed === true ? await o.correctTests.check() : null
+      correction.tests = (fixed && fixed.tests) || []
+      correction.kept = Boolean(checked && checked.kept === true)
+      correction.outcome = !snapped
+        ? 'the tests could not be recorded before the correction, so none was made'
+        : !fixed
+          ? 'the test writer returned nothing'
+          : fixed.changed !== true
+            ? `the test writer changed nothing: ${fixed.summary}`
+            : !checked
+              ? 'the check of the corrected tests could not run'
+              : checked.kept === true
+                ? 'corrected'
+                : `the correction made the tests weaker: ${(checked.problems || []).join('; ')}`
+      if (correction.outcome === 'corrected') {
+        history.push({ round, note: `a test was corrected to agree with the plan (${planReference})` })
+        diagnosis = { ...next, testMayBeWrong: false, suggestedFix: `The test was corrected to agree with the plan: ${fixed.summary} Run the tests again, and change the code only where they still fail.` }
+        continue
+      }
+    }
+
     if (next && next.testMayBeWrong) {
       return {
+        ...(correction ? { testCorrection: correction } : {}),
         ok: false,
         green: false,
         stoppedAt: `round ${round}`,
-        reason: 'The diagnosis says the test may be wrong, not the code. That needs a decision, not another attempt.',
+        reason: correction ? `The diagnosis says the test may be wrong, not the code, and the one correction the run may make did not hold (${correction.outcome}). That needs a decision, not another attempt.` : 'The diagnosis says the test may be wrong, not the code. That needs a decision, not another attempt.',
         diagnosis: next,
         history,
         testFiles: tests.filesWritten,
-        escalation: escalationText(round, next, history),
+        escalation: `${correction ? `The run tried its one correction of the test, and it did not hold: ${correction.outcome}.\n\n` : ''}${escalationText(round, next, history)}`,
       }
     }
 
@@ -316,6 +377,7 @@ If the TEST looks wrong rather than the code, say so: that is a legitimate outco
     stoppedAt: `round ${round}`,
     ...resumed,
     reason: `Verification failed ${round} times. Round cap reached.`,
+    ...(correction ? { testCorrection: correction } : {}),
     diagnosis,
     history,
     testFiles: tests.filesWritten,

@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **The unattended run corrects a wrong test one time.** In three runs, one hold in four was "the test is wrong, the code is right", and each time the user resumed and the test was changed to agree with the plan. Now, when the diagnosis of a failed round says the test is wrong and names the line of the plan it does not agree with, the test writer (never the round that failed) corrects that test, one time for each card. Code records the test files before and checks them after (`lib/test-guard.js`): no file gone, no fewer tests, no fewer assertions, no new skip or expected-failure mark. A correction that fails the check, or a diagnosis with no line of the plan, parks the card as before. Each corrected test is in the card's minor decisions, and the result of the run says `TESTS CORRECTED BY THE RUN: ...` so the user reads them before the merge. The counts are patterns over the text: a correction that keeps the count and weakens a value passes the check, which is why each one is listed. By hand nothing changes: the build phase still stops for the user.
+
 ## [5.1.1] - 2026-11-18
 
 The unattended run tests each card with its related tests and runs the full suite one time. From the sessions of two days: 771 test runs and 524 minutes, of which 27 were full runs by the run's implementer agents on a four-minute suite (108 minutes).

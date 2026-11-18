@@ -34,7 +34,7 @@ At each stop for the user, follow what `plan.md` and `tests.md` say: the documen
 **Full, with the Workflow tool (Claude Code):** follow `${CLAUDE_PLUGIN_ROOT}/phases/run.md` instead of the list below. It runs the same phases, stops for the same two confirmations, and then builds, checks and commits every card in one unattended run on its own branch, with review and harvest at the end and one report. It is the default for the Full tier because a card-by-card main conversation was 89% of the tokens on a real project. Use the list below only when the user asks to go card by card, or the host has no Workflow tool.
 
 **Full**
-1. `plan.md`. If the work splits into cards, the first card is the harness that needs the running system, when there is one. **Stop for the user's confirmation of the plan.**
+1. `plan.md`, with `"cards": true` in its arguments: the plan the user confirms has the `## Cards` section. The first card is the harness that needs the running system, when there is one. **Stop for the user's confirmation of the plan.**
 2. `tests.md`. **Stop for the user's confirmation of the Tests section.**
 3. `build.md`, once per card, in order, with `brief --section "<card heading>"`.
 

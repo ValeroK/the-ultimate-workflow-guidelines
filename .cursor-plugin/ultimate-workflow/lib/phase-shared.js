@@ -884,7 +884,10 @@ function inCard(card, file, testFiles = []) {
 // How a `measure: bytes <glob> <= <number>` line of a plan is read. lib/claims.js evaluates this section and the tests
 // phase script has it pasted in, so there is one parser.
 const MEASURE = /^\s*[-*]\s+measure:\s*(.*)$/i;
-const CLAIM = /^bytes\s+(\S+)\s+<=\s+([0-9][0-9_,]*)$/i;
+// 5.1.1: a note after the number is read past (`<= 5000 (4,300 now)`, `<= 5000 bytes`, `<= 5000 - the index`): the claims
+// check stopped on such a line and the plan author rewrote it. The note starts with a mark or the word "bytes", so a
+// unit (`<= 5 KB`, `<= 5k`) is still not understood and is never read as 5 bytes.
+const CLAIM = /^bytes\s+(\S+)\s+<=\s+([0-9][0-9_,]*)(?:\s*(?:[^A-Za-z0-9\s.]|bytes?\b).*)?$/i;
 // A glob is letters, digits, dot, dash, underscore, slash and star: no shell syntax, no backslash, no drive.
 const GLOB = /^[A-Za-z0-9._*/-]+$/;
 

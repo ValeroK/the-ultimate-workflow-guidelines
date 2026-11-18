@@ -184,6 +184,38 @@ if (failed.length === readers.length) {
   }
 }
 
+// 5.1.1: the cards are part of the plan the user confirms. They were added after the confirmation, by hand, and a plan
+// reached the unattended run with none: the run refused, the cards were added, and the plan needed a second confirmation.
+// `args.cards` (the Full tier) makes the section required; without it the section is written when the work has parts.
+const WANT_CARDS = Boolean(args && args.cards)
+const CARDS_SHAPE = `- **Cards** -- ${WANT_CARDS ? 'required' : 'only when the work has more than one part that can be built and proved by its own tests; leave the section out for a small change'}. A section headed exactly \`## Cards\`, the parts of the work in build order, one list item for each card and nothing else in the section, in exactly this form:
+
+  - <name>: <what the card does, one line>
+    paths: <the globs the card may change, comma-separated, relative to the project root>
+    depends: <the names of the cards that must be committed first; leave the line out when there are none>
+
+  A name is short, with letters, digits, dot, dash and underscore only (\`1\`, \`2a\`, \`harness\`). Every file the plan changes is under the paths of one card. A card is small enough for one build and big enough to be proved by its own tests. Put the detail of a card in the plan's other sections, not here.`
+
+/** The cards of a plan's \`## Cards\` section, read as experts/cards.js reads them: name, title and paths. */
+function readCards(md) {
+  const all = String(md || '').split(/\r?\n/)
+  const at = all.findIndex((l) => /^#{1,6}\s+cards\s*#*\s*$/i.test(l))
+  if (at === -1) return []
+  const out = []
+  let cur = null
+  for (let i = at + 1; i < all.length && !/^#{1,6}\s/.test(all[i]); i++) {
+    const item = /^[-*]\s+([A-Za-z0-9][A-Za-z0-9._-]*):(?:\s+(.*))?$/.exec(all[i])
+    if (item) {
+      cur = { name: item[1], title: (item[2] || '').trim(), paths: [] }
+      out.push(cur)
+      continue
+    }
+    const paths = cur && /^[ \t]+paths:\s*(.*)$/i.exec(all[i])
+    if (paths) cur.paths.push(...paths[1].split(',').map((s) => s.trim()).filter(Boolean))
+  }
+  return out
+}
+
 const found = slices.filter(Boolean)
 log(`${found.length}/${readers.length} slices read; synthesising`)
 
@@ -206,6 +238,7 @@ Produce the complete plan document as markdown, following this shape:
 - **Existing-design review** -- the patterns, utilities, and conventions this touches, drawn from what the readers actually found. Prefer reuse and say what will be reused.
 - **Deviation justification** -- every place you propose departing from an existing pattern, with the current pattern, the alternative, and pros and cons for both. If there are none, write "None -- reuses existing patterns." Do not manufacture a deviation to look thorough; do not hide one to look tidy.
 - Open questions
+${CARDS_SHAPE}
 
 Two rules on content. Anchor every claim about the codebase in something a reader actually reported -- do not assert structure nobody observed. And leave the Tests section out entirely; it is written and confirmed separately, after this plan is.
 
@@ -336,6 +369,15 @@ Say what your domain requires of this plan that it does not yet say. Read the co
   }
 }
 
+const cards = readCards(planMarkdown)
+const noPaths = cards.filter((c) => c.paths.length === 0).map((c) => c.name)
+const cardsNote =
+  WANT_CARDS && cards.length === 0
+    ? 'The plan has no ## Cards section, and this tier builds cards. Add them with `experts.js card-add` before the user sees the plan: the cards are part of what the user confirms.'
+    : noPaths.length > 0
+      ? `These cards have no paths line: ${noPaths.join(', ')}. Give each its paths in the plan file before the user sees the plan.`
+      : ''
+
 return {
   ok: true,
   feature,
@@ -345,6 +387,8 @@ return {
   openQuestions,
   planMarkdown,
   expertLane,
+  cards,
+  ...(cardsNote ? { cardsNote } : {}),
   note:
     'Nothing was written. The expert input is already inside planMarkdown, so it is not returned a second time. Write the plan from the Workflow output file with `experts.js present`, and set plan_confirmed to true only after the user has accepted it.',
 }

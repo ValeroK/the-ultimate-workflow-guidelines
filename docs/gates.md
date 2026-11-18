@@ -43,7 +43,7 @@ Documentation (`.md`, `.txt`) never counts as code. Neither do diagrams, because
 
 ### Cards in a plan
 
-A plan split into cards lists them in a `## Cards` section, one bullet per card, written by `experts.js card-add` and not by hand:
+A plan split into cards lists them in a `## Cards` section, one bullet per card, written by the plan phase as part of the plan the user confirms (5.1.1), or by `experts.js card-add`:
 
 ```
 - 8a: Command Deck routes

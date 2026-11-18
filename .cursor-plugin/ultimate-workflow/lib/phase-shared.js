@@ -120,7 +120,7 @@ const BUILT = {
   properties: {
     green: { type: 'boolean' },
     filesChanged: { type: 'array', items: { type: 'string' } },
-    notDone: { type: 'array', items: { type: 'string' }, description: 'Deliberately left undone, and why' },
+    notDone: { type: 'array', items: { type: 'string' }, description: 'Work of the plan that you deliberately left undone, and why. Not what the rules told you not to do (staging, committing, a full run), and not a tool the project does not have' },
     noticed: { type: 'array', items: { type: 'string' }, description: 'Worth a later change; not done now' },
     decisions: {
       type: 'array',

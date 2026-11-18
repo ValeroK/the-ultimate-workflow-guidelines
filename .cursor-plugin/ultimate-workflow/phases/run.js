@@ -287,7 +287,11 @@ async function runCard(card, { adhoc = false, fullNow = false } = {}) {
   }
 
   const [scope] = await runSteps(`${card.name}:scope`, [cliCmd('scope', '--plan', q(PLAN), '--card', card.name)])
-  const outOfScope = scope && Array.isArray(scope.outOfScope) ? scope.outOfScope : null
+  // The second real run: a fix-up card for a finding in src/cli.js wrote the test of that finding, and the report
+  // said it changed test/cli.test.js "outside its paths". The test a card wrote for its own work is its work.
+  const slash = (p) => String(p).replace(/\\/g, '/')
+  const ownTest = (f) => buildSummary.testFiles.some((t) => slash(t) === slash(f) || slash(t).endsWith(`/${slash(f)}`))
+  const outOfScope = scope && Array.isArray(scope.outOfScope) ? scope.outOfScope.filter((f) => !ownTest(f)) : null
 
   // Decisions the plan does not state (2026-11-09): the implementer's own list, and what code finds
   // in the diff. A major one is not committed: the card is held as needs-decision, its work kept on
@@ -296,7 +300,11 @@ async function runCard(card, { adhoc = false, fullNow = false } = {}) {
   // The first real run (2026-11-18): a test of the confirmed section contradicted the plan, the card left it out and
   // said so in notDone, and nothing showed it to the user. What a card leaves out is recorded and said in the result.
   const omitted = [...(build.testsNotWritten || []).map((x) => `did not write the test ${x.test}: ${x.why}`), ...(build.notDone || []).map((x) => `left undone: ${x}`)]
-  if (omitted.length > 0) leftOut.push({ card: card.name, items: omitted })
+  // Only a test that was not written is said in the result: in the second real run the rounds' notDone held
+  // "no lint command was run" and "I did not stage or commit", which is not work the user has to decide on. All of
+  // it is still in the card's minor decisions.
+  const unwritten = omitted.filter((x) => x.startsWith('did not write the test '))
+  if (unwritten.length > 0) leftOut.push({ card: card.name, items: unwritten })
   // A test the run corrected is a choice the plan did not state: recorded with the card's minor decisions.
   const declared = [
     ...((build && build.decisions) || []),

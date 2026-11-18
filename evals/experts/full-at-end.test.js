@@ -571,8 +571,8 @@ test('a test of the section that was not written, and work a round left undone, 
   });
   const { result } = await run(baseArgs([card('1'), card('2')]), r);
   assert.match(r.prompt('1:write-tests'), /do not write it and do not write a changed form of it: list it in notWritten/);
-  assert.deepStrictEqual(result.leftOut, [{ card: '1', items: ['did not write the test plan test 4: it contradicts decision 2 and test 3', 'left undone: plan test 4 is not implemented'] }]);
-  assert.match(result.summary, /LEFT OUT BY A CARD: card 1: did not write the test plan test 4: it contradicts decision 2 and test 3 \| left undone: plan test 4 is not implemented\. Decide on each before you merge\./);
+  assert.deepStrictEqual(result.leftOut, [{ card: '1', items: ['did not write the test plan test 4: it contradicts decision 2 and test 3'] }], 'the result says the test that was not written; notDone is in the decisions only');
+  assert.match(result.summary, /LEFT OUT BY A CARD: card 1: did not write the test plan test 4: it contradicts decision 2 and test 3\. Decide on each before you merge\./);
   const declared = JSON.parse(/<<<CONTENT\n([\s\S]*?)\nCONTENT>>>/.exec(r.prompt('1:decisions'))[1]);
   assert.deepStrictEqual(declared.map((d) => [d.what, d.major]), [['did not write the test plan test 4: it contradicts decision 2 and test 3', false], ['left undone: plan test 4 is not implemented', false]]);
 });
@@ -582,4 +582,32 @@ test('a run where every card did all of its work says nothing about work left ou
   const { result } = await run(baseArgs([card('1')]), r);
   assert.deepStrictEqual(result.leftOut, []);
   assert.doesNotMatch(result.summary, /LEFT OUT/);
+});
+
+// The second real run (2026-11-18): the rounds' notDone held "no lint command was run" and "I did not stage or commit",
+// and the result said LEFT OUT BY A CARD for them.
+test('notDone alone is not said in the result: it is in the minor decisions of the card', async () => {
+  const r = responder({
+    on: (call, who, role) => (who === '1' && role === 'attempt-1' ? { green: true, filesChanged: ['src/1/x.js'], notDone: ['No lint command was run: the repository has none.'], summary: 'done' } : undefined),
+  });
+  const { result } = await run(baseArgs([card('1')]), r);
+  assert.deepStrictEqual(result.leftOut, []);
+  assert.doesNotMatch(result.summary, /LEFT OUT/);
+  const declared = JSON.parse(/<<<CONTENT\n([\s\S]*?)\nCONTENT>>>/.exec(r.prompt('1:decisions'))[1]);
+  assert.deepStrictEqual(declared.map((d) => d.what), ['left undone: No lint command was run: the repository has none.']);
+});
+
+// The second real run: a fix-up card wrote the test of its finding, and the report said it changed that test file
+// "outside its paths".
+test('the test file a card wrote for its own work is not reported as outside its paths; another file is', async () => {
+  const r = responder({
+    on: (call, who, role) => {
+      if (who !== '1') return undefined;
+      if (role === 'write-tests') return { filesWritten: ['C:\\proj\\test\\1.test.js'], testsFailAsExpected: true, summary: 'red' };
+      if (role === 'scope') return steps({ card: '1', outOfScope: ['test/1.test.js', 'docs/other.md'] });
+      return undefined;
+    },
+  });
+  const { result } = await run(baseArgs([card('1')]), r);
+  assert.deepStrictEqual(result.cards[0].outOfScope, ['docs/other.md']);
 });

@@ -27,32 +27,53 @@ const count = (text) => ({
   skips: (String(text).match(SKIP) || []).length,
 });
 
+const sha = (text) => require('node:crypto').createHash('sha256').update(text).digest('hex');
+
+/** The counts and the text of each test file now: the snapshot, and a copy of each file next to it (`<snapshot>.before/`). */
 function snapshot(cwd, out, files) {
   const counts = {};
+  const copies = `${out}.before`;
+  fs.rmSync(path.resolve(cwd, copies), { recursive: true, force: true });
   for (const f of files) {
     const p = path.resolve(cwd, f);
-    if (fs.existsSync(p) && fs.statSync(p).isFile()) counts[f.replace(/\\/g, '/')] = count(fs.readFileSync(p, 'utf8'));
+    if (!fs.existsSync(p) || !fs.statSync(p).isFile()) continue;
+    const rel = path.relative(cwd, p).replace(/\\/g, '/');
+    const text = fs.readFileSync(p, 'utf8');
+    const copy = `${copies}/${rel.replace(/[\\/:]/g, '__')}`;
+    fs.mkdirSync(path.resolve(cwd, copies), { recursive: true });
+    fs.writeFileSync(path.resolve(cwd, copy), text);
+    counts[rel] = { ...count(text), sha: sha(text), copy: copy.replace(/\\/g, '/') };
   }
   fs.mkdirSync(path.dirname(path.resolve(cwd, out)), { recursive: true });
   fs.writeFileSync(path.resolve(cwd, out), `${JSON.stringify(counts, null, 2)}\n`);
   return { ok: Object.keys(counts).length > 0, files: Object.keys(counts).length, ...(Object.keys(counts).length ? {} : { reason: 'none of the test files exists' }) };
 }
 
+/** The test files now against the snapshot: which changed (`changed`, with the copy of each before the change in `before`), and what went away. */
 function check(cwd, snap) {
   const before = JSON.parse(fs.readFileSync(path.resolve(cwd, snap), 'utf8'));
   const problems = [];
+  const changed = [];
+  const copies = {};
   for (const [f, was] of Object.entries(before)) {
     const p = path.resolve(cwd, f);
     if (!fs.existsSync(p)) {
       problems.push(`${f} is gone`);
+      changed.push(f);
+      if (was.copy) copies[f] = was.copy;
       continue;
     }
-    const now = count(fs.readFileSync(p, 'utf8'));
+    const text = fs.readFileSync(p, 'utf8');
+    const now = count(text);
+    if (was.sha && sha(text) !== was.sha) {
+      changed.push(f);
+      if (was.copy) copies[f] = was.copy;
+    }
     if (now.tests < was.tests) problems.push(`${f} has ${now.tests} tests, and had ${was.tests}`);
     if (now.asserts < was.asserts) problems.push(`${f} has ${now.asserts} assertions, and had ${was.asserts}`);
     if (now.skips > was.skips) problems.push(`${f} has ${now.skips} skip or expected-failure marks, and had ${was.skips}`);
   }
-  return { ok: true, kept: problems.length === 0, problems };
+  return { ok: true, kept: problems.length === 0, problems, changed, before: copies };
 }
 
 if (require.main === module) {

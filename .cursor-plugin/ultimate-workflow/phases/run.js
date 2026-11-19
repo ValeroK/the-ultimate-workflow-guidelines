@@ -281,7 +281,8 @@ async function runCard(card, { adhoc = false, fullNow = false } = {}) {
     build = await buildLoop({ ...loopOpts, resume: { reason: 'the carried findings were missing tests; the new tests pass against code that already does the right thing', testFiles: build.filesWritten } })
   }
   const buildSummary = { green: Boolean(build.green), rounds: build.rounds || (build.history ? build.history.length : 0), testFiles: build.testFiles || build.filesWritten || [], ...(testsOnly ? { testsOnly: true } : {}), ...(build.testCorrection ? { testCorrection: build.testCorrection } : {}) }
-  if (build.testCorrection && build.testCorrection.outcome === 'corrected') testCorrections.push({ card: card.name, ...build.testCorrection })
+  const testerPassed = Boolean(build.testCorrection && (build.testCorrection.outcome === 'corrected' || build.testCorrection.outcome === 'verified'))
+  if (testerPassed) testCorrections.push({ card: card.name, ...build.testCorrection })
   if (!build.green) {
     const why = build.escalation || [build.error, build.reason, build.hint, build.unexpectedlyPassing && build.unexpectedlyPassing.length ? `Passing before the implementation: ${build.unexpectedlyPassing.join(', ')}` : ''].filter(Boolean).join('\n')
     return parkCard(card, `${build.stoppedAt === 'Tests' ? 'tests did not fail first' : 'not green'}: ${why || 'the build stopped'}`, { build: buildSummary })
@@ -310,8 +311,8 @@ async function runCard(card, { adhoc = false, fullNow = false } = {}) {
   const declared = [
     ...((build && build.decisions) || []),
     ...omitted.map((what) => ({ what, why: 'reported by the card', major: false })),
-    ...(build.testCorrection && build.testCorrection.outcome === 'corrected'
-      ? (build.testCorrection.corrected.length > 0 ? build.testCorrection.corrected : [{ test: 'tests of the card', was: '', now: '' }]).map((t) => ({ what: `the tester ${t.verdict === 'removed' ? 'removed' : 'corrected'} the test ${t.test}${t.verdict === 'removed' ? '' : ' to agree with the plan'}${t.planReference ? ` (${t.planReference})` : ''}${t.verdict === 'removed' ? (t.was ? `: it asserted ${t.was}` : '') : t.was || t.now ? `: it asserted ${t.was}, it now asserts ${t.now}` : ''}`, why: t.why || 'the diagnosis of a failed round said the test was wrong, not the code', major: false }))
+    ...(testerPassed
+      ? (build.testCorrection.corrected.length > 0 ? build.testCorrection.corrected : [{ test: 'tests of the card', was: '', now: '' }]).map((t) => ({ what: `${build.testCorrection.byCodeRound ? 'the code round changed tests, and ' : ''}the tester ${t.verdict === 'removed' ? 'removed' : t.verdict === 'agrees with the plan' ? 'verified' : 'corrected'} the test ${t.test}${t.verdict === 'corrected' ? ' to agree with the plan' : ''}${t.planReference ? ` (${t.planReference})` : ''}${t.verdict === 'removed' ? (t.was ? `: it asserted ${t.was}` : '') : t.was || t.now ? `: it asserted ${t.was}, it now asserts ${t.now}` : ''}`, why: t.why || 'the diagnosis of a failed round said the test was wrong, not the code', major: false }))
       : []),
   ]
   const declaredFile = `${cardDir(card.name)}/declared-decisions.json`
@@ -647,7 +648,7 @@ const fullSuiteText = !VERIFY
       ? `Full suite: passed${lastFull.card ? ` after the card ${lastFull.card.card} corrected it` : ''}`
       : `FULL SUITE NOT GREEN: ${lastFull.reason || `${lastFull.failures.length} failing test(s)${lastFull.card ? `, and the card ${lastFull.card.card} is ${lastFull.card.status}` : ''}`}`
 // The tests the run corrected, said plainly: the user reads each one in the report.
-const correctedText = testCorrections.length > 0 ? ` TESTS CORRECTED BY THE RUN: ${testCorrections.map((c) => `card ${c.card} (${c.corrected.map((t) => `${t.verdict === 'removed' ? 'removed ' : ''}${t.test}${t.planReference ? `, plan: ${t.planReference}` : ''}`).join('; ') || 'see its decisions'}${(c.counted || []).length > 0 ? `; counted: ${c.counted.join(', ')}` : ''})`).join('; ')}. Read them before you merge.` : ''
+const correctedText = testCorrections.length > 0 ? ` TESTS CORRECTED BY THE RUN: ${testCorrections.map((c) => `card ${c.card} (${c.byCodeRound ? 'changed by the code round, verified by the tester: ' : ''}${c.corrected.map((t) => `${t.verdict === 'removed' ? 'removed ' : t.verdict === 'agrees with the plan' ? 'kept ' : ''}${t.test}${t.planReference ? `, plan: ${t.planReference}` : ''}`).join('; ') || 'see its decisions'}${(c.counted || []).length > 0 ? `; counted: ${c.counted.join(', ')}` : ''})`).join('; ')}. Read them before you merge.` : ''
 const leftOutText = leftOut.length > 0 ? ` LEFT OUT BY A CARD: ${leftOut.map((c) => `card ${c.card}: ${c.items.join(' | ')}`).join('; ')}. Decide on each before you merge.` : ''
 const counts = report.reduce((n, r) => ({ ...n, [r.status]: (n[r.status] || 0) + 1 }), {})
 // Whether the branch was reviewed by the experts, said plainly: the report, the notice and the summary use these words.

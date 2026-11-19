@@ -35,6 +35,8 @@ function responder(o = {}) {
     const [who, role] = String(call.label).includes(':') ? call.label.split(':') : [call.label, ''];
     if (role === 'run' && /^full-suite/.test(who)) return (o.fullRun && o.fullRun(who)) || { passed: true, failures: [], summary: 'full run passed' };
     if (role === 'proof' && /^full-suite/.test(who)) return steps({ ok: true, current: true, passed: !(o.fullRun && o.fullRun(who).passed === false) });
+    if (role === 'tests-before') return steps({ ok: true, files: 1 });
+    if (role === 'tests-kept') return steps({ ok: true, kept: true, problems: [], changed: [], before: {} });
     if (role === 'write-tests') return { filesWritten: [`test/${who}.test.js`], testsFailAsExpected: true, summary: 'red' };
     if (/^attempt-/.test(role)) return (o.red || []).includes(who) ? { green: false, filesChanged: [`src/${who}/x.js`], failureOutput: `fail ${role}`, summary: role } : { green: true, fullSuiteGreen: true, filesChanged: [`src/${who}/x.js`], summary: 'done' };
     if (/^diagnose-/.test(role)) return { cause: 'wrong', signature: `sig-${role}`, suggestedFix: 'fix', confidence: 'medium' };
@@ -1032,7 +1034,7 @@ test('one review: a card makes no recheck, expert, refute or record call; its st
   const { result } = await run(baseArgs([card('1'), card('2')], { planExperts: ['quality'] }), r);
   const perCard = r.seen.filter((l) => /^[12]:/.test(l));
   for (const l of perCard) assert.ok(!/:(recheck|quality|refute|record|prepare|fix-round|carry)/.test(l), `no per-card experts step: ${l}`);
-  assert.deepStrictEqual(perCard.filter((l) => /^1:/.test(l)), ['1:start', '1:write-tests', '1:attempt-1', '1:scope', '1:decisions', '1:commit', '1:journal']);
+  assert.deepStrictEqual(perCard.filter((l) => /^1:/.test(l)), ['1:start', '1:write-tests', '1:tests-before', '1:attempt-1', '1:tests-kept', '1:scope', '1:decisions', '1:commit', '1:journal']);
   assert.equal(result.counts.committed, 2);
 });
 

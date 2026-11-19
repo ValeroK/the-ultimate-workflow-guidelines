@@ -44,6 +44,8 @@ function responder(o = {}) {
       return fr;
     }
     if (role === 'proof' && /^full-suite/.test(who)) return steps((o.proof && o.proof(who)) || { ok: true, current: true, passed: said });
+    if (role === 'tests-before') return steps({ ok: true, files: 1 });
+    if (role === 'tests-kept') return steps({ ok: true, kept: true, problems: [], changed: [], before: {} });
     if (role === 'write-tests') return { filesWritten: [`test/${who}.test.js`], testsFailAsExpected: true, summary: 'red' };
     // No fullSuiteGreen: a card of the run never makes a full run.
     if (/^attempt-/.test(role)) return (o.red || []).includes(who) ? { green: false, filesChanged: [`src/${who}/x.js`], failureOutput: `fail ${role}`, summary: role } : { green: true, ...(o.fullGreen && o.fullGreen.includes(who) ? { fullSuiteGreen: true } : {}), filesChanged: [`src/${who}/x.js`], summary: 'done' };
@@ -378,14 +380,15 @@ test('wrong tests: the diagnosis names every one, all go back to the tester in o
   const r = correcting();
   const { result } = await run(baseArgs([card('1')]), r);
   const labels = r.labels().filter((l) => /^1:/.test(l));
-  assert.deepStrictEqual(labels.slice(2, 8), ['1:attempt-1', '1:diagnose-1', '1:tests-before', '1:correct-tests', '1:tests-kept', '1:attempt-2'], labels.join(' '));
+  // The tests are recorded before the first code round; after the tester's pass they are counted and recorded again.
+  assert.deepStrictEqual(labels.slice(2, 10), ['1:tests-before', '1:attempt-1', '1:diagnose-1', '1:correct-tests', '1:tests-kept', '1:tests-before', '1:attempt-2', '1:tests-kept'], labels.join(' '));
   assert.equal(labels.filter((l) => l === '1:correct-tests').length, 1, 'one pass for all the tests');
   assert.match(r.prompt('1:tests-before'), /node "\/p\/lib\/test-guard\.js" snapshot "\.ultimate-workflow\/run\/f\/cards\/1\/tests-before\.json" "test\/1\.test\.js"/);
   assert.match(r.prompt('1:tests-kept'), /test-guard\.js" check /);
   const p = r.prompt('1:correct-tests');
   assert.match(p, /You are the tester of this change/);
   for (const named of ['test/1.test.js::title', 'test/1.test.js::quotes', 'PLAN-f.md:322', 'PLAN-f.md:323']) assert.ok(p.includes(named), named);
-  assert.match(p, /Verify every named test against the plan, all in this one pass/);
+  assert.match(p, /Verify every one of these tests against the plan, all in this one pass/);
   assert.match(p, /verify their other tests in the same way/);
   assert.match(p, /A test that agrees with the plan: leave it, and say so/);
   assert.match(p, /A test the change does not need \(the plan does not ask for what it checks, or it repeats another test\): remove it/);
@@ -547,7 +550,10 @@ test('test-guard: the counts before and after say what went away: a test, an ass
   fs.writeFileSync(file, body);
   assert.deepStrictEqual(cli('snapshot', 'snap/before.json', 't/a.test.js', 't/none.test.js'), { ok: true, files: 1 });
   fs.writeFileSync(file, body.replace('f(), 1', 'f(), 7'));
-  assert.deepStrictEqual(cli('check', 'snap/before.json'), { ok: true, kept: true, problems: [] });
+  assert.deepStrictEqual(cli('check', 'snap/before.json'), { ok: true, kept: true, problems: [], changed: ['t/a.test.js'], before: { 't/a.test.js': 'snap/before.json.before/t__a.test.js' } }, 'a changed value: nothing went away, and the file is named as changed, with its copy');
+  assert.equal(fs.readFileSync(path.join(dir, 'snap/before.json.before/t__a.test.js'), 'utf8'), body, 'the copy is the file as it was');
+  fs.writeFileSync(file, body);
+  assert.deepStrictEqual(cli('check', 'snap/before.json').changed, [], 'the same text is not a change');
   fs.writeFileSync(file, body.replace(' assert.ok(g());', ''));
   assert.match(cli('check', 'snap/before.json').problems.join(), /has 2 assertions, and had 3/);
   fs.writeFileSync(file, body.split('\n')[0] + '\n');
@@ -611,4 +617,80 @@ test('the test file a card wrote for its own work is not reported as outside its
   });
   const { result } = await run(baseArgs([card('1')]), r);
   assert.deepStrictEqual(result.cards[0].outOfScope, ['docs/other.md']);
+});
+
+// --- the third real run (2026-11-19): the code round changed two wrong tests itself -----------------------------------
+// The round was green and nothing went back to the tester. The tests are the tester's: code sees that a code round
+// changed a test file, and the tester verifies those tests against the plan before the round counts.
+
+/** Card 1: the check after round 1 says the code round changed its test file. `fixed` is what the tester answers. */
+const codeRoundEdits = (fixed, extra = () => undefined) => {
+  let checks = 0;
+  return responder({
+    on: (call, who, role) => {
+      if (who !== '1') return undefined;
+      const own = extra(call, role);
+      if (own !== undefined) return own;
+      if (role === 'attempt-1') return { green: true, filesChanged: ['src/1/x.js', 'test/1.test.js'], decisions: [{ what: 'Corrected two test expectations to match the plan', major: false }], summary: 'done; two tests were wrong' };
+      if (role === 'tests-kept') return steps(++checks === 1 ? { ok: true, kept: true, problems: [], changed: ['test/1.test.js'], before: { 'test/1.test.js': '.ultimate-workflow/run/f/cards/1/tests-before.json.before/test__1.test.js' } } : { ok: true, kept: checks !== 2, problems: checks === 2 ? ['test/1.test.js has 4 tests, and had 5'] : [], changed: [], before: {} });
+      if (role === 'correct-tests') return fixed;
+      return undefined;
+    },
+  });
+};
+const VERIFIED = { changed: false, tests: [{ test: 'test/1.test.js::title', verdict: 'agrees with the plan', planReference: 'PLAN-f.md:322', why: 'the plan says substring' }], summary: 'The change of the code round agrees with the plan.' };
+
+test('the code round is told that the tests are not its work', async () => {
+  const r = responder();
+  await run(baseArgs([card('1')]), r);
+  const p = r.prompt('1:attempt-1');
+  assert.match(p, /The tests are not yours\. Never edit, add or delete a test file, not even to correct a test that is wrong/);
+  assert.match(p, /leave it failing, report green false/);
+});
+
+test('a code round that changed a test file: the tester verifies it before the round counts; a change the plan supports stands', async () => {
+  const r = codeRoundEdits(VERIFIED);
+  const { result } = await run(baseArgs([card('1')]), r);
+  const labels = r.labels().filter((l) => /^1:/.test(l));
+  assert.deepStrictEqual(labels.slice(2, 8), ['1:tests-before', '1:attempt-1', '1:tests-kept', '1:correct-tests', '1:tests-kept', '1:tests-before'], labels.join(' '));
+  assert.ok(!labels.includes('1:attempt-2'), 'the tester changed nothing, so the round stands');
+  const p = r.prompt('1:correct-tests');
+  assert.match(p, /A code round changed test files, which is not its work, and then reported green/);
+  assert.match(p, /tests-before\.json\.before\/test__1\.test\.js/, 'the tester is given the file as it was before the change');
+  assert.match(p, /Corrected two test expectations to match the plan/, 'and what the code round said');
+  assert.match(p, /A change that the plan supports stands/);
+  assert.deepStrictEqual(result.counts, { committed: 1 });
+  assert.equal(result.testCorrections[0].byCodeRound, true);
+  assert.equal(result.testCorrections[0].outcome, 'verified');
+  assert.match(result.summary, /TESTS CORRECTED BY THE RUN: card 1 \(changed by the code round, verified by the tester: kept test\/1\.test\.js::title, plan: PLAN-f\.md:322; counted: test\/1\.test\.js has 4 tests, and had 5\)/);
+  const declared = JSON.parse(/<<<CONTENT\n([\s\S]*?)\nCONTENT>>>/.exec(r.prompt('1:decisions'))[1]);
+  assert.ok(declared.some((d) => /^the code round changed tests, and the tester verified the test test\/1\.test\.js::title/.test(d.what)), JSON.stringify(declared));
+});
+
+test('a code round that changed a test file, and the tester puts a test right: the code runs again with the full account', async () => {
+  const fixed = { changed: true, tests: [{ test: 'test/1.test.js::title', verdict: 'corrected', was: 'what the code round wrote', now: 'what the plan says', planReference: 'PLAN-f.md:322' }], summary: 'One test put right.' };
+  const r = codeRoundEdits(fixed);
+  const { result } = await run(baseArgs([card('1')]), r);
+  const labels = r.labels().filter((l) => /^1:/.test(l));
+  assert.ok(labels.includes('1:attempt-2'), labels.join(' '));
+  const p = r.prompt('1:attempt-2');
+  assert.match(p, /"signature": "code-round-changed-tests"/);
+  assert.match(p, /"testsChangedByTheTester"/);
+  assert.match(p, /Do not change the tests\./);
+  assert.deepStrictEqual(result.counts, { committed: 1 });
+  assert.equal(result.testCorrections[0].outcome, 'corrected');
+});
+
+test('a tester that returns nothing after a code round changed tests: the card is parked, never committed on those tests', async () => {
+  const r = codeRoundEdits(null);
+  const { result } = await run(baseArgs([card('1')]), r);
+  assert.equal(result.cards[0].status, 'parked');
+  assert.match(result.cards[0].reason, /The code round changed test files \(test\/1\.test\.js\) and the tester did not verify them/);
+});
+
+test('a card whose code round changed no test file gets no pass of the tester', async () => {
+  const r = responder();
+  const { result } = await run(baseArgs([card('1')]), r);
+  assert.ok(!r.labels().includes('1:correct-tests'));
+  assert.deepStrictEqual(result.testCorrections, []);
 });

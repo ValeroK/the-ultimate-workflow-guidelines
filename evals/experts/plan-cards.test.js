@@ -151,3 +151,11 @@ test('claims: a claim on a file that a card of the plan creates is not measured 
 test('claims: the tests command tells the user about a claim that is not measured yet', () => {
   assert.match(read('commands', 'tests.md'), /`pending`/);
 });
+
+// 2026-11-19, a real session: started in another folder, it searched the other projects for the card and ran there.
+test('run.md: a resume is of the run in the folder of the session, and the session never searches other projects', () => {
+  const md = read('phases', 'run.md');
+  const resume = md.slice(md.indexOf('## Resume'));
+  assert.match(resume, /A resume is of the run in this folder/);
+  assert.match(resume, /do not look in other folders or other projects, and do not start anything/);
+});

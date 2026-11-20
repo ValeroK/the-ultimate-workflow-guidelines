@@ -128,7 +128,15 @@ test('cover rule: the run\'s shared cover rule and cards.covers give the same an
     [['src/**'], 'src/a/b.js'], [['src/**'], 'src'], [['src/**'], 'srcx/a.js'], [['src/'], 'src/a.js'], [['src/'], 'other/a.js'],
     [['README.md'], 'README.md'], [['README.md'], 'docs/README.md'], [['src/*.js'], 'src/a.js'], [['src/*.js'], 'src/x/a.js'],
     [['**/*.test.js'], 'a/b/c.test.js'], [['**/*.test.js'], 'c.test.js'], [['./src/**'], 'src/a.js'], [['a.js', 'b.js'], 'b.js'], [[], 'a.js'],
+    // 5.2.0, a file of another repository of the plan (`demo:path`): only a path with that name covers it.
+    [['demo:src/**'], 'demo:src/a.js'], [['src/**'], 'demo:src/a.js'], [['demo:src/**'], 'src/a.js'], [['**/*.js'], 'demo:src/a.js'], [['*'], 'demo:a.js'],
+    [['demo:**/*.js'], 'demo:src/a.js'], [['api:src/**'], 'demo:src/a.js'], [['demo:src/*.js'], 'demo:src/x/a.js'], [['demo:src/'], 'demo:src/a.js'],
+    [['src/**', 'demo:src/**'], 'demo:src/a.js'], [['demo:./src/**'], 'demo:src/a.js'], [['C:/x/**'], 'C:/x/a.js'],
   ];
+  // The table must hold both answers for the files of another repository, or it proves nothing about them.
+  const prefixed = table.filter(([, file]) => file.startsWith('demo:')).map(([globs, file]) => covers(globs, file));
+  assert.ok(prefixed.includes(true) && prefixed.includes(false));
+  assert.strictEqual(covers(['**/*.js'], 'demo:src/a.js'), false, 'a main path never covers a file of another repository');
   for (const [globs, file] of table) assert.strictEqual(covers(globs, file), cards.covers(globs, file, experts.globToRegExp), `${JSON.stringify(globs)} vs ${file}`);
 });
 

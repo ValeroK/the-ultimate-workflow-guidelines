@@ -103,9 +103,17 @@ const nameRe = (name) => new RegExp(`^(?:card\\s+)?${String(name).replace(/[.*+?
  * the card ("### 2: parser", "### Card 2"). A plan with one card and no subheadings: the Tests
  * section itself. Null when there is none, which fails the preflight.
  */
+/**
+ * The heading of the test plan: "Tests", "Test", "Test plan" or "Test cases", alone, or with a note after a mark
+ * ("Tests (confirmed)", "Tests: draft") or after by, for, per, of ("Tests by card"). "Test data" and "Test strategy"
+ * are other sections: the first heading that only started with "test" was taken as the test plan before 5.2.0.
+ * lib/plan-state.js uses this same rule, so the run and `plan-state` cannot disagree.
+ */
+const TESTS_TITLE = /^(tests?|test plan|test cases)(\s*[(:\-\u2013\u2014].*|\s+(by|for|per|of)\b.*)?$/i;
+
 function testSection(planText, card, cardCount) {
   const heads = sections(planText);
-  const tests = heads.find((h) => /^tests?\b|^test plan\b/i.test(h.title));
+  const tests = heads.find((h) => TESTS_TITLE.test(h.title));
   if (!tests) return null;
   const sub = heads.find((h) => h.start > tests.start && h.start <= tests.end && h.level > tests.level && nameRe(card).test(h.title));
   if (sub) return sub;
@@ -169,7 +177,12 @@ function pack(cwd, { plan, card: name, feature, resume = false, adhoc = false, d
   const entries = [];
   const planLines = lines(planText);
   const ofRange = (h) => planLines.slice(h.start - 1, h.end).join('\n');
-  const sizeOfFile = (f) => (fs.existsSync(path.join(cwd, f)) ? fs.readFileSync(path.join(cwd, f), 'utf8').length : 0);
+  // A file of another repository of the plan is named `demo:path` (lib/repos.js); `at` is where it is on disk.
+  const reposLib = require('../lib/repos.js');
+  const planRepos = reposLib.resolve(cwd, planText);
+  const at = (f) => reposLib.fileOf(planRepos.repos, f) || path.join(cwd, f);
+  for (const p of planRepos.problems) problems.push(p);
+  const sizeOfFile = (f) => (fs.existsSync(at(f)) ? fs.readFileSync(at(f), 'utf8').length : 0);
   const add = (p, why, { optional = false, role = 'required', chars = sizeOfFile(p), how, matches } = {}) => entries.push({ path: p, why, optional, role, chars, how, matches });
   const addRange = (h, why) => add(`${planRel} lines ${h.start}-${h.end}`, why, { chars: ofRange(h).length });
   for (const h of heads.filter((x) => x.level === 2 && SHARED.test(x.title))) addRange(h, `## ${h.title}`);
@@ -180,7 +193,7 @@ function pack(cwd, { plan, card: name, feature, resume = false, adhoc = false, d
   if (cardsHead) addRange(cardsHead, `## Cards: this card is "${card.name}: ${card.title}"`);
   // A card the run adds itself (the findings card, the review's fix-up card) has no test-plan
   // section: its work is the carried items, and the tests are written for them.
-  // 5.1.1: a resume builds the pack of every card with no --adhoc, so a fix-up card parked for a decision was parked
+  // 5.2.0: a resume builds the pack of every card with no --adhoc, so a fix-up card parked for a decision was parked
   // again as "missing input: no test-plan section", and the user committed it by hand.
   const section = adhoc ? null : testSection(planText, card.name, all.length);
   const runAdded = adhoc || (!section && RUN_ADDED.test(card.name) && (card.carried || []).length > 0);
@@ -199,9 +212,9 @@ function pack(cwd, { plan, card: name, feature, resume = false, adhoc = false, d
   const perCard = all.some((c) => heads.some((h) => /^card\s/i.test(h.title) && nameRe(c.name).test(h.title)));
   for (const doc of [...new Set(cited)]) {
     const byCard = all.some((c) => c.paths.length > 0 && cardsLib.covers(c.paths, doc, globRe));
-    if (fs.existsSync(path.join(cwd, doc))) add(doc, summaryOf(path.join(cwd, doc)) || 'cited by the plan', { role: packLib.citedRole(doc, { perCard, namedByText, namedByPaths: cardsLib.covers(card.paths, doc, globRe) }) });
+    if (fs.existsSync(at(doc))) add(doc, summaryOf(at(doc)) || 'cited by the plan', { role: packLib.citedRole(doc, { perCard, namedByText, namedByPaths: cardsLib.covers(card.paths, doc, globRe) }) });
     // A name with no folder is often a word in backticks, not a path (fault 17): it is a warning, and a path with a folder still has to exist.
-    else if (!byCard) (doc.includes('/') ? problems : packWarnings).push(`the plan cites ${doc}, which does not exist`);
+    else if (!byCard) ((reposLib.splitPath(doc).repo ? planRepos.repos.some((r) => r.name === reposLib.splitPath(doc).repo) : doc.includes('/')) ? problems : packWarnings).push(`the plan cites ${doc}, which does not exist${reposLib.splitPath(doc).repo && !planRepos.repos.some((r) => r.name === reposLib.splitPath(doc).repo) ? ` (the plan's header declares no repository "${reposLib.splitPath(doc).repo}")` : ''}`);
   }
   for (const f of ['AGENTS.md', 'CLAUDE.md']) if (fs.existsSync(path.join(cwd, f))) add(f, 'project rules and Gotchas', { role: 'conditional' });
   const budget = packLib.budgetOf(require('../hooks/lib/state.js').parseFrontMatter(planText).data.pack_budget);
@@ -230,7 +243,8 @@ function pack(cwd, { plan, card: name, feature, resume = false, adhoc = false, d
     else problems.push(`--resume, but card ${card.name} has no parked.md and no ${branch} to read it from`);
   }
 
-  const intro = 'Read these before you write anything. Paths are relative to the project root; "lines a-b" is the part of the file that matters. An entry marked "if present" may not exist yet: skip it then.';
+  const others = planRepos.repos.filter((r) => r.name);
+  const intro = `Read these before you write anything. Paths are relative to the project root; "lines a-b" is the part of the file that matters. An entry marked "if present" may not exist yet: skip it then.${others.length ? ` This plan has more than one repository. A path that begins with a name and a colon is in that repository: ${others.map((r) => `\`${r.name}:\` is ${fwd(r.dir)}`).join('; ')}.` : ''}`;
   const built = packLib.assemble({ title: `# Context pack: card ${card.name} (${card.title})`, intro, entries, mayChange: card.paths.join(', ') || '(none listed)', budget: budget.budget, warnings: [...packWarnings, ...(budget.warning ? [budget.warning] : [])] });
   const file = path.join(dir, 'context.md');
   // A dry pack (the plan-time check) measures and writes nothing.
@@ -248,7 +262,7 @@ function pack(cwd, { plan, card: name, feature, resume = false, adhoc = false, d
  * the files it changed, the names it exports that are new, and the claimed test files that are not
  * in the diff at all (an agent once reported tests it never wrote).
  */
-function handoff(cwd, { card, feature, range, claimed = [] }) {
+function handoff(cwd, { card, feature, range, claimed = [], others = [] }) {
   if (!/^[^\s.][^\s]*\.\.[^\s]+$/.test(String(range || ''))) throw new Error('handoff needs --range A..B');
   const expertsLib = require('./experts.js');
   const status = git(cwd, ['diff', '--name-status', '--no-renames', range, '--', '.', ...EXCLUDES]).stdout.split(/\r?\n/).filter(Boolean);
@@ -262,6 +276,12 @@ function handoff(cwd, { card, feature, range, claimed = [] }) {
     const plus = patch.split(/\r?\n/).filter((l) => l.startsWith('+') && !l.startsWith('+++')).map((l) => l.slice(1)).join('\n');
     const names = expertsLib.exportedNames(plus);
     if (names.length) added[file] = names;
+  }
+  for (const o of others) {
+    for (const l of git(o.dir, ['diff', '--name-status', '--no-renames', o.range, '--', '.', ...EXCLUDES]).stdout.split(/\r?\n/).filter(Boolean)) {
+      const [s, ...p] = l.split('\t');
+      files.push({ status: s, file: `${o.repo}:${fwd(p.join('\t'))}` });
+    }
   }
   const inDiff = new Set(files.map((f) => f.file));
   // An agent reports paths either way; an absolute one inside the project is the same file (the
@@ -297,6 +317,63 @@ function workFiles(cwd) {
   const changed = git(cwd, ['diff', '--name-only', 'HEAD', '--', '.', ...EXCLUDES]).stdout.split(/\r?\n/).filter(Boolean);
   const untracked = git(cwd, ['ls-files', '--others', '--exclude-standard', '--', '.', ...EXCLUDES]).stdout.split(/\r?\n/).filter(Boolean);
   return { changed, untracked, all: [...new Set([...changed, ...untracked])] };
+}
+
+/** The other repositories of a plan that can be used (lib/repos.js), each `{ name, dir }`. */
+function otherRepos(cwd, planText) {
+  const reposLib = require('../lib/repos.js');
+  // A repository the header declares and no card uses is the user's own: run-start made no run branch there, so
+  // nothing here may read it as the run's, park its work or reset it.
+  const used = reposLib.usedBy(cardsLib.parseCards(planText));
+  return reposLib.resolve(cwd, planText).repos.filter((r) => r.name && used.includes(r.name));
+}
+
+/** The uncommitted files of each other repository of the plan that has some, with their names as the plan writes them (`demo:path`). */
+function otherWork(cwd, planText) {
+  const out = [];
+  for (const r of otherRepos(cwd, planText)) {
+    const w = workFiles(r.dir);
+    if (w.all.length > 0) out.push({ ...r, ...w, named: w.all.map((f) => `${r.name}:${fwd(f)}`) });
+  }
+  return out;
+}
+
+/** Put the uncommitted work of one folder on a branch there, as one commit on HEAD, and reset the folder to HEAD. */
+function parkIn(dir, branch, msg) {
+  const index = path.join(require('node:os').tmpdir(), `uw-park-${process.pid}-${Date.now()}.index`);
+  const env = { GIT_INDEX_FILE: index };
+  const who = { GIT_AUTHOR_NAME: process.env.GIT_AUTHOR_NAME || 'ultimate-workflow', GIT_AUTHOR_EMAIL: process.env.GIT_AUTHOR_EMAIL || 'uw@localhost', GIT_COMMITTER_NAME: process.env.GIT_COMMITTER_NAME || 'ultimate-workflow', GIT_COMMITTER_EMAIL: process.env.GIT_COMMITTER_EMAIL || 'uw@localhost' };
+  const head = git(dir, ['rev-parse', 'HEAD']).stdout.trim();
+  const work = workFiles(dir);
+  let commit = head;
+  try {
+    git(dir, ['read-tree', 'HEAD'], { env });
+    stage(dir, work.all, env);
+    const tree = git(dir, ['write-tree'], { env }).stdout.trim();
+    commit = git(dir, ['commit-tree', tree, '-p', head, '-m', msg], { env: who }).stdout.trim();
+  } finally {
+    fs.rmSync(index, { force: true });
+  }
+  git(dir, ['branch', '-f', branch, commit]);
+  git(dir, ['reset', '-q', '--hard', head]);
+  for (const f of work.untracked) fs.rmSync(path.join(dir, f), { force: true });
+  return commit;
+}
+
+/** Bring the work of a parked branch back into one folder, uncommitted: its test files, or a thrown reason. */
+function unparkIn(dir, branch, label) {
+  if (git(dir, ['status', '--porcelain', '--', '.', ...EXCLUDES]).stdout.trim()) throw new Error(`${label} has uncommitted changes; commit or park them before resuming a card`);
+  const patch = git(dir, ['diff', '--binary', `${branch}^`, branch, '--', '.', ...EXCLUDES]).stdout;
+  const tests = git(dir, ['diff', '--name-only', `${branch}^`, branch, '--', '.', ...EXCLUDES]).stdout.split(/\r?\n/).filter(Boolean).filter((f) => require('../hooks/lib/gates.js').isTestPath(f));
+  if (patch.trim()) {
+    const r = spawnSync('git', ['apply', '--3way', '--whitespace=nowarn', '-'], { cwd: dir, input: patch, encoding: 'utf8', env: { ...process.env, LC_ALL: 'C', LANG: 'C' } });
+    if (r.status !== 0) {
+      git(dir, ['reset', '-q', '--hard', 'HEAD'], { allowFail: true });
+      throw new Error(`the parked work does not apply on the current tip of ${label}: ${runRules.conflictOf(`${r.stderr || ''}\n${r.stdout || ''}`).text}`);
+    }
+    git(dir, ['reset', '-q'], { allowFail: true });
+  }
+  return tests;
 }
 
 function stage(cwd, files, env = {}) {
@@ -418,7 +495,7 @@ const SCHEMA = /(^|\/)(migrations?|db\/migrate|alembic)\/|\.sql$|\.prisma$|(^|\/
 const SECURITY = /(^|\/)(\.env[^/]*|\.npmrc|CODEOWNERS|Dockerfile|docker-compose[^/]*\.ya?ml)$|(^|\/)\.github\/workflows\/|(^|\/)[^/]*(auth|security|permission|policy|cors|csp|iam|rbac|secret)[^/]*\.(json|ya?ml|toml|ini|conf|config)$/i;
 const DOC_OR_TEST = /\.(md|txt)$|(^|\/)(test|tests|__tests__|spec)\/|\.(test|spec)\.[a-z]+$/i;
 
-// 5.1.1, from three runs: a URL that is a name and not a call held cards for the user.
+// 5.2.0, from three runs: a URL that is a name and not a call held cards for the user.
 const IDENTIFIER_HOSTS = /^(json-schema\.org|(www\.)?w3\.org|schemas\.openxmlformats\.org|schemas\.microsoft\.com|schemas\.xmlsoap\.org|purl\.org|xmlns\.com|ns\.adobe\.com|docs\.oasis-open\.org|(www\.)?omg\.org|schema\.org|(www\.)?apache\.org|(www\.)?gnu\.org|opensource\.org|creativecommons\.org|spdx\.org)$/;
 const IDENTIFIER_LINE = /["']\$(schema|id)["']\s*:|\bxmlns(:[\w.-]+)?\s*=|<!DOCTYPE\b|\bSPDX-License-Identifier\b/i;
 
@@ -456,60 +533,64 @@ function detectDecisions(cwd, { plan, card: name, feature = '', declaredFile = '
   const major = [];
   const minor = [];
   const add = (isMajor, kind, what, item) => (isMajor && !planned(item) ? major : minor).push({ kind, what });
-  const status = git(cwd, ['diff', '--name-status', 'HEAD', '--', '.', ...EXCLUDES]).stdout.split(/\r?\n/).filter(Boolean).map((l) => l.split('\t'));
-  const untracked = git(cwd, ['ls-files', '--others', '--exclude-standard', '--', '.', ...EXCLUDES]).stdout.split(/\r?\n/).filter(Boolean);
-  const changed = [...status.filter((s) => s[0] !== 'D').map((s) => fwd(s[s.length - 1])), ...untracked.map(fwd)];
-  for (const s of status) {
-    if ((s[0] === 'D' || s[0][0] === 'R') && !inCard(fwd(s[1]))) add(true, 'file', `${s[0] === 'D' ? 'deleted' : 'renamed'} ${fwd(s[1])}, outside the card's paths`, fwd(s[1]));
-  }
-  let manifestPlanned = true;
-  for (const f of changed) {
-    const before = git(cwd, ['show', `HEAD:${f}`], { allowFail: true });
-    const old = before.status === 0 ? before.stdout : null;
-    const now = fs.existsSync(path.join(cwd, f)) ? fs.readFileSync(path.join(cwd, f), 'utf8') : '';
-    if (/(^|\/)package\.json$/.test(f)) {
-      const a = packageDeps(old || '{}');
-      const b = packageDeps(now);
-      for (const [dep, ver] of Object.entries(b)) {
-        if (a[dep] === ver) continue;
-        const what = `${a[dep] ? 'changed' : 'added'} dependency ${dep}@${ver} in ${f}`;
-        if (!planned(dep)) manifestPlanned = false;
-        add(true, 'dependency', what, dep);
+  // 5.2.0: the same reading in each repository of the plan; a file of another one is named `demo:path`.
+  for (const where of [{ name: '', dir: cwd }, ...otherRepos(cwd, planText)]) {
+    const N = (x) => (where.name ? `${where.name}:${x}` : x);
+    const status = git(where.dir, ['diff', '--name-status', 'HEAD', '--', '.', ...EXCLUDES]).stdout.split(/\r?\n/).filter(Boolean).map((l) => l.split('\t'));
+    const untracked = git(where.dir, ['ls-files', '--others', '--exclude-standard', '--', '.', ...EXCLUDES]).stdout.split(/\r?\n/).filter(Boolean);
+    const changed = [...status.filter((s) => s[0] !== 'D').map((s) => fwd(s[s.length - 1])), ...untracked.map(fwd)];
+    for (const s of status) {
+      if ((s[0] === 'D' || s[0][0] === 'R') && !inCard(N(fwd(s[1])))) add(true, 'file', `${s[0] === 'D' ? 'deleted' : 'renamed'} ${N(fwd(s[1]))}, outside the card's paths`, fwd(s[1]));
+    }
+    let manifestPlanned = true;
+    for (const f of changed) {
+      const before = git(where.dir, ['show', `HEAD:${f}`], { allowFail: true });
+      const old = before.status === 0 ? before.stdout : null;
+      const now = fs.existsSync(path.join(where.dir, f)) ? fs.readFileSync(path.join(where.dir, f), 'utf8') : '';
+      if (/(^|\/)package\.json$/.test(f)) {
+        const a = packageDeps(old || '{}');
+        const b = packageDeps(now);
+        for (const [dep, ver] of Object.entries(b)) {
+          if (a[dep] === ver) continue;
+          const what = `${a[dep] ? 'changed' : 'added'} dependency ${dep}@${ver} in ${N(f)}`;
+          if (!planned(dep)) manifestPlanned = false;
+          add(true, 'dependency', what, dep);
+        }
+        for (const dep of Object.keys(a)) if (!(dep in b)) { if (!planned(dep)) manifestPlanned = false; add(true, 'dependency', `removed dependency ${dep} from ${N(f)}`, dep); }
+        continue;
       }
-      for (const dep of Object.keys(a)) if (!(dep in b)) { if (!planned(dep)) manifestPlanned = false; add(true, 'dependency', `removed dependency ${dep} from ${f}`, dep); }
-      continue;
-    }
-    if (MANIFEST.test(f)) { if (!planned(f)) manifestPlanned = false; add(true, 'dependency', `changed the dependency manifest ${f}`, f); continue; }
-    if (SCHEMA.test(f)) {
-      // 5.1.1: a new migration held two cards whose own paths were `migrations/versions/**`.
-      const cardNamesIt = old === null && (card.paths || []).some((p) => SCHEMA.test(String(p).replace(/\*+$/, '')) && cardsLib.outOfScope([f], [p], expertsLib.globToRegExp).length === 0);
-      add(!cardNamesIt, 'schema', `${old === null ? 'added' : 'changed'} the schema or migration ${f}${cardNamesIt ? ' (the paths of the card name this place)' : ''}`, f);
-      continue;
-    }
-    if (SECURITY.test(f)) { add(true, 'security', `${old === null ? 'added' : 'changed'} the security or permission configuration ${f}`, f); continue; }
-    if (LOCKFILE.test(f)) continue;
-    if (DOC_OR_TEST.test(f)) continue;
-    const oldLines = new Set((old || '').split(/\r?\n/));
-    const addedText = now.split(/\r?\n/).filter((l) => !oldLines.has(l)).join('\n');
-    for (const m of addedText.matchAll(/process\.env\.([A-Z_][A-Z0-9_]*)|process\.env\[['"]([A-Z_][A-Z0-9_]*)['"]\]|os\.environ(?:\.get)?\(?\[?['"]([A-Z_][A-Z0-9_]*)|getenv\(\s*['"]([A-Z_][A-Z0-9_]*)/g)) {
-      const v = m[1] || m[2] || m[3] || m[4];
-      add(true, 'env', `reads the environment variable ${v} in ${f}`, v);
-    }
-    for (const line of addedText.split('\n')) {
-      for (const m of line.matchAll(/https?:\/\/([a-z0-9-]+(?:\.[a-z0-9-]+)+)/gi)) {
-        const host = m[1].toLowerCase();
-        if (/^(localhost|127\.0\.0\.1|example\.(com|org|net))$/.test(host) || host.endsWith('.example.com')) continue;
-        if (IDENTIFIER_HOSTS.test(host) || IDENTIFIER_LINE.test(line)) add(false, 'service', `names ${host} in ${f} as an identifier (a schema dialect, an id or a namespace), not a call`, host);
-        else add(true, 'service', `calls the external host ${host} in ${f}`, host);
+      if (MANIFEST.test(f)) { if (!planned(f)) manifestPlanned = false; add(true, 'dependency', `changed the dependency manifest ${N(f)}`, f); continue; }
+      if (SCHEMA.test(f)) {
+        // 5.2.0: a new migration held two cards whose own paths were `migrations/versions/**`.
+        const cardNamesIt = old === null && (card.paths || []).some((p) => SCHEMA.test(cardsLib.splitPath(p).path.replace(/\*+$/, '')) && cardsLib.outOfScope([N(f)], [p], expertsLib.globToRegExp).length === 0);
+        add(!cardNamesIt, 'schema', `${old === null ? 'added' : 'changed'} the schema or migration ${N(f)}${cardNamesIt ? ' (the paths of the card name this place)' : ''}`, f);
+        continue;
+      }
+      if (SECURITY.test(f)) { add(true, 'security', `${old === null ? 'added' : 'changed'} the security or permission configuration ${N(f)}`, f); continue; }
+      if (LOCKFILE.test(f)) continue;
+      if (DOC_OR_TEST.test(f)) continue;
+      const oldLines = new Set((old || '').split(/\r?\n/));
+      const addedText = now.split(/\r?\n/).filter((l) => !oldLines.has(l)).join('\n');
+      for (const m of addedText.matchAll(/process\.env\.([A-Z_][A-Z0-9_]*)|process\.env\[['"]([A-Z_][A-Z0-9_]*)['"]\]|os\.environ(?:\.get)?\(?\[?['"]([A-Z_][A-Z0-9_]*)|getenv\(\s*['"]([A-Z_][A-Z0-9_]*)/g)) {
+        const v = m[1] || m[2] || m[3] || m[4];
+        add(true, 'env', `reads the environment variable ${v} in ${N(f)}`, v);
+      }
+      for (const line of addedText.split('\n')) {
+        for (const m of line.matchAll(/https?:\/\/([a-z0-9-]+(?:\.[a-z0-9-]+)+)/gi)) {
+          const host = m[1].toLowerCase();
+          if (/^(localhost|127\.0\.0\.1|example\.(com|org|net))$/.test(host) || host.endsWith('.example.com')) continue;
+          if (IDENTIFIER_HOSTS.test(host) || IDENTIFIER_LINE.test(line)) add(false, 'service', `names ${host} in ${N(f)} as an identifier (a schema dialect, an id or a namespace), not a call`, host);
+          else add(true, 'service', `calls the external host ${host} in ${N(f)}`, host);
+        }
+      }
+      if (old !== null) {
+        const had = commonExports(old);
+        const has = commonExports(now);
+        for (const n of had) if (!has.has(n)) (plannedRemoval(n) ? minor : major).push({ kind: 'interface', what: `removed or renamed the exported name ${n} in ${N(f)}` });
       }
     }
-    if (old !== null) {
-      const had = commonExports(old);
-      const has = commonExports(now);
-      for (const n of had) if (!has.has(n)) (plannedRemoval(n) ? minor : major).push({ kind: 'interface', what: `removed or renamed the exported name ${n} in ${f}` });
-    }
+    for (const f of changed) if (LOCKFILE.test(f)) add(!manifestPlanned || !changed.some((x) => MANIFEST.test(x) || /package\.json$/.test(x)), 'dependency', `changed the lockfile ${N(f)}`, f);
   }
-  for (const f of changed) if (LOCKFILE.test(f)) add(!manifestPlanned || !changed.some((x) => MANIFEST.test(x) || /package\.json$/.test(x)), 'dependency', `changed the lockfile ${f}`, f);
   let declared = [];
   if (declaredFile && fs.existsSync(path.resolve(cwd, declaredFile))) {
     try {
@@ -666,7 +747,14 @@ function park(cwd, { plan, card: name, feature, reasonFile = '', reason = '', ne
   }
   // The run branch gets the plan's new state as its own commit, so the plan there matches git.
   const planCommit = commitPlan(cwd, plan, `plan: card ${card.name} ${needsDecision ? 'needs a decision' : 'parked'}, work on ${branch}`);
-  return { ok: true, card: card.name, branch, commit: commit.slice(0, 12), resetTo: head.slice(0, 12), files: [...new Set([...changed, ...untracked])].length, parked: rel(cwd, path.join(dir, 'parked.md')), planCommit };
+  // 5.2.0: the card's work in each other repository of the plan is parked there, on the branch of the same name.
+  const planNow = fs.readFileSync(path.resolve(cwd, plan), 'utf8');
+  const withWork = otherWork(cwd, planNow);
+  for (const r of otherRepos(cwd, planNow)) {
+    if (!withWork.some((w) => w.name === r.name)) git(r.dir, ['branch', '-q', '-D', branch], { allowFail: true });
+  }
+  const elsewhere = withWork.map((r) => ({ repo: r.name, files: r.all.length, commit: parkIn(r.dir, branch, `${needsDecision ? 'needs decision' : 'parked'}: card ${card.name} (${card.title})\n\n${why}\n\nPlan: ${fwd(path.relative(r.dir, path.resolve(cwd, plan)))}`).slice(0, 12) }));
+  return { ok: true, card: card.name, branch, commit: commit.slice(0, 12), resetTo: head.slice(0, 12), files: [...new Set([...changed, ...untracked])].length, parked: rel(cwd, path.join(dir, 'parked.md')), planCommit, ...(elsewhere.length ? { repos: elsewhere } : {}) };
 }
 
 /**
@@ -682,6 +770,14 @@ function unpark(cwd, { plan, card: name, feature }) {
   if (git(cwd, ['rev-parse', '--verify', '-q', branch], { allowFail: true }).status !== 0) throw new Error(`no branch ${branch} to resume card ${card.name} from`);
   const dirty = git(cwd, ['status', '--porcelain', '--', '.', ...EXCLUDES]).stdout.trim();
   if (dirty) throw new Error('the working tree has uncommitted changes; commit or park them before resuming a card');
+  // 5.2.0: the other repositories that hold parked work of this card. Each is checked before anything is applied
+  // anywhere: a refusal after the main repository was changed would leave the card half resumed, and a second try refused.
+  const elsewhere = otherRepos(cwd, planText).filter((r) => git(r.dir, ['rev-parse', '--verify', '-q', branch], { allowFail: true }).status === 0);
+  for (const r of elsewhere) {
+    if (git(r.dir, ['status', '--porcelain', '--', '.', ...EXCLUDES]).stdout.trim()) throw new Error(`repository ${r.name} has uncommitted changes; commit or park them before resuming a card. Nothing was brought back in any repository`);
+    const feat = String(branch).split('/')[2] || feature;
+    if (git(r.dir, ['rev-parse', '--abbrev-ref', 'HEAD']).stdout.trim() !== `uw/run/${feat}`) throw new Error(`repository ${r.name} is not on uw/run/${feat}; check it out there first. Nothing was brought back in any repository`);
+  }
   const patch = git(cwd, ['diff', '--binary', `${branch}^`, branch, '--', '.', ...EXCLUDES]).stdout;
   const tests = git(cwd, ['diff', '--name-only', `${branch}^`, branch, '--', '.', ...EXCLUDES]).stdout.split(/\r?\n/).filter(Boolean).filter((f) => require('../hooks/lib/gates.js').isTestPath(f));
   if (patch.trim()) {
@@ -692,9 +788,27 @@ function unpark(cwd, { plan, card: name, feature }) {
     }
     git(cwd, ['reset', '-q'], { allowFail: true });
   }
+  const back = [];
+  /** Take back what an apply put in a folder: the tracked files to HEAD, and the files the parked commit added. */
+  const undo = (dir) => {
+    const added = git(dir, ['diff', '--name-only', '--diff-filter=A', `${branch}^`, branch, '--', '.', ...EXCLUDES], { allowFail: true }).stdout.split(/\r?\n/).filter(Boolean);
+    git(dir, ['reset', '-q', '--hard', 'HEAD'], { allowFail: true });
+    for (const f of added) fs.rmSync(path.join(dir, f), { force: true });
+  };
+  for (const r of elsewhere) {
+    try {
+      for (const t of unparkIn(r.dir, branch, `repository ${r.name}`)) tests.push(`${r.name}:${fwd(t)}`);
+      back.push(r.name);
+    } catch (err) {
+      // The work of this card is put back where it was, in the main repository and in each one already done.
+      keepPlan(cwd, plan, () => undo(cwd));
+      for (const done of elsewhere.filter((x) => back.includes(x.name))) undo(done.dir);
+      throw new Error(`${err.message}. Nothing was brought back in any repository`);
+    }
+  }
   writePlanField(cwd, plan, card.name, 'parked', null);
   setStatus(cwd, plan, card.name, 'resumed');
-  return { ok: true, card: card.name, from: branch, testFiles: tests };
+  return { ok: true, card: card.name, from: branch, testFiles: tests, ...(back.length ? { repos: back } : {}) };
 }
 
 /** Append a card's lessons to the run journal, holding it to its size rule. */
@@ -709,7 +823,7 @@ function journalAdd(cwd, { feature, card, from, status = '', at = new Date().toI
   const file = path.join(runDir(cwd, feature), 'journal.md');
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const existing = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : `# Run journal: ${feature}\n\nLessons from each card of this run, for the cards after it. Not committed; harvest reads it at the end.\n`;
-  // 5.1.1: one entry for each card.
+  // 5.2.0: one entry for each card.
   const all = lines(existing);
   const heads = journalEntries(existing);
   const mine = heads.map((e, i) => ({ ...e, end: i + 1 < heads.length ? heads[i + 1].start : all.length })).filter((e) => e.card === card);
@@ -774,9 +888,39 @@ function cardCommit(cwd, { plan, card: name, feature, claimed = [], fullAtEnd = 
   checkFeature(feature);
   const branch = git(cwd, ['rev-parse', '--abbrev-ref', 'HEAD']).stdout.trim();
   if (branch !== `uw/run/${feature}`) return { ok: false, card: card.name, reason: `the run commits only on uw/run/${feature}, and HEAD is ${branch}` };
+  // 5.2.0: the card's uncommitted work in the other repositories of the plan. Each needs a passing test record for
+  // exactly its changes (verify.js --repo <name>), and everything is checked before anything is committed anywhere.
+  const elsewhere = otherWork(cwd, planText);
+  for (const r of elsewhere) {
+    if (git(r.dir, ['rev-parse', '--abbrev-ref', 'HEAD']).stdout.trim() !== `uw/run/${feature}`) return { ok: false, card: card.name, reason: `repository ${r.name} is not on uw/run/${feature}, so the card cannot be committed there. Nothing was committed in any repository.` };
+  }
+  // Read only when there is another repository: a plan with one repository takes the path it always took.
+  const mainEmpty = elsewhere.length > 0 && workFiles(cwd).all.length === 0;
+  if (stateLib.gatesEnabled(process.env)) {
+    for (const r of elsewhere) {
+      const readRec = (name) => {
+        try {
+          return JSON.parse(fs.readFileSync(path.join(r.dir, '.ultimate-workflow', name), 'utf8'));
+        } catch {
+          return null;
+        }
+      };
+      const now = expertsLib.testFingerprint(r.dir);
+      const covers = (rec) => Boolean(rec && rec.passed === true && rec.fingerprint === now);
+      // verify.js writes no record for a change that needs no test (documentation only): the same question, asked here.
+      let needsNone = false;
+      try {
+        needsNone = Boolean(expertsLib.testsEvidence(r.dir).skip);
+      } catch {}
+      if (!needsNone && !(covers(readRec('verify.json')) || (fullAtEnd && covers(readRec('verify-related.json'))))) {
+        return { ok: false, card: card.name, gate: 'G7', repo: r.name, reason: `Gate G7: no passing test run covers the changes in repository ${r.name}. Run \`verify.js --plan ${fwd(plan)} --repo ${r.name}${fullAtEnd ? '' : ' --full'}\` once, then commit again. Nothing was committed in any repository.` };
+      }
+    }
+  }
   // The one commit decision, the same as the hook asks. Off means off: the check is recorded as exempt.
   let check = { outcome: 'exempt', why: 'gates off (ULTIMATE_WORKFLOW_GATES)', missing: [] };
-  if (stateLib.gatesEnabled(process.env)) {
+  if (mainEmpty) check = { outcome: 'exempt', why: 'no change in the main repository; the other repositories have their own test records', missing: [] };
+  else if (stateLib.gatesEnabled(process.env)) {
     // A stale memory index is no reason to refuse: it is regenerated below and committed with the card.
     const ev = expertsLib.commitEvidence(cwd, path.resolve(cwd, plan), undefined, { card: card.name, stage: 'feature', script: 'verify.js', staleIndexOk: true, deferExperts: true, fullAtEnd });
     const g = gates.commitGate(ev);
@@ -792,27 +936,48 @@ function cardCommit(cwd, { plan, card: name, feature, claimed = [], fullAtEnd = 
     if (stale) memoryLib.cli(['index', '--root', memoryLib.rootOfPlan(planText) || '.'], cwd, () => {}, (m) => { throw new Error(m); });
   }
   const before = git(cwd, ['rev-parse', 'HEAD']).stdout.trim();
+  // After the gate: the memory index it regenerates is one of the files.
   const files = workFiles(cwd).all;
-  if (files.length === 0) return { ok: false, card: card.name, reason: 'nothing to commit: the card changed no file' };
+  if (files.length === 0 && elsewhere.length === 0) return { ok: false, card: card.name, reason: 'nothing to commit: the card changed no file' };
+  const msg = `card ${card.name}: ${card.title}\n\nPlan: ${fwd(plan)}\nRun: uw/run/${feature}`;
+  // The other repositories first, the main one last: its commit holds the plan with the card's status. Two commits
+  // are not one step: when a later one fails, nothing is undone, and the answer says which repository has a commit.
+  const done = [];
+  const has = () => (done.length ? ` Already committed, and not undone: ${done.map((d) => `repository ${d.repo} ${d.commit}`).join(', ')}.` : '');
+  for (const r of elsewhere) {
+    const was = git(r.dir, ['rev-parse', 'HEAD']).stdout.trim();
+    stage(r.dir, r.all);
+    const c = spawnSync('git', ['commit', '-q', '-F', '-'], { cwd: r.dir, input: `${msg}\nMain repository: ${fwd(path.relative(r.dir, cwd))}`, encoding: 'utf8' });
+    if (c.status !== 0) return { ok: false, card: card.name, reason: `git commit failed in repository ${r.name}: ${(c.stderr || c.stdout || '').trim().split(/\r?\n/)[0]}.${has()}`, ...(done.length ? { partial: done } : {}) };
+    const is = git(r.dir, ['rev-parse', 'HEAD']).stdout.trim();
+    done.push({ repo: r.name, dir: fwd(r.dir), commit: is.slice(0, 12), range: `${was}..${is}` });
+  }
   // The plan goes into the card's own commit with the card's new status (and every earlier card's
   // sha, written after their commits), so the plan on the run branch matches git. A commit cannot
   // hold its own sha, so this card's sha is written after it and lands with the next commit.
-  const done = 'committed';
-  setStatus(cwd, plan, card.name, done);
+  const doneWord = 'committed';
+  setStatus(cwd, plan, card.name, doneWord);
   if (card.parked) writePlanField(cwd, plan, card.name, 'parked', null);
   // A card held for a decision and then done within the plan: the decision was not taken.
   if (card.decision) writePlanField(cwd, plan, card.name, 'decision', null);
   stage(cwd, files);
   const planRel = fwd(path.relative(cwd, path.resolve(cwd, plan)));
   if (git(cwd, ['check-ignore', '-q', '--', planRel], { allowFail: true }).status !== 0) git(cwd, ['add', '--', planRel], { allowFail: true });
-  const msg = `card ${card.name}: ${card.title}\n\nPlan: ${fwd(plan)}\nRun: uw/run/${feature}`;
-  const commit = spawnSync('git', ['commit', '-q', '-F', '-'], { cwd, input: msg, encoding: 'utf8' });
-  if (commit.status !== 0) return { ok: false, card: card.name, reason: `git commit failed: ${(commit.stderr || commit.stdout || '').trim().split(/\r?\n/)[0]}` };
+  // A card that changed only another repository, in a project whose plan is not in git: nothing is staged here.
+  const staged = git(cwd, ['diff', '--cached', '--quiet'], { allowFail: true }).status !== 0;
+  if (staged) {
+    const commit = spawnSync('git', ['commit', '-q', '-F', '-'], { cwd, input: msg, encoding: 'utf8' });
+    if (commit.status !== 0) return { ok: false, card: card.name, reason: `git commit failed${done.length ? ' in the main repository' : ''}: ${(commit.stderr || commit.stdout || '').trim().split(/\r?\n/)[0]}.${has()}`, ...(done.length ? { partial: done } : {}) };
+  }
   const after = git(cwd, ['rev-parse', 'HEAD']).stdout.trim();
-  writePlanField(cwd, plan, card.name, 'committed', after.slice(0, 12));
-  setStatus(cwd, plan, card.name, `${done} ${after.slice(0, 12)}`);
-  const h = handoff(cwd, { card: card.name, feature, range: `${before}..${after}`, claimed });
-  return { ok: true, card: card.name, commit: after.slice(0, 12), files: h.files, handoff: h.handoff, missingClaims: h.missingClaims, check };
+  // The plan's card line holds the commit of each repository: `committed: 1a2b3c4 demo=5d6e7f8`.
+  // With nothing staged here, HEAD is the commit before this card: the card has no commit in the main repository, and
+  // its line names only the repositories that have one.
+  const mine = staged ? after.slice(0, 12) : '';
+  writePlanField(cwd, plan, card.name, 'committed', [mine, ...done.map((d) => `${d.repo}=${d.commit}`)].filter(Boolean).join(' '));
+  setStatus(cwd, plan, card.name, mine ? `${doneWord} ${mine}` : doneWord);
+  const h = handoff(cwd, { card: card.name, feature, range: `${before}..${after}`, claimed, others: done });
+  return { ok: true, card: card.name, commit: mine, files: h.files, handoff: h.handoff, missingClaims: h.missingClaims, check, ...(done.length ? { repos: done.map((d) => ({ repo: d.repo, commit: d.commit })) } : {}) };
 }
 
 /** Create uw/run/<feature> from the current tip and check it out; reuse it when HEAD is already on it. */
@@ -845,6 +1010,11 @@ function runState(cwd, { feature, record, review, harvest, harvestBranch: branch
   const file = path.join(runDir(cwd, feature), 'run.json');
   const saved = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : {};
   const head = git(cwd, ['rev-parse', 'HEAD']).stdout.trim().slice(0, 12);
+  // 5.2.0: the other repositories of the run. `reposMoved` says that one of them has commits the last review did not
+  // cover, so a resume reviews again though the main repository did not move.
+  const repoHeads = {};
+  for (const [name, r] of Object.entries(saved.repos || {})) repoHeads[name] = git(r.dir, ['rev-parse', 'HEAD'], { allowFail: true }).stdout.trim().slice(0, 12);
+  const reposMoved = Object.keys(repoHeads).some((n) => repoHeads[n] !== ((saved.repoHeads || {})[n] || ''));
   const write = (next) => {
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, `${JSON.stringify({ ...saved, feature, ...next }, null, 2)}\n`);
@@ -862,11 +1032,11 @@ function runState(cwd, { feature, record, review, harvest, harvestBranch: branch
     // `reviewed` is what the report and the notice say about the run's one review: the head it covered, when, and how many
     // findings were still open. An old run.json that holds `pendingFindings` keeps the field; nothing reads it any more.
     const reviewed = review || both ? { head, at: new Date().toISOString(), open: Number.isInteger(Number(open)) && open !== undefined && open !== '' ? Number(open) : 0 } : saved.reviewed;
-    const next = { ...(review || both ? { reviewedHead: head, reviewed } : {}), ...(harvest || both ? { harvestedHead: head } : {}), harvestBranch: branch || saved.harvestBranch || '' };
+    const next = { ...(review || both ? { reviewedHead: head, reviewed, ...(Object.keys(repoHeads).length ? { repoHeads } : {}) } : {}), ...(harvest || both ? { harvestedHead: head } : {}), harvestBranch: branch || saved.harvestBranch || '' };
     write(next);
-    return { ok: true, head, reviewedHead: next.reviewedHead || saved.reviewedHead || '', reviewed: next.reviewed || saved.reviewed || null, harvestedHead: next.harvestedHead || saved.harvestedHead || '', harvestBranch: next.harvestBranch, openHarvests };
+    return { ok: true, head, ...(Object.keys(repoHeads).length ? { repoHeads, reposMoved: review || both ? false : reposMoved } : {}), reviewedHead: next.reviewedHead || saved.reviewedHead || '', reviewed: next.reviewed || saved.reviewed || null, harvestedHead: next.harvestedHead || saved.harvestedHead || '', harvestBranch: next.harvestBranch, openHarvests };
   }
-  return { ok: true, head, reviewedHead: saved.reviewedHead || '', harvestedHead: saved.harvestedHead || '', harvestBranch: saved.harvestBranch || '', reviewed: saved.reviewed || null, openHarvests };
+  return { ok: true, head, ...(Object.keys(repoHeads).length ? { repoHeads, reposMoved } : {}), reviewedHead: saved.reviewedHead || '', harvestedHead: saved.harvestedHead || '', harvestBranch: saved.harvestBranch || '', reviewed: saved.reviewed || null, openHarvests };
 }
 
 /**
@@ -1009,7 +1179,7 @@ function runReport(cwd, { result: resultFile, out = '' }) {
   const cost = runRules.cardTokens([...(r.cards || []), r.fixupCard].filter(Boolean).map((c) => c.card), agentRows);
   const runTotal = typeof wrapper.totalTokens === 'number' && wrapper.totalTokens > 0 ? wrapper.totalTokens : null;
   const cell = (v) => (typeof v === 'number' && v > 0 ? String(v) : 'unknown');
-  const row = (c) => `| ${c.card} | ${c.title || ''} | ${c.status} | ${c.commit || c.branch || ''} | ${cell(c.pack && c.pack.tokens)} | ${cell(cost[c.card] && cost[c.card].tokens)} | ${cell(cost[c.card] && cost[c.card].cacheRead)} | ${String(c.reason || (c.build ? `${c.build.rounds} round(s)${c.superseded ? `; ran again within the plan, the held work on ${c.superseded} is superseded (kept for reference, delete it when done)` : ''}` : '')).replace(/\|/g, '/').replace(/\s*\r?\n\s*/g, ' ')} |`;
+  const row = (c) => `| ${c.card} | ${c.title || ''} | ${c.status} | ${[c.commit, ...(c.repos || []).map((x) => `${x.repo} ${x.commit}`)].filter(Boolean).join(', ') || c.branch || ''} | ${cell(c.pack && c.pack.tokens)} | ${cell(cost[c.card] && cost[c.card].tokens)} | ${cell(cost[c.card] && cost[c.card].cacheRead)} | ${String(c.reason || (c.build ? `${c.build.rounds} round(s)${c.superseded ? `; ran again within the plan, the held work on ${c.superseded} is superseded (kept for reference, delete it when done)` : ''}` : '')).replace(/\|/g, '/').replace(/\s*\r?\n\s*/g, ' ')} |`;
   const warningsFile = path.join(runDir(cwd, r.feature), 'memory-warnings.json');
   const memoryWarnings = fs.existsSync(warningsFile) ? JSON.parse(fs.readFileSync(warningsFile, 'utf8')) : [];
   const all = [...(r.cards || []), ...(r.fixupCard ? [r.fixupCard] : [])];
@@ -1087,7 +1257,7 @@ function pluginIsAnotherCheckout(cwd, pluginRoot) {
 const activeFile = (cwd) => path.join(cwd, '.ultimate-workflow', 'run', 'active.json');
 
 /**
- * 5.1.1: one run at a time in a checkout.
+ * 5.2.0: one run at a time in a checkout.
  */
 function otherRun(cwd, feature) {
   let mark;
@@ -1103,9 +1273,15 @@ function otherRun(cwd, feature) {
 
 /**
  * The record of the last full run, as verify.js wrote it, and whether it is of the project as it is now: the same
- * commit and the same changes (5.1.1). The run takes "the full suite passed" from here, not from an agent's answer.
+ * commit and the same changes (5.2.0). The run takes "the full suite passed" from here, not from an agent's answer.
  */
-function fullRecord(cwd) {
+function fullRecord(mainCwd, { plan = '', repo = '' } = {}) {
+  let cwd = mainCwd;
+  if (repo) {
+    const found = plan ? otherRepos(mainCwd, fs.readFileSync(path.resolve(mainCwd, plan), 'utf8')).find((r) => r.name === repo) : null;
+    if (!found) return { ok: true, current: false, passed: false, repo, reason: `the plan declares no repository "${repo}" that can be used (full-record --repo needs --plan)` };
+    cwd = found.dir;
+  }
   let rec = null;
   try {
     rec = JSON.parse(fs.readFileSync(path.join(cwd, '.ultimate-workflow', 'verify.json'), 'utf8'));
@@ -1116,7 +1292,7 @@ function fullRecord(cwd) {
   return { ok: true, current: same, passed: same && rec.passed === true, at: rec.at, ...(same ? {} : { reason: `the last full run on record (${rec.at || 'no time'}) is not of the project as it is now` }) };
 }
 
-function runStart(cwd, { plan, feature, resume = null, implementerModel = '', diagnoserModel = '', takeOver = false }) {
+function runStart(cwd, { plan, feature, resume = null, implementerModel = '', diagnoserModel = '', runnerModel = '', takeOver = false }) {
   if (!plan) throw new Error('run-start needs --plan');
   checkFeature(feature);
   // The user's two confirmations gate the Workflow call: nothing is branched, built or written
@@ -1126,8 +1302,40 @@ function runStart(cwd, { plan, feature, resume = null, implementerModel = '', di
   if (pluginIsAnotherCheckout(cwd, path.resolve(__dirname, '..'))) return { ok: false, reason: 'the plugin that is running is another checkout of this repository, and the run builds in this one: an agent could edit the plugin\'s own files. Run it from the checkout the plugin was installed from.' };
   const other = takeOver ? null : otherRun(cwd, feature);
   if (other) return { ok: false, needs: 'other-run', other: other.feature, started: other.started, reason: `the run of "${other.feature}" (started ${other.started}) is not finished in this folder, and two runs at the same time in one folder are not supported: the second one moves the branch under the first. Wait until it ends. If it stopped and will not continue, ask the user, then run this command again with --take-over` };
-  let branch;
   const name = `uw/run/${feature}`;
+  // 5.2.0: the other repositories of the plan (lib/repos.js). Everything that can refuse the run is checked in each of
+  // them here, before a branch is made in any.
+  const reposLib = require('../lib/repos.js');
+  const planAtStart = fs.readFileSync(path.resolve(cwd, plan), 'utf8');
+  const resolved = reposLib.resolve(cwd, planAtStart);
+  const usedNames = reposLib.usedBy(cardsLib.parseCards(planAtStart)).filter(Boolean);
+  const front = require('../hooks/lib/state.js').parseFrontMatter(planAtStart).data || {};
+  const refuse = [...resolved.problems];
+  for (const n of usedNames) if (!reposLib.declared(planAtStart).list.some((r) => r.name === n)) refuse.push(`a card names the repository "${n}", which the plan's header does not declare`);
+  const others = resolved.repos.filter((r) => r.name && usedNames.includes(r.name));
+  const branchOf = (dir) => git(dir, ['rev-parse', '--abbrev-ref', 'HEAD'], { allowFail: true }).stdout.trim();
+  const hasBranch = (dir) => git(dir, ['rev-parse', '--verify', '-q', `refs/heads/${name}`], { allowFail: true }).status === 0;
+  for (const r of others) {
+    if (!String(front[reposLib.keyFor('test_command', r.name)] || '').trim()) refuse.push(`repository ${r.name} has cards and no test command: add \`test_command@${r.name}: <its full test command>\` to the plan's header`);
+    const mark = takeOver ? null : otherRun(r.dir, feature);
+    if (mark) refuse.push(`repository ${r.name}: the run of "${mark.feature}" (started ${mark.started}) is not finished there`);
+    if (resume) {
+      if (!hasBranch(r.dir)) refuse.push(`repository ${r.name}: nothing to resume, there is no ${name}`);
+    } else if (branchOf(r.dir) !== name) {
+      if (hasBranch(r.dir)) refuse.push(`repository ${r.name}: ${name} already exists and is not checked out`);
+      else if (git(r.dir, ['status', '--porcelain', '--', '.', ...EXCLUDES], { allowFail: true }).stdout.trim() !== '') refuse.push(`repository ${r.name} has uncommitted changes: commit them or put them away first, the run makes its branch from a clean state`);
+    }
+  }
+  if (refuse.length > 0) return { ok: false, needs: 'repos', reason: refuse.join('; ') };
+  // A resume brings parked work back (unpark, below): each other repository is on the run branch before that.
+  if (resume) {
+    for (const r of others) {
+      if (branchOf(r.dir) === name) continue;
+      const sw = spawnSync('git', ['switch', '-q', name], { cwd: r.dir, encoding: 'utf8' });
+      if (sw.status !== 0) return { ok: false, needs: 'repos', reason: `repository ${r.name}: could not check out ${name}: ${(sw.stderr || '').trim()}` };
+    }
+  }
+  let branch;
   if (resume && git(cwd, ['rev-parse', '--abbrev-ref', 'HEAD']).stdout.trim() !== name) {
     if (git(cwd, ['rev-parse', '--verify', '-q', `refs/heads/${name}`], { allowFail: true }).status !== 0) return { ok: false, reason: `nothing to resume: there is no ${name}` };
     const sw = spawnSync('git', ['switch', '-q', name], { cwd, encoding: 'utf8' });
@@ -1211,9 +1419,44 @@ function runStart(cwd, { plan, feature, resume = null, implementerModel = '', di
     if (v.status !== 0 && !fresh) return { ok: false, needs: 'baseline', branch: branch.branch, reason: `the baseline run failed and named no test: ${(v.stdout + v.stderr).trim().split(/\r?\n/).slice(-3).join(' / ')}` };
     baseline = { taken: true, failures: fresh ? fresh.failures.length : 0 };
   }
+  const verifyJs = path.join(pluginRoot, 'hooks', 'verify.js');
+  const started = [];
+  for (const r of others) {
+    const made = runBranch(r.dir, { feature });
+    if (!made.ok) return { ...made, needs: 'repos', reason: `repository ${r.name}: ${made.reason}` };
+    if (ensureIgnored(r.dir).added) {
+      git(r.dir, ['add', '--', '.gitignore']);
+      const c = spawnSync('git', ['commit', '-q', '-m', 'uw: ignore .ultimate-workflow/ (the run\'s own state)', '--', '.gitignore'], { cwd: r.dir, encoding: 'utf8' });
+      if (c.status !== 0) return { ok: false, needs: 'repos', reason: `repository ${r.name}: could not commit the .gitignore line: ${(c.stderr || '').trim()}` };
+    }
+    const readBaseline = () => {
+      try {
+        return JSON.parse(fs.readFileSync(path.join(r.dir, '.ultimate-workflow', 'baseline.json'), 'utf8'));
+      } catch {
+        return null;
+      }
+    };
+    const command = String(front[reposLib.keyFor('test_command', r.name)] || '').trim();
+    let its = { taken: false };
+    if (require('../hooks/verify.js').baselineStatus(readBaseline(), r.dir, command, path.basename(plan)).applies) its = { taken: false, kept: true, failures: readBaseline().failures.length };
+    else if (!resume) {
+      const headNow = git(r.dir, ['rev-parse', 'HEAD']).stdout.trim();
+      const run = spawnSync(process.execPath, [verifyJs, '--baseline', '--plan', plan, '--repo', r.name], { cwd, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+      const rec = readBaseline();
+      const fresh = rec && rec.head === headNow ? rec : null;
+      if (fresh && Array.isArray(fresh.failures) && fresh.failures.length > 0 && fresh.accepted !== true) {
+        return { ok: false, needs: 'baseline', repo: r.name, branch: name, failing: fresh.failures, reason: `the suite of repository ${r.name} already fails before the run: the user decides whether these are known failures (verify.js --accept-baseline --plan ${fwd(plan)} --repo ${r.name}), then run-start again` };
+      }
+      if (run.status !== 0 && !fresh) return { ok: false, needs: 'baseline', repo: r.name, branch: name, reason: `the baseline run of repository ${r.name} failed and named no test: ${(run.stdout + run.stderr).trim().split(/\r?\n/).slice(-3).join(' / ')}` };
+      its = { taken: true, failures: fresh ? fresh.failures.length : 0 };
+    }
+    fs.mkdirSync(path.dirname(activeFile(r.dir)), { recursive: true });
+    fs.writeFileSync(activeFile(r.dir), `${JSON.stringify({ feature, plan: fwd(path.resolve(cwd, plan)), main: fwd(cwd), started: new Date().toISOString() })}\n`);
+    started.push({ name: r.name, dir: fwd(r.dir), branch: name, created: made.created === true, base: made.base || '', baseline: its });
+  }
   const argsFile = path.join(cwd, '.ultimate-workflow', 'run', 'run.args.json');
   fs.mkdirSync(path.dirname(argsFile), { recursive: true });
-  fs.writeFileSync(argsFile, `${JSON.stringify({ plan: fwd(plan), feature, ...(resume ? { resume } : {}), ...(implementerModel ? { implementerModel } : {}), ...(diagnoserModel ? { diagnoserModel } : {}) }, null, 2)}\n`);
+  fs.writeFileSync(argsFile, `${JSON.stringify({ plan: fwd(plan), feature, ...(started.length ? { repos: started.map((r) => ({ name: r.name, dir: r.dir })) } : {}), ...(resume ? { resume } : {}), ...(implementerModel ? { implementerModel } : {}), ...(runnerModel ? { runnerModel } : {}), ...(diagnoserModel ? { diagnoserModel } : {}) }, null, 2)}\n`);
   const memoryRoot = path.resolve(cwd, memoryLib.rootOfPlan(fs.readFileSync(path.resolve(cwd, plan), 'utf8')));
   let warnings = [];
   if (fs.existsSync(path.join(memoryRoot, 'memory.md'))) {
@@ -1225,13 +1468,23 @@ function runStart(cwd, { plan, feature, resume = null, implementerModel = '', di
   }
   // runReport reads them back from here: the report is built from the run's result, which never held them.
   fs.mkdirSync(runDir(cwd, feature), { recursive: true });
+  // The plan of this run, for `resume-target`: --plan and --feature are given apart, so the name of one does not say the other.
+  const runFile = path.join(runDir(cwd, feature), 'run.json');
+  let runSaved = {};
+  try {
+    runSaved = JSON.parse(fs.readFileSync(runFile, 'utf8'));
+  } catch {}
+  // The commit each other repository's run branch started from, kept from the first start: the review's range there.
+  const bases = { ...(runSaved.repos || {}) };
+  for (const r of started) if (!bases[r.name] || !bases[r.name].base) bases[r.name] = { dir: r.dir, base: r.base || git(r.dir, ['rev-parse', '--short=12', 'HEAD']).stdout.trim() };
+  fs.writeFileSync(runFile, `${JSON.stringify({ ...runSaved, feature, plan: fwd(plan), ...(Object.keys(bases).length ? { repos: bases } : {}) }, null, 2)}\n`);
   fs.writeFileSync(path.join(runDir(cwd, feature), 'memory-warnings.json'), `${JSON.stringify(warnings)}
 `);
   fs.writeFileSync(activeFile(cwd), `${JSON.stringify({ feature, plan: fwd(plan), started: new Date().toISOString() })}\n`);
   const s = require('./experts.js').stageScript(pluginRoot, cwd, 'run', { argsFile });
   const embedded = JSON.parse(/^const EMBEDDED_ARGS = (.*)$/m.exec(fs.readFileSync(s.scriptPath, 'utf8'))[1]);
   const failed = embedded.cards.filter((c) => c.preflight && c.preflight.ok === false).map((c) => ({ card: c.name, reason: c.preflight.reason }));
-  return { ok: true, branch: branch.branch, created: branch.created, warnings, ...(ignoreCommit ? { ignoreCommit } : {}), baseline, scriptPath: s.scriptPath, cards: embedded.cards.map((c) => c.name), preflightFailed: failed, ...(interrupted.length ? { interrupted } : {}), ...(resumeNotice ? { resumeNotice } : {}) };
+  return { ok: true, branch: branch.branch, created: branch.created, ...(started.length ? { repos: started } : {}), warnings, ...(ignoreCommit ? { ignoreCommit } : {}), baseline, scriptPath: s.scriptPath, cards: embedded.cards.map((c) => c.name), preflightFailed: failed, ...(interrupted.length ? { interrupted } : {}), ...(resumeNotice ? { resumeNotice } : {}) };
 }
 
 /**
@@ -1247,10 +1500,21 @@ function runFinish(cwd, { output, runId = '', plan = '' }) {
   fs.writeFileSync(saved, raw);
   const ledger = require('./ledger.js');
   const result = ledger.unwrapResult(raw);
-  // The run is over, however it ended: its mark goes, so the next run can start (5.1.1).
+  // The run is over, however it ended: its mark goes, so the next run can start (5.2.0).
+  let ended = result.feature || '';
   try {
     const mark = JSON.parse(fs.readFileSync(activeFile(cwd), 'utf8'));
-    if (!result.feature || mark.feature === result.feature) fs.rmSync(activeFile(cwd), { force: true });
+    // A result that names no feature (a run that failed before it had one) ends the run this folder's mark names.
+    if (!ended) ended = mark.feature || '';
+    if (mark.feature === ended) fs.rmSync(activeFile(cwd), { force: true });
+  } catch {}
+  try {
+    const saved = JSON.parse(fs.readFileSync(path.join(runDir(cwd, ended), 'run.json'), 'utf8'));
+    for (const r of Object.values(saved.repos || {})) {
+      try {
+        if (JSON.parse(fs.readFileSync(activeFile(r.dir), 'utf8')).feature === ended) fs.rmSync(activeFile(r.dir), { force: true });
+      } catch {}
+    }
   } catch {}
   let wrapper = {};
   try {
@@ -1331,7 +1595,7 @@ function cli(argv, cwd, out, fail) {
   if (sub === 'card-status') return run(() => cardStatus(cwd, { plan: o.plan, card: o.card, status: o.status }));
   if (sub === 'run-branch') return run(() => runBranch(cwd, { feature: o.feature }));
   if (sub === 'ensure-ignored') return run(() => ensureIgnored(cwd));
-  if (sub === 'full-record') return run(() => fullRecord(cwd));
+  if (sub === 'full-record') return run(() => ({ ...fullRecord(cwd, { plan: o.plan || '', repo: o.repo || '' }), ...(o.repo ? { repo: o.repo } : {}) }));
   if (sub === 'claims') return run(() => claimsCheck(cwd, { plan: o.plan, feature: o.feature }));
   if (sub === 'run-state') return run(() => runState(cwd, { feature: o.feature, record: Boolean(o.record), review: Boolean(o.review), harvest: Boolean(o.harvest), harvestBranch: o['harvest-branch'] || '', open: o.open }));
   if (sub === 'harvest-branch') return run(() => harvestBranch(cwd, { feature: o.feature, from: o.from }));
@@ -1341,7 +1605,7 @@ function cli(argv, cwd, out, fail) {
       let resume = null;
       if (o['resume-card']) resume = { card: o['resume-card'], reason: o['resume-reason'] || 'resumed by the user', accept: Boolean(o.accept) };
       else if (o.resume) resume = { all: true };
-      return runStart(cwd, { plan: o.plan, feature: o.feature, resume, implementerModel: o['implementer-model'] || '', diagnoserModel: o['diagnoser-model'] || '', takeOver: Boolean(o['take-over']) });
+      return runStart(cwd, { plan: o.plan, feature: o.feature, resume, implementerModel: o['implementer-model'] || '', diagnoserModel: o['diagnoser-model'] || '', runnerModel: o['runner-model'] || '', takeOver: Boolean(o['take-over']) });
     });
   }
   if (sub === 'run-finish') return run(() => runFinish(cwd, { output: o.output, runId: o['run-id'] || '', plan: o.plan || '' }));
@@ -1355,4 +1619,4 @@ function cli(argv, cwd, out, fail) {
 
 const COMMANDS = ['pack', 'handoff', 'park', 'unpark', 'journal', 'card-commit', 'card-status', 'notify', 'decisions', 'run-branch', 'ensure-ignored', 'run-state', 'claims', 'full-record', 'harvest-branch', 'run-report', 'run-start', 'run-finish'];
 
-module.exports = { pluginIsAnotherCheckout, COMMANDS, NOTIFY_KINDS, cardStatus, notify, detectDecisions, acceptDecision, writeRunStatus, commitPlan, pack, handoff, park, unpark, journalAdd, journalCompact, cardCommit, runBranch, ensureIgnored, harvestBranch, withAddition: memoryLib.withAddition, matchingTopicals, testSection, sections, cli, JOURNAL_CARD_LINES, JOURNAL_MAX_LINES };
+module.exports = { otherRepos, otherWork, pluginIsAnotherCheckout, COMMANDS, NOTIFY_KINDS, cardStatus, notify, detectDecisions, acceptDecision, writeRunStatus, commitPlan, pack, handoff, park, unpark, journalAdd, journalCompact, cardCommit, runBranch, ensureIgnored, harvestBranch, withAddition: memoryLib.withAddition, matchingTopicals, testSection, TESTS_TITLE, sections, cli, JOURNAL_CARD_LINES, JOURNAL_MAX_LINES };

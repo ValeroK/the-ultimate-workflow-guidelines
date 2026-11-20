@@ -1,6 +1,6 @@
 'use strict';
 
-// 5.1.1, from one real session (2026-11-16, a plan with seven cards). The tests phase wrote the test plan by test
+// 5.2.0, from one real session (2026-11-16, a plan with seven cards). The tests phase wrote the test plan by test
 // file, with each card only named in the text. The unattended run finds a card's tests by a heading that starts with
 // the card's name, so it would have parked all seven cards as "missing input". The session asked the user how to
 // lay the section out, the user chose to test at the end, and the build went to a general-purpose agent on the

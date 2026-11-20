@@ -26,7 +26,7 @@ export const meta = {
 // to negotiate on paper and the most expensive to discover was wrong later.
 
 const planFile = (args && args.plan) || ''
-// A list or a comma-separated text (5.1.1): a list stopped the script before any agent ran.
+// A list or a comma-separated text (5.2.0): a list stopped the script before any agent ran.
 const rawAngles = args && args.angles
 const extraAngles = (Array.isArray(rawAngles) ? rawAngles.map(String) : String(rawAngles || '').split(','))
   .map((a) => a.trim())
@@ -128,7 +128,7 @@ function claimsOf(text) {
   }
 }
 
-// The plan's cards, read from the plan by experts.js `script` (5.1.1). The unattended run builds each card against its own
+// The plan's cards, read from the plan by experts.js `script` (5.2.0). The unattended run builds each card against its own
 // section of the Tests, found by a heading that starts with the card's name. A test plan written by test file, with
 // the card only named in the text, parked every card of a seven-card plan as "missing input".
 const CARDS = (Array.isArray(args && args.cards) ? args.cards : []).filter((c) => c && typeof c.name === 'string' && c.name.trim())

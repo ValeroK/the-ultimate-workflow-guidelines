@@ -85,7 +85,7 @@ for (const [key, value] of [['implementerModel', IMPLEMENTER_MODEL], ['diagnoser
 // each failed one. One function so the build phase and every card of the autopilot run share it:
 // a hand copy would drift. It returns what the build phase returns. `o.locate` says what to read,
 // `o.brief` is the standing brief text, `o.label` and `o.phases` name the agents and their phase,
-// `o.setPhase` says whether to call phase(), and `o.commitRule` says who commits. `o.fullAtEnd` (5.1.1, a card of the
+// `o.setPhase` says whether to call phase(), and `o.commitRule` says who commits. `o.fullAtEnd` (5.2.0, a card of the
 // unattended run): the rounds run the related tests only and green needs no full run, because the run makes the
 // full run one time after all the cards.
 const ROUND_CAP = 3
@@ -158,7 +158,7 @@ const DIAGNOSIS = {
   },
 }
 
-// 5.1.1: what the tester reports when the run sends it the tests a diagnosis called wrong: a verdict for each one
+// 5.2.0: what the tester reports when the run sends it the tests a diagnosis called wrong: a verdict for each one
 // named, and every test it changed, named or not.
 const CORRECTED = {
   type: 'object',
@@ -190,7 +190,7 @@ const CORRECTED = {
 const EXPERT_NOTE =
   'If the plan has an "Expert input" section, its constraints are requirements, not suggestions: meet each one, or stop and say which one you cannot meet and why. Do not drop one silently.'
 
-// 5.1.1: in two days of runs, ten failed full runs were each followed by the whole suite again (four minutes a time).
+// 5.2.0: in two days of runs, ten failed full runs were each followed by the whole suite again (four minutes a time).
 const FAILED_FIRST =
   "After a full run that fails, do not run the full suite again at once: correct the cause, run only the tests that failed (with the project's runner, by file or by name) until they pass, and then make the full run one more time."
 
@@ -243,7 +243,7 @@ Report the project's real verification command as testCommand.`,
   let last = null
   let diagnosis = null
   const history = []
-  // 5.1.1, the unattended run only (`o.correctTests`): one pass of the tester for each build.
+  // 5.2.0, the unattended run only (`o.correctTests`): one pass of the tester for each build.
   let correction = null
   const testFiles = tests.filesWritten || []
   // The test files as they are before the first code round: code sees it when a code round changes one.
@@ -436,7 +436,7 @@ If the TEST looks wrong rather than the code, say so: that is a legitimate outco
     const priorSignature = diagnosis && diagnosis.signature
     diagnosis = next
 
-    // 5.1.1: in three runs, one hold in four was "the test is wrong, the code is right", and each time the user
+    // 5.2.0: in three runs, one hold in four was "the test is wrong, the code is right", and each time the user
     // resumed and the tests were changed to agree with the plan. The run now does that itself, one time for a build:
     // the diagnosis names every wrong test of the change, all of them go back to the tester in one pass, the tester
     // verifies each against the plan and corrects or removes what needs it, so that the files hold only the tests the
@@ -1062,9 +1062,20 @@ const PROPOSALS = {
 // Which files a card may change: its paths (globs, `dir/**`, `dir/`), and for a finding the test files its build wrote.
 // experts/cards.js `covers` is the same rule for code that can import; a test holds the two to the same answers.
 function covers(paths, file) {
-  const f = String(file || '').replace(/\\/g, '/').replace(/^\.\//, '')
+  // 5.2.0: `demo:src/a.js` is a file of the repository `demo` (lib/repos.js). A path of another repository, or of the
+  // main one, never covers it, whatever its glob. The name is taken off both before the glob is tried.
+  const split = (x) => {
+    const v = String(x || '').replace(/\\/g, '/').replace(/^\.\//, '')
+    if (/^[A-Za-z]:\//.test(v)) return { repo: '', path: v }
+    const m = /^([A-Za-z0-9][A-Za-z0-9._-]*):(.*)$/.exec(v)
+    return m ? { repo: m[1], path: m[2].replace(/^\.\//, '') } : { repo: '', path: v }
+  }
+  const target = split(file)
+  const f = target.path
   return (paths || []).some((g) => {
-    const p = String(g).replace(/\\/g, '/').replace(/^\.\//, '')
+    const own = split(g)
+    if (own.repo !== target.repo) return false
+    const p = own.path
     if (p.endsWith('/**')) return f === p.slice(0, -3) || f.startsWith(p.slice(0, -2))
     if (p.endsWith('/')) return f.startsWith(p)
     const re = new RegExp(`^${p.split('**/').map((s) => s.split('*').map((x) => x.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('[^/]*')).join('(?:.*/)?')}$`)
@@ -1093,7 +1104,7 @@ function inCard(card, file, testFiles = []) {
 // How a `measure: bytes <glob> <= <number>` line of a plan is read. lib/claims.js evaluates this section and the tests
 // phase script has it pasted in, so there is one parser.
 const MEASURE = /^\s*[-*]\s+measure:\s*(.*)$/i;
-// 5.1.1: a note after the number is read past (`<= 5000 (4,300 now)`, `<= 5000 bytes`, `<= 5000 - the index`): the claims
+// 5.2.0: a note after the number is read past (`<= 5000 (4,300 now)`, `<= 5000 bytes`, `<= 5000 - the index`): the claims
 // check stopped on such a line and the plan author rewrote it. The note starts with a mark or the word "bytes", so a
 // unit (`<= 5 KB`, `<= 5k`) is still not understood and is never read as 5 bytes.
 const CLAIM = /^bytes\s+(\S+)\s+<=\s+([0-9][0-9_,]*)(?:\s*(?:[^A-Za-z0-9\s.]|bytes?\b).*)?$/i;
@@ -1102,6 +1113,7 @@ const GLOB = /^[A-Za-z0-9._*/-]+$/;
 
 /** Why a glob is refused, or '' when it stays inside the root. */
 function globProblem(glob) {
+  if (/^[A-Za-z0-9][A-Za-z0-9._-]*:/.test(glob)) return 'a measure is of the main repository: a path with a repository name is not measured';
   if (!GLOB.test(glob)) return 'the glob may hold only letters, digits, . _ - / and *';
   if (glob.startsWith('/')) return 'the glob must be relative to the project root';
   if (glob.split('/').includes('..')) return 'the glob must not leave the project root';

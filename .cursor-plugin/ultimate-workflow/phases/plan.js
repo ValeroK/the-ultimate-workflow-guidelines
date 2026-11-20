@@ -42,6 +42,17 @@ if (!feature) {
   }
 }
 
+// 5.2.0: one plan for several repositories (lib/repos.js). `args.repos` are the other repositories the user named, each
+// with its folder as seen from the main one, which is the folder of this session. With none, every prompt here is the
+// text it was before.
+const PLAN_REPOS = (Array.isArray(args && args.repos) ? args.repos : []).filter((x) => x && typeof x.name === 'string' && /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(x.name) && typeof x.place === 'string' && x.place.trim())
+const REPOS_NOTE = PLAN_REPOS.length
+  ? `\n\nThis change is in more than one repository. This folder is the main one. The others: ${PLAN_REPOS.map((x) => `"${x.name}" in the folder ${x.place}`).join('; ')}. Read there too where your slice reaches, and say which repository each thing you report is in.`
+  : ''
+const REPOS_SHAPE = PLAN_REPOS.length
+  ? `\n- **Repositories** -- this plan is for more than one repository, and it lives in this one, the main one. In the front matter write the line \`repos: ${PLAN_REPOS.map((x) => `${x.name}=${x.place}`).join(', ')}\`, and for each of those repositories its own commands: \`test_command@<name>\` (its real full verification command, required) and \`test_related_command@<name>\` (when its runner supports it). In the Cards section a path in another repository carries its name and a colon in front: \`${PLAN_REPOS[0].name}:src/lib/**\`; a path with no name is in the main repository. A card may have paths in more than one repository when one change needs both sides to be right together; otherwise give each repository its own card.`
+  : ''
+
 // @shared selection
 // @shared lane-helpers
 
@@ -159,12 +170,16 @@ const readers = [
     label: area,
     prompt: `Read ${area} and report what it constrains for a change described as "${feature}".`,
   })),
+  ...PLAN_REPOS.map((x) => ({
+    label: `repo:${x.name}`,
+    prompt: `Read the repository "${x.name}" in the folder ${x.place}: its own documentation (README, AGENTS.md, CLAUDE.md), how its tests are run, and the code that a change described as "${feature}" touches there. Report what it constrains, and the exact command that runs its full test suite.`,
+  })),
 ]
 
 const slices = await parallel(
   readers.map((r) => () =>
     asReader(
-      `${r.prompt}
+      `${r.prompt}${REPOS_NOTE}
 
 Report what someone about to build this would need to know: the patterns they must follow, the utilities that already exist so they are not rewritten, and the constraints that are not obvious from reading the code once.
 
@@ -184,7 +199,7 @@ if (failed.length === readers.length) {
   }
 }
 
-// 5.1.1: the cards are part of the plan the user confirms. They were added after the confirmation, by hand, and a plan
+// 5.2.0: the cards are part of the plan the user confirms. They were added after the confirmation, by hand, and a plan
 // reached the unattended run with none: the run refused, the cards were added, and the plan needed a second confirmation.
 // `args.cards` (the Full tier) makes the section required; without it the section is written when the work has parts.
 const WANT_CARDS = Boolean(args && args.cards)
@@ -238,7 +253,7 @@ Produce the complete plan document as markdown, following this shape:
 - **Existing-design review** -- the patterns, utilities, and conventions this touches, drawn from what the readers actually found. Prefer reuse and say what will be reused.
 - **Deviation justification** -- every place you propose departing from an existing pattern, with the current pattern, the alternative, and pros and cons for both. If there are none, write "None -- reuses existing patterns." Do not manufacture a deviation to look thorough; do not hide one to look tidy.
 - Open questions
-${CARDS_SHAPE}
+${CARDS_SHAPE}${REPOS_SHAPE}
 
 Two rules on content. Anchor every claim about the codebase in something a reader actually reported -- do not assert structure nobody observed. And leave the Tests section out entirely; it is written and confirmed separately, after this plan is.
 
@@ -371,8 +386,13 @@ Say what your domain requires of this plan that it does not yet say. Read the co
 
 const cards = readCards(planMarkdown)
 const noPaths = cards.filter((c) => c.paths.length === 0).map((c) => c.name)
+// A path with a repository name the plan's header does not declare: the run refuses to start on it.
+const declaredRepos = ((/^repos:\s*(.*)$/m.exec(String(planMarkdown).split(/\r?\n---\r?\n/)[0] || '') || [])[1] || '').replace(/^\[|\]$/g, '').split(',').map((s) => s.split('=')[0].trim()).filter(Boolean)
+const undeclared = [...new Set(cards.flatMap((c) => c.paths.map((x) => (/^([A-Za-z0-9][A-Za-z0-9._-]*):(?![\\/])/.exec(x) || [])[1]).filter(Boolean)))].filter((n) => !declaredRepos.includes(n))
 const cardsNote =
-  WANT_CARDS && cards.length === 0
+  undeclared.length > 0
+    ? `Card paths name ${undeclared.length === 1 ? 'a repository' : 'repositories'} the plan's header does not declare: ${undeclared.join(', ')}. Add ${undeclared.length === 1 ? 'it' : 'them'} to the header line \`repos: <name>=<folder>\`, or correct the paths, before the user sees the plan.`
+    : WANT_CARDS && cards.length === 0
     ? 'The plan has no ## Cards section, and this tier builds cards. Add them with `experts.js card-add` before the user sees the plan: the cards are part of what the user confirms.'
     : noPaths.length > 0
       ? `These cards have no paths line: ${noPaths.join(', ')}. Give each its paths in the plan file before the user sees the plan.`

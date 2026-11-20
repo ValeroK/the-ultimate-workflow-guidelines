@@ -137,17 +137,35 @@ function headingCardText(planText, name) {
 const cleanPath = (p) => String(p).trim().replace(/\\/g, '/').replace(/^\.\//, '');
 
 /**
+ * A path of a plan with several repositories (5.2.0, lib/repos.js): `demo:src/**` is `src/**` in the repository the
+ * plan's header names `demo`; a path with no prefix is in the main repository (`repo: ''`). A drive (`C:/x`) is not a
+ * prefix.
+ */
+function splitPath(p) {
+  const s = cleanPath(p);
+  if (/^[A-Za-z]:\//.test(s)) return { repo: '', path: s };
+  const m = /^([A-Za-z0-9][A-Za-z0-9._-]*):(.*)$/.exec(s);
+  return m ? { repo: m[1], path: m[2].replace(/^\.\//, '') } : { repo: '', path: s };
+}
+
+/**
  * The plan text with one more card, in the plan's own line endings. Creates the Cards section at the
  * end when there is none. Throws, changing nothing, on a bad name, no paths, a path outside the
  * project, or a name already taken.
  */
-function addCard(planText, { name, title, paths = [], carried = [], experts = null, depends = [] }) {
+function addCard(planText, { name, title, paths = [], carried = [], experts = null, depends = [], repos = [] }) {
   if (!NAME.test(String(name || ''))) throw new Error(`card name "${name}" must be letters, digits, dot, dash or underscore, with no spaces or colon`);
   const t = String(title || '').replace(/\s+/g, ' ').trim();
   if (!t) throw new Error('a card needs a --title');
   const ps = paths.map(cleanPath).filter(Boolean);
   if (ps.length === 0) throw new Error(`card ${name} needs --paths: the globs it may change, relative to the project root`);
-  const bad = ps.find((p) => p.startsWith('/') || /^[A-Za-z]:/.test(p) || p.split('/').includes('..'));
+  // `repos` are the names the plan's header declares: a path may carry one of them, and no other.
+  const undeclared = ps.map((p) => ({ p, ...splitPath(p) })).find((s) => s.repo && !repos.includes(s.repo));
+  if (undeclared) throw new Error(`path "${undeclared.p}" names the repository "${undeclared.repo}", which the plan's header does not declare (repos: ${repos.length ? repos.join(', ') : 'none'}). Add it to the header line \`repos: ${undeclared.repo}=<folder>\` first`);
+  const bad = ps.find((p) => {
+    const s = splitPath(p).path;
+    return s === '' || s.startsWith('/') || /^[A-Za-z]:/.test(s) || s.split('/').includes('..');
+  });
   if (bad) throw new Error(`path "${bad}" must be relative to the project root and stay inside it`);
   if (findCard(planText, name)) throw new Error(`card ${name} is already in the plan`);
 
@@ -244,18 +262,30 @@ function setField(planText, name, key, value) {
  * below it.
  */
 function covers(paths, file, makeRegExp) {
-  return paths.map(cleanPath).some((g) => {
+  // 5.2.0: `demo:src/a.js` is a file of the repository `demo`. A path of another repository, or of the main one,
+  // never covers it, whatever its glob (`**/*.js` matched the text `demo:src/a.js`).
+  const target = splitPath(file);
+  return paths.map(cleanPath).some((whole) => {
+    const own = splitPath(whole);
+    if (own.repo !== target.repo) return false;
+    return coversIn(own.path, target.path, makeRegExp);
+  });
+}
+
+/** One glob against one file, both of one repository. */
+function coversIn(g, file, makeRegExp) {
+  {
     if (g.endsWith('/**')) {
       const dir = g.slice(0, -3);
       return file === dir || file.startsWith(`${dir}/`);
     }
     if (g.endsWith('/')) return file.startsWith(g);
     return makeRegExp(g).test(file);
-  });
+  }
 }
 
 function outOfScope(files, paths, makeRegExp) {
   return files.map(cleanPath).filter((f) => !covers(paths, f, makeRegExp));
 }
 
-module.exports = { cardsRange, parseCards, findCard, cardText, headingCardText, addCard, setField, outOfScope, covers, cleanPath, checkStatus, statusKind, NAME };
+module.exports = { splitPath, cardsRange, parseCards, findCard, cardText, headingCardText, addCard, setField, outOfScope, covers, cleanPath, checkStatus, statusKind, NAME };

@@ -979,8 +979,10 @@ test('a run-state read that fails stops the settle step: no findings card, revie
   for (const [name, answer] of [['ok: false', steps({ ok: false, reason: 'run.json is not JSON' })], ['nothing', null]]) {
     const calls = [];
     const base = responder({ findings: { 1: [stuck] } });
-    const { result } = await run(baseArgs([card('1')]), async (c) => { calls.push(c); return c.label === 'settle:state' ? answer : base(c); });
+    const { result } = await run(baseArgs([card('1')]), async (c) => { calls.push(c); return /^settle:state(:again)?$/.test(c.label) ? answer : base(c); });
     const labels = labelsOf(calls);
+    // 5.2.0: a read that gave no JSON line runs one more time on the build model; the step fails when that one fails too.
+    assert.equal(labels.includes('settle:state:again'), name === 'nothing', name);
     assert.deepStrictEqual(waitingLabels(labels), [], `${name}: ${labels.join(' ')}`);
     assert.ok(!labels.includes('settle:findings'), `${name}: the saved findings are not overwritten`);
     assert.equal(recordCalls(calls).length, 0, `${name}: nothing is recorded`);

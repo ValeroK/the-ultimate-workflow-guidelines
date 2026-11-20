@@ -324,7 +324,8 @@ function parseDiff(diff) {
  */
 function planPaths(text) {
   const out = new Set();
-  const looksLikeFile = (s) => /^[\w.\/-]*[\w-]\.[A-Za-z][A-Za-z0-9]{0,9}$/.test(s) || /^[\w.-]+$/.test(s) && /^(go\.mod|Cargo\.toml|pom\.xml|Gemfile|Dockerfile)$/.test(s);
+  // A repository name in front (`demo:docs/api.md`, lib/repos.js) is part of a path; a scheme (`https://x/y.md`) is not.
+  const looksLikeFile = (s) => /^(?:[A-Za-z0-9][\w.-]*:(?!\/))?[\w.\/-]*[\w-]\.[A-Za-z][A-Za-z0-9]{0,9}$/.test(s) && !/^[A-Za-z]:[\\/]/.test(s) && !/^(https?|ftp|file|mailto|ssh|git):/i.test(s) || /^[\w.-]+$/.test(s) && /^(go\.mod|Cargo\.toml|pom\.xml|Gemfile|Dockerfile)$/.test(s);
   for (const m of String(text).matchAll(/`([^`\s]+)`/g)) if (looksLikeFile(m[1])) out.add(m[1]);
   for (const m of String(text).matchAll(/(?:^|\s)([\w.-]+(?:\/[\w.-]+)+\.[A-Za-z][A-Za-z0-9]{0,9})(?=$|[\s,.;:)])/gm)) out.add(m[1]);
   return [...out];
@@ -490,7 +491,7 @@ function confirmHash(text) {
     if (h) {
       section = h[2].toLowerCase();
       inRunStatus = h[1].length <= 2 && section === 'run status';
-      if (h[1].length <= 2) inKnown = section === 'known failures';
+      if (h[1].length <= 2) inKnown = section === 'known failures' || /^known failures in [a-z0-9][a-z0-9._-]*$/.test(section);
       if (inKnown) continue;
       dropCard = false;
       if (inRunStatus) continue;
@@ -516,6 +517,7 @@ function confirmHash(text) {
  * `experts` is named only when a confirmed expert was taken away (the review may add to the line).
  */
 const SETTING_KEYS = ['test_command', 'volatile_paths', 'known_failures', 'full_suite_paths'];
+const PER_REPO_KEY = /^(test_command|test_related_command|volatile_paths|known_failures|full_suite_paths)@[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const sha8 = (value) => crypto.createHash('sha256').update(String(value === undefined || value === null ? '' : value).trim()).digest('hex').slice(0, 8);
 
 /** The settings as they stand now, in the form `confirmed_settings:` records them. */
@@ -526,6 +528,11 @@ function settingsNow(text) {
   const parsed = readExperts(text);
   out.experts = (parsed.error ? [] : parsed.experts).slice().sort().join(',');
   out.cards = cardsNow(text);
+  // 5.2.0: the repositories of the plan and the commands of each (lib/repos.js). Recorded only when the plan has
+  // them, so a plan of one repository has the record it always had.
+  const perRepo = {};
+  for (const k of Object.keys(data)) if (k === 'repos' || PER_REPO_KEY.test(k)) perRepo[k] = sha8(data[k]);
+  if (Object.keys(perRepo).length > 0) out.perRepo = perRepo;
   return out;
 }
 
@@ -571,6 +578,12 @@ function settingsChanged(text) {
   const before = String(was.experts || '').split(',').filter(Boolean);
   const after = now.experts.split(',').filter(Boolean);
   if (before.some((n) => !after.includes(n))) changed.push('experts');
+  // A repository added, removed or moved, or a command of one changed, after the confirmation. A plan confirmed
+  // before these were recorded names none.
+  // A plan confirmed with one repository records none, so a `repos:` line or a command added later is named as well.
+  const wasRepo = was.perRepo && typeof was.perRepo === 'object' ? was.perRepo : {};
+  const nowRepo = now.perRepo || {};
+  for (const k of new Set([...Object.keys(wasRepo), ...Object.keys(nowRepo)])) if (wasRepo[k] !== nowRepo[k]) changed.push(k);
   return changed;
 }
 
@@ -616,7 +629,8 @@ function setConfirmed(text, key) {
  * `confirm` sets the `plan_confirmed` (or `tests_confirmed`) line to true in what is written.
  */
 function present(opts) {
-  const { result: resultFile = '', field = '', from = '', confirm = '', append = false, replace = false, cwd = process.cwd() } = opts || {};
+  const { result: resultFile = '', field = '', from = '', confirm = '', append = false, replace = false, replaceSection = '', cwd = process.cwd() } = opts || {};
+  if (replaceSection && append) throw new Error('present takes --replace-section or --append, not both');
   let outFile = (opts && opts.out) || '';
   const at = (p) => path.resolve(cwd, p);
   // Confirm in place (5.1.0): --confirm with no source stamps the plan as it is on disk and changes nothing
@@ -670,10 +684,21 @@ function present(opts) {
     const eol = existing.includes('\r\n') ? '\r\n' : '\n';
     text = `${existing.replace(/\s+$/, '')}${eol}${eol}${text.replace(/\r?\n/g, eol)}`;
   }
+  // 5.2.0: the text takes the place of the plan's section of that name. The tests phase added its Tests section to a
+  // plan that already had one, and the plan then had two with opposite values for one test.
+  if (replaceSection) {
+    let existing;
+    try {
+      existing = fs.readFileSync(at(outFile), 'utf8');
+    } catch (err) {
+      throw new Error(`--replace-section needs ${outFile} to exist: ${err.message}`);
+    }
+    text = require('../lib/plan-state.js').replaceSection(existing, replaceSection, text);
+  }
   if (confirm) text = setConfirmed(text, confirm);
   // A write over a plan must not lose a section the plan has (5.1.0): the Tests and Cards of a confirmed plan
   // went this way. --append and confirm in place cannot lose one; --replace says the smaller text is meant.
-  if (!inPlace && !append && !replace && /^PLAN-.+\.md$/i.test(path.basename(outFile)) && fs.existsSync(at(outFile))) {
+  if (!inPlace && !append && !replace && !replaceSection && /^PLAN-.+\.md$/i.test(path.basename(outFile)) && fs.existsSync(at(outFile))) {
     const sections = (t) => t.split(/\r?\n/).filter((l) => /^## \S/.test(l)).map((l) => l.trim());
     const has = new Set(sections(text));
     const lost = sections(fs.readFileSync(at(outFile), 'utf8')).filter((s) => !has.has(s));
@@ -1171,9 +1196,34 @@ function protocolText(pluginRoot = PLUGIN_ROOT) {
   return fs.existsSync(file) ? fs.readFileSync(file, 'utf8').trim() : '';
 }
 
-function prepare(cwd, range = 'working', pluginRoot = PLUGIN_ROOT, { delta = false } = {}) {
+function prepare(cwd, range = 'working', pluginRoot = PLUGIN_ROOT, { delta = false, feature = '', fromHeads = {} } = {}) {
   const changes = workingChanges(cwd);
-  const diff = range === 'working' ? changes.diff : git(cwd, ['diff', ...DIFF_FORMAT, range]);
+  let diff = range === 'working' ? changes.diff : git(cwd, ['diff', ...DIFF_FORMAT, range]);
+  // 5.2.0, a run of several repositories (lib/repos.js): one review reads the changes of all of them. The diff of
+  // each other repository follows the main one under a line that names it, and its paths carry its name
+  // (`demo:src/a.js`), so a finding names the file as the plan does. `--feature` says which run; its run.json holds
+  // each repository's folder, the commit its run branch started from, and the commit the last review covered.
+  const reposCovered = {};
+  if (feature && range !== 'working') {
+    let run = {};
+    try {
+      run = JSON.parse(fs.readFileSync(path.join(cwd, '.ultimate-workflow', 'run', feature, 'run.json'), 'utf8'));
+    } catch {}
+    const from = String(range).split('..')[0];
+    const whole = Boolean(run.base) && (String(run.base).startsWith(from) || from.startsWith(String(run.base)));
+    for (const [name, r] of Object.entries(run.repos || {})) {
+      // A range that is not the whole run starts, in this repository, at the commit the caller names for it (the run
+      // script: where this repository was when the review before this one was made), else at the one the last
+      // recorded review covered, else at the base.
+      const start = whole ? r.base : fromHeads[name] || (run.repoHeads && run.repoHeads[name]) || r.base;
+      const head = git(r.dir, ['rev-parse', 'HEAD']).trim();
+      reposCovered[name] = `${start}..${head.slice(0, 12)}`;
+      const sub = git(r.dir, ['diff', ...DIFF_FORMAT, `${start}..${head}`]);
+      if (!sub.trim()) continue;
+      const tagged = sub.split('\n').map((l) => l.replace(/^diff --git a\/(.*) b\/(.*)$/, `diff --git a/${name}:$1 b/${name}:$2`).replace(/^--- a\//, `--- a/${name}:`).replace(/^\+\+\+ b\//, `+++ b/${name}:`)).join('\n');
+      diff += `${diff.endsWith('\n') || diff === '' ? '' : '\n'}=== repository ${name} (${r.dir}): every file below is in that repository, and is named ${name}:<path> ===\n${tagged}`;
+    }
+  }
   const diffFile = path.join('.ultimate-workflow', 'review.diff');
   fs.mkdirSync(path.join(cwd, '.ultimate-workflow'), { recursive: true });
   fs.writeFileSync(path.join(cwd, diffFile), diff);
@@ -1209,6 +1259,7 @@ function prepare(cwd, range = 'working', pluginRoot = PLUGIN_ROOT, { delta = fal
     ...(d && d.refused ? { deltaRefused: d.refused } : {}),
     ...(keep ? { keep } : {}),
     ...(heavy ? { untrackedHeavy: heavy } : {}),
+    ...(Object.keys(reposCovered).length ? { repos: reposCovered } : {}),
   };
 }
 
@@ -1443,7 +1494,7 @@ function testsPart(cwd, planFile, changes, options) {
   }
   // No command to run the full suite with: a commit that needs a full run is refused (owner decision, 2026-11-13); one that
   // needs none (documentation only, nothing to commit) still comes back with its skip.
-  // 5.1.1: a card of the unattended run is committed on a passing run of its related tests; the run makes the full run
+  // 5.2.0: a card of the unattended run is committed on a passing run of its related tests; the run makes the full run
   // one time after all the cards.
   const atEnd = options.fullAtEnd ? { fullAtEnd: true, related: readRelatedRecord(cwd) } : {};
   if (!command) return { command: '', noCommand: true, script: options.script || '', ...atEnd, ...testsEvidence(cwd, changes, planFile) };
@@ -1597,7 +1648,7 @@ function stageScript(pluginRoot, cwd, phaseName, { argsFile = '', files = [], me
   // plugin's verify.js, when the plan names its test_command. Chosen here, in code, so a model
   // never types the path (and a Windows path never reaches a JSON string with bare backslashes).
   // 4.2.0: the model for the agents that only search and read (plan readers, harvest gatherers).
-  // 5.1.1: the tests phase writes one section for each card of the plan.
+  // 5.2.0: the tests phase writes one section for each card of the plan.
   if (phaseName === 'tests' && typeof args.plan === 'string' && args.cards === undefined) {
     try {
       args.cards = require('./cards.js').parseCards(fs.readFileSync(path.resolve(cwd, args.plan), 'utf8')).map((c) => ({ name: c.name, title: c.title || '' }));
@@ -1625,6 +1676,8 @@ function stageScript(pluginRoot, cwd, phaseName, { argsFile = '', files = [], me
   if (phaseName === 'build' || phaseName === 'run') {
     const impl = process.env.ULTIMATE_WORKFLOW_BUILD_MODEL;
     if (phaseName === 'run' && args.implementerModel === undefined && typeof impl === 'string' && impl.trim()) args.implementerModel = impl.trim();
+    const runner = process.env.ULTIMATE_WORKFLOW_RUNNER_MODEL;
+    if (phaseName === 'run' && args.runnerModel === undefined && typeof runner === 'string' && runner.trim()) args.runnerModel = runner.trim();
     delete args.verify;
     let planRel = typeof args.plan === 'string' ? args.plan : '';
     let data = {};
@@ -1696,13 +1749,16 @@ function runArgs(pluginRoot, cwd, args) {
   // The run's base is where uw/run/<feature> started, kept for a resumed run so the review still covers every card.
   const runFile = path.join(cwd, '.ultimate-workflow', 'run', args.feature, 'run.json');
   let base = '';
+  let runSaved = {};
   try {
-    base = JSON.parse(fs.readFileSync(runFile, 'utf8')).base || '';
+    runSaved = JSON.parse(fs.readFileSync(runFile, 'utf8'));
+    base = runSaved.base || '';
   } catch {}
   if (!base) {
     base = git(cwd, ['rev-parse', 'HEAD']).trim();
     fs.mkdirSync(path.dirname(runFile), { recursive: true });
-    fs.writeFileSync(runFile, `${JSON.stringify({ base, plan: args.plan, feature: args.feature, at: new Date().toISOString() }, null, 2)}\n`);
+    // What run-start recorded there (the other repositories of the plan and their bases) is kept.
+    fs.writeFileSync(runFile, `${JSON.stringify({ ...runSaved, base, plan: args.plan, feature: args.feature, at: new Date().toISOString() }, null, 2)}\n`);
   }
   const skillTexts = {};
   const keep = (skills) => skills.map((s) => {
@@ -1793,6 +1849,8 @@ function cardAdd(o) {
       const rel = path.relative(path.resolve(o.cwd), path.resolve(p));
       return rel && !path.isAbsolute(rel) && !rel.split(/[\\/]/).includes('..') ? rel.replace(/\\/g, '/') : p;
     }),
+    // The repositories the plan's header declares (lib/repos.js): a path may carry one of these names.
+    repos: require('../lib/repos.js').declared(text).list.map((r) => r.name),
     carried,
     depends: String(o.depends || '').split(',').map((s) => s.trim()).filter(Boolean),
   });
@@ -1843,8 +1901,11 @@ function parseArgs(argv) {
     else if (a === '--confirm') o.confirm = need();
     else if (a === '--from') o.from = need();
     else if (a === '--append') o.append = true;
+    else if (a === '--replace-section') o.replaceSection = need();
     else if (a === '--replace') o.replace = true;
     else if (a === '--delta') o.delta = true;
+    else if (a === '--feature' && argv[0] === 'prepare') o.feature = need();
+    else if (a === '--from-heads') o.fromHeads = need();
     else if (a === '--args-file') o.argsFile = need();
     else if (a === '--file') o.files.push(need());
     else if (a === '--merge') o.merges.push(need());
@@ -1890,7 +1951,7 @@ function main(argv) {
   // The autopilot run's card steps (4.7.0): pack, handoff, park, unpark, journal, card-commit, ...
   if (require('./autopilot.js').COMMANDS.includes(argv[0])) {
     try {
-      // 5.1.1: a step agent that had changed into a card's folder under .ultimate-workflow ran `journal add` there, and
+      // 5.2.0: a step agent that had changed into a card's folder under .ultimate-workflow ran `journal add` there, and
       // the step's path, which is relative to the project, was looked for under that folder (ENOENT, four times in two
       // days; the card's journal lines were lost).
       const here = process.cwd();
@@ -1962,7 +2023,7 @@ function main(argv) {
       if (o.add === null) fail('select needs --add a,b (use --add "" to record that none apply)');
       return out(selectIntoPlan(needPlan(), o.add, list(o.pluginRoot).experts.map((e) => e.name)));
     }
-    if (o.cmd === 'prepare') return out(prepare(o.cwd, o.range, o.pluginRoot, { delta: o.delta }));
+    if (o.cmd === 'prepare') return out(prepare(o.cwd, o.range, o.pluginRoot, { delta: o.delta, feature: o.feature || '', fromHeads: Object.fromEntries(String(o.fromHeads || '').split(',').map((s) => s.split('=').map((x) => x.trim())).filter((x) => x.length === 2 && x[0] && /^[0-9a-f]{7,40}$/.test(x[1]))) }));
     if (o.cmd === 'fingerprint') return out({ hash: fingerprint(o.cwd) });
     if (o.cmd === 'record') {
       if (!o.stage) fail('record needs --stage plan|tests|review');
@@ -1983,7 +2044,12 @@ function main(argv) {
       }
       return out(record(o.cwd, o.stage, result, { planFile: o.plan, pluginRoot: o.pluginRoot }));
     }
-    if (o.cmd === 'present') return out(present({ result: o.result, field: o.field, out: o.out || (o.confirm && !o.from && !o.result && o.plan ? o.plan : o.out), from: o.from, confirm: o.confirm, append: o.append, replace: o.replace, cwd: o.cwd }));
+    if (o.cmd === 'present') return out(present({ result: o.result, field: o.field, out: o.out || (o.confirm && !o.from && !o.result && o.plan ? o.plan : o.out), from: o.from, confirm: o.confirm, append: o.append, replace: o.replace, replaceSection: o.replaceSection || '', cwd: o.cwd }));
+    if (o.cmd === 'plan-state') {
+      if (!o.plan) fail('plan-state needs --plan <plan file>');
+      return out(require('../lib/plan-state.js').planState(fs.readFileSync(path.resolve(o.cwd, o.plan), 'utf8')));
+    }
+    if (o.cmd === 'resume-target') return out(require('../lib/plan-state.js').resumeTarget(o.cwd, { card: o.card || '' }));
     if (o.cmd === 'findings') {
       const names = list(o.pluginRoot).experts.map((e) => e.name);
       return out({ findings: allFindings(o.cwd, fingerprint(o.cwd), names).filter((f) => blocking(f)) });
@@ -2026,7 +2092,10 @@ function main(argv) {
         testFiles = [...(parsed.testFiles || []), ...(parsed.filesWritten || [])].filter((f) => typeof f === 'string').map(rel);
         for (const f of testFiles) skip.add(f);
       }
-      const changed = workingChanges(o.cwd).files.map(rel).filter((f) => !skip.has(f) && !f.startsWith('.ultimate-workflow/'));
+      const planText = fs.readFileSync(path.resolve(o.cwd, o.plan), 'utf8');
+      // 5.2.0: a file changed in another repository of the plan is named `demo:path`, and only a `demo:` path of the card covers it.
+      const elsewhere = require('./autopilot.js').otherWork(o.cwd, planText).flatMap((r) => r.named);
+      const changed = [...workingChanges(o.cwd).files.map(rel).filter((f) => !skip.has(f) && !f.startsWith('.ultimate-workflow/')), ...elsewhere.filter((f) => !skip.has(f))];
       const outside = cardsLib.outOfScope(changed, card.paths, globToRegExp);
       return out({ card: card.name, title: card.title, paths: card.paths, changed: changed.length, outOfScope: outside, testsExcluded: testFiles.length });
     }
@@ -2052,7 +2121,7 @@ function main(argv) {
   } catch (err) {
     fail(err.message);
   }
-  return fail(`unknown command: ${o.cmd || '(none)'} (expected list, brief, skills, read, select, prepare, record, check, findings, resolve, attribution, fingerprint, script, ledger, card-add, scope, present)`);
+  return fail(`unknown command: ${o.cmd || '(none)'} (expected list, brief, skills, read, select, prepare, record, check, findings, resolve, attribution, fingerprint, script, ledger, card-add, scope, present, plan-state, resume-target)`);
 }
 
 module.exports = {

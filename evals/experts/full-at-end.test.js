@@ -1,6 +1,6 @@
 'use strict';
 
-// 5.1.1: the unattended run makes the full test run one time after all the cards, and one time after the review's
+// 5.2.0: the unattended run makes the full test run one time after all the cards, and one time after the review's
 // fix-up cards. Until 5.1.0 every card ended with a full run: in two days of real runs the implementer agents ran a
 // four-minute suite 27 times (108 minutes), ten of them failed runs that were followed by the whole suite again.
 // What these tests hold: a card runs its related tests only and is committed on them; the full run happens where the
@@ -305,7 +305,7 @@ test('in a repository: a change after the related run, or a related run that fai
   assert.equal(needsTests(dir, { fullAtEnd: true }), true, 'the related tests fail');
 });
 
-// 5.1.1, from the journals: "tests were already in the tree, so the card was not red-first" 9 times in one run (the
+// 5.2.0, from the journals: "tests were already in the tree, so the card was not red-first" 9 times in one run (the
 // run writes the tests in an earlier step), and lines such as "ruff is not installed" that help no later card.
 test('the journal agent is told how the run works, and not to report it or the tools of the machine', async () => {
   const r = responder();
@@ -318,7 +318,7 @@ test('the journal agent is told how the run works, and not to report it or the t
   assert.match(j.prompt, /tools of this machine/);
 });
 
-// 5.1.1: "the full suite passed" is the record verify.js wrote, read by code, never the answer of the agent.
+// 5.2.0: "the full suite passed" is the record verify.js wrote, read by code, never the answer of the agent.
 test('a pass the agent reports and the record does not show is not a pass, and no card is made for it', async () => {
   const r = responder({ proof: () => ({ ok: true, current: false, passed: false, reason: 'there is no record of a full run (.ultimate-workflow/verify.json)' }) });
   const { result } = await run(baseArgs([card('1')]), r);
@@ -338,7 +338,7 @@ test('the record decides when the agent and the record disagree', async () => {
   assert.ok(fail.labels().includes('full-suite:setup'), 'the record says failed: one card corrects it');
 });
 
-// --- 5.1.1: the run corrects a wrong test one time ------------------------------------------------------------------
+// --- 5.2.0: the run corrects a wrong test one time ------------------------------------------------------------------
 // In three runs, one hold in four was "the test is wrong, the code is right", and each time the user resumed and the
 // test was changed to agree with the plan. The run does that itself when the diagnosis names the line of the plan.
 
@@ -693,4 +693,222 @@ test('a card whose code round changed no test file gets no pass of the tester', 
   const { result } = await run(baseArgs([card('1')]), r);
   assert.ok(!r.labels().includes('1:correct-tests'));
   assert.deepStrictEqual(result.testCorrections, []);
+});
+
+// --- 5.2.0, card runner-model: the agents that only run commands run on Haiku ------------------------------------------
+// The second real run: 35 of 55 agents ran one command each, at about 11,000 tokens each on the build model.
+
+const modelOf = (r, label) => (r.calls.find((c) => c.label === label) || {}).model;
+// A step whose commands may all run a second time. A step that changes state is not one of them (see below).
+const COMMAND_STEPS = ['1:start', '1:tests-before', '1:tests-kept', '1:scope', '1:decisions', 'full-suite:proof', 'settle:state', 'review:prepare'];
+const STATE_STEPS = ['1:commit', 'review:record', 'harvest:branch', 'finished:notify', 'settle:record'];
+
+test('runner-model 1-2: a step that only runs commands is on haiku; the tests, the code and the journal are on the build model', async () => {
+  const r = responder();
+  await run(baseArgs([card('1')]), r);
+  for (const l of COMMAND_STEPS) assert.equal(modelOf(r, l), 'haiku', l);
+  for (const l of ['1:write-tests', '1:attempt-1', '1:journal', 'full-suite:run']) assert.equal(modelOf(r, l), 'sonnet', l);
+  // The experts check of this change: a step that commits, parks, records or notifies cannot run a second time, so a
+  // line a cheaper model copied wrongly could not be recovered. Those steps stay on the build model.
+  for (const l of STATE_STEPS) assert.equal(modelOf(r, l), 'sonnet', l);
+  assert.notEqual(modelOf(r, 'review:correctness'), 'haiku', 'a review lens is not a command step');
+});
+
+test('runner-model 3: runnerModel inherit gives a step no model, and a named model is passed', async () => {
+  const a = responder();
+  await run(baseArgs([card('1')], { runnerModel: 'inherit' }), a);
+  assert.equal(modelOf(a, '1:scope'), undefined);
+  const b = responder();
+  await run(baseArgs([card('1')], { runnerModel: 'sonnet' }), b);
+  assert.equal(modelOf(b, '1:scope'), 'sonnet');
+});
+
+test('runner-model 4: a runner model that is not allowed is refused before anything starts, as the build model is', async () => {
+  const r = responder();
+  const { result } = await run(baseArgs([card('1')], { runnerModel: 'gpt-9' }), r);
+  assert.equal(result.ok, false);
+  assert.match(result.error, /args\.runnerModel is "gpt-9": expected inherit, sonnet, opus, haiku or a claude-\* model id\. Nothing was started\./);
+  assert.deepStrictEqual(r.labels(), []);
+});
+
+test('runner-model 4: the variable and the option of run-start reach the arguments of the run', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'uw-runner-'));
+  const sh = (...a) => spawnSync('git', a, { cwd: dir, encoding: 'utf8' });
+  sh('init', '-q', '-b', 'main');
+  sh('config', 'user.email', 't@localhost');
+  sh('config', 'user.name', 't');
+  fs.writeFileSync(path.join(dir, '.gitignore'), '.ultimate-workflow/\n');
+  fs.writeFileSync(path.join(dir, 'PLAN-f.md'), '---\nphase: build\nplan_confirmed: false\ntests_confirmed: false\ntest_command: node t.test.js\nexperts: []\n---\n\n# PLAN: f\n\n## Cards\n\n- 1: one\n  paths: src/**\n\n## Tests\n\n### 1: one\n\n- it works\n');
+  fs.writeFileSync(path.join(dir, 't.test.js'), "console.log('# tests 1\\n# pass 1\\n# fail 0');\n");
+  sh('add', '-A');
+  sh('commit', '-q', '-m', 'init');
+  const CLI = path.join(PLUGIN, 'experts', 'experts.js');
+  const node = (args, env = {}) => spawnSync(process.execPath, [CLI, ...args], { cwd: dir, encoding: 'utf8', env: { ...process.env, ULTIMATE_WORKFLOW_NOTIFY: 'off', ...env } });
+  node(['present', '--confirm', 'plan_confirmed', '--plan', 'PLAN-f.md']);
+  node(['present', '--confirm', 'tests_confirmed', '--plan', 'PLAN-f.md']);
+  sh('commit', '-q', '-am', 'confirmed');
+  const argsOf = () => JSON.parse(fs.readFileSync(path.join(dir, '.ultimate-workflow', 'run', 'run.args.json'), 'utf8'));
+  const scriptArgs = () => JSON.parse(/^const EMBEDDED_ARGS = (.*)$/m.exec(fs.readFileSync(path.join(dir, '.ultimate-workflow', 'run', 'run.js'), 'utf8'))[1]);
+  const a = node(['run-start', '--plan', 'PLAN-f.md', '--feature', 'f', '--runner-model', 'sonnet']);
+  assert.match(a.stdout, /"ok":true/, a.stdout + a.stderr);
+  assert.equal(argsOf().runnerModel, 'sonnet');
+  assert.equal(scriptArgs().runnerModel, 'sonnet');
+  const b = node(['run-start', '--plan', 'PLAN-f.md', '--feature', 'f'], { ULTIMATE_WORKFLOW_RUNNER_MODEL: 'inherit' });
+  assert.match(b.stdout, /"ok":true/, b.stdout + b.stderr);
+  assert.equal(scriptArgs().runnerModel, 'inherit', 'the variable is the default when the option is not given');
+});
+
+const garbled = { outputs: [{ command: '', output: 'the command ran fine, I think' }] };
+
+test('runner-model 5-6: a step with no JSON line in its answer runs one more time, on the build model; a step that answered does not', async () => {
+  // The second answer is the one used: it says a file is out of scope, and the card's entry holds exactly that.
+  const r = responder({ on: (call) => (call.label === '1:scope' ? garbled : call.label === '1:scope:again' ? steps({ card: '1', outOfScope: ['docs/seen-by-the-second-run.md'] }) : undefined) });
+  const { result } = await run(baseArgs([card('1')]), r);
+  const labels = r.labels();
+  assert.ok(labels.includes('1:scope:again'), labels.join(' '));
+  assert.deepStrictEqual(result.cards[0].outOfScope, ['docs/seen-by-the-second-run.md'], 'the answer of the second run is used');
+  assert.equal(modelOf(r, '1:scope:again'), 'sonnet');
+  assert.equal(r.prompt('1:scope:again').split('Run each of these')[1], r.prompt('1:scope').split('Run each of these')[1], 'the same commands');
+  assert.deepStrictEqual(result.stepsRunAgain, ['1:scope']);
+  assert.deepStrictEqual(result.counts, { committed: 1 });
+  assert.equal(labels.filter((l) => /:again$/.test(l)).length, 1, 'no other step was run again');
+});
+
+test('runner-model 5: a step that must not run twice (the commit, the park) is never run again; it fails as before', async () => {
+  const r = responder({ on: (call) => (call.label === '1:commit' ? garbled : undefined) });
+  const { result } = await run(baseArgs([card('1')]), r);
+  assert.ok(!r.labels().includes('1:commit:again'));
+  assert.equal(result.cards[0].status, 'parked');
+  assert.deepStrictEqual(result.stepsRunAgain, []);
+});
+
+test('runner-model 7: a step that writes files and runs again writes the same files', async () => {
+  const r = responder({ on: (call) => (call.label === '1:decisions' ? garbled : undefined) });
+  await run(baseArgs([card('1')]), r);
+  const files = (p) => (p.match(/<<<CONTENT\n[\s\S]*?\nCONTENT>>>/g) || []).join('|');
+  assert.ok(files(r.prompt('1:decisions')).length > 0);
+  assert.equal(files(r.prompt('1:decisions:again')), files(r.prompt('1:decisions')));
+});
+
+test('runner-model 8: run.md and build.md name the option and the variable', () => {
+  for (const f of [['phases', 'run.md'], ['commands', 'build.md']]) {
+    const md = fs.readFileSync(path.join(PLUGIN, ...f), 'utf8');
+    assert.match(md, /--runner-model/, f.join('/'));
+    assert.match(md, /ULTIMATE_WORKFLOW_RUNNER_MODEL/, f.join('/'));
+  }
+});
+
+test('runner-model 5: a second run that also gives no JSON line leaves the step failed, and is not run a third time', async () => {
+  const r = responder({ on: (call) => (/^1:decisions/.test(call.label) ? garbled : undefined) });
+  const { result } = await run(baseArgs([card('1')]), r);
+  assert.equal(r.labels().filter((l) => /^1:decisions/.test(l)).length, 2);
+  assert.equal(result.cards[0].status, 'parked');
+  assert.match(result.cards[0].reason, /the check for decisions the plan does not state could not run/);
+});
+
+test('runner-model: a record of the run state is not a step that may run twice', async () => {
+  const r = responder();
+  await run(baseArgs([card('1')]), r);
+  assert.equal(modelOf(r, 'settle:state'), 'haiku', 'a read');
+  assert.equal(modelOf(r, 'settle:record'), 'sonnet', 'a write');
+});
+
+// --- 5.2.0, card repos-end: the run script with more than one repository ----------------------------------------------
+
+const DEMO = [{ name: 'demo', dir: 'C:/w/demo' }];
+const twoRepoCard = () => card('1', { paths: ['src/1/**', 'demo:src/1/**'] });
+/** Card 1 is committed in the two repositories; `proof` answers the two records of the full run. */
+const inTwo = (o = {}) =>
+  responder({
+    ...o,
+    on: (call, who, role) => {
+      const own = o.on && o.on(call, who, role);
+      if (own !== undefined) return own;
+      if (who === '1' && role === 'commit') return steps({ ok: true, card: '1', commit: 'c-1', files: 2, handoff: 'h', missingClaims: [], repos: [{ repo: 'demo', commit: 'd-1' }] });
+      if (role === 'proof' && /^full-suite/.test(who)) return steps(...(o.records || [{ ok: true, current: true, passed: true }, { ok: true, current: true, passed: true, repo: 'demo' }]));
+      return undefined;
+    },
+  });
+
+test('repos-end 1: the full run is made in each repository that got a commit, and each record is read', async () => {
+  const r = inTwo();
+  const { result } = await run(baseArgs([twoRepoCard()], { repos: DEMO }), r);
+  const p = r.prompt('full-suite:run');
+  assert.match(p, /Run these 2 commands, one at a time, in this order/);
+  assert.match(p, /`node "\/p\/hooks\/verify\.js" --plan "PLAN-f\.md" --full` \(the main repository\), then `node "\/p\/hooks\/verify\.js" --plan "PLAN-f\.md" --repo demo --full` \(the repository demo\)/);
+  const proof = r.prompt('full-suite:proof');
+  assert.match(proof, /experts\.js" full-record\n/);
+  assert.match(proof, /experts\.js" full-record --plan "PLAN-f\.md" --repo demo/);
+  assert.equal(result.fullSuite.text, 'Full suite: passed');
+  assert.deepStrictEqual(result.fullSuite.runs[0].repos, [{ repo: '', passed: true }, { repo: 'demo', passed: true }]);
+  assert.deepStrictEqual(result.cards[0].repos, [{ repo: 'demo', commit: 'd-1' }]);
+});
+
+test('repos-end 1: a record of another repository that is not of its commit means the full run is not proven', async () => {
+  const r = inTwo({ records: [{ ok: true, current: true, passed: true }, { ok: true, current: false, passed: false, repo: 'demo', reason: 'there is no record of a full run (.ultimate-workflow/verify.json)' }] });
+  const { result } = await run(baseArgs([twoRepoCard()], { repos: DEMO }), r);
+  assert.match(result.fullSuite.text, /^FULL SUITE NOT GREEN: the full run is not proven: repository demo: there is no record of a full run/);
+});
+
+test('repos-end 2: a full run that fails in another repository makes the one correcting card with paths there', async () => {
+  const r = inTwo({ records: [{ ok: true, current: true, passed: true }, { ok: true, current: true, passed: false, repo: 'demo' }], fullGreen: ['full-suite'], fullRun: () => ({ passed: false, failures: ['demo: t::x'], output: 'E', summary: 'demo fails' }) });
+  await run(baseArgs([twoRepoCard()], { repos: DEMO }), r);
+  const setup = r.prompt('full-suite:setup');
+  assert.match(setup, /the full suite fails after the cards \(demo\)/);
+  const paths = /full-suite-paths\.txt with the Write tool\.[^\n]*\n<<<CONTENT\n([\s\S]*?)\nCONTENT>>>/.exec(setup)[1];
+  assert.equal(paths, 'demo:src/1/**', 'the card may change what the cards changed in that repository, and nothing of the main one');
+});
+
+test('repos-end 3: the review of a run with more than one repository is prepared for that run; one repository is prepared as before', async () => {
+  const r = inTwo();
+  await run(baseArgs([twoRepoCard()], { repos: DEMO }), r);
+  assert.match(r.prompt('review:prepare'), /experts\.js" prepare --range "[^"]+" --feature f /);
+  const one = responder();
+  await run(baseArgs([card('1')]), one);
+  assert.doesNotMatch(one.prompt('review:prepare'), /--feature/);
+  assert.match(one.prompt('full-suite:run'), /Run this one command and report what it says: `node "\/p\/hooks\/verify\.js" --plan "PLAN-f\.md" --full`\./);
+});
+
+test('repos-end 7: the harvest is told the other repositories, and that the lessons go in this one only', async () => {
+  const r = inTwo();
+  await run(baseArgs([twoRepoCard()], { repos: DEMO }), r);
+  const p = r.prompt('harvest');
+  assert.match(p, /This run changed more than one repository: read the changes of each \(`demo` in C:\/w\/demo/);
+  assert.match(p, /The lessons are written in this repository only/);
+});
+
+test('repos-end 5: a repository that moved since the last review makes the resume review again', async () => {
+  const moved = (flag) => responder({ on: (call, who, role) => (who === 'settle' && role === 'state' ? steps({ ok: true, head: 'h1', reviewedHead: 'h1', harvestedHead: 'h1', harvestBranch: 'uw/harvest/f', ...(flag === undefined ? {} : { reposMoved: flag, repoHeads: { demo: 'd2' } }) }) : undefined) });
+  const still = moved(false);
+  const a = await run(baseArgs([card('1')], { repos: DEMO }), still);
+  assert.equal(a.result.review.ran, false, 'nothing moved: no second review');
+  const went = moved(true);
+  const b = await run(baseArgs([card('1')], { repos: DEMO }), went);
+  assert.equal(b.result.review.ran, true, JSON.stringify(b.result.review).slice(0, 200));
+});
+
+// The second experts check of the whole change: the park step and the step that adds a card are held too.
+test('runner-model: the park step and the step that adds a card stay on the build model and never run a second time', async () => {
+  const r = responder({ red: ['1'], on: (call) => (call.label === '1:park' ? garbled : undefined) });
+  await run(baseArgs([card('1')]), r);
+  assert.equal(modelOf(r, '1:park'), 'sonnet');
+  assert.ok(!r.labels().includes('1:park:again'));
+  const f = responder({ fullRun: () => ({ passed: false, failures: ['t::x'], summary: 'fails' }), proof: () => ({ ok: true, current: true, passed: false }), on: (call) => (call.label === 'full-suite:setup' ? garbled : undefined) });
+  await run(baseArgs([card('1')]), f);
+  assert.equal(modelOf(f, 'full-suite:setup'), 'sonnet');
+  assert.ok(!f.labels().includes('full-suite:setup:again'));
+});
+
+// The fourth experts check of the whole change, plan case repos-end 4: a finding of the review in another repository.
+test('repos-end 4: a review finding in a file of another repository makes a fix-up card with a path in that repository', async () => {
+  const finding = { file: 'demo:src/1/x.js', line: 3, what: 'the label is not trimmed', howItFails: 'a space stays in front', confidence: 'high', severity: 'medium' };
+  const r = inTwo({ reviewFindings: [finding] });
+  const { result } = await run(baseArgs([twoRepoCard()], { repos: DEMO }), r);
+  const setup = r.labels().find((l) => /^fixup[^:]*:setup$/.test(l));
+  assert.ok(setup, r.labels().join(' '));
+  const p = r.prompt(setup);
+  const paths = /-paths\.txt with the Write tool\.[^\n]*\n<<<CONTENT\n([\s\S]*?)\nCONTENT>>>/.exec(p)[1];
+  assert.equal(paths, 'demo:src/1/x.js');
+  assert.match(p, /demo:src\/1\/x\.js:3: the label is not trimmed/);
+  assert.ok(result.fixupCard || result.cards.some((c) => /^fixup/.test(c.card)), 'the fix-up card is in the result');
 });

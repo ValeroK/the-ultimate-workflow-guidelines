@@ -1159,7 +1159,7 @@ test('one review: the report says "Reviewed by the experts at <head>: N findings
   assert.match(fixups, /experts check of the fix-up cards \(h1\.\.HEAD\): 1 confirmed, left open and not fixed again/);
 });
 
-// ---- 5.1.1: three faults from real sessions (2026-11-14 to 2026-11-16) ----
+// ---- 5.2.0: three faults from real sessions (2026-11-14 to 2026-11-16) ----
 
 test('a card the run added (a fix-up card) gets its pack on a resume too, with no --adhoc and no test-plan section', () => {
   const dir = repo();
@@ -1199,7 +1199,7 @@ test('present --confirm takes --plan as the file to confirm in place', () => {
   assert.match(String(o.out), /PLAN-calc\.md$/);
 });
 
-// 5.1.1: one run at a time in a folder. A second run-start made its branch from the first run's branch and
+// 5.2.0: one run at a time in a folder. A second run-start made its branch from the first run's branch and
 // checked it out under the first run's agents.
 test('run-start refuses a run of another feature while a run is not finished in the folder, and creates nothing', () => {
   const dir = repo();
@@ -1245,7 +1245,7 @@ test('run.md tells the session what to do when another run is not finished', () 
   assert.match(md, /--take-over/);
 });
 
-// 5.1.1, from the journals of five runs: a card that was parked and tried again had 3 or 4 entries, 23% to 29% of the
+// 5.2.0, from the journals of five runs: a card that was parked and tried again had 3 or 4 entries, 23% to 29% of the
 // lines of a long journal repeated an earlier line, and an old entry that a later one called false stayed for the
 // next cards to read.
 test('journal add: a new entry of a card replaces its earlier entries, and keeps one line of the last park', () => {
@@ -1281,7 +1281,7 @@ test('journal add: the line of an earlier park does not count against the 15 lin
   assert.match(text, /Earlier attempt, parked/);
 });
 
-// 5.1.1: the record of the full run, and whether it is of the project as it is now.
+// 5.2.0: the record of the full run, and whether it is of the project as it is now.
 test('full-record: no record, a record of this commit, and a record of another commit', () => {
   const dir = repo();
   const none = json(cli(dir, 'full-record'));
@@ -1302,7 +1302,7 @@ test('full-record: no record, a record of this commit, and a record of another c
   assert.equal(json(cli(dir, 'full-record')).current, false);
 });
 
-// 5.1.1, from the holds of three runs: a URL that is a name and not a call, and a migration the card's own paths name.
+// 5.2.0, from the holds of three runs: a URL that is a name and not a call, and a migration the card's own paths name.
 test('decisions: a schema dialect, an id, an XML namespace and a standards host are minor; a real call and a remote $ref are major', () => {
   const dir = repo({ plan: PLAN.replace('paths: src/add.js, docs/new-guide.md', 'paths: src/**, docs/new-guide.md') });
   write(dir, 'src/shape.json', JSON.stringify({ $schema: 'https://json-schema.org/draft/2020-12/schema', $id: 'https://ids.acme.io/shape', type: 'object' }, null, 2));

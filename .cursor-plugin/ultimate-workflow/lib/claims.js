@@ -91,7 +91,7 @@ function measureAll(planText, root, cards = [], covers = () => false) {
     const matches = globMatcher(m.glob);
     const under = cards.filter((c) => (c.paths || []).some((p) => matches(String(p).replace(/^\.\//, ''))) || matched.some((f) => covers(c.paths || [], f.path)) || (matched.length === 0 && covers(c.paths || [], m.glob))).map((c) => c.name);
     if (matched.length === 0) {
-      // 5.1.1: a file that a card of this plan creates does not exist yet. That is not a typo: the claim is shown as
+      // 5.2.0: a file that a card of this plan creates does not exist yet. That is not a typo: the claim is shown as
       // not measured yet, with the cards that write there, and it does not stop the confirmation.
       if (under.length > 0) return { line: m.line, understood: true, passing: true, pending: true, glob: m.glob, limit: m.limit, size: 0, room: m.limit, files: 0, cards: under, why: `no file yet: ${under.length === 1 ? 'card' : 'cards'} ${under.join(', ')} ${under.length === 1 ? 'writes' : 'write'} there` };
       return { line: m.line, understood: false, passing: false, glob: m.glob, why: 'the glob matches no file under the project root, and no card writes there' };

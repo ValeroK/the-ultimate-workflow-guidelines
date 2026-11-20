@@ -289,7 +289,7 @@ function testsItem(ev) {
   const r = t.record;
   const full = r && r.mode === 'full' && r.passed === true;
   if (full && typeof r.fingerprint === 'string' && r.fingerprint === t.hash) return null;
-  // A card of the unattended run (5.1.1): a passing run of the related tests on exactly these changes is enough here,
+  // A card of the unattended run (5.2.0): a passing run of the related tests on exactly these changes is enough here,
   // because the run makes one full run after all the cards. A run that chose the full suite wrote the full record above.
   if (t.fullAtEnd) {
     const rel = t.related;

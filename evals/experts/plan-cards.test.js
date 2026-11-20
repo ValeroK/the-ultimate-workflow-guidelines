@@ -1,6 +1,6 @@
 'use strict';
 
-// 5.1.1, from the sessions of 2026-11-16 to 2026-11-18.
+// 5.2.0, from the sessions of 2026-11-16 to 2026-11-18.
 // (1) The cards are part of the plan the user confirms: the plan phase asks for a `## Cards` section and
 //     reports the cards it read, so a plan cannot reach the unattended run with none.
 // (2) The claims check reads past a note after the number of a `measure:` line, and a claim on a file that a
@@ -158,4 +158,51 @@ test('run.md: a resume is of the run in the folder of the session, and the sessi
   const resume = md.slice(md.indexOf('## Resume'));
   assert.match(resume, /A resume is of the run in this folder/);
   assert.match(resume, /do not look in other folders or other projects, and do not start anything/);
+});
+
+// --- PLAN-5.2.0.md, card repos-plan: the plan phase with more than one repository ------------------------------------
+
+const REPOS_ARG = [{ name: 'demo', place: '../project-status-demo' }];
+const TWO_REPO_PLAN = '---\nphase: plan\nrepos: demo=../project-status-demo\n---\n\n# PLAN: x\n\n## Cards\n\n- api: the endpoint\n  paths: src/api/**\n- ui: the screen\n  paths: demo:src/ui/**\n';
+
+test('repos-plan 1: with other repositories, each reader is told their folders, one reader reads each, and the synthesis asks for the header line and the path prefix', async () => {
+  const { calls } = await runPlan({ cards: true, repos: REPOS_ARG }, TWO_REPO_PLAN);
+  const labels = calls.map((c) => c.label);
+  assert.ok(labels.includes('repo:demo'), labels.join(' '));
+  assert.match(calls.find((c) => c.label === 'repo:demo').prompt, /Read the repository "demo" in the folder \.\.\/project-status-demo/);
+  for (const l of ['project-docs', 'memory']) assert.match(calls.find((c) => c.label === l).prompt, /This change is in more than one repository\. This folder is the main one\. The others: "demo" in the folder \.\.\/project-status-demo/, l);
+  const s = calls.find((c) => c.label === 'synthesise').prompt;
+  assert.match(s, /\*\*Repositories\*\* -- this plan is for more than one repository/);
+  assert.match(s, /`repos: demo=\.\.\/project-status-demo`/);
+  assert.match(s, /`test_command@<name>` \(its real full verification command, required\)/);
+  assert.match(s, /`demo:src\/lib\/\*\*`/);
+});
+
+test('repos-plan 2: with no other repository the prompts of the plan phase say nothing of repositories', async () => {
+  const a = await runPlan({ cards: true }, WITH_CARDS);
+  for (const c of a.calls) assert.doesNotMatch(c.prompt, /more than one repository|\*\*Repositories\*\*/, c.label);
+  assert.ok(!a.calls.some((c) => /^repo:/.test(c.label)));
+  const b = await runPlan({ cards: true, repos: [] }, WITH_CARDS);
+  assert.deepStrictEqual(b.calls.map((c) => c.prompt), a.calls.map((c) => c.prompt), 'an empty list is the same as none');
+});
+
+test('repos-plan 3: the result keeps the prefix of a card path, and a prefix the plan does not declare is in the note', async () => {
+  const ok = await runPlan({ cards: true, repos: REPOS_ARG }, TWO_REPO_PLAN);
+  assert.deepStrictEqual(ok.result.cards.map((c) => c.paths), [['src/api/**'], ['demo:src/ui/**']]);
+  assert.equal(ok.result.cardsNote, undefined);
+  const bad = await runPlan({ cards: true, repos: REPOS_ARG }, TWO_REPO_PLAN.replace('repos: demo=../project-status-demo\n', ''));
+  assert.match(bad.result.cardsNote, /Card paths name a repository the plan's header does not declare: demo/);
+});
+
+test('repos-plan 4-5: the commands ask one time for the main repository, and the docs describe the header, the prefix and the limits by hand', () => {
+  const plan = read('commands', 'plan.md');
+  assert.match(plan, /## More than one repository/);
+  assert.match(plan, /ask the user one time, with the host's ask-user tool, which repository is the main one/);
+  assert.match(plan, /tell them in one line to open that folder and give the request there, and stop/);
+  assert.match(plan, /"repos": \[\{ "name": /);
+  assert.match(read('commands', 'feature.md'), /Never write one plan in each repository for one feature/);
+  const gates = fs.readFileSync(path.join(PLUGIN, '..', '..', 'docs', 'gates.md'), 'utf8');
+  assert.match(gates, /## One plan for several repositories/);
+  assert.match(gates, /test_command@demo: npm test/);
+  assert.match(gates, /a commit made there by hand is not checked/);
 });

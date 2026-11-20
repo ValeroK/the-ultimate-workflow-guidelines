@@ -162,3 +162,27 @@ That scope is measured, not assumed. On Cursor 3.17.19 a pre-edit hook returning
 The Codex and Gemini hook contracts are documented and look nearly identical to Claude Code's, but neither has been exercised against a real payload. Every defect found on the hosts that *were* exercised — a UTF-8 byte-order mark that makes payload parsing throw, absolute paths defeating test-file detection, `workspace_roots` in place of `cwd` — was invisible in the documentation and failed open.
 
 Until someone records real payloads with `.cursor-plugin/ultimate-workflow/hooks/dev/record.js`, those hosts get prose. Prose that works is better than enforcement that silently doesn't.
+
+## One plan for several repositories (5.2.0)
+
+A feature that changes more than one repository has one plan, in the main repository. The user picks the main one when the plan is made. The plan's header names the others, and gives each its own commands:
+
+```
+repos: demo=../project-status-demo
+test_command: uv run pytest
+test_command@demo: npm test
+test_related_command@demo: npx vitest related --run {files}
+```
+
+A card path in another repository carries its name: `demo:src/lib/**`. A path with no name is in the main repository. A card may have paths in more than one repository. `card-add` refuses a name the header does not declare, and a path that leaves its repository.
+
+In the unattended run:
+
+- `run-start` makes `uw/run/<feature>` in each repository a card names, and refuses, before it makes any branch, when one of them has uncommitted changes, another run's mark, or no test command.
+- A card runs the tests of each repository it changed (`verify.js --plan <plan> --repo <name>`), and `card-commit` commits in each, the main repository last. The plan's card line holds each commit: `committed: 1a2b3c4 demo=5d6e7f8`.
+- Two commits are not one step. When a later one fails, nothing is undone: the card is parked, and the reason says which repository has a commit.
+- A parked card's work is on `uw/parked/<feature>/<card>` in each repository that had changes.
+- The full suite after the cards runs in each repository that got a commit, and one review reads the changes of all of them.
+- The plan, the run's records, the journal, the report and the harvest are in the main repository only.
+
+By hand, the commit check works in the main repository as before. Another repository has no plan of its own, so a commit made there by hand is not checked. A `measure:` line measures files of the main repository only.

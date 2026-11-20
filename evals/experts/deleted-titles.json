@@ -684,5 +684,9 @@
  [
   "mirrors.test.js",
   "plugin manifests and the CHANGELOG say 5.1.0"
+ ],
+ [
+  "evals/security-expert/provenance.test.js",
+  "shipped experts/ stays under a byte budget that grows with each expert"
  ]
 ]

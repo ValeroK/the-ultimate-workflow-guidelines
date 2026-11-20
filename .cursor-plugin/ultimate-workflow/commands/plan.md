@@ -15,9 +15,17 @@ It writes a JSON array, one entry per `agents/uw-expert-*.md`. An empty array is
 
 Then run `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" skills --stage plan > .ultimate-workflow/run/skills.json`. It writes a JSON object: for each expert that plans, the skills it may be given, each with a one-line headline and its text. The workflow asks which of them the draft needs, in the same call that chooses the experts, and can only pick from this list.
 
+## More than one repository
+
+When the request names more than one repository, or the work clearly changes code in two, ask the user one time, with the host's ask-user tool, which repository is the main one. The plan, all the cards and the run's records live in the main repository; a card may change files in the others. Give the folders you see as the options.
+
+- This session must be in the main repository: the hooks, the plan and the run all work from the session's folder. When the user picks another folder, tell them in one line to open that folder and give the request there, and stop. Start nothing here.
+- For each other repository, add to the arguments `"repos": [{ "name": "<a short name: letters, digits, dot, dash, underscore>", "place": "<its folder as seen from this one, for example ../project-status-demo>" }]`. Check each folder with `git -C <place> rev-parse --show-toplevel` first: it must be the top of a git repository, and not inside this one.
+- The plan then has the header line `repos: <name>=<place>`, a `test_command@<name>` for each, and card paths with the name in front (`<name>:src/**`). When the result has a `cardsNote` about a repository that is not declared, correct the plan before the user sees it.
+
 ## Run the phase
 
-1. With the Write tool, write `.ultimate-workflow/run/plan.args.json`: `{ "feature": "<the feature to plan, verbatim from the user>" }`, plus `"areas"` (a list of strings) if the user named some, plus `"cards": true` on the Full tier (the plan then must have a `## Cards` section).
+1. With the Write tool, write `.ultimate-workflow/run/plan.args.json`: `{ "feature": "<the feature to plan, verbatim from the user>" }`, plus `"areas"` (a list of strings) if the user named some, plus `"cards": true` on the Full tier (the plan then must have a `## Cards` section), plus `"repos"` when the change is in more than one repository (see "More than one repository" below).
 2. Run `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" script --phase plan --args-file .ultimate-workflow/run/plan.args.json --file available=.ultimate-workflow/run/available.json --file skills=.ultimate-workflow/run/skills.json`. It writes `.ultimate-workflow/run/plan.js`, which is `phases/plan.js` with those arguments and `expertsDir` built in, and prints its `scriptPath` and the skill names each expert may be offered.
 3. Call the **Workflow** tool once, with `scriptPath` set to the path that command printed and no `args`. Do not pass the arguments yourself and do not copy or edit the script: the tool will not load a script from the plugin's own folder, and arguments a model retypes are no longer the text the code chose.
 

@@ -23,6 +23,10 @@ When unsure between light and full, choose full.
 
 ## 2. Run the phases
 
+**More than one repository.** When the request changes code in more than one repository, `plan.md` asks the user one time which is the main one, and the plan is written there with the others named in its header (`repos:`). Never write one plan in each repository for one feature, and never give a card a path that leaves the repository with `../`.
+
+**A plan that arrives with its tests.** When `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" plan-state --plan <plan file>` says the plan has a Tests section that is not confirmed (`tests: true`, `testsConfirmed: false`), `tests.md` asks the user one question first: confirm the section as it is, or run the tests phase and replace it. Do not run the phase before the answer.
+
 At each stop for the user, follow what `plan.md` and `tests.md` say: the document is written by code from the Workflow output file and shown in the plan view (never summarised from the cut-off completion notice), and the open questions are raised one at a time, each with the issue, what each answer changes, and the pros and cons.
 
 **Light**

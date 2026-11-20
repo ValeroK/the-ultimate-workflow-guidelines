@@ -5,6 +5,15 @@ argument-hint: "<plan file>"
 
 # Phase: tests
 
+## A plan that already has a Tests section
+
+Run `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" plan-state --plan <plan file>` first. When it says `tests: true` and `testsConfirmed: false`, the plan arrived with its tests (written by hand, or by another tool). Ask the user one question with the host's ask-user tool, before anything else runs:
+
+- **Confirm the section as it is.** No phase runs and no agent is used. Show the section, and on the user's yes run `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" present --confirm tests_confirmed --plan <plan file>`. If `missingCardSections` is not empty, say which cards have no part first: the run parks such a card.
+- **Run the tests phase and replace the section.** The critics and the experts attack the tests (about seven agents), and the section they return takes the place of the one in the plan.
+
+When the phase runs on such a plan, write its section with `present ... --replace-section Tests` in place of `--append`: a plan never gets a second `## Tests` section. When `testsSections` is more than 1, say so and use `--replace-section Tests`, which leaves one.
+
 ## Before the workflow
 
 The plan file is the one the user named. Otherwise, if exactly one `PLAN-*.md` at the repository root is not marked `phase: done`, use it. If several exist and none was named, ask which; never pick by modification time.

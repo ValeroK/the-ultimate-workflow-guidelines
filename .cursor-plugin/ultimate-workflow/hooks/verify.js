@@ -25,6 +25,8 @@ const { isDocPath } = require('./lib/gates.js');
 const experts = require('../experts/experts.js');
 
 const RECORD = path.join('.ultimate-workflow', 'verify.json');
+// The last run of the related tests (5.2.0). Its own file: a related run never replaces the record of a full run.
+const RELATED_RECORD = path.join('.ultimate-workflow', 'verify-related.json');
 const LOCK = path.join('.ultimate-workflow', 'verify.lock');
 const LOG = path.join('.ultimate-workflow', 'verify.log');
 /** Per-file patches of the changes right now, or null when git cannot say. */
@@ -202,13 +204,16 @@ function lenientFrontLine(text, key, value) {
 }
 
 /** Put the accepted list in the plan as a "Known failures" section, replacing an earlier one. */
-function writeKnownFailures(planFile, names) {
+function writeKnownFailures(planFile, names, repo = '') {
   let text = fs.readFileSync(planFile, 'utf8');
   const eol = /\r\n/.test(text) ? '\r\n' : '\n';
+  // 5.2.0: another repository of the plan (--repo) has its own line and its own section, so its list never replaces
+  // the list of the main repository.
+  const title = repo ? `Known failures in ${repo}` : 'Known failures';
   // A plan with no front matter still gets the section; the one shared writer throws on such a file.
-  if (stateLib.splitFrontMatter(text)) text = stateLib.setFrontLine(text, 'known_failures', names.length);
-  const section = `## Known failures${eol}${eol}Tests that failed before this change and that the user accepted as known. A full run passes while only these fail.${eol}${eol}${names.map((n) => `- ${n}`).join(eol)}${eol}`;
-  const re = /^## Known failures[ \t]*\r?\n[\s\S]*?(?=^## |(?![\s\S]))/m;
+  if (stateLib.splitFrontMatter(text)) text = stateLib.setFrontLine(text, repo ? `known_failures@${repo}` : 'known_failures', names.length);
+  const section = `## ${title}${eol}${eol}Tests that failed before this change${repo ? ` in the repository ${repo}` : ''} and that the user accepted as known. A full run passes while only these fail.${eol}${eol}${names.map((n) => `- ${n}`).join(eol)}${eol}`;
+  const re = new RegExp(`^## ${title}[ \\t]*\\r?\\n[\\s\\S]*?(?=^## |(?![\\s\\S]))`, 'm');
   // When another heading follows, a blank line stays between the list and it.
   text = re.test(text)
     ? text.replace(re, (match, offset) => section + (text.slice(offset + match.length).startsWith('## ') ? eol : ''))
@@ -335,7 +340,7 @@ function acceptBaseline(cwd, opts) {
   const rec = { ...b, failures, recognised: true, accepted: true, acceptedAt: new Date().toISOString(), ...(isPlan ? { plan: path.basename(planFile) } : {}) };
   fs.writeFileSync(path.join(cwd, BASELINE), `${JSON.stringify(rec, null, 2)}\n`);
   if (isPlan) {
-    writeKnownFailures(planFile, failures);
+    writeKnownFailures(planFile, failures, opts.repo || '');
     console.log(`verify: baseline accepted: ${failures.length} known failure${failures.length === 1 ? '' : 's'}, listed in ${path.basename(planFile)}.`);
   } else {
     console.log(`verify: baseline accepted: ${failures.length} known failure${failures.length === 1 ? '' : 's'}. No PLAN-*.md was found to list them in.`);
@@ -425,7 +430,9 @@ function readRecord(cwd) {
 function recordFull(cwd, { passed, command, verdict = null, acceptedAt = '' }) {
   const file = path.join(cwd, RECORD);
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  const rec = { mode: 'full', passed: passed === true, fingerprint: experts.testFingerprint(cwd), command, at: new Date().toISOString() };
+  // `head` (5.2.0): with all the cards committed the fingerprint of the changes is the same at every commit, so the
+  // commit says which state of the project the run was made on.
+  const rec = { mode: 'full', passed: passed === true, fingerprint: experts.testFingerprint(cwd), head: headSha(cwd), command, at: new Date().toISOString() };
   // A pass that leans on the accepted baseline says so, so the commit check and the report show it.
   if (verdict && !verdict.unrecognised) {
     rec.knownFailures = verdict.known.length;
@@ -433,6 +440,19 @@ function recordFull(cwd, { passed, command, verdict = null, acceptedAt = '' }) {
     rec.fixedFailures = verdict.fixed.length;
     if (acceptedAt) rec.baselineAcceptedAt = acceptedAt;
   }
+  fs.writeFileSync(file, `${JSON.stringify(rec, null, 2)}\n`);
+  return rec;
+}
+
+/**
+ * Write the outcome of a run of the related tests, against the changes as they are after it ran (5.2.0). The
+ * unattended run commits a card on this record and runs the full suite one time after all the cards; by hand a
+ * commit still needs the full run.
+ */
+function recordRelated(cwd, { passed, command }) {
+  const file = path.join(cwd, RELATED_RECORD);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const rec = { mode: 'related', passed: passed === true, fingerprint: experts.testFingerprint(cwd), command, at: new Date().toISOString() };
   fs.writeFileSync(file, `${JSON.stringify(rec, null, 2)}\n`);
   return rec;
 }
@@ -459,7 +479,7 @@ function relatedTests(cwd, changes) {
 }
 
 function parseArgs(argv) {
-  const out = { full: false, ifStale: false, plan: '', baseline: false, acceptBaseline: false, failuresFile: '' };
+  const out = { full: false, ifStale: false, plan: '', baseline: false, acceptBaseline: false, failuresFile: '', repo: '' };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--baseline') out.baseline = true;
     else if (argv[i] === '--accept-baseline') out.acceptBaseline = true;
@@ -467,6 +487,7 @@ function parseArgs(argv) {
     else if (argv[i] === '--full') out.full = true;
     else if (argv[i] === '--if-stale') out.ifStale = true;
     else if (argv[i] === '--plan') out.plan = argv[++i] || '';
+    else if (argv[i] === '--repo') out.repo = argv[++i] || '';
   }
   return out;
 }
@@ -475,17 +496,41 @@ function main(argv, startDir = process.cwd()) {
   const opts = parseArgs(argv);
   // The plan, the record and the test command all belong to the project root: G7 reads the record
   // there, so a run started from a subfolder would otherwise leave one where nothing looks.
-  const cwd = stateLib.projectRoot(startDir);
+  let cwd = stateLib.projectRoot(startDir);
   let data;
+  let planText = '';
   if (opts.plan) {
     try {
-      data = stateLib.parseFrontMatter(fs.readFileSync(path.resolve(cwd, opts.plan), 'utf8')).data;
+      planText = fs.readFileSync(path.resolve(cwd, opts.plan), 'utf8');
+      data = stateLib.parseFrontMatter(planText).data;
     } catch {
       console.error(`verify: cannot read ${opts.plan}`);
       return 2;
     }
   } else {
     data = stateLib.readState(cwd).data;
+  }
+  // 5.2.0, a plan for several repositories (lib/repos.js): `--repo demo` runs the commands the plan's header gives
+  // for that repository (`test_command@demo`, `test_related_command@demo`) in its folder, and the records are there.
+  if (opts.repo) {
+    if (!opts.plan) {
+      console.error('verify: --repo needs --plan <the plan of the main repository>');
+      return 2;
+    }
+    const found = require('../lib/repos.js').resolve(cwd, planText).repos.find((r) => r.name === opts.repo);
+    if (!found) {
+      console.error(`verify: the plan ${opts.plan} declares no repository "${opts.repo}" that can be used (see its header line repos:)`);
+      return 2;
+    }
+    const own = {};
+    for (const [k, val] of Object.entries(data)) if (k.endsWith(`@${opts.repo}`)) own[k.slice(0, -opts.repo.length - 1)] = val;
+    data = { ...own, known_failures: own.known_failures };
+    opts.plan = path.resolve(cwd, opts.plan);
+    cwd = found.dir;
+    if (!data.test_command) {
+      console.error(`verify: the plan has no test_command@${opts.repo}. Add it to the plan's header, then run this again.`);
+      return 2;
+    }
   }
   if (!data.test_command) {
     console.error('verify: no test_command in the plan front matter (PLAN-*.md or PRD.md). Set it to the full test command, then run this again.');
@@ -596,6 +641,11 @@ function main(argv, startDir = process.cwd()) {
       console.error('verify: the result could not be recorded, so a commit will ask for a full run again');
     }
   }
+  if (choice.mode === 'related' && !abnormal) {
+    try {
+      recordRelated(cwd, { passed: code === 0, command: choice.command });
+    } catch {}
+  }
   const hint = rewriteHint(cwd, before, data);
   if (hint) console.log(hint);
   if (verdict && verdict.passed) {
@@ -622,4 +672,4 @@ function main(argv, startDir = process.cwd()) {
 
 if (require.main === module) process.exit(main(process.argv.slice(2)));
 
-module.exports = { main, shellFor, readRecord, recordFull, fullEvidence, relatedTests, acquireLock, shortOutput, extractFailures, readBaseline, baselineApplies, baselineStatus, judge, setFrontLine: lenientFrontLine, writeKnownFailures, RECORD, LOCK, LOG, BASELINE };
+module.exports = { main, shellFor, readRecord, recordFull, recordRelated, RELATED_RECORD, fullEvidence, relatedTests, acquireLock, shortOutput, extractFailures, readBaseline, baselineApplies, baselineStatus, judge, setFrontLine: lenientFrontLine, writeKnownFailures, RECORD, LOCK, LOG, BASELINE };

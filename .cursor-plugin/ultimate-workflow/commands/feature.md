@@ -23,6 +23,10 @@ When unsure between light and full, choose full.
 
 ## 2. Run the phases
 
+**More than one repository.** When the request changes code in more than one repository, `plan.md` asks the user one time which is the main one, and the plan is written there with the others named in its header (`repos:`). Never write one plan in each repository for one feature, and never give a card a path that leaves the repository with `../`.
+
+**A plan that arrives with its tests.** When `node "${CLAUDE_PLUGIN_ROOT}/experts/experts.js" plan-state --plan <plan file>` says the plan has a Tests section that is not confirmed (`tests: true`, `testsConfirmed: false`), `tests.md` asks the user one question first: confirm the section as it is, or run the tests phase and replace it. Do not run the phase before the answer.
+
 At each stop for the user, follow what `plan.md` and `tests.md` say: the document is written by code from the Workflow output file and shown in the plan view (never summarised from the cut-off completion notice), and the open questions are raised one at a time, each with the issue, what each answer changes, and the pros and cons.
 
 **Light**
@@ -34,9 +38,11 @@ At each stop for the user, follow what `plan.md` and `tests.md` say: the documen
 **Full, with the Workflow tool (Claude Code):** follow `${CLAUDE_PLUGIN_ROOT}/phases/run.md` instead of the list below. It runs the same phases, stops for the same two confirmations, and then builds, checks and commits every card in one unattended run on its own branch, with review and harvest at the end and one report. It is the default for the Full tier because a card-by-card main conversation was 89% of the tokens on a real project. Use the list below only when the user asks to go card by card, or the host has no Workflow tool.
 
 **Full**
-1. `plan.md`. If the work splits into cards, the first card is the harness that needs the running system, when there is one. **Stop for the user's confirmation of the plan.**
+1. `plan.md`, with `"cards": true` in its arguments: the plan the user confirms has the `## Cards` section. The first card is the harness that needs the running system, when there is one. **Stop for the user's confirmation of the plan.**
 2. `tests.md`. **Stop for the user's confirmation of the Tests section.**
 3. `build.md`, once per card, in order, with `brief --section "<card heading>"`.
+
+**The build is always the build phase.** When the user wants the cards built in one go with the tests at the end, or the unattended run cannot start, run `build.md` one time for the whole plan: its test writer and its implementer run on Sonnet by default, and it ends with one full run. Never give the build to a general-purpose agent, and never start an agent for it with no model named: such an agent runs on the session model, which on an Opus session is the most costly way to write the code. If you must call an agent directly for build work, it is `uw-implementer` with the model `sonnet`.
 4. `review.md` on the whole change.
 5. `experts.md`, the check before a commit.
 6. `harvest.md`. Its proposals wait for the user, as that command says.
@@ -45,7 +51,7 @@ At each stop for the user, follow what `plan.md` and `tests.md` say: the documen
 
 Stop and hand over to the user, with what happened and what you need, only for:
 
-- the two confirmations above, which are the user's and never yours. **If the host refuses the confirm command**, show the user the exact command and ask them to run it themself (`plan.md` and `tests.md` say how);
+- the two confirmations above, which are the user's and never yours. **If the host refuses the confirm command**, show the user the exact command, written for the shell they type in (PowerShell on Windows), and ask them to run it themself (`plan.md` and `tests.md` say how);
 - an open high-confidence finding (the experts command says how it is raised; never dismiss one yourself);
 - a build that escalates after three failed rounds;
 - a gate refusal you cannot satisfy by following the phase that it names;

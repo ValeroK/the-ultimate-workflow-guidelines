@@ -134,20 +134,7 @@ test('the release workflow still excludes top-level fixtures and architecture-ev
   assert.match(wf, /-x 'architecture-evals\/\*'/);
 });
 
-test('shipped experts/ stays under a byte budget that grows with each expert', () => {
-  // Decided by the maintainer on 2026-10-20: a fixed total had to be raised for every new
-  // expert, so the budget is 60 KB for the code (experts.js, deps-audit.js) plus 40 KB per
-  // expert directory. The contract still caps each expert at 60 KB, and the release workflow
-  // still refuses a ZIP over 2 MB. The shared skills library (experts/skills/) has no total
-  // budget, by the same decision: each skill is capped at 16 KB and each expert's skills at
-  // one stage at 40 KB, which bound what any one prompt pays.
-  // Decided by the maintainer on 2026-11-11: the code allowance goes from 60 KB to 100 KB,
-  // because experts.js and autopilot.js are the run's code and had 97 bytes left after 4.8.0.
-  const root = path.join(PAYLOAD, 'experts');
-  const skills = path.join(root, 'skills');
-  const experts = fs.readdirSync(root, { withFileTypes: true }).filter((d) => d.isDirectory() && d.name !== 'skills');
-  const BUDGET = 100 * 1024 + experts.length * 40 * 1024;
-  const files = walk(root).filter((p) => fs.statSync(p).isFile() && !p.startsWith(skills + path.sep));
-  const total = files.reduce((n, p) => n + fs.statSync(p).size, 0);
-  assert.ok(total <= BUDGET, `experts/ (without skills/) is ${total} bytes, budget ${BUDGET} for ${experts.length} experts`);
-});
+// The byte budget of experts/ (60 KB of code, then 100 KB, plus 40 KB for each expert) was removed by the maintainer on
+// 2026-11-19: the run's code lives in experts/ too, and the budget was raised for it each time it grew. What still
+// bounds the size: the contract caps each expert at 60 KB and each skill at 16 KB, and the release workflow refuses a
+// ZIP over 2 MB.

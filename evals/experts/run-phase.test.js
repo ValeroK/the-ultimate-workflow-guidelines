@@ -33,6 +33,10 @@ function responder(o = {}) {
   const fn = async (call) => {
     seen.push(call.label);
     const [who, role] = String(call.label).includes(':') ? call.label.split(':') : [call.label, ''];
+    if (role === 'run' && /^full-suite/.test(who)) return (o.fullRun && o.fullRun(who)) || { passed: true, failures: [], summary: 'full run passed' };
+    if (role === 'proof' && /^full-suite/.test(who)) return steps({ ok: true, current: true, passed: !(o.fullRun && o.fullRun(who).passed === false) });
+    if (role === 'tests-before') return steps({ ok: true, files: 1 });
+    if (role === 'tests-kept') return steps({ ok: true, kept: true, problems: [], changed: [], before: {} });
     if (role === 'write-tests') return { filesWritten: [`test/${who}.test.js`], testsFailAsExpected: true, summary: 'red' };
     if (/^attempt-/.test(role)) return (o.red || []).includes(who) ? { green: false, filesChanged: [`src/${who}/x.js`], failureOutput: `fail ${role}`, summary: role } : { green: true, fullSuiteGreen: true, filesChanged: [`src/${who}/x.js`], summary: 'done' };
     if (/^diagnose-/.test(role)) return { cause: 'wrong', signature: `sig-${role}`, suggestedFix: 'fix', confidence: 'medium' };
@@ -975,8 +979,10 @@ test('a run-state read that fails stops the settle step: no findings card, revie
   for (const [name, answer] of [['ok: false', steps({ ok: false, reason: 'run.json is not JSON' })], ['nothing', null]]) {
     const calls = [];
     const base = responder({ findings: { 1: [stuck] } });
-    const { result } = await run(baseArgs([card('1')]), async (c) => { calls.push(c); return c.label === 'settle:state' ? answer : base(c); });
+    const { result } = await run(baseArgs([card('1')]), async (c) => { calls.push(c); return /^settle:state(:again)?$/.test(c.label) ? answer : base(c); });
     const labels = labelsOf(calls);
+    // 5.2.0: a read that gave no JSON line runs one more time on the build model; the step fails when that one fails too.
+    assert.equal(labels.includes('settle:state:again'), name === 'nothing', name);
     assert.deepStrictEqual(waitingLabels(labels), [], `${name}: ${labels.join(' ')}`);
     assert.ok(!labels.includes('settle:findings'), `${name}: the saved findings are not overwritten`);
     assert.equal(recordCalls(calls).length, 0, `${name}: nothing is recorded`);
@@ -1030,7 +1036,7 @@ test('one review: a card makes no recheck, expert, refute or record call; its st
   const { result } = await run(baseArgs([card('1'), card('2')], { planExperts: ['quality'] }), r);
   const perCard = r.seen.filter((l) => /^[12]:/.test(l));
   for (const l of perCard) assert.ok(!/:(recheck|quality|refute|record|prepare|fix-round|carry)/.test(l), `no per-card experts step: ${l}`);
-  assert.deepStrictEqual(perCard.filter((l) => /^1:/.test(l)), ['1:start', '1:write-tests', '1:attempt-1', '1:scope', '1:decisions', '1:commit', '1:journal']);
+  assert.deepStrictEqual(perCard.filter((l) => /^1:/.test(l)), ['1:start', '1:write-tests', '1:tests-before', '1:attempt-1', '1:tests-kept', '1:scope', '1:decisions', '1:commit', '1:journal']);
   assert.equal(result.counts.committed, 2);
 });
 

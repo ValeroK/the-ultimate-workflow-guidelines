@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 Three faults of the commit gate and the value ledger, found during the work on 5.2.0.
 
+**Before you update: commit or park the changes you have open.** A project with a staged new file or a staged rename, and a full run or an experts check already on record for it, needs one new full run and one new experts check after the update, because the fingerprint of such a tree is made in a new form. A tree with nothing open is not affected.
+
 ### Fixed
 
 - **`git add` no longer moves the fingerprint of the changes.** A file that git did not know was written into the fingerprint in a form of its own, and a staged one came from `git diff`. So `git add` of a new file changed the fingerprint of content that had not changed, and the commit gate asked for a new full run and a new experts check (about one million tokens for the first commit of 5.2.0). A file that HEAD does not have now has one form, read from the working tree, whether it is unknown to git, staged, or added with `git add -N`. A staged rename is read as before staging: a deleted file and a new one. A tree with no staged new file and no staged rename has the same fingerprint as in 5.2.0, so the records on disk stay valid. After the update, a tree with a staged new file needs one new full run and one new experts check.

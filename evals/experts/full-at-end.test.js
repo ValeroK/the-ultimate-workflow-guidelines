@@ -912,3 +912,37 @@ test('repos-end 4: a review finding in a file of another repository makes a fix-
   assert.match(p, /demo:src\/1\/x\.js:3: the label is not trimmed/);
   assert.ok(result.fixupCard || result.cards.some((c) => /^fixup/.test(c.card)), 'the fix-up card is in the result');
 });
+
+// --- PLAN-5.2.1, card ledger-fixed: the result says which findings a committed fix-up card took --------------------
+
+test('ledger-fixed 1: the result lists the findings a committed fix-up card took, with the card and its commit', async () => {
+  const r = responder({ reviewFindings: [
+    { file: 'src/1/x.js', line: 3, what: 'off by one', howItFails: 'n=0', confidence: 'high' },
+    { file: 'src/1/y.js', line: 9, what: 'the empty list is not handled', howItFails: '[]', confidence: 'medium' },
+  ] });
+  const { result } = await run(baseArgs([card('1')]), r);
+  assert.equal(result.fixupCard.status, 'committed');
+  assert.deepStrictEqual(result.review.fixed.map((f) => [f.file, f.line, f.what, f.card]), [['src/1/x.js', 3, 'off by one', 'fixup'], ['src/1/y.js', 9, 'the empty list is not handled', 'fixup']]);
+  for (const f of result.review.fixed) {
+    assert.equal(f.commit, result.fixupCard.commit);
+    assert.ok(f.commit, 'the commit of the fix-up card');
+    assert.ok(f.lens || f.expert, 'who found it, for the ledger');
+  }
+});
+
+test('ledger-fixed 2: a fix-up card that is parked fixed nothing', async () => {
+  const r = responder({ reviewFindings: [{ file: 'src/1/x.js', line: 3, what: 'off by one', howItFails: 'n=0', confidence: 'high' }], red: ['fixup'] });
+  const { result } = await run(baseArgs([card('1')]), r);
+  assert.notEqual(result.fixupCard.status, 'committed');
+  assert.deepStrictEqual(result.review.fixed, []);
+});
+
+test('ledger-fixed 3: a low finding, and a finding outside the files of the run, are not in the list', async () => {
+  const r = responder({ reviewFindings: [
+    { file: 'src/1/x.js', line: 3, what: 'off by one', howItFails: 'n=0', confidence: 'high' },
+    { file: 'src/1/x.js', line: 5, what: 'a name could be clearer', howItFails: 'none', confidence: 'low' },
+    { file: 'elsewhere/z.js', line: 1, what: 'a fault in a file no card owns', howItFails: 'x', confidence: 'high' },
+  ] });
+  const { result } = await run(baseArgs([card('1')]), r);
+  assert.deepStrictEqual(result.review.fixed.map((f) => f.what), ['off by one']);
+});

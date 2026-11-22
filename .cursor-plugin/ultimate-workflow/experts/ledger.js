@@ -141,17 +141,42 @@ function addRun(cwd, phase, row, rawResult) {
   for (const c of findingsAsCatches(phase, result)) {
     if (!readAll(cwd).some((e) => e.kind === 'catch' && e.key === c.key)) append(cwd, { kind: 'catch', id: newId(), at: entry.at, ...c, unique: 'unknown', status: 'open', run: entry.id });
   }
+  if (phase === 'run') settleFixed(cwd, result);
   return written;
+}
+
+/** The key of a catch made from a finding: who found it, its file and the start of its text. */
+const catchKey = (by, f) => crypto.createHash('sha256').update(`${by}|${f.file}|${String(f.what || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().slice(0, 120)}`).digest('hex').slice(0, 12);
+
+/**
+ * 5.2.1: a finding that a committed fix-up card of the run took is a confirmed catch. The skeptic confirmed it, and a
+ * correction with its test is in a commit; the commit is the evidence. The run result lists those findings
+ * (`review.fixed`, phases/run.js). A catch that is not open any more (the user confirmed or refuted it) is not
+ * touched, so recording the same result two times adds nothing.
+ */
+function settleFixed(cwd, result) {
+  const fixed = result && result.review && Array.isArray(result.review.fixed) ? result.review.fixed : [];
+  for (const f of fixed) {
+    if (!f || typeof f !== 'object' || typeof f.what !== 'string' || typeof f.commit !== 'string' || !f.commit.trim()) continue;
+    // The same finding is on record under the expert that made it, or under the lens name the review gave it.
+    const names = [f.expert, f.lens].filter((n) => typeof n === 'string' && n);
+    const keys = new Set(names.flatMap((n) => [catchKey(`expert:${n}`, f), catchKey(`lens:${n}`, f)]));
+    const all = readAll(cwd);
+    for (const c of all.filter((e) => e.kind === 'catch' && keys.has(e.key))) {
+      const last = all.filter((e) => e.kind === 'settle' && e.ref === c.id).pop();
+      if ((last ? last.status : c.status) !== 'open') continue;
+      append(cwd, { kind: 'settle', at: new Date().toISOString(), ref: c.id, status: 'confirmed', text: `fixed by the card ${String(f.card || 'fixup')}, commit ${f.commit.trim()}` });
+    }
+  }
 }
 
 /** The findings a review, experts or run result holds, as catches: by whom, at which stage, and a key for duplicates. */
 function findingsAsCatches(phase, result) {
   if (!result || !['review', 'experts', 'run'].includes(phase)) return [];
-  const key = (by, f) => crypto.createHash('sha256').update(`${by}|${f.file}|${String(f.what || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().slice(0, 120)}`).digest('hex').slice(0, 12);
   const out = [];
   const add = (by, f, extra = {}) => {
     if (!f || typeof f.what !== 'string' || f.what.trim().length < 5) return;
-    out.push({ what: `${f.file ? `${f.file}${f.line ? `:${f.line}` : ''} ` : ''}${f.what.trim()}`, by, stage: 'review', key: key(by, f), ...(f.confidence ? { confidence: f.confidence } : {}), ...extra });
+    out.push({ what: `${f.file ? `${f.file}${f.line ? `:${f.line}` : ''} ` : ''}${f.what.trim()}`, by, stage: 'review', key: catchKey(by, f), ...(f.confidence ? { confidence: f.confidence } : {}), ...extra });
   };
   const lanes = phase === 'run' ? (result.expertLanes || []).map((l) => ({ lane: l.lane || {}, card: l.card })) : [{ lane: result.expertLane || {}, card: null }];
   for (const { lane, card } of lanes) for (const f of lane.findings || []) add(`expert:${f.expert}`, f, { verdict: f.status || 'unverified', ...(card ? { card } : {}) });

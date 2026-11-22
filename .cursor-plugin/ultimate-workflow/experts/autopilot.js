@@ -286,7 +286,19 @@ function handoff(cwd, { card, feature, range, claimed = [], others = [] }) {
   const inDiff = new Set(files.map((f) => f.file));
   // An agent reports paths either way; an absolute one inside the project is the same file (the
   // 1-card end-to-end run reported its own test file as missing for this).
-  const asRel = (c) => (path.isAbsolute(c) ? fwd(path.relative(cwd, c)) : fwd(c)).replace(/^\.\//, '');
+  // 5.2.0: a file of another repository is the same file whether the agent names it as the plan does
+  // (`demo:test/a.js`), as a path from the main repository (`../demo/test/a.js`) or as an absolute path (the first
+  // real run with two repositories reported a committed test file of the second one as missing for this).
+  const asRel = (c) => {
+    const plain = (path.isAbsolute(c) ? fwd(path.relative(cwd, c)) : fwd(c)).replace(/^\.\//, '');
+    if (!plain.startsWith('../') && !path.isAbsolute(plain)) return plain;
+    const abs = path.resolve(cwd, c);
+    for (const o of others) {
+      const inside = path.relative(o.dir, abs);
+      if (inside && !inside.startsWith('..') && !path.isAbsolute(inside)) return `${o.repo}:${fwd(inside)}`;
+    }
+    return plain;
+  };
   const missingClaims = claimed.map(asRel).filter((c) => c && !inDiff.has(c));
   const kind = { A: 'added', M: 'changed', D: 'deleted' };
   // The choices the card made that the plan does not state (minor ones; a major one never commits).
@@ -1184,10 +1196,14 @@ function runReport(cwd, { result: resultFile, out = '' }) {
   const memoryWarnings = fs.existsSync(warningsFile) ? JSON.parse(fs.readFileSync(warningsFile, 'utf8')) : [];
   const all = [...(r.cards || []), ...(r.fixupCard ? [r.fixupCard] : [])];
   const unique = all.filter((c, i) => all.findIndex((x) => x.card === c.card && x.status === c.status) === i);
+  // 5.2.0: the other repositories the run committed in. The branch there is the user's to merge too, and the first
+  // real run with two repositories named only the main one.
+  const alsoIn = [...new Set(all.filter((c) => c.status === 'committed').flatMap((c) => (c.repos || []).map((x) => x.repo)).filter(Boolean))];
   const lines2 = [
     `# Run report: ${r.feature}`,
     '',
     `Branch \`${r.branch}\` from ${String(r.base || '').slice(0, 12)}. ${r.summary || ''}`,
+    ...(alsoIn.length ? ['', `The run also committed on \`${r.branch}\` in the ${alsoIn.length === 1 ? 'repository' : 'repositories'} ${alsoIn.join(', ')}: merge that branch there too.`] : []),
     ...(r.stopped ? ['', `**The run stopped:** ${r.stopped}`] : []),
     '',
     `**${r.reviewedText || (r.reviewed ? `Reviewed by the experts at ${r.reviewed.head}: ${r.reviewed.open} findings open` : 'NOT REVIEWED: the run result says nothing about a review')}.**${r.reviewed ? ` Before merging: ${(r.reviewed.ranges || []).length ? r.reviewed.ranges.map((x) => `\`node experts/experts.js check --range ${x}\``).join(' and ') : '`node experts/experts.js check --range <base>..<head>`'}.` : ' Do not merge this branch until it is reviewed: `/ultimate-workflow:feature --resume`, or `/ultimate-workflow:review`.'}`,

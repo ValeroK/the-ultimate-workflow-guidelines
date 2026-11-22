@@ -518,6 +518,8 @@ test('repos-card 4: the build prompt of a card with two repositories names the f
   assert.match(p, /`demo:` is the folder C:\/work\/demo/);
   assert.match(p, /run `node "\/p\/hooks\/verify\.js" --plan "PLAN-two\.md" --repo <its name>`/);
   assert.match(p, /green only when the tests of every repository it changed pass/);
+  // The second real run: an agent tried `--repo main`. The main repository has no name; the prompt says so.
+  assert.match(p, /for the files with no name, which are in this repository, run `node "\/p\/hooks\/verify\.js" --plan "PLAN-two\.md"` with no --repo/);
   const one = await runCardOnce(['src/both/**'], [{ name: 'demo', dir: 'C:/work/demo' }], 'test/a.test.js');
   assert.doesNotMatch(one['both:write-tests'], /MORE THAN ONE REPOSITORY/, 'a card with no path in another repository');
   const none = await runCardOnce(['src/both/**'], null, 'test/a.test.js');
@@ -929,4 +931,34 @@ test('run-finish with a result that names no feature removes the mark in each re
   json(cli(t.main, 'run-finish', '--output', 'out/wf_broken-1.output'));
   assert.equal(fs.existsSync(path.join(t.main, '.ultimate-workflow/run/active.json')), false);
   assert.equal(fs.existsSync(path.join(t.demo, '.ultimate-workflow/run/active.json')), false);
+});
+
+// --- the first real run with two repositories (2026-11-20): what its records showed ------------------------------------
+
+test('a claimed file of another repository, given as a path from the main one or as an absolute path, is not reported as missing', () => {
+  const t = running();
+  write(t.main, 'src/both/a.js', 'module.exports = 1;\n');
+  write(t.demo, 'src/both/b.js', 'module.exports = 2;\n');
+  verify(t.main, '--full');
+  verify(t.main, '--repo', 'demo');
+  const fromMain = path.relative(t.main, path.join(t.demo, 'src/both/b.js')).split(path.sep).join('/');
+  assert.match(fromMain, /^\.\.\//);
+  const r = commitCard(t.main, 'both', '--claimed', `${fromMain},${path.join(t.demo, 'src/both/b.js')},src/both/a.js,${fromMain.replace('b.js', 'never-made.js')}`);
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.deepStrictEqual(r.missingClaims, ['demo:src/both/never-made.js'], 'a file that is truly not there is still named, as the plan names it');
+});
+
+test('the report says that the run branch is in each other repository too, so each is merged', () => {
+  const t = two();
+  const result = { ok: true, feature: 'two', branch: 'uw/run/two', base: 'abc1234abcd', summary: '2 committed', counts: { committed: 2 }, review: { ran: false }, harvest: { ran: false },
+    cards: [
+      { card: 'both', title: 'a card of the two', status: 'committed', commit: 'aaa111', repos: [{ repo: 'demo', commit: 'ddd222' }] },
+      { card: 'other', title: 'a card of the second repository', status: 'committed', commit: 'bbb111', repos: [{ repo: 'demo', commit: 'eee333' }] },
+    ] };
+  write(t.main, 'result.json', JSON.stringify(result));
+  const report = read(t.main, json(cli(t.main, 'run-report', '--result', 'result.json')).report);
+  assert.match(report, /The run also committed on `uw\/run\/two` in the repository demo: merge that branch there too\./);
+  // One repository: the report is as before.
+  write(t.main, 'one.json', JSON.stringify({ ...result, cards: [{ card: 'main', title: 'a card', status: 'committed', commit: 'aaa111' }] }));
+  assert.doesNotMatch(read(t.main, json(cli(t.main, 'run-report', '--result', 'one.json')).report), /The run also committed/);
 });

@@ -236,7 +236,7 @@ test('the bootstrap skill and its rule mirror both describe the generated index'
   assert.match(skill, /memory index/, 'the workflow skill never says the index is generated');
 });
 
-test('plugin manifests and the CHANGELOG say 5.2.0', () => {
+test('plugin manifests and the CHANGELOG say 5.2.1', () => {
   const versions = [
     JSON.parse(pread('.claude-plugin/plugin.json')).version,
     JSON.parse(pread('.cursor-plugin/plugin.json')).version,
@@ -244,8 +244,15 @@ test('plugin manifests and the CHANGELOG say 5.2.0', () => {
     JSON.parse(read('.claude-plugin/marketplace.json')).plugins[0].version,
     JSON.parse(read('.cursor-plugin/marketplace.json')).plugins[0].version,
   ];
-  assert.deepEqual(versions, ['5.2.0', '5.2.0', '5.2.0', '5.2.0', '5.2.0']);
-  assert.match(read('CHANGELOG.md'), /^## \[5\.2\.0\] - \d{4}-\d{2}-\d{2}$/m);
+  assert.deepEqual(versions, ['5.2.1', '5.2.1', '5.2.1', '5.2.1', '5.2.1']);
+  assert.match(read('CHANGELOG.md'), /^## \[5\.2\.1\] - \d{4}-\d{2}-\d{2}$/m);
+  // release 2-3 of PLAN-5.2.1: what the entry and the gate document must say.
+  const entry = read('CHANGELOG.md').split(/^## \[5\.2\.1\][^\n]*$/m)[1].split(/^## \[/m)[0];
+  assert.match(entry, /`git add`/);
+  assert.match(entry, /absolute path/);
+  assert.match(entry, /fix-up card/);
+  assert.match(entry, /staged new file[^.]*needs one new (full run and one new )?experts check/);
+  assert.match(read('docs/gates.md'), /Staging does not move the fingerprint/);
   // 5.1.1 was prepared and never released: its entries are under 5.2.0, and it has no heading of its own.
   assert.doesNotMatch(read('CHANGELOG.md'), /^## \[5\.1\.1\]/m);
 });

@@ -24,7 +24,7 @@ It reads Claude Code's own transcripts for this project (add `--match <part of t
 ## Report
 
 1. **Cost:** from the usage report only. A table of `phases` (main conversations, experts check, build, readers, other agents): tokens and `share` of the total; then `cacheShare`, the share that was context re-sent on every turn. Then which model ran each step: for every phase and role, its `models` (tokens per model), so a step expected on Haiku shows whether it ran there. From the ledger take runs and time per phase, never tokens: never report the ledger's tokens as a share of anything, because they cover workflow agents only and leave out the re-sent context.
-2. **Catches:** per stage (total, confirmed, refuted, open) and by origin. Then the experts' unique catches, those no draft check, critic or core lens caught: confirmed, refuted and `precision` (confirmed over confirmed plus refuted; `null` until one is judged). List the open ones with their ids, so the user can confirm or refute them.
+2. **Catches:** per stage (total, confirmed, refuted, open) and by origin. Then the experts' unique catches, those no draft check, critic or core lens caught: confirmed, refuted and `precision` (confirmed over confirmed plus refuted; `null` until one is judged). List the open ones with their ids, so the user can confirm or refute them. A finding that a fix-up card of the run corrected is counted as confirmed, with the commit of that card as its evidence; do not list it as open.
 3. **Review:** findings by basis and `skillShare`, the share that cites a skill; then `neverCited`, the skills loaded on every review run and cited on none.
 4. **Workarounds:** each with its phase and run. These are plugin problems, not the user's.
 

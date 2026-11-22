@@ -683,7 +683,8 @@
  ],
  [
   "mirrors.test.js",
-  "plugin manifests and the CHANGELOG say 5.1.0"
+  "plugin manifests and the CHANGELOG say 5.1.0",
+  "plugin manifests and the CHANGELOG say 5.2.0"
  ],
  [
   "evals/security-expert/provenance.test.js",

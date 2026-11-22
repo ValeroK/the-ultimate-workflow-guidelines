@@ -618,6 +618,9 @@ if (anyCommitted && !stoppedBecause && !stateError && waiting.length === 0 && !n
     const ownerOf = (f) => (CARDS.find((c) => inCard(c, f.file)) || { name: '' }).name
     const groups = owners.map((owner) => toFix.filter((f) => ownerOf(f) === owner)).filter((g) => g.length > 0).slice(0, MAX_FIXUP_CARDS)
     review.leftInReport = confirmed.length - groups.reduce((n, g) => n + g.length, 0)
+    // 5.2.1: which findings a committed fix-up card took, with the card and its commit. The value ledger counts
+    // those as confirmed; before, each stayed "open" until the user confirmed it by hand.
+    review.fixed = []
     // The head the review covered (every card was settled, so it is the head read before the review): the experts check of the
     // fix-up cards reads what came after it.
     const reviewedHead = String(state.head || '')
@@ -630,6 +633,7 @@ if (anyCommitted && !stoppedBecause && !stateError && waiting.length === 0 && !n
         fixupCommitted = true
         fixedCount += group.length
         fixedGroups.push(group)
+        for (const f of group) review.fixed.push({ ...(f.expert ? { expert: f.expert } : {}), ...(f.lens ? { lens: f.lens } : {}), file: f.file, line: f.line, what: f.what, card: entry.card, commit: entry.commit })
       }
       if (stoppedBecause) break
     }

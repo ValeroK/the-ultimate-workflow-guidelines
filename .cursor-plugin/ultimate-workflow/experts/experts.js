@@ -892,16 +892,29 @@ function workingChanges(cwd, planFile = '') {
   // object a fresh repository has. What would be committed is the index, so use that.
   const heads = hasHead(cwd);
   const EXCLUDES = [...BASE_EXCLUDES, ...volatileExcludes(cwd, planFile)];
+  // 5.2.1: a file HEAD does not have is written in ONE form, read from the working tree, whether git knows it or
+  // not. Before, a file git did not know had the form below and a staged one came from `git diff`, so `git add`
+  // moved the fingerprint of content that had not changed, and the commit gate asked for a new full run and a new
+  // experts check. `--diff-filter=a` leaves the added files out of the tracked part; `--no-renames` keeps a staged
+  // rename as what it is before staging, a deleted file and a new one.
   const tracked = heads
-    ? git(cwd, ['diff', ...DIFF_FORMAT, '--binary', 'HEAD', '--', '.', ...EXCLUDES])
+    ? git(cwd, ['diff', ...DIFF_FORMAT, '--binary', '--no-renames', '--diff-filter=a', 'HEAD', '--', '.', ...EXCLUDES])
     : git(cwd, ['diff', ...DIFF_FORMAT, '--cached', '--binary', '--', '.', ...EXCLUDES]) + git(cwd, ['diff', ...DIFF_FORMAT, '--binary', '--', '.', ...EXCLUDES]);
   const names = heads
-    ? git(cwd, ['diff', '--name-only', 'HEAD', '--', '.', ...EXCLUDES])
+    ? git(cwd, ['diff', '--name-only', '--no-renames', '--diff-filter=a', 'HEAD', '--', '.', ...EXCLUDES])
     : git(cwd, ['diff', '--cached', '--name-only', '--', '.', ...EXCLUDES]) + git(cwd, ['diff', '--name-only', '--', '.', ...EXCLUDES]);
   const files = names.split(/\r?\n/).filter(Boolean);
-  const untracked = git(cwd, ['ls-files', '--others', '--exclude-standard', '--', '.', ...EXCLUDES]).split(/\r?\n/).filter((p) => p && !ignored(p));
+  // The names of files are read with -z and quotePath off: git otherwise writes a name with a non-ASCII byte, a quote
+  // or a backslash in quotes with escapes, the file is then not found, and its content is read as "(unreadable)".
+  const names0 = ([cmd, ...rest]) => git(cwd, ['-c', 'core.quotePath=false', cmd, '-z', ...rest]).split('\0').filter(Boolean);
+  const untracked = names0(['ls-files', '--others', '--exclude-standard', '--', '.', ...EXCLUDES]).filter((p) => !ignored(p));
+  // New against HEAD and known to git: added to the index, or added with `git add -N`. One that was staged and then
+  // deleted from the working tree is not listed (the diff is of the working tree).
+  const added = heads ? names0(['diff', '--name-only', '--no-renames', '--diff-filter=A', 'HEAD', '--', '.', ...EXCLUDES]).filter((p) => !ignored(p)) : [];
+  // In the order git lists unknown files, the bytes of the whole path, so the order does not depend on staging.
+  const fresh = added.length === 0 ? untracked : [...new Set([...untracked, ...added])].sort((a, b) => Buffer.compare(Buffer.from(a), Buffer.from(b)));
   let diff = tracked;
-  for (const p of untracked) {
+  for (const p of fresh) {
     files.push(p);
     let body;
     try {
@@ -1132,6 +1145,34 @@ function writeJson(file, data) {
 
 const blocking = (f) => f.confidence === 'high';
 
+/**
+ * The file of a finding as the diff names it (5.2.1). An expert gives a path any way: absolute, with backslashes, or
+ * with `./`. The record kept it as given, and a changed-only check compared it with the relative paths of the delta,
+ * so a finding whose file was checked again was carried forward and held the commit. A path outside the project, and
+ * a path with a repository name (`demo:src/a.js`), stay as given.
+ */
+function findingFile(cwd, file) {
+  const raw = String(file || '');
+  if (!raw) return raw;
+  const drive = /^[A-Za-z]:[\\/]/.test(raw);
+  if (!drive && /^[A-Za-z0-9][A-Za-z0-9._-]*:/.test(raw)) return raw;
+  if (path.isAbsolute(raw) || drive) {
+    const inside = (root, target) => {
+      const rel = path.relative(root, target);
+      return rel && !rel.startsWith('..') && !path.isAbsolute(rel) ? rel.split(path.sep).join('/') : null;
+    };
+    const real = (p) => {
+      try {
+        return fs.realpathSync(p);
+      } catch {
+        return p;
+      }
+    };
+    return inside(cwd, raw) || inside(real(cwd), real(raw)) || raw;
+  }
+  return raw.replace(/\\/g, '/').replace(/^\.\//, '');
+}
+
 // Not the line: a finding must keep its identity when unrelated edits move it. Not the whole
 // sentence either, only enough of it that a re-worded repeat of the same defect often matches.
 function findingId(f) {
@@ -1361,6 +1402,8 @@ function record(cwd, stage, result, { planFile = '', pluginRoot = PLUGIN_ROOT } 
   // no findings and no record, and the gate asks for the review again.
   const found = (lane.findings || [])
     .filter((f) => (lane.ran || []).includes(f.expert))
+    // 5.2.1: the path of the diff first, so the id is the same however the expert wrote the path.
+    .map((f) => (typeof f.file === 'string' ? { ...f, file: findingFile(cwd, f.file) } : f))
     .map((f) => ({ ...f, id: findingId(f) }))
     .map((f) => (stage === 'review' ? { ...f, basisCheck: checkBasis(f, (lane.skillsLoaded && Array.isArray(lane.skillsLoaded[f.expert]) ? lane.skillsLoaded[f.expert] : []), pluginRoot) } : f));
   // A changed-only review: the expert saw only `delta.files`, so its findings on every other file
@@ -1373,7 +1416,9 @@ function record(cwd, stage, result, { planFile = '', pluginRoot = PLUGIN_ROOT } 
     for (const name of delta.experts.filter((n) => (lane.ran || []).includes(n))) {
       const prev = readJson(evidenceFile(cwd, 'review', name));
       if (!prev || prev.hash !== delta.base) throw new Error(`${name}'s review on record is not the one this changed-only review builds on (${String(delta.base).slice(0, 12)}), so nothing was recorded; run the experts check again`);
-      carried[name] = (prev.findings || []).filter((f) => !seen.has(f.file)).map((f) => ({ ...f, carriedFrom: delta.base }));
+      // A record written before 5.2.1 may hold the path as the expert gave it: compare the path of the diff. The
+      // carried finding keeps its id, so a dismissal of it still applies.
+      carried[name] = (prev.findings || []).filter((f) => !seen.has(findingFile(cwd, f.file))).map((f) => ({ ...f, carriedFrom: delta.base }));
     }
   }
   for (const name of lane.ran || []) {

@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.2.1] - 2026-11-22
+
+Three faults of the commit gate and the value ledger, found during the work on 5.2.0.
+
+**Before you update: commit or park the changes you have open.** A project with a staged new file or a staged rename, and a full run or an experts check already on record for it, needs one new full run and one new experts check after the update, because the fingerprint of such a tree is made in a new form. A tree with nothing open is not affected.
+
+### Fixed
+
+- **`git add` no longer moves the fingerprint of the changes.** A file that git did not know was written into the fingerprint in a form of its own, and a staged one came from `git diff`. So `git add` of a new file changed the fingerprint of content that had not changed, and the commit gate asked for a new full run and a new experts check (about one million tokens for the first commit of 5.2.0). A file that HEAD does not have now has one form, read from the working tree, whether it is unknown to git, staged, or added with `git add -N`. A staged rename is read as before staging: a deleted file and a new one. A tree with no staged new file and no staged rename has the same fingerprint as in 5.2.0, so the records on disk stay valid. After the update, a tree with a staged new file needs one new full run and one new experts check.
+- **A finding is recorded with the path of the diff.** An expert sometimes names the file of a finding with an absolute path, with backslashes, or with `./`. The record kept it as given, and a changed-only experts check compared it with the relative paths of the delta: no match, so a finding whose file was checked again was carried forward, and the gate held a corrected finding as open until the user dismissed it. The path is now made relative before the id of the finding is made, so the same finding has the same id however the path was written. A record written before 5.2.1 is compared by the same rule and keeps its id, so a dismissal of it still applies. A path outside the project, and a path with a repository name, stay as given. The names of new files are read with `-z`, so a name with a non-ASCII byte, a quote or a backslash is read from the working tree, not as "(unreadable)". A dismissal made under 5.2.0 for a finding with an absolute path applies to that finding while it is carried; when an expert reports the same fault again in a full check, the id is the new one, and the gate asks for one more dismissal.
+- **A finding that a fix-up card corrected is a confirmed catch in the value ledger.** Each review finding of a run became a catch with the status "open", and it stayed open after a fix-up card of the same run corrected it and committed. The result of a run now lists the findings its committed fix-up cards took (`review.fixed`, with the card and its commit), and the ledger counts each as confirmed with the evidence `fixed by the card <name>, commit <sha>`. A catch that the user confirmed or refuted is not changed. A fix-up card that was parked confirms nothing.
+
 ## [5.2.0] - 2026-11-19
 
 One plan for several repositories, cheaper run steps, and the corrections that four real runs on sample projects asked for. This version holds everything that was prepared as 5.1.1, which was never released.

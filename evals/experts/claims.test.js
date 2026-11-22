@@ -232,7 +232,8 @@ test('72: commands/tests.md runs claims after the section is written and before 
   const written = md.indexOf('--field testsMarkdown --out <where> --append');
   const claimed = md.indexOf('experts.js" claims --plan');
   const shown = md.indexOf('**Show it and stop.**');
-  const confirmed = md.indexOf('--confirm tests_confirmed');
+  // 5.2.0: the file begins with the case of a plan that arrives with its tests, which also names the confirmation.
+  const confirmed = md.indexOf('--confirm tests_confirmed', shown);
   assert.ok(written > 0 && claimed > written, 'claims runs on the written section');
   assert.ok(shown > claimed && confirmed > shown, 'and before the user is asked to confirm');
   const step = md.slice(claimed - 400, shown);

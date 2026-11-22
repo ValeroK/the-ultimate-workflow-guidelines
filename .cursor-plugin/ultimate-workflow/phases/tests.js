@@ -26,8 +26,9 @@ export const meta = {
 // to negotiate on paper and the most expensive to discover was wrong later.
 
 const planFile = (args && args.plan) || ''
-const extraAngles = ((args && args.angles) || '')
-  .split(',')
+// A list or a comma-separated text (5.2.0): a list stopped the script before any agent ran.
+const rawAngles = args && args.angles
+const extraAngles = (Array.isArray(rawAngles) ? rawAngles.map(String) : String(rawAngles || '').split(','))
   .map((a) => a.trim())
   .filter(Boolean)
 
@@ -127,6 +128,23 @@ function claimsOf(text) {
   }
 }
 
+// The plan's cards, read from the plan by experts.js `script` (5.2.0). The unattended run builds each card against its own
+// section of the Tests, found by a heading that starts with the card's name. A test plan written by test file, with
+// the card only named in the text, parked every card of a seven-card plan as "missing input".
+const CARDS = (Array.isArray(args && args.cards) ? args.cards : []).filter((c) => c && typeof c.name === 'string' && c.name.trim())
+const cardHeading = (c) => `### ${c.name}: ${c.title || c.name}`
+const CARD_RULE =
+  CARDS.length > 1
+    ? `\n\nThe plan has ${CARDS.length} cards, and each card is built and tested on its own against its own part of this section. Write one subsection for each card, in this order, with exactly this heading line, and put every test of that card under it:\n${CARDS.map(cardHeading).join('\n')}\nWhat belongs to no single card (the verification command, constraints, what done means) goes before the first of them. A test that several cards need goes under the first card that needs it. A card with no test of its own still gets its heading, with one line that says why.`
+    : ''
+const escapeRe = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+/** The cards with no heading of their own in the markdown: the same rule the run's context pack uses. */
+const missingCardSections = (md) => (CARDS.length > 1 ? CARDS.filter((c) => !new RegExp(`^#{2,6}\\s+(?:card\\s+)?${escapeRe(c.name)}(?![A-Za-z0-9])`, 'im').test(String(md || ''))).map((c) => c.name) : [])
+const cardNote = (md) => {
+  const missing = missingCardSections(md)
+  return missing.length > 0 ? { missingCardSections: missing, cardSectionsNote: `No heading for ${missing.join(', ')}: the unattended run finds a card's tests by a heading that starts with the card's name, and parks a card without one. Add the headings (move the text, do not rewrite it) before the user confirms.` } : {}
+}
+
 const locate = planFile
   ? `Read ${planFile}.`
   : 'Find the active PLAN-*.md in this repository -- the most recently modified one if there are several -- and read it.'
@@ -144,7 +162,7 @@ Name the specific tests that must exist and pass. That turns "is this done" from
 
 For each size or count a test relies on (a byte budget, a file that must stay under a limit), also write one list line in the section, exactly in this form, so code can measure it before the tests are confirmed: \`- measure: bytes <glob> <= <number>\` (the glob is relative to the project root; \`*\` stays in one folder, \`**\` crosses folders).
 
-If the plan splits the work into cards, put the cases that need the running system (a browser capture, an integration or end-to-end harness) in the first card's harness and list them before the source-level checks, so every later card is verified against them.`,
+If the plan splits the work into cards, put the cases that need the running system (a browser capture, an integration or end-to-end harness) in the first card's harness and list them before the source-level checks, so every later card is verified against them.${CARD_RULE}`,
   { agentType: agentName('uw-critic'), label: 'draft', phase: 'Draft', schema: DRAFT }
 )
 
@@ -289,6 +307,7 @@ if (gaps.length === 0) {
     ok: true,
     testsMarkdown: draft.testsMarkdown + expertCases,
     claims: claimsOf(draft.testsMarkdown + expertCases),
+    ...cardNote(draft.testsMarkdown),
     expertLane,
     testCommand: draft.testCommand,
     expectedTestNames: draft.expectedTestNames || [],
@@ -320,7 +339,7 @@ For each gap, either close it -- by adding or strengthening a test, and say what
 
 Do not simply append every suggested test. A test plan that grows to cover every hypothetical is one nobody runs and nobody maintains. Prefer strengthening a weak assertion over adding a new case: an existing test with a real oracle catches more than two tests with none.
 
-Return the full revised Tests section, the verification command, and the specific test names that must exist and pass.`,
+Return the full revised Tests section, the verification command, and the specific test names that must exist and pass.${CARD_RULE ? `${CARD_RULE}\nKeep these headings as they are, and put a test you add under the card it belongs to.` : ''}`,
   { agentType: agentName('uw-critic'), label: 'merge', phase: 'Merge', schema: MERGED }
 )
 
@@ -337,6 +356,7 @@ return {
   ok: true,
   testsMarkdown: merged.testsMarkdown + expertCases,
   claims: claimsOf(merged.testsMarkdown + expertCases),
+  ...cardNote(merged.testsMarkdown),
   expertLane,
   testCommand: merged.testCommand,
   expectedTestNames: merged.expectedTestNames,

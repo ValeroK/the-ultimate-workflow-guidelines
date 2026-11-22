@@ -1158,3 +1158,199 @@ test('one review: the report says "Reviewed by the experts at <head>: N findings
   const fixups = show({ review: { ran: true, range: 'a..HEAD', findings: [], refuted: [], unverified: [] }, reviewed: { head: 'h9', open: 1 }, reviewedText: 'Reviewed by the experts at h9: 1 finding open', fixupReview: { ran: true, range: 'h1..HEAD', findings: [{ confidence: 'high', lens: 'quality', file: 'a.js', line: 1, what: 'still wrong' }] } });
   assert.match(fixups, /experts check of the fix-up cards \(h1\.\.HEAD\): 1 confirmed, left open and not fixed again/);
 });
+
+// ---- 5.2.0: three faults from real sessions (2026-11-14 to 2026-11-16) ----
+
+test('a card the run added (a fix-up card) gets its pack on a resume too, with no --adhoc and no test-plan section', () => {
+  const dir = repo();
+  const added = json(cli(dir, 'card-add', '--plan', 'PLAN-calc.md', '--name', 'fixup', '--free-name', '--title', 'confirmed review findings', '--paths', 'src/**', '--carried', 'correctness at src/add.js:3: off by one'));
+  assert.equal(added.ok, true, JSON.stringify(added));
+  const r = json(cli(dir, 'pack', '--plan', 'PLAN-calc.md', '--card', added.card.name, '--feature', 'calc'));
+  assert.equal(r.ok, true, r.reason);
+  assert.match(fs.readFileSync(path.join(dir, r.contextFile), 'utf8'), /added by the run and has no test-plan section/);
+});
+
+test('a card of the plan with a run-like name but nothing carried still needs its test-plan section', () => {
+  const dir = repo();
+  const added = json(cli(dir, 'card-add', '--plan', 'PLAN-calc.md', '--name', 'fixup-things', '--free-name', '--title', 'a plan card', '--paths', 'src/**'));
+  assert.equal(added.ok, true, JSON.stringify(added));
+  const r = json(cli(dir, 'pack', '--plan', 'PLAN-calc.md', '--card', added.card.name, '--feature', 'calc'));
+  assert.equal(r.ok, false);
+  assert.match(r.reason, /no test-plan section/);
+});
+
+test('a run step started from a folder under .ultimate-workflow works from the project folder: journal add finds its file', () => {
+  const dir = repo();
+  const rel = path.join('.ultimate-workflow', 'run', 'calc', 'cards', '1');
+  fs.mkdirSync(path.join(dir, rel), { recursive: true });
+  fs.writeFileSync(path.join(dir, rel, 'journal.txt'), 'The adder lives in src/add.js.\n');
+  const r = json(cli(path.join(dir, rel), 'journal', 'add', '--feature', 'calc', '--card', '1', '--from', path.join(rel, 'journal.txt').split(path.sep).join('/')));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.ok(fs.existsSync(path.join(dir, '.ultimate-workflow', 'run', 'calc', 'journal.md')), 'the journal is in the project, not under the card folder');
+  assert.ok(!fs.existsSync(path.join(dir, rel, '.ultimate-workflow')), 'nothing was written under the card folder');
+});
+
+test('present --confirm takes --plan as the file to confirm in place', () => {
+  const dir = repo();
+  const r = cli(dir, 'present', '--confirm', 'plan_confirmed', '--plan', 'PLAN-calc.md');
+  assert.equal(r.status, 0, r.stderr);
+  const o = json(r);
+  assert.equal(o.confirmed, true, JSON.stringify(o));
+  assert.match(String(o.out), /PLAN-calc\.md$/);
+});
+
+// 5.2.0: one run at a time in a folder. A second run-start made its branch from the first run's branch and
+// checked it out under the first run's agents.
+test('run-start refuses a run of another feature while a run is not finished in the folder, and creates nothing', () => {
+  const dir = repo();
+  assert.equal(json(cli(dir, 'run-start', '--plan', 'PLAN-calc.md', '--feature', 'calc')).ok, true);
+  const mark = JSON.parse(read(dir, '.ultimate-workflow/run/active.json'));
+  assert.equal(mark.feature, 'calc');
+  const r = json(cli(dir, 'run-start', '--plan', 'PLAN-calc.md', '--feature', 'other'));
+  assert.equal(r.ok, false);
+  assert.equal(r.needs, 'other-run');
+  assert.equal(r.other, 'calc');
+  assert.match(r.reason, /two runs at the same time in one folder are not supported/);
+  assert.equal(git(dir, 'branch', '--list', 'uw/run/other'), '', 'no branch for the second run');
+  assert.equal(git(dir, 'rev-parse', '--abbrev-ref', 'HEAD'), 'uw/run/calc', 'the first run keeps its branch');
+  assert.equal(JSON.parse(read(dir, '.ultimate-workflow/run/active.json')).feature, 'calc');
+});
+
+test('run-start --take-over starts in spite of the other run, and the mark is then the new run', () => {
+  const dir = repo();
+  json(cli(dir, 'run-start', '--plan', 'PLAN-calc.md', '--feature', 'calc'));
+  const r = json(cli(dir, 'run-start', '--plan', 'PLAN-calc.md', '--feature', 'other', '--take-over'));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(JSON.parse(read(dir, '.ultimate-workflow/run/active.json')).feature, 'other');
+});
+
+test('run-start ignores the mark of a run whose branch is not checked out: that run is over', () => {
+  const dir = repo();
+  write(dir, '.ultimate-workflow/run/active.json', JSON.stringify({ feature: 'gone', started: '2026-11-01T00:00:00.000Z' }));
+  const r = json(cli(dir, 'run-start', '--plan', 'PLAN-calc.md', '--feature', 'calc'));
+  assert.equal(r.ok, true, JSON.stringify(r));
+});
+
+test('run-finish removes the mark of the run, so the next run can start', () => {
+  const dir = repo();
+  json(cli(dir, 'run-start', '--plan', 'PLAN-calc.md', '--feature', 'calc'));
+  write(dir, 'out/wf_done-1.output', JSON.stringify({ result: { ok: false, feature: 'calc', error: 'stopped' } }));
+  json(cli(dir, 'run-finish', '--output', 'out/wf_done-1.output'));
+  assert.equal(fs.existsSync(path.join(dir, '.ultimate-workflow/run/active.json')), false);
+});
+
+test('run.md tells the session what to do when another run is not finished', () => {
+  const md = fs.readFileSync(path.join(PLUGIN, 'phases', 'run.md'), 'utf8');
+  assert.match(md, /needs: "other-run"/);
+  assert.match(md, /--take-over/);
+});
+
+// 5.2.0, from the journals of five runs: a card that was parked and tried again had 3 or 4 entries, 23% to 29% of the
+// lines of a long journal repeated an earlier line, and an old entry that a later one called false stayed for the
+// next cards to read.
+test('journal add: a new entry of a card replaces its earlier entries, and keeps one line of the last park', () => {
+  const dir = repo();
+  const add = (card, status, text) => {
+    write(dir, 'j.txt', text);
+    return json(cli(dir, 'journal', 'add', '--feature', 'calc', '--card', card, '--status', status, '--from', 'j.txt'));
+  };
+  add('1', 'parked', 'Parked: the plan and the guard test disagree on xfail.\nThe e2e file exists in the tree.\n');
+  add('2', 'committed', 'The adder lives in src/add.js.\n');
+  add('1', 'parked', 'Parked: the host check flags the schema URI.\nSecond park detail.\n');
+  const r = add('1', 'committed', 'Committed after two parks.\nKeep the schema URI.\n');
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.replaced, 1, 'one earlier entry of this card was in the journal: the first park was already replaced');
+  const text = read(dir, '.ultimate-workflow/run/calc/journal.md');
+  assert.equal((text.match(/^## 1 /gm) || []).length, 1, 'one entry for card 1');
+  assert.equal((text.match(/^## 2 /gm) || []).length, 1, 'the entry of another card stays');
+  assert.match(text, /^## 1 \(committed\)/m);
+  assert.match(text, /- Earlier attempt, parked [0-9T:-]+: Parked: the host check flags the schema URI\./);
+  assert.doesNotMatch(text, /Second park detail|The e2e file exists|xfail/, 'the earlier entries are gone, also the claim a later one replaced');
+  assert.ok(text.indexOf('## 2 ') < text.indexOf('## 1 '), 'the new entry is the last one');
+});
+
+test('journal add: the line of an earlier park does not count against the 15 lines of the entry', () => {
+  const dir = repo();
+  write(dir, 'p.txt', 'Parked: red three times.\n');
+  json(cli(dir, 'journal', 'add', '--feature', 'calc', '--card', '1', '--status', 'parked', '--from', 'p.txt'));
+  write(dir, 'long.txt', Array.from({ length: 15 }, (_, i) => `line ${i}`).join('\n'));
+  const r = json(cli(dir, 'journal', 'add', '--feature', 'calc', '--card', '1', '--status', 'committed', '--from', 'long.txt'));
+  assert.equal(r.warning, undefined);
+  const text = read(dir, '.ultimate-workflow/run/calc/journal.md');
+  assert.match(text, /line 14/);
+  assert.match(text, /Earlier attempt, parked/);
+});
+
+// 5.2.0: the record of the full run, and whether it is of the project as it is now.
+test('full-record: no record, a record of this commit, and a record of another commit', () => {
+  const dir = repo();
+  const none = json(cli(dir, 'full-record'));
+  assert.equal(none.ok, true);
+  assert.equal(none.current, false);
+  assert.equal(none.passed, false);
+  const ex = require(path.join(PLUGIN, 'experts', 'experts.js'));
+  const rec = (over) => write(dir, '.ultimate-workflow/verify.json', JSON.stringify({ mode: 'full', passed: true, fingerprint: ex.testFingerprint(dir), head: git(dir, 'rev-parse', 'HEAD'), at: '2026-11-18T10:00:00.000Z', ...over }));
+  rec({});
+  assert.deepStrictEqual([json(cli(dir, 'full-record')).current, json(cli(dir, 'full-record')).passed], [true, true]);
+  rec({ passed: false });
+  assert.deepStrictEqual([json(cli(dir, 'full-record')).current, json(cli(dir, 'full-record')).passed], [true, false]);
+  rec({ head: '0000000000000000000000000000000000000000' });
+  const old = json(cli(dir, 'full-record'));
+  assert.deepStrictEqual([old.current, old.passed], [false, false]);
+  assert.match(old.reason, /not of the project as it is now/);
+  rec({ mode: 'related' });
+  assert.equal(json(cli(dir, 'full-record')).current, false);
+});
+
+// 5.2.0, from the holds of three runs: a URL that is a name and not a call, and a migration the card's own paths name.
+test('decisions: a schema dialect, an id, an XML namespace and a standards host are minor; a real call and a remote $ref are major', () => {
+  const dir = repo({ plan: PLAN.replace('paths: src/add.js, docs/new-guide.md', 'paths: src/**, docs/new-guide.md') });
+  write(dir, 'src/shape.json', JSON.stringify({ $schema: 'https://json-schema.org/draft/2020-12/schema', $id: 'https://ids.acme.io/shape', type: 'object' }, null, 2));
+  write(dir, 'src/docx.py', '_W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"\nSVG = \'<svg xmlns="http://www.w3.org/2000/svg">\'\n');
+  write(dir, 'src/call.js', "fetch('https://api.numbers.io/x');\n");
+  write(dir, 'src/ref.json', JSON.stringify({ $ref: 'https://remote.acme.io/defs.json' }, null, 2));
+  const r = json(cli(dir, 'decisions', '--plan', 'PLAN-calc.md', '--card', '1', '--feature', 'calc'));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const services = (list) => list.filter((d) => d.kind === 'service').map((d) => d.what).sort();
+  assert.deepStrictEqual(services(r.major), ['calls the external host api.numbers.io in src/call.js', 'calls the external host remote.acme.io in src/ref.json'], JSON.stringify(r.major));
+  const minor = services(r.minor).join('\n');
+  for (const host of ['json-schema.org', 'ids.acme.io', 'schemas.openxmlformats.org', 'www.w3.org']) assert.match(minor, new RegExp(`names ${host.replace(/\./g, '\.')} in src/[a-z.]+ as an identifier`), host);
+});
+
+test('decisions: a new migration under a card path that names the migrations folder is minor; elsewhere, or changed, it is major', () => {
+  const plan = PLAN.replace('paths: src/add.js, docs/new-guide.md', 'paths: src/**, migrations/versions/**').replace('paths: src/parse.js', 'paths: src/**, db/**');
+  const dir = repo({ plan });
+  write(dir, 'migrations/versions/0001_old.py', 'OLD = 1\n');
+  git(dir, 'add', '-A');
+  git(dir, 'commit', '-q', '-m', 'base');
+  write(dir, 'migrations/versions/0002_new.py', 'NEW = 1\n');
+  const named = json(cli(dir, 'decisions', '--plan', 'PLAN-calc.md', '--card', '1', '--feature', 'calc'));
+  assert.deepStrictEqual(named.major.filter((d) => d.kind === 'schema'), [], JSON.stringify(named.major));
+  assert.ok(named.minor.some((d) => d.kind === 'schema' && /added the schema or migration migrations\/versions\/0002_new\.py \(the paths of the card name this place\)/.test(d.what)));
+  const other = json(cli(dir, 'decisions', '--plan', 'PLAN-calc.md', '--card', '2', '--feature', 'calc'));
+  assert.ok(other.major.some((d) => d.kind === 'schema'), 'card 2 does not name the migrations folder');
+  write(dir, 'migrations/versions/0001_old.py', 'OLD = 2\n');
+  const changed = json(cli(dir, 'decisions', '--plan', 'PLAN-calc.md', '--card', '1', '--feature', 'calc'));
+  assert.ok(changed.major.some((d) => d.kind === 'schema' && /changed the schema or migration migrations\/versions\/0001_old\.py/.test(d.what)), 'a changed migration is still for the user');
+});
+
+test('plan: a step that only checks or reports is not a card', () => {
+  assert.match(fs.readFileSync(path.join(PLUGIN, 'phases', 'plan.js'), 'utf8'), /a step that only checks, measures or reports[^.]*is not a card/);
+});
+
+// The first real run (2026-11-18, a sample project): `--full-at-end` was read as an option with a value, so it took
+// `--claimed` as that value and the test file after it was an "unexpected argument". Every card was parked at its
+// commit. The unit tests passed because none gave the two options together, as the run does.
+test('card-commit --full-at-end with --claimed after it, as the run builds the command: the card is committed on its related tests', () => {
+  const dir = repo();
+  json(cli(dir, 'run-branch', '--feature', 'calc'));
+  write(dir, 'src/add.js', 'module.exports = (a, b) => a + b; // checked\n');
+  const v = spawnSync(process.execPath, [VERIFY, '--plan', 'PLAN-calc.md'], { cwd: dir, encoding: 'utf8', env });
+  assert.equal(v.status, 0, v.stdout + v.stderr);
+  const abs = path.join(dir, 'test', 'add.test.js');
+  const out = cli(dir, 'card-commit', '--plan', 'PLAN-calc.md', '--card', '1', '--feature', 'calc', '--full-at-end', '--claimed', abs);
+  assert.doesNotMatch(out.stdout + out.stderr, /unexpected argument/);
+  const r = json(out);
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.deepStrictEqual(r.missingClaims, ['test/add.test.js'], 'the absolute path is read as the file it names (this card did not change it, so it is a missing claim)');
+});

@@ -5,6 +5,7 @@ export const meta = {
     'After the plan and the test plan are confirmed, from the Full tier of /ultimate-workflow:feature. Commits each finished card to uw/run/<feature>; never pushes.',
   phases: [
     { title: 'Cards', detail: 'per card: context pack, tests, implementation, commit or park' },
+    { title: 'Full suite', detail: 'the whole test suite one time after the cards; a failure gets one card' },
     { title: 'Review', detail: 'the whole run diff once, through the lenses and the experts, then fix-up cards and one experts check of them' },
     { title: 'Harvest', detail: 'lessons from the journal and the diff, committed to uw/harvest/<feature>' },
   ],
@@ -32,6 +33,20 @@ const PLAN = String((args && args.plan) || '')
 const FEATURE = String((args && args.feature) || '')
 const CLI = String((args && args.cli) || '')
 const VERIFY = (args && typeof args.verify === 'string' && args.verify.trim()) || ''
+// The guard on a test the run corrects (lib/test-guard.js), next to the CLI: `node "<plugin>/lib/test-guard.js"`.
+const GUARD = /experts[\\/]experts\.js/.test(CLI) ? CLI.replace(/experts[\\/]experts\.js/, 'lib/test-guard.js') : ''
+// 5.2.0: the other repositories of the plan (run-start writes them): `demo:path` is a file of the repository `demo`.
+const REPOS = Array.isArray(args && args.repos) ? args.repos.filter((x) => x && typeof x.name === 'string' && typeof x.dir === 'string') : []
+const repoOf = (p) => {
+  const m = /^([A-Za-z0-9][A-Za-z0-9._-]*):(?![\\/])(.*)$/.exec(String(p))
+  return m ? REPOS.find((x) => x.name === m[1]) || null : null
+}
+/** A file as a command can open it: one of another repository becomes its place on disk. */
+const onDisk = (p) => (repoOf(p) ? `${repoOf(p).dir}/${String(p).slice(repoOf(p).name.length + 1)}` : p)
+const reposOfCard = (card) => REPOS.filter((x) => (card.paths || []).some((p) => repoOf(p) === x))
+const testCorrections = []
+// What a card left out of what the user confirmed: a test of the section it did not write, work it did not do.
+const leftOut = []
 const COMMAND = String((args && args.command) || '')
 const BASE = String((args && args.base) || '')
 const CARDS = Array.isArray(args && args.cards) ? args.cards.filter((c) => c && typeof c.name === 'string') : []
@@ -68,7 +83,20 @@ const STEPS = {
   },
 }
 
-const runnerOpts = (label) => ({ agentType: agentName('uw-implementer'), label, phase: currentPhase, schema: STEPS, ...modelOpt(IMPLEMENTER_MODEL) })
+// 5.2.0: an agent that only runs commands and copies their last line needs no build model. In the second real run 35
+// of 55 agents were such steps, at about 11,000 tokens each. They run on Haiku unless told otherwise (args.runnerModel,
+// from ULTIMATE_WORKFLOW_RUNNER_MODEL or run-start --runner-model; "inherit" is the session model). The agents that
+// write (the tests, the code, the journal) keep the implementer's model.
+const RUNNER_MODEL = modelArg(args && args.runnerModel, 'haiku')
+if (typeof RUNNER_MODEL !== 'string' || !MODEL_OK.test(RUNNER_MODEL)) {
+  return { ok: false, error: `args.runnerModel is ${JSON.stringify(RUNNER_MODEL)}: expected inherit, sonnet, opus, haiku or a claude-* model id. Nothing was started.` }
+}
+const runnerOpts = (label, model = RUNNER_MODEL) => ({ agentType: agentName('uw-implementer'), label, phase: currentPhase, schema: STEPS, ...modelOpt(model) })
+// A step may run a second time only when every command of it can: one that commits, parks, adds a card or writes the
+// journal must not run twice, so its missing answer is a failure, as before.
+const RERUN_SAFE = /^(card-status|scope|decisions|pack|full-record|claims|run-state|ensure-ignored|prepare|resume-target|plan-state)\b/
+const rerunSafe = (c) => (CLI && c.startsWith(`${CLI} `) ? RERUN_SAFE.test(c.slice(CLI.length + 1)) && !/ --record\b/.test(c) : GUARD !== '' && c.startsWith(`${GUARD} `))
+const stepsRunAgain = []
 let currentPhase = 'Cards'
 const setPhase = (p) => {
   currentPhase = p
@@ -97,17 +125,35 @@ const rawOutputs = new Map()
  */
 async function runSteps(label, commands, files = []) {
   const writes = files.map((f, i) => `${i + 1}. Write the file ${f.path} with the Write tool. Its whole content is between the markers, exactly, nothing added:\n<<<CONTENT\n${f.text}\nCONTENT>>>`)
-  const r = await agent(
-    `${AUTH}
+  const prompt = `${AUTH}
 
 ${files.length ? `First:\n${writes.join('\n')}\n\nThen run` : 'Run'} each of these shell commands with the Bash tool, one per Bash call, in order. Do not change them, do not add any, do not fix anything they report, and do not stage, commit, branch or reset by any other means. For each, report the command and the last line of its output that is a JSON object (it starts with an opening brace), whole and verbatim; when no line is one, report its last line.
 
-${commands.map((c, i) => `${i + 1}. ${c}`).join('\n')}`,
-    runnerOpts(label)
-  )
-  const outs = r && Array.isArray(r.outputs) ? r.outputs : []
+${commands.map((c, i) => `${i + 1}. ${c}`).join('\n')}`
+  // A step that changes state (a commit, a park, a new card, a record) cannot run a second time, so a line that a
+  // cheaper model copies wrongly could not be recovered: a commit that succeeded would read as refused. Such a step
+  // stays on the implementer's model. Only a step that may run twice goes to the runner model.
+  const safe = commands.every(rerunSafe)
+  const first = await agent(prompt, runnerOpts(label, safe ? RUNNER_MODEL : IMPLEMENTER_MODEL))
+  const read = (r) => {
+    const outs = r && Array.isArray(r.outputs) ? r.outputs : []
+    return commands.map((c, i) => outs.find((x) => x && typeof x.command === 'string' && x.command.trim() === c.trim()) || outs[i])
+  }
+  let got = read(first)
+  // A cheaper model can copy a long line wrongly. A step with a command that gave no JSON line runs one more time, on
+  // the implementer's model, when all its commands may run twice.
+  if (got.some((o) => !o || lastJson(o.output) === null) && safe && RUNNER_MODEL !== IMPLEMENTER_MODEL) {
+    stepsRunAgain.push(label)
+    const again = await agent(prompt, runnerOpts(`${label}:again`, IMPLEMENTER_MODEL))
+    // Each command keeps its first answer when that one had its JSON line.
+    if (again) {
+      const second = read(again)
+      got = got.map((o, i) => (!o || lastJson(o.output) === null ? second[i] : o))
+    }
+  }
+  const outs = got
   return commands.map((c, i) => {
-    const o = outs.find((x) => x && typeof x.command === 'string' && x.command.trim() === c.trim()) || outs[i]
+    const o = outs[i]
     if (o && typeof o.output === 'string') rawOutputs.set(c, o.output.trim())
     return o ? lastJson(o.output) : null
   })
@@ -189,8 +235,10 @@ async function journal(card, outcome, note) {
 
 Card ${card.name} (${card.title}) of this run just ended: ${outcome}. Write its lessons for the cards after it, from the evidence and not from what any agent said it did: run \`git diff HEAD~1 --stat\` when it was committed (\`git log -1 --format=%B uw/parked/${FEATURE}/${card.name}\` and \`git show --stat uw/parked/${FEATURE}/${card.name}\` when it was parked), and read ${cardDir(card.name)}/ for its files.${note ? `\n\nWhat the run recorded:\n${String(note).slice(0, 3000)}` : ''}
 
+How this run works, so that you do not report it as a fault: the run wrote the tests of the card in a step before the build, so tests that were in the tree before the code are correct${VERIFY ? '; a card runs its related tests, and the full suite runs one time after all the cards' : ''}. Do not run the tests yourself. Do not write about the tools of this machine (a linter that is not installed, a program that is not on the PATH) unless a later card must work differently because of it. Your entry replaces the earlier entries of this card, so write all that later cards need from it.
+
 At most 10 short lines: what tripped it up, conventions found in the code, decisions later cards must respect, and, when parked, why. Nothing generic; a card with nothing worth passing on writes one line saying so. Write them to ${cardDir(card.name)}/journal.txt with the Write tool, then run \`${cliCmd('journal add', '--feature', FEATURE, '--card', card.name, '--status', outcome, '--from', q(`${cardDir(card.name)}/journal.txt`))}\` and report its last line. If that line says overLimit, write a one or two line summary of the journal entry of the first card it names under "oldest" to ${cardDir(card.name)}/summary.txt and run \`${cliCmd('journal compact', '--feature', FEATURE, '--card', '<that card>', '--from', q(`${cardDir(card.name)}/summary.txt`))}\`.`,
-    runnerOpts(`${card.name}:journal`)
+    runnerOpts(`${card.name}:journal`, IMPLEMENTER_MODEL)
   )
   return r
 }
@@ -198,7 +246,7 @@ At most 10 short lines: what tripped it up, conventions found in the code, decis
 /** Where a non-blocking finding goes: the first later card whose paths cover its file, else the findings card. */
 // @shared cover-rule
 
-async function runCard(card, { adhoc = false } = {}) {
+async function runCard(card, { adhoc = false, fullNow = false } = {}) {
   log(`card ${card.name}: ${card.title}`)
   const pre = card.preflight || { ok: false, reason: 'no context pack was written for this card' }
   if (!pre.ok) return parkCard(card, pre.reason || 'missing input')
@@ -216,16 +264,19 @@ async function runCard(card, { adhoc = false } = {}) {
   // --resume <card> without --accept on a card held for a decision runs it again from its tests,
   // told what it did last time; with --accept (or for a parked card) it continues where it stopped.
   const rerun = RESUME && RESUME.card === card.name && RESUME.rerun ? RESUME : null
-  const resume = RESUME && RESUME.card === card.name && !RESUME.rerun ? { reason: String(RESUME.reason || 'resumed from its parked branch'), testFiles: Array.isArray(RESUME.testFiles) ? RESUME.testFiles : [] } : null
+  // The card for a failing full run has its tests already: the ones that fail. It writes no new test first.
+  const resume = RESUME && RESUME.card === card.name && !RESUME.rerun ? { reason: String(RESUME.reason || 'resumed from its parked branch'), testFiles: Array.isArray(RESUME.testFiles) ? RESUME.testFiles : [] } : fullNow ? { reason: 'the tests of this card are the ones that fail in the full run', testFiles: [] } : null
   const briefs = (Array.isArray(card.briefs) ? card.briefs : []).filter((b) => b && typeof b.name === 'string' && typeof b.text === 'string' && b.text.trim())
   const skills = briefs.flatMap((b) => skillsOf(b.skills)).filter((s, i, all) => all.findIndex((x) => x.name === s.name) === i)
   const brief = briefs.length === 0 ? '' : `\n\nSTANDING BRIEF, from ${briefs.map((b) => b.name).join(', ')}. It applies to every line you write, and it adds no work: do nothing the plan did not ask for.\n\n${briefs.map((b) => b.text.trim()).join('\n\n')}\n${skills.length ? `\nSKILLS for this card (${skills.map((s) => s.name).join(', ')}), chosen from its planned files and text. Write the code so that none of them would find anything. They add no work.\n\n${skills.map((s) => s.text.trim()).join('\n\n')}\n` : ''}`
   const carriedText = [...(rerun ? [`The last attempt at this card was stopped for a decision the plan does not state, and the user did not accept it: ${rerun.avoid}. Stay within the plan: do not take that decision again. If the card cannot be done without it, say so and stop.`] : []), ...(RESUME && RESUME.card === card.name && RESUME.accepted ? [`The user accepted this decision, which is now in the plan's Decisions: ${RESUME.accepted}`] : []), ...(card.carried || [])]
-  const locate = `This is card ${card.name} (${card.title}) of the plan ${PLAN}. Read its context pack ${pre.contextFile} and every file it lists before you write anything; the run journal in it holds what earlier cards learned. Change only files under this card's paths (${(card.paths || []).join(', ')}) and the tests for it.${carriedText.length ? `\n\nCARRIED to this card, part of its work:\n${carriedText.map((c) => `- ${c}`).join('\n')}` : ''}`
+  const locate = `This is card ${card.name} (${card.title}) of the plan ${PLAN}. Read its context pack ${pre.contextFile} and every file it lists before you write anything; the run journal in it holds what earlier cards learned. Change only files under this card's paths (${(card.paths || []).join(', ')}) and the tests for it.${carriedText.length ? `\n\nCARRIED to this card, part of its work:\n${carriedText.map((c) => `- ${c}`).join('\n')}` : ''}${reposOfCard(card).length ? `\n\nMORE THAN ONE REPOSITORY. A path of this card that begins with a name and a colon is in another repository: ${reposOfCard(card).map((x) => `\`${x.name}:\` is the folder ${x.dir}`).join('; ')}. Work in that folder for those files. Each repository has its own tests: after a change there, run \`${VERIFY} --repo <its name>\`; for the files with no name, which are in this repository, run \`${VERIFY}\` with no --repo (the main repository has no name to give); and the card is green only when the tests of every repository it changed pass. Report a file of another repository with its name in front (\`${reposOfCard(card)[0].name}:path/in/that/repository\`).` : ''}`
   const loopOpts = {
     locate,
+    plan: PLAN,
     brief,
-    verify: VERIFY,
+    // 5.2.0: a card whose paths are all in one other repository is tested there; a card of several is told each command.
+    verify: VERIFY && reposOfCard(card).length === 1 && (card.paths || []).every((p) => repoOf(p)) ? `${VERIFY} --repo ${reposOfCard(card)[0].name}` : VERIFY,
     command: COMMAND,
     resume,
     label: (s) => `${card.name}:${s}`,
@@ -236,8 +287,27 @@ async function runCard(card, { adhoc = false } = {}) {
     implementCommitRule: 'Never stage or commit, not even part of the work: the run commits the card itself, through the commit gates.',
     implementerModel: IMPLEMENTER_MODEL,
     diagnoserModel: DIAGNOSER_MODEL,
+    // 5.2.0: a card runs its related tests; the full suite runs one time after all the cards (fullSuiteCheck).
+    // Only the card that corrects a failing full run ends with a full run of its own.
+    fullAtEnd: Boolean(VERIFY) && !fullNow,
     briefsLoaded: briefs.map((b) => b.name),
     skillsLoaded: skills.map((s) => s.name),
+    // 5.2.0: the tests a diagnosis calls wrong, each with its line of the plan, go back to the tester in one pass.
+    // Code counts the tests and the assertions before and after, for the user to see: the counts stop nothing.
+    ...(GUARD
+      ? {
+          correctTests: {
+            snapshot: async (files) => {
+              const [s] = await runSteps(`${card.name}:tests-before`, [`${GUARD} snapshot ${q(`${cardDir(card.name)}/tests-before.json`)} ${files.map(onDisk).map(q).join(' ')}`])
+              return Boolean(s && s.ok === true)
+            },
+            check: async () => {
+              const [c] = await runSteps(`${card.name}:tests-kept`, [`${GUARD} check ${q(`${cardDir(card.name)}/tests-before.json`)}`])
+              return c && c.ok === true ? c : null
+            },
+          },
+        }
+      : {}),
   }
   let build = await buildLoop(loopOpts)
   // A card the run added for a finding that the code is untested (a review's test-coverage lens, an
@@ -251,20 +321,41 @@ async function runCard(card, { adhoc = false } = {}) {
     log(`card ${card.name}: its tests pass against the existing code and every item was a missing test; continuing with them`)
     build = await buildLoop({ ...loopOpts, resume: { reason: 'the carried findings were missing tests; the new tests pass against code that already does the right thing', testFiles: build.filesWritten } })
   }
-  const buildSummary = { green: Boolean(build.green), rounds: build.rounds || (build.history ? build.history.length : 0), testFiles: build.testFiles || build.filesWritten || [], ...(testsOnly ? { testsOnly: true } : {}) }
+  const buildSummary = { green: Boolean(build.green), rounds: build.rounds || (build.history ? build.history.length : 0), testFiles: build.testFiles || build.filesWritten || [], ...(testsOnly ? { testsOnly: true } : {}), ...(build.testCorrection ? { testCorrection: build.testCorrection } : {}) }
+  const testerPassed = Boolean(build.testCorrection && (build.testCorrection.outcome === 'corrected' || build.testCorrection.outcome === 'verified'))
+  if (testerPassed) testCorrections.push({ card: card.name, ...build.testCorrection })
   if (!build.green) {
     const why = build.escalation || [build.error, build.reason, build.hint, build.unexpectedlyPassing && build.unexpectedlyPassing.length ? `Passing before the implementation: ${build.unexpectedlyPassing.join(', ')}` : ''].filter(Boolean).join('\n')
     return parkCard(card, `${build.stoppedAt === 'Tests' ? 'tests did not fail first' : 'not green'}: ${why || 'the build stopped'}`, { build: buildSummary })
   }
 
   const [scope] = await runSteps(`${card.name}:scope`, [cliCmd('scope', '--plan', q(PLAN), '--card', card.name)])
-  const outOfScope = scope && Array.isArray(scope.outOfScope) ? scope.outOfScope : null
+  // The second real run: a fix-up card for a finding in src/cli.js wrote the test of that finding, and the report
+  // said it changed test/cli.test.js "outside its paths". The test a card wrote for its own work is its work.
+  const slash = (p) => String(p).replace(/\\/g, '/')
+  const ownTest = (f) => buildSummary.testFiles.some((t) => slash(t) === slash(f) || slash(t).endsWith(`/${slash(f)}`))
+  const outOfScope = scope && Array.isArray(scope.outOfScope) ? scope.outOfScope.filter((f) => !ownTest(f)) : null
 
   // Decisions the plan does not state (2026-11-09): the implementer's own list, and what code finds
   // in the diff. A major one is not committed: the card is held as needs-decision, its work kept on
   // the branch and the user told now; the cards that do not depend on it go on. Minor ones go into
   // the handoff and the report.
-  const declared = (build && build.decisions) || []
+  // The first real run (2026-11-18): a test of the confirmed section contradicted the plan, the card left it out and
+  // said so in notDone, and nothing showed it to the user. What a card leaves out is recorded and said in the result.
+  const omitted = [...(build.testsNotWritten || []).map((x) => `did not write the test ${x.test}: ${x.why}`), ...(build.notDone || []).map((x) => `left undone: ${x}`)]
+  // Only a test that was not written is said in the result: in the second real run the rounds' notDone held
+  // "no lint command was run" and "I did not stage or commit", which is not work the user has to decide on. All of
+  // it is still in the card's minor decisions.
+  const unwritten = omitted.filter((x) => x.startsWith('did not write the test '))
+  if (unwritten.length > 0) leftOut.push({ card: card.name, items: unwritten })
+  // A test the run corrected is a choice the plan did not state: recorded with the card's minor decisions.
+  const declared = [
+    ...((build && build.decisions) || []),
+    ...omitted.map((what) => ({ what, why: 'reported by the card', major: false })),
+    ...(testerPassed
+      ? (build.testCorrection.corrected.length > 0 ? build.testCorrection.corrected : [{ test: 'tests of the card', was: '', now: '' }]).map((t) => ({ what: `${build.testCorrection.byCodeRound ? 'the code round changed tests, and ' : ''}the tester ${t.verdict === 'removed' ? 'removed' : t.verdict === 'agrees with the plan' ? 'verified' : 'corrected'} the test ${t.test}${t.verdict === 'corrected' ? ' to agree with the plan' : ''}${t.planReference ? ` (${t.planReference})` : ''}${t.verdict === 'removed' ? (t.was ? `: it asserted ${t.was}` : '') : t.was || t.now ? `: it asserted ${t.was}, it now asserts ${t.now}` : ''}`, why: t.why || 'the diagnosis of a failed round said the test was wrong, not the code', major: false }))
+      : []),
+  ]
   const declaredFile = `${cardDir(card.name)}/declared-decisions.json`
   const [decided] = await runSteps(`${card.name}:decisions`, [cliCmd('decisions', '--plan', q(PLAN), '--card', card.name, '--feature', FEATURE, '--declared', q(declaredFile))], [{ path: declaredFile, text: JSON.stringify(declared) }])
   if (!decided || decided.ok !== true) return parkCard(card, 'the check for decisions the plan does not state could not run: experts.js decisions did not report success', { build: buildSummary })
@@ -275,7 +366,7 @@ async function runCard(card, { adhoc = false } = {}) {
 
   // The commit check runs its confirmation, full-suite and memory parts here; the experts part is left to the one review
   // at the end of the run (card-commit says so: outcome deferred).
-  const commitCmd = cliCmd('card-commit', '--plan', q(PLAN), '--card', card.name, '--feature', FEATURE, ...(buildSummary.testFiles.length ? ['--claimed', q(buildSummary.testFiles.join(','))] : []))
+  const commitCmd = cliCmd('card-commit', '--plan', q(PLAN), '--card', card.name, '--feature', FEATURE, ...(VERIFY && !fullNow ? ['--full-at-end'] : []), ...(buildSummary.testFiles.length ? ['--claimed', q(buildSummary.testFiles.join(','))] : []))
   const [committed] = await runSteps(`${card.name}:commit`, [commitCmd])
   if (!committed || committed.ok !== true) {
     const why = `the commit was refused: ${(committed && (committed.reason || committed.gate)) || (rawOutputs.get(commitCmd) ? `card-commit printed no JSON line; it printed: ${rawOutputs.get(commitCmd).replace(/\s*\r?\n\s*/g, ' ')}` : 'card-commit printed nothing')}`
@@ -283,7 +374,7 @@ async function runCard(card, { adhoc = false } = {}) {
   }
   status[card.name] = 'committed'
   lastParkKey = ''
-  const entry = { card: card.name, title: card.title, status: 'committed', commit: committed.commit, handoff: committed.handoff, missingClaims: committed.missingClaims || [], outOfScope, build: buildSummary, ...(rerun && rerun.heldBranch ? { superseded: rerun.heldBranch } : {}), ...(minorDecisions.length ? { decisions: { major: [], minor: minorDecisions } } : {}) }
+  const entry = { card: card.name, title: card.title, status: 'committed', commit: committed.commit, ...(Array.isArray(committed.repos) && committed.repos.length ? { repos: committed.repos } : {}), handoff: committed.handoff, missingClaims: committed.missingClaims || [], outOfScope, build: buildSummary, ...(rerun && rerun.heldBranch ? { superseded: rerun.heldBranch } : {}), ...(minorDecisions.length ? { decisions: { major: [], minor: minorDecisions } } : {}) }
   report.push(entry)
   await journal(card, 'committed', `rounds: ${buildSummary.rounds}; files: ${committed.files}`)
   return entry
@@ -345,7 +436,7 @@ if (stoppedBecause) await runSteps('stopped:notify', [cliCmd('notify', '--featur
 
 const MAX_FIXUP_CARDS = 4
 const adhocPaths = []
-async function adhocCard(name, title, items, experts, label = name) {
+async function adhocCard(name, title, items, experts, label = name, { fullNow = false, carriedExtra = '', paths = [] } = {}) {
   // Agent text (a finding's file and words) goes in files the step writes, never on the command line.
   const carriedFile = `${RUN_DIR}/${label}-carried.txt`
   const titleFile = `${RUN_DIR}/${label}-title.txt`
@@ -353,10 +444,10 @@ async function adhocCard(name, title, items, experts, label = name) {
   const files = [...new Set(items.map((f) => String(f.file || '').replace(/\\/g, '/')).filter(Boolean))]
   // Only names the plan's line holds: card-add refuses any other, and a plan with no line takes no --experts.
   const laneExperts = experts.filter((n) => PLAN_EXPERTS.includes(n))
-  const carriedText = items.map((f) => `${f.expert || f.lens} at ${f.file}:${f.line}: ${f.what}`.replace(/;/g, ','))
+  const carriedText = items.map((f) => (f.file ? `${f.expert || f.lens} at ${f.file}:${f.line}: ${f.what}` : `${f.expert || f.lens}: ${f.what}`).replace(/;/g, ','))
   // The name is free-chosen: every later step keys on the one card-add printed.
   const addCmd = cliCmd('card-add', '--plan', q(PLAN), '--name', name, '--free-name', '--title-file', q(titleFile), '--paths-file', q(pathsFile), '--carried-file', q(carriedFile), ...(PLAN_EXPERTS.length > 0 ? ['--experts', laneExperts.length > 0 ? laneExperts.join(',') : 'none'] : []))
-  const [added] = await runSteps(`${label}:setup`, [addCmd], [{ path: titleFile, text: title }, { path: pathsFile, text: files.join(',') || '.' }, { path: carriedFile, text: carriedText.join('; ') }])
+  const [added] = await runSteps(`${label}:setup`, [addCmd], [{ path: titleFile, text: title }, { path: pathsFile, text: (paths.length ? paths : files).join(',') || '.' }, { path: carriedFile, text: carriedText.join('; ') }])
   // A card that never reached the plan cannot be parked (park looks it up there), and nothing was
   // built for it, so it is recorded as not started and the run goes on to the harvest.
   if (!(added && added.ok)) {
@@ -369,8 +460,77 @@ async function adhocCard(name, title, items, experts, label = name) {
   const [packed] = await runSteps(`${cardName}:pack`, [cliCmd('pack', '--plan', q(PLAN), '--card', cardName, '--feature', FEATURE, '--adhoc')])
   const cardPaths = (added.card && Array.isArray(added.card.paths) && added.card.paths) || files
   adhocPaths.push(...cardPaths)
-  const card = { name: cardName, title, paths: cardPaths, carried: [], depends: [], items, experts, briefs: PLAN_BRIEFS, reviewSkills: {}, preflight: packed && packed.ok ? { ok: true, contextFile: packed.contextFile } : { ok: false, reason: `the ${cardName} card could not be set up: ${(packed && packed.reason) || 'pack printed nothing'}` } }
-  return runCard(card, { adhoc: true })
+  const card = { name: cardName, title, paths: cardPaths, carried: carriedExtra ? [`What the full run printed: ${carriedExtra}`] : [], depends: [], items, experts, briefs: PLAN_BRIEFS, reviewSkills: {}, preflight: packed && packed.ok ? { ok: true, contextFile: packed.contextFile } : { ok: false, reason: `the ${cardName} card could not be set up: ${(packed && packed.reason) || 'pack printed nothing'}` } }
+  return runCard(card, { adhoc: true, fullNow })
+}
+
+// ---- the one full run (5.2.0) ----
+// A card is committed on its related tests. The full suite runs here: one time after the cards, and one time after the
+// review's fix-up cards. Until 5.1.0 every card ended with a full run, which on a suite of four minutes and ten cards
+// was forty minutes before any failure. A full run that fails gets one card of its own, which ends with a full run;
+// if that card cannot make the suite pass it parks, and the review and the harvest wait for it as for any card.
+const FULL_RUN = {
+  type: 'object',
+  required: ['passed', 'summary'],
+  properties: {
+    passed: { type: 'boolean', description: 'True only if the command exited 0 (it says "full run passed")' },
+    failures: { type: 'array', items: { type: 'string' }, description: 'The failing tests the command named, as it printed them; none when it passed' },
+    output: { type: 'string', description: 'When it failed: the lines the command printed, verbatim' },
+    summary: { type: 'string' },
+  },
+}
+const fullSuite = { runs: [] }
+async function fullSuiteCheck(tag) {
+  if (!VERIFY) return null
+  // 5.2.0: the full run is made in each repository of the run, each with its own command.
+  // Every one: a commit an earlier session made there is part of this branch too, and is not in this session's report.
+  const elsewhere = REPOS
+  const runWhat = elsewhere.length === 0
+    ? `Run this one command and report what it says: \`${VERIFY} --full\`.`
+    : `Run these ${elsewhere.length + 1} commands, one at a time, in this order, and report what they say: ${[`\`${VERIFY} --full\` (the main repository)`, ...elsewhere.map((x) => `\`${VERIFY} --repo ${x.name} --full\` (the repository ${x.name})`)].join(', then ')}. Run each one also when an earlier one failed. Report passed true only if every one exited 0, and put the name of the repository in front of each failing test of another repository (\`${elsewhere[0].name}: <test>\`).`
+  const r = await agent(
+    `${AUTH}\n\n${runWhat} It runs the whole test suite of the project and can take many minutes: give the Bash call its longest timeout, and if the call is moved to the background, wait for it to end and read its output. Run it one time. Change no file, correct nothing, and do not stage or commit. Report passed true only if it exited 0. When it fails, list in failures the failing tests it names and put the lines it printed in output; \`.ultimate-workflow/verify.log\` holds the whole output.`,
+    { agentType: agentName('uw-implementer'), label: `${tag}:run`, phase: currentPhase, schema: FULL_RUN, ...modelOpt(IMPLEMENTER_MODEL) }
+  )
+  const entry = { at: tag, ran: Boolean(r), passed: false, failures: (r && r.failures) || [] }
+  fullSuite.runs.push(entry)
+  if (!r) {
+    entry.reason = 'the agent that makes the full run returned nothing'
+    return entry
+  }
+  // The verdict is the record verify.js wrote, read by code: what the agent says it saw is not proof (5.2.0).
+  const recs = await runSteps(`${tag}:proof`, [cliCmd('full-record'), ...elsewhere.map((x) => cliCmd('full-record', '--plan', q(PLAN), '--repo', x.name))])
+  const where = ['the main repository', ...elsewhere.map((x) => `repository ${x.name}`)]
+  const unproven = recs.map((x, i) => (!x || x.ok !== true || x.current !== true ? `${elsewhere.length ? `${where[i]}: ` : ''}${(x && x.reason) || 'the record of the full run could not be read'}` : '')).filter(Boolean)
+  if (unproven.length > 0) {
+    entry.reason = `the full run is not proven: ${unproven.join('; ')}${r.passed === true ? ' (the agent that ran it reported a pass)' : ''}`
+    return entry
+  }
+  const failedIn = recs.map((x, i) => (x.passed === true ? null : i === 0 ? '' : elsewhere[i - 1].name)).filter((x) => x !== null)
+  entry.passed = failedIn.length === 0
+  if (elsewhere.length > 0) entry.repos = recs.map((x, i) => ({ repo: i === 0 ? '' : elsewhere[i - 1].name, passed: x.passed === true }))
+  if (entry.passed !== (r.passed === true)) entry.note = `the agent reported ${r.passed === true ? 'a pass' : 'a failure'} and the record says ${entry.passed ? 'passed' : 'failed'}: the record decides`
+  if (entry.passed) {
+    log(`full suite (${tag}): passed`)
+    return entry
+  }
+  log(`full suite (${tag}): failed, ${entry.failures.length} failing test(s) named; one card corrects them`)
+  const named = entry.failures.length > 0 ? entry.failures : ['the full run failed and named no test: read .ultimate-workflow/verify.log']
+  const items = named.slice(0, 30).map((n) => ({ lens: 'full suite', file: '', line: 0, what: `fails in the full run after the cards: ${n}` }))
+  // The card that corrects a failing full run of another repository may change what the cards changed there.
+  const elsewherePaths = failedIn.filter(Boolean).flatMap((name) => CARDS.flatMap((c) => (c.paths || []).filter((p) => repoOf(p) && repoOf(p).name === name)))
+  const mainPaths = failedIn.includes('') && elsewherePaths.length > 0 ? CARDS.flatMap((c) => (c.paths || []).filter((p) => !repoOf(p))) : []
+  const card = await adhocCard(tag, `the full suite fails after the cards${failedIn.filter(Boolean).length ? ` (${failedIn.map((n) => n || 'the main repository').join(', ')})` : ''}`, items, PLAN_EXPERTS, tag, { fullNow: true, carriedExtra: String(r.output || '').slice(0, 6000), paths: [...new Set([...mainPaths, ...elsewherePaths])] })
+  entry.card = card ? { card: card.card, status: card.status } : null
+  entry.passed = Boolean(card && card.status === 'committed')
+  return entry
+}
+
+// The one full run after the cards: when this run committed a card and did not stop.
+const committedNow = () => report.filter((e) => e.status === 'committed').length
+if (committedNow() > 0 && !stoppedBecause) {
+  setPhase('Full suite')
+  await fullSuiteCheck('full-suite')
 }
 
 // The review, the fix-up cards and the harvest wait for every card to be settled.
@@ -392,8 +552,8 @@ if (anyCommitted) {
 
 waiting = waitingFor()
 setPhase('Review')
-const nothingNew = Boolean(state.reviewedHead) && state.reviewedHead === state.head
-const covered = (head) => Boolean(head) && head === state.head
+const nothingNew = Boolean(state.reviewedHead) && state.reviewedHead === state.head && state.reposMoved !== true
+const covered = (head) => Boolean(head) && head === state.head && state.reposMoved !== true
 const RANGE = `${BASE}..HEAD`
 const planned = PLAN_EXPERTS.filter((n) => AVAILABLE.some((e) => e.name === n))
 // What differs from the by-hand review: the labels, an agent that returns nothing is asked once more, the skills come
@@ -413,7 +573,7 @@ const reviewOpts = {
 }
 /** Prepare a range (saves the diff the experts read, fingerprints the range), review it, and record the lane. */
 async function reviewAndRecord(range, tag, over) {
-  const [prep] = await runSteps(`${tag}:prepare`, [`${cliCmd('prepare', '--range', q(range))} > ${q(`${RUN_DIR}/${tag}-prepare.json`)} && node -e "console.log(JSON.stringify({ok:true}))"`])
+  const [prep] = await runSteps(`${tag}:prepare`, [`${cliCmd('prepare', '--range', q(range), ...(REPOS.length ? ['--feature', FEATURE, ...(state.repoHeads && Object.keys(state.repoHeads).length ? ['--from-heads', q(Object.entries(state.repoHeads).map(([n, h]) => `${n}=${h}`).join(','))] : [])] : []))} > ${q(`${RUN_DIR}/${tag}-prepare.json`)} && node -e "console.log(JSON.stringify({ok:true}))"`])
   if (!prep || prep.ok !== true) return { ran: false, reason: 'the review could not start: experts.js prepare did not report success' }
   const rv = await reviewRange({ ...reviewOpts, ...over, range, ...(over.labelPrefix ? {} : { labelPrefix: `${tag}:` }) })
   if (!rv.ok) return { ran: false, reason: rv.error || 'the review returned no result', failedLenses: rv.failedLenses || [] }
@@ -425,7 +585,7 @@ async function reviewAndRecord(range, tag, over) {
 
 /** Prepare a range and record a lane built from earlier reviews under it. True when experts.js record printed what it recorded. */
 async function recordWhole(range, tag, lane) {
-  const [prep] = await runSteps(`${tag}:prepare`, [`${cliCmd('prepare', '--range', q(range))} > ${q(`${RUN_DIR}/${tag}-prepare.json`)} && node -e "console.log(JSON.stringify({ok:true}))"`])
+  const [prep] = await runSteps(`${tag}:prepare`, [`${cliCmd('prepare', '--range', q(range), ...(REPOS.length ? ['--feature', FEATURE, ...(state.repoHeads && Object.keys(state.repoHeads).length ? ['--from-heads', q(Object.entries(state.repoHeads).map(([n, h]) => `${n}=${h}`).join(','))] : [])] : []))} > ${q(`${RUN_DIR}/${tag}-prepare.json`)} && node -e "console.log(JSON.stringify({ok:true}))"`])
   if (!prep || prep.ok !== true) return false
   const laneFile = `${RUN_DIR}/${tag}-lane.json`
   const [rec] = await runSteps(`${tag}:record`, [cliCmd('record', '--stage', 'review', '--result', q(laneFile))], [{ path: laneFile, text: JSON.stringify({ ok: true, expertLane: lane }) }])
@@ -473,6 +633,8 @@ if (anyCommitted && !stoppedBecause && !stateError && waiting.length === 0 && !n
       }
       if (stoppedBecause) break
     }
+    // The fix-up cards were committed on their related tests: one full run covers them, before the experts check them.
+    if (fixupCommitted && !stoppedBecause) await fullSuiteCheck('full-suite-fixups')
     // After the fix-up cards, ONE experts-only check of what they changed. Whatever it finds, or the review left, goes in the
     // report: there is no second fix round.
     if (fixupCommitted) {
@@ -510,7 +672,7 @@ const openHarvests = (state.openHarvests || []).filter((b) => /^uw\/harvest\/[A-
 let harvest = { ran: false, reason: stateError ? stateError : waiting.length > 0 ? waitingReason(waiting) : !anyCommitted ? 'nothing was committed' : harvested ? 'no card was committed since the last harvest' : '' }
 if (anyCommitted && !stateError && waiting.length === 0 && !harvested) {
   const routed = await agent(
-    `Harvest the durable lessons of this run.${openHarvests.length > 0 ? ` Earlier harvests of this feature are still open on ${openHarvests.join(', ')}: read what each holds (\`git log ${BASE}..<branch>\` and \`git show\`) and drop what they already hold.` : ''} Read the run journal ${RUN_DIR}/journal.md (what each card learned), the plan ${PLAN}, \`git diff ${BASE}..HEAD --stat\` and \`git log ${BASE}..HEAD\`, and what the project already records: the "## Gotchas" of AGENTS.md (or CLAUDE.md), memory.md and memory/*.md. First run \`${CLI} memory check\` (add \`--root <folder>\` when memory.md is not in the project root) and use its warnings: a topical not migrated, or a header path that matches no file, which you correct with add_paths, add_keywords and remove_paths on that topical.
+    `Harvest the durable lessons of this run.${REPOS.length ? ` This run changed more than one repository: read the changes of each (${REPOS.map((x) => `\`${x.name}\` in ${x.dir}, \`git -C "${x.dir}" log --oneline -20\``).join('; ')}). The lessons are written in this repository only.` : ''}${openHarvests.length > 0 ? ` Earlier harvests of this feature are still open on ${openHarvests.join(', ')}: read what each holds (\`git log ${BASE}..<branch>\` and \`git show\`) and drop what they already hold.` : ''} Read the run journal ${RUN_DIR}/journal.md (what each card learned), the plan ${PLAN}, \`git diff ${BASE}..HEAD --stat\` and \`git log ${BASE}..HEAD\`, and what the project already records: the "## Gotchas" of AGENTS.md (or CLAUDE.md), memory.md and memory/*.md. First run \`${CLI} memory check\` (add \`--root <folder>\` when memory.md is not in the project root) and use its warnings: a topical not migrated, or a header path that matches no file, which you correct with add_paths, add_keywords and remove_paths on that topical.
 
 Route each lesson worth keeping: "Beware / Don't / Note that" is a Gotcha (path AGENTS.md, or CLAUDE.md when there is no AGENTS.md); "how X works / why we picked Y" extends or starts a memory/<topic>.md (a new topical needs description, paths and keywords, its header; never propose an edit to memory.md, its index is generated); one dated summary of the whole run is a progress.md entry. Discard what is already recorded, obvious from the code, a one-off slip, or not durable, and say why. For each kept one write the exact text to add, in the voice of the target file. ${NO_QUOTA}`,
     { agentType: agentName('uw-harvester'), label: 'harvest', phase: 'Harvest', schema: PROPOSALS }
@@ -530,6 +692,18 @@ if (reviewDone || harvestDone) {
   ;[recState] = await runSteps('settle:record', [cliCmd('run-state', '--feature', FEATURE, '--record', ...(reviewDone ? ['--review', '--open', String(openCount)] : []), ...(harvestDone ? ['--harvest'] : []), ...(branch ? ['--harvest-branch', branch] : []))])
 }
 
+// The full suite, said plainly: the report and the summary use these words.
+const lastFull = fullSuite.runs[fullSuite.runs.length - 1]
+const fullSuiteText = !VERIFY
+  ? 'Full suite: not run by the run (the plan has no test_command)'
+  : !lastFull
+    ? 'Full suite: not run (no card was committed in this run, or the run stopped)'
+    : lastFull.passed
+      ? `Full suite: passed${lastFull.card ? ` after the card ${lastFull.card.card} corrected it` : ''}`
+      : `FULL SUITE NOT GREEN: ${lastFull.reason || `${lastFull.failures.length} failing test(s)${lastFull.card ? `, and the card ${lastFull.card.card} is ${lastFull.card.status}` : ''}`}`
+// The tests the run corrected, said plainly: the user reads each one in the report.
+const correctedText = testCorrections.length > 0 ? ` TESTS CORRECTED BY THE RUN: ${testCorrections.map((c) => `card ${c.card} (${c.byCodeRound ? 'changed by the code round, verified by the tester: ' : ''}${c.corrected.map((t) => `${t.verdict === 'removed' ? 'removed ' : t.verdict === 'agrees with the plan' ? 'kept ' : ''}${t.test}${t.planReference ? `, plan: ${t.planReference}` : ''}`).join('; ') || 'see its decisions'}${(c.counted || []).length > 0 ? `; counted: ${c.counted.join(', ')}` : ''})`).join('; ')}. Read them before you merge.` : ''
+const leftOutText = leftOut.length > 0 ? ` LEFT OUT BY A CARD: ${leftOut.map((c) => `card ${c.card}: ${c.items.join(' | ')}`).join('; ')}. Decide on each before you merge.` : ''
 const counts = report.reduce((n, r) => ({ ...n, [r.status]: (n[r.status] || 0) + 1 }), {})
 // Whether the branch was reviewed by the experts, said plainly: the report, the notice and the summary use these words.
 // A run that waited, stopped or could not review never reads as ready to merge.
@@ -576,9 +750,13 @@ return {
   reviewedText,
   fixupCard,
   fixupReview,
+  fullSuite: { ...fullSuite, text: fullSuiteText },
+  testCorrections,
+  leftOut,
+  stepsRunAgain,
   harvest,
   expertLanes: lanes,
   ...(stateError ? { stateError } : {}),
   ...(stoppedBecause ? { stopped: stoppedBecause } : {}),
-  summary: `${counts.committed || 0} committed, ${counts.parked || 0} parked, ${counts.blocked || 0} blocked${counts['not started'] ? `, ${counts['not started']} not started` : ''}${stoppedBecause ? `; stopped: ${stoppedBecause}` : ''}. ${reviewedText}. ${review.ran ? `Review: ${(review.findings || []).length} confirmed.` : ''} Harvest: ${harvest.ran ? `${harvest.proposals || 0} proposals${harvest.branch ? ` on ${harvest.branch}` : ''}` : harvest.reason || 'not run'}.`,
+  summary: `${counts.committed || 0} committed, ${counts.parked || 0} parked, ${counts.blocked || 0} blocked${counts['not started'] ? `, ${counts['not started']} not started` : ''}${stoppedBecause ? `; stopped: ${stoppedBecause}` : ''}. ${reviewedText}. ${fullSuiteText}.${correctedText}${leftOutText} ${review.ran ? `Review: ${(review.findings || []).length} confirmed.` : ''} Harvest: ${harvest.ran ? `${harvest.proposals || 0} proposals${harvest.branch ? ` on ${harvest.branch}` : ''}` : harvest.reason || 'not run'}.`,
 }

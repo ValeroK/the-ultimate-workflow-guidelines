@@ -43,7 +43,7 @@ Documentation (`.md`, `.txt`) never counts as code. Neither do diagrams, because
 
 ### Cards in a plan
 
-A plan split into cards lists them in a `## Cards` section, one bullet per card, written by `experts.js card-add` and not by hand:
+A plan split into cards lists them in a `## Cards` section, one bullet per card, written by the plan phase as part of the plan the user confirms (5.1.1), or by `experts.js card-add`:
 
 ```
 - 8a: Command Deck routes
@@ -96,6 +96,8 @@ Until 4.1.1, every check asked for the whole suite, so a one-line change waited 
 | No `test_related_command`, a template with neither placeholder, no git, or no related test found | The full suite (as before 4.1.1) |
 | A manifest or lockfile, compiler or test-runner config, test setup, CI file, a path in `full_suite_paths`, or more than 20 files changed | The full suite |
 | The end of a build | The full suite, once (`verify.js --full`); the build's round is green only if it passed |
+| A card of the unattended run (5.1.1) | The related tests only; the card is committed on a passing related run of exactly its changes |
+| The unattended run, after its cards and again after the review's fix-up cards (5.1.1) | The full suite, once each. A failure gets one card that ends with a full run of its own; if that card cannot make the suite pass it is parked, and the review and the harvest wait |
 | Before a commit (G7) | A passing full run must exist at the current fingerprint of the changes |
 | Only documentation changed | Nothing |
 
@@ -160,3 +162,27 @@ That scope is measured, not assumed. On Cursor 3.17.19 a pre-edit hook returning
 The Codex and Gemini hook contracts are documented and look nearly identical to Claude Code's, but neither has been exercised against a real payload. Every defect found on the hosts that *were* exercised — a UTF-8 byte-order mark that makes payload parsing throw, absolute paths defeating test-file detection, `workspace_roots` in place of `cwd` — was invisible in the documentation and failed open.
 
 Until someone records real payloads with `.cursor-plugin/ultimate-workflow/hooks/dev/record.js`, those hosts get prose. Prose that works is better than enforcement that silently doesn't.
+
+## One plan for several repositories (5.2.0)
+
+A feature that changes more than one repository has one plan, in the main repository. The user picks the main one when the plan is made. The plan's header names the others, and gives each its own commands:
+
+```
+repos: demo=../project-status-demo
+test_command: uv run pytest
+test_command@demo: npm test
+test_related_command@demo: npx vitest related --run {files}
+```
+
+A card path in another repository carries its name: `demo:src/lib/**`. A path with no name is in the main repository. A card may have paths in more than one repository. `card-add` refuses a name the header does not declare, and a path that leaves its repository.
+
+In the unattended run:
+
+- `run-start` makes `uw/run/<feature>` in each repository a card names, and refuses, before it makes any branch, when one of them has uncommitted changes, another run's mark, or no test command.
+- A card runs the tests of each repository it changed (`verify.js --plan <plan> --repo <name>`), and `card-commit` commits in each, the main repository last. The plan's card line holds each commit: `committed: 1a2b3c4 demo=5d6e7f8`.
+- Two commits are not one step. When a later one fails, nothing is undone: the card is parked, and the reason says which repository has a commit.
+- A parked card's work is on `uw/parked/<feature>/<card>` in each repository that had changes.
+- The full suite after the cards runs in each repository that got a commit, and one review reads the changes of all of them.
+- The plan, the run's records, the journal, the report and the harvest are in the main repository only.
+
+By hand, the commit check works in the main repository as before. Another repository has no plan of its own, so a commit made there by hand is not checked. A `measure:` line measures files of the main repository only.
